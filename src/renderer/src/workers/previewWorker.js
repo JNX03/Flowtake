@@ -1,4 +1,3 @@
-import { registerWebWorker } from "@sentry/electron"
 import PreviewScene from "../scene/PreviewScene"
 import {
     FRAME,
@@ -9,8 +8,6 @@ import {
     UPDATE,
     workerConsole
 } from "./helpers"
-
-registerWebWorker({ self })
 
 // Replace console methods with worker console
 Object.assign(console, workerConsole)

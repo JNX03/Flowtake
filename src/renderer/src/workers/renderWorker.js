@@ -1,4 +1,3 @@
-import { registerWebWorker } from "@sentry/electron"
 import { Mp4OutputFormat } from "mediabunny"
 import throttle from "throttleit"
 import {
@@ -81,8 +80,6 @@ import {
 } from "./helpers"
 import WorkerInputReader from "./WorkerInputReader"
 import WorkerOutputWriter from "./WorkerOutputWriter"
-
-registerWebWorker({ self })
 
 // Replace console methods with worker console
 Object.assign(console, workerConsole)

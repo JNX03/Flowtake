@@ -1,31 +1,15 @@
-import {
-    captureException as captureExceptionSentry,
-    consoleLoggingIntegration,
-    init,
-    replayIntegration,
-    webWorkerIntegration
-} from '@sentry/electron/renderer'
-
-let webWorkerIntegrationInstance = null
+/**
+ * Sentry helpers - Tauri compatible.
+ * The @sentry/electron package is not compatible with Tauri.
+ * To re-enable error tracking, install @sentry/browser and configure here.
+ */
 
 export const initSentry = async () => {
-    if (await window.electron.ipcRenderer.invoke("get-is-sentry-enabled")) {
-        webWorkerIntegrationInstance = webWorkerIntegration({ worker: [] })
-        init(
-            {
-                integrations: [
-                    replayIntegration(),
-                    consoleLoggingIntegration({ levels: ["log", "error", "warn"] }),
-                    webWorkerIntegrationInstance
-                ],
-                replaysSessionSampleRate: 0.1,
-                replaysOnErrorSampleRate: 1.0,
-                _experiments: { enableLogs: true },
-            }
-        )
-    }
+    // No-op for Tauri build
 }
 
-export const captureException = error => captureExceptionSentry(error)
+export const captureException = (error) => {
+    console.error('[Error]', error)
+}
 
-export const getWebWorkerIntegration = () => webWorkerIntegrationInstance
+export const getWebWorkerIntegration = () => null

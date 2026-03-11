@@ -1,0 +1,103 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window and all sub-windows",
+  "windows": ["main", "recorder", "exporter", "areaPicker", "windowPicker", "note-*"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-center",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-title",
+    "core:window:allow-set-focus",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-destroy",
+    "core:window:allow-is-maximized",
+    "core:window:allow-set-decorations",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-resizable",
+    "core:window:allow-set-skip-taskbar",
+    "core:webview:default",
+    "core:webview:allow-create-webview-window",
+    "shell:default",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "ffmpeg",
+          "cmd": "binaries/ffmpeg",
+          "args": true,
+          "sidecar": true
+        },
+        {
+          "name": "autohotkey",
+          "cmd": "AutoHotkey",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "ffmpeg",
+          "cmd": "binaries/ffmpeg",
+          "args": true,
+          "sidecar": true
+        }
+      ]
+    },
+    "shell:allow-kill",
+    "shell:allow-stdin-write",
+    "store:default",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-delete",
+    "store:allow-save",
+    "store:allow-load",
+    "fs:default",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-remove",
+    "fs:allow-rename",
+    "fs:allow-copy-file",
+    "fs:allow-stat",
+    "fs:allow-read-dir",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$APPDATA/**" },
+        { "path": "$HOME/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$VIDEO/**" },
+        { "path": "$TEMP/**" }
+      ]
+    },
+    "process:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "window-state:default"
+  ]
+}

@@ -94,12 +94,16 @@ typings/
 # Vite config temp files
 electron.vite.config.*.mjs
 
-# Electron-Forge
+# Electron-Forge (legacy)
 out/
 
 dist/
 
 build/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
 
 # Sentry Config File
 .env.sentry-build-plugin

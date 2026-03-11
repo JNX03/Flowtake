@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en" class="h-full max-h-full bg-base-300">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Flowtake</title>
+  <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self' https://asset.localhost asset:;
+      script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval';
+      worker-src 'self' blob:;
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: blob: https://asset.localhost asset:;
+      media-src 'self' blob: data: https://asset.localhost asset: stream:;
+      connect-src 'self' https: http: ws: wss: ipc: https://asset.localhost asset:;
+      font-src 'self' data:;" />
+</head>
+
+<body class="hyphens-auto h-full max-h-full bg-base-300">
+  <div id="root" class="h-full max-h-full pt-8 m-0 relative"></div>
+  <script>
+    // Global error handler to catch any JS errors that prevent rendering
+    window.onerror = function(msg, url, line, col, error) {
+      document.getElementById('root').innerHTML = '<pre style="color:red;padding:20px;font-size:14px;">ERROR: ' + msg + '\n' + url + ':' + line + ':' + col + '\n' + (error ? error.stack : '') + '</pre>';
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      document.getElementById('root').innerHTML = '<pre style="color:red;padding:20px;font-size:14px;">PROMISE ERROR: ' + e.reason + '\n' + (e.reason && e.reason.stack ? e.reason.stack : '') + '</pre>';
+    });
+  </script>
+  <script type="module" src="./src/renderer/main/src/main.jsx"></script>
+</body>
+
+</html>

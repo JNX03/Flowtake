@@ -1,0 +1,138 @@
+use crate::error::{AppError, AppResult};
+use crate::state::AppState;
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager};
+
+#[tauri::command]
+pub async fn open_file(
+    app: AppHandle,
+    r#type: String,
+    flag: String,
+    args: Option<serde_json::Value>,
+) -> AppResult<String> {
+    let state = app.state::<Mutex<AppState>>();
+    let mut state = state.lock().unwrap();
+
+    let project_id = state
+        .project_id
+        .clone()
+        .ok_or(AppError::NoProjectOpen)?;
+
+    let file_path = match r#type.as_str() {
+        "projectScreenVideo" => state.screen_video_file(&project_id),
+        "projectCameraVideo" => state.camera_video_file(&project_id),
+        "renderScreenVideo" => {
+            let render_id = args
+                .as_ref()
+                .and_then(|v| v.get("renderId"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            state.render_temp_dir(render_id).join("screen.mp4")
+        }
+        "renderCameraVideo" => {
+            let render_id = args
+                .as_ref()
+                .and_then(|v| v.get("renderId"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            state.render_temp_dir(render_id).join("camera.webm")
+        }
+        "renderOutputVideo" => {
+            let render_id = args
+                .as_ref()
+                .and_then(|v| v.get("renderId"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            state.render_temp_dir(render_id).join("output.mp4")
+        }
+        "recordingScreenVideo" => state.screen_video_file(&project_id),
+        "recordingCameraVideo" => state.camera_video_file(&project_id),
+        _ => {
+            return Err(AppError::General(format!("Unknown file type: {}", r#type)));
+        }
+    };
+
+    let file = match flag.as_str() {
+        "r" => std::fs::File::open(&file_path)?,
+        "w" => std::fs::File::create(&file_path)?,
+        "rw" | "r+" => std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&file_path)?,
+        _ => std::fs::File::open(&file_path)?,
+    };
+
+    let id = format!("fh-{}", uuid::Uuid::new_v4());
+    state.file_handles.insert(id.clone(), file);
+    Ok(id)
+}
+
+#[tauri::command]
+pub async fn read_file(
+    app: AppHandle,
+    fh_id: String,
+    start: u64,
+    end: u64,
+) -> AppResult<Vec<u8>> {
+    let state = app.state::<Mutex<AppState>>();
+    let mut state = state.lock().unwrap();
+
+    let file = state
+        .file_handles
+        .get_mut(&fh_id)
+        .ok_or_else(|| AppError::FileHandleNotFound(fh_id.clone()))?;
+
+    let len = (end - start) as usize;
+    let mut buffer = vec![0u8; len];
+    file.seek(SeekFrom::Start(start))?;
+    file.read_exact(&mut buffer)?;
+    Ok(buffer)
+}
+
+#[tauri::command]
+pub async fn write_file(
+    app: AppHandle,
+    fh_id: String,
+    data: Vec<u8>,
+    position: u64,
+) -> AppResult<()> {
+    let state = app.state::<Mutex<AppState>>();
+    let mut state = state.lock().unwrap();
+
+    let file = state
+        .file_handles
+        .get_mut(&fh_id)
+        .ok_or_else(|| AppError::FileHandleNotFound(fh_id.clone()))?;
+
+    file.seek(SeekFrom::Start(position))?;
+    file.write_all(&data)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_file(app: AppHandle, fh_id: String) -> AppResult<()> {
+    let state = app.state::<Mutex<AppState>>();
+    let mut state = state.lock().unwrap();
+
+    state
+        .file_handles
+        .remove(&fh_id)
+        .ok_or_else(|| AppError::FileHandleNotFound(fh_id.clone()))?;
+    // File is dropped/closed when removed from HashMap
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_size(app: AppHandle, fh_id: String) -> AppResult<u64> {
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+
+    let file = state
+        .file_handles
+        .get(&fh_id)
+        .ok_or_else(|| AppError::FileHandleNotFound(fh_id.clone()))?;
+
+    let metadata = file.metadata()?;
+    Ok(metadata.len())
+}

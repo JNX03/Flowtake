@@ -5,12 +5,7 @@
   <meta charset="UTF-8" />
   <title>Recording - Flowtake</title>
   <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-  <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self'; 
-      script-src 'self'; 
-      worker-src 'self' blob:;
-      style-src 'self' 'unsafe-inline'; 
-      img-src 'self' data:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://asset.localhost asset:; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://asset.localhost asset:; media-src 'self' blob: data: https://asset.localhost asset: stream:; connect-src 'self' https: http: ws: wss: ipc: https://asset.localhost asset:; font-src 'self' data:;" />
 </head>
 
 <body class="hyphens-auto h-full max-h-full bg-base-300">

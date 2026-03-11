@@ -1,0 +1,40 @@
+[package]
+name = "flowtake"
+version = "1.23.1"
+description = "Screen recorder with automatic zoom animations"
+authors = ["Jnx03 <jn03official@gmail.com>"]
+edition = "2021"
+
+[lib]
+name = "flowtake_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-store = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+mime_guess = "2"
+thiserror = "2"
+dirs = "6"
+zip = "2"
+glob = "0.3"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+sha2 = "0.10"
+open = "5"
+log = "0.4"
+env_logger = "0.11"
+notify-rust = "4"
+hostname = "0.4"
+walkdir = "2"

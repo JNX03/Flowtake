@@ -101,13 +101,25 @@ export default function App() {
     const queryClient = useQueryClient()
 
     const getCapturersAndEncoders = useCallback(async () => {
-        dispatch(setCapturers(await window.electron.ipcRenderer.invoke("get-capturers")))
-        dispatch(setEncoders(await window.electron.ipcRenderer.invoke("get-encoders")))
+        try {
+            const c = await window.electron.ipcRenderer.invoke("get-capturers")
+            dispatch(setCapturers(Array.isArray(c) ? c : []))
+        } catch (e) {
+            console.error("[Flowtake] Failed to get capturers:", e)
+            dispatch(setCapturers([]))
+        }
+        try {
+            const e = await window.electron.ipcRenderer.invoke("get-encoders")
+            dispatch(setEncoders(Array.isArray(e) ? e : []))
+        } catch (e) {
+            console.error("[Flowtake] Failed to get encoders:", e)
+            dispatch(setEncoders([]))
+        }
     }, [dispatch])
 
     useEffect(() => {
-        const handleError = (_e, { message }) => { dispatch(addToast({ type: TOAST_ERROR, text: message })) }
-        const handleExportCompleted = (_e, { projectName }) => { dispatch(addToast({ type: TOAST_EXPORT_COMPLETED, text: projectName })) }
+        const handleError = (_e, data) => { dispatch(addToast({ type: TOAST_ERROR, text: data?.message || String(data) })) }
+        const handleExportCompleted = (_e, data) => { dispatch(addToast({ type: TOAST_EXPORT_COMPLETED, text: data?.projectName || '' })) }
 
         window.electron.ipcRenderer.on('error', handleError)
         window.electron.ipcRenderer.on('export-completed', handleExportCompleted)
@@ -119,36 +131,49 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        window.electron.ipcRenderer.once('license', (_e, { isValid, message, isReceivingUpdates, email }) => {
-            dispatch(setHasLicense(isValid))
-            dispatch(setIsChecking(false))
-            dispatch(setIsReceivingUpdates(isReceivingUpdates))
-            dispatch(setEmail(email))
-            switch (message) {
-                case "no_network":
-                    dispatch(addToast({ type: TOAST_WARNING, text: "Couldn't check license. No internet connection." }))
-                    break
-                case "license_already_used":
-                    dispatch(addToast({ type: TOAST_LICENSE_ALREADY_USED }))
-                    break
-                case "transaction_refunded":
-                    dispatch(addToast({ type: TOAST_WARNING, text: "License invalid." }))
-                    break
-                case "expired_lifetime_license":
-                    dispatch(addToast({ type: TOAST_EXPIRED_LIFETIME_LICENSE }))
-                    break
-                case "invalid_version":
-                    dispatch(addToast({ type: TOAST_WARNING, text: "Invalid version." }))
-                    break
-                case "subscription_expired":
-                    dispatch(addToast({ type: TOAST_EXPIRED_SUBSCRIPTION }))
-                    break
-                default:
-                    break
+        window.electron.ipcRenderer.once('license', (_e, data) => {
+            try {
+                const { isValid, message, isReceivingUpdates, email } = data || {}
+                dispatch(setHasLicense(isValid ?? true))
+                dispatch(setIsChecking(false))
+                dispatch(setIsReceivingUpdates(isReceivingUpdates ?? true))
+                dispatch(setEmail(email ?? null))
+                switch (message) {
+                    case "no_network":
+                        dispatch(addToast({ type: TOAST_WARNING, text: "Couldn't check license. No internet connection." }))
+                        break
+                    case "license_already_used":
+                        dispatch(addToast({ type: TOAST_LICENSE_ALREADY_USED }))
+                        break
+                    case "transaction_refunded":
+                        dispatch(addToast({ type: TOAST_WARNING, text: "License invalid." }))
+                        break
+                    case "expired_lifetime_license":
+                        dispatch(addToast({ type: TOAST_EXPIRED_LIFETIME_LICENSE }))
+                        break
+                    case "invalid_version":
+                        dispatch(addToast({ type: TOAST_WARNING, text: "Invalid version." }))
+                        break
+                    case "subscription_expired":
+                        dispatch(addToast({ type: TOAST_EXPIRED_SUBSCRIPTION }))
+                        break
+                    default:
+                        break
+                }
+            } catch (e) {
+                console.error("[Flowtake] License handling error:", e)
+                dispatch(setHasLicense(true))
+                dispatch(setIsChecking(false))
+                dispatch(setIsReceivingUpdates(true))
             }
         })
         dispatch(setIsChecking(true))
-        window.electron.ipcRenderer.invoke("get-license")
+        window.electron.ipcRenderer.invoke("get-license").catch(e => {
+            console.error("[Flowtake] get-license error:", e)
+            dispatch(setHasLicense(true))
+            dispatch(setIsChecking(false))
+            dispatch(setIsReceivingUpdates(true))
+        })
     }, [dispatch])
 
     useEffect(() => {
@@ -160,7 +185,7 @@ export default function App() {
             const handleUpdateDownloaded = () => { dispatch(addToast({ type: TOAST_UPDATE })) }
 
             window.electron.ipcRenderer.on('update-downloaded', handleUpdateDownloaded)
-            window.electron.ipcRenderer.invoke("check-for-updates")
+            window.electron.ipcRenderer.invoke("check-for-updates").catch(e => console.warn("[Flowtake] Update check failed:", e))
 
             return () => {
                 window.electron.ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded)
@@ -179,17 +204,22 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        const handleLoad = (_e, message) => dispatch(setLoaderMessage(message))
+        const handleLoad = (_e, message) => dispatch(setLoaderMessage(message || ''))
         const handleProjectCreated = async (_e, id) => {
-            const actions = await openProject(id, true, layout, microphoneAudioVolume, systemAudioVolume,
-                zoomBlurStrength, cameraZoomtargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
-                maskFill, intro, outro, zoomTargetScale)
-            actions.forEach(action => dispatch(action))
+            try {
+                const actions = await openProject(id, true, layout, microphoneAudioVolume, systemAudioVolume,
+                    zoomBlurStrength, cameraZoomtargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
+                    maskFill, intro, outro, zoomTargetScale)
+                actions.forEach(action => dispatch(action))
+            } catch (e) {
+                console.error("[Flowtake] Project creation error:", e)
+            }
         }
         const handleRecordingError = async (_e, error) => {
-            if (error === "TargetError") dispatch(addToast({ type: TOAST_ERROR, text: "The selected window couldn't be found. Make sure it isn't minimized and try again." }))
-            else if (error === "CaptureError") dispatch(addToast({ type: TOAST_ERROR_CAPTURE }))
-            else dispatch(addToast({ type: TOAST_ERROR, text: error }))
+            const errorStr = typeof error === 'string' ? error : error?.message || String(error)
+            if (errorStr === "TargetError") dispatch(addToast({ type: TOAST_ERROR, text: "The selected window couldn't be found. Make sure it isn't minimized and try again." }))
+            else if (errorStr === "CaptureError") dispatch(addToast({ type: TOAST_ERROR_CAPTURE }))
+            else dispatch(addToast({ type: TOAST_ERROR, text: errorStr }))
 
             dispatch(setIsRecording(false))
         }

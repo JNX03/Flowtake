@@ -2,7 +2,6 @@ import {
     FilesetResolver,
     ImageSegmenter
 } from "@mediapipe/tasks-vision"
-import log from 'electron-log/renderer'
 import modelAssetPath from "../assets/selfie_segmenter_landscape.tflite"
 import crosshairCursorDarkSVG from "../assets/svgs/cursors/dark/crosshair.svg"
 import defaultCursorDarkSVG from "../assets/svgs/cursors/dark/default.svg"
@@ -77,9 +76,8 @@ export default class WorkerManager {
                     break
                 }
                 case LOG: {
-                    // Use electron-log to write worker console messages to file
-                    // Fall back to silly if the level doesn't exist
-                    const logFn = log[payload.level] || log.silly
+                    // Log worker messages to console
+                    const logFn = console[payload.level] || console.log
                     logFn('[worker]', ...payload.args)
                     isMessageHandled = true
                     break

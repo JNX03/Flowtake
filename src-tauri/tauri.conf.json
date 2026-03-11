@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicoulaj/tauri-docs/refs/heads/v2/tooling/cli/schema.json",
+  "productName": "Flowtake",
+  "version": "1.23.1",
+  "identifier": "com.flowtake.app",
+  "build": {
+    "beforeDevCommand": "npm run dev:frontend",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build:frontend",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Flowtake",
+        "label": "main",
+        "url": "index.html",
+        "width": 1000,
+        "height": 600,
+        "minWidth": 800,
+        "minHeight": 500,
+        "decorations": true,
+        "center": true,
+        "dragDropEnabled": true,
+        "devtools": true,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost blob: data:; media-src 'self' asset: http://asset.localhost blob: data: stream:; connect-src 'self' https: http: ws: wss: ipc: asset: http://asset.localhost; font-src 'self' data:; worker-src 'self' blob:",
+      "dangerousDisableAssetCspModification": false
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "binaries/*"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "externalBin": [
+      "binaries/ffmpeg"
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "fs": {}
+  }
+}
