@@ -1,0 +1,66 @@
+@import 'tailwindcss';
+
+@plugin "daisyui" {
+    exclude: rootscrollgutter;
+}
+
+@plugin "daisyui/theme" {
+    name: "dark";
+    default: true;
+    --color-primary: "#6C5CE7";
+    --color-accent: "#00CEC9";
+    --color-secondary: "#E84393";
+    --color-base-100: "#1a1a2e";
+    --color-base-200: "#16213e";
+    --color-base-300: "#0f0f23";
+}
+
+@theme {
+    --font-brand: Poppins, sans-serif;
+    --font-subtitles: Roboto, sans-serif;
+
+    --color-tertiary: #55efc4;
+    --color-tertiary-content: #f0f0ff;
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+@font-face {
+    font-family: "Poppins";
+    src: url("./fonts/Poppins-SemiBold.ttf") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Poppins";
+    src: url("./fonts/Poppins-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(166, 173, 187, 0.5) transparent;
+}
+
+.no-scrollbar {
+    scrollbar-width: none;
+}

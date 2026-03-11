@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en" class="h-full max-h-full bg-base-300">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Flowtake</title>
+
+  <!-- TODO: use 'wasm-unsafe-eval' and remove 'unsafe-eval'. Add import "pixi.js/unsafe-eval" to scene.
+   Currently there is a pixi.js bug that prevents preference: "webgpu" with "pixi.js/unsafe-eval". Once it's fixed,
+   remove 'unsafe-eval'. Bug: https://github.com/pixijs/pixijs/issues/11388  -->
+  <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self' data:; 
+      script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; 
+      worker-src 'self' blob:;
+      style-src 'self' 'unsafe-inline'; 
+      img-src 'self' data: blob: image:; 
+      media-src 'self' video:;" />
+
+</head>
+
+<body class="hyphens-auto h-full max-h-full bg-base-300">
+  <div id="root" class="h-full max-h-full pt-8 m-0 relative"></div>
+  <script type="module" src="./src/main.jsx"></script>
+</body>
+
+</html>

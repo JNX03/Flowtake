@@ -1,0 +1,23 @@
+{
+    "search.exclude": {
+        "**/.webpack": true,
+        "**/.dist": true,
+        "**/node_modules": true,
+        "**/package-lock.json": true,
+        "**/out": true,
+        "**/dist": true,
+        "**/.vite": true,
+        "**/build": true,
+        "**/coverage": true,
+        "**/*.min.js": true,
+        "**/vendor/**": true
+    },
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "always"
+    },
+    "eslint.format.enable": true,
+    "eslint.lintTask.enable": true,
+    "eslint.useFlatConfig": true,
+    "eslint.debug": true,
+    "eslint.codeActionsOnSave.mode": "all"
+}

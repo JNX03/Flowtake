@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en" class="h-full max-h-full bg-transparent">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Area Picker - Flowtake</title>
+  <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+  <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self';
+      worker-src 'self' blob:;
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data:" />
+</head>
+
+<body class="hyphens-auto h-full max-h-full">
+  <div id="root" class="h-full max-h-full p-0 m-0"></div>
+  <script type="module" src="./src/areaPicker.jsx"></script>
+</body>
+
+</html>
