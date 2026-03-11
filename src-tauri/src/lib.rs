@@ -93,9 +93,6 @@ pub fn run() {
             commands::app::check_for_updates,
             commands::app::install_update,
             commands::app::choose_export_directory,
-            // License
-            commands::license::get_license,
-            commands::license::activate,
             // Background
             commands::background::update_background,
             commands::background::get_wallpapers,

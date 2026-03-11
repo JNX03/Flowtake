@@ -458,29 +458,75 @@ fn kill_ffmpeg(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<Vec<u8>> {
+pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<String> {
+    use base64::Engine;
+
+    let source_type = source
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("screen");
+
+    // Build FFmpeg args based on source type
+    let mut args: Vec<String> = vec![
+        "-f".to_string(),
+        "gdigrab".to_string(),
+        "-framerate".to_string(),
+        "1".to_string(),
+        "-draw_mouse".to_string(),
+        "0".to_string(),
+    ];
+
+    match source_type {
+        "window" => {
+            let title = source
+                .get("name")
+                .or_else(|| source.get("title"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Desktop");
+            args.extend(["-i".to_string(), format!("title={}", title)]);
+        }
+        "area" => {
+            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
+            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
+            let width = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
+            let height = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
+            args.extend([
+                "-offset_x".to_string(), x.to_string(),
+                "-offset_y".to_string(), y.to_string(),
+                "-video_size".to_string(), format!("{}x{}", width, height),
+                "-i".to_string(), "desktop".to_string(),
+            ]);
+        }
+        _ => {
+            // Full screen
+            args.extend(["-i".to_string(), "desktop".to_string()]);
+        }
+    }
+
+    args.extend([
+        "-frames:v".to_string(), "1".to_string(),
+        "-f".to_string(), "image2pipe".to_string(),
+        "-vcodec".to_string(), "png".to_string(),
+        "pipe:1".to_string(),
+    ]);
+
     let shell = app.shell();
+    let str_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let output = shell
         .sidecar("ffmpeg")
         .map_err(|e| AppError::General(e.to_string()))?
-        .args([
-            "-f",
-            "gdigrab",
-            "-i",
-            "desktop",
-            "-frames:v",
-            "1",
-            "-f",
-            "image2pipe",
-            "-vcodec",
-            "png",
-            "pipe:1",
-        ])
+        .args(&str_args)
         .output()
         .await
         .map_err(|e| AppError::General(e.to_string()))?;
 
-    Ok(output.stdout)
+    if output.stdout.is_empty() {
+        return Err(AppError::General("Screenshot capture returned empty data".to_string()));
+    }
+
+    // Return as base64 data URL for direct use in <img src>
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&output.stdout);
+    Ok(format!("data:image/png;base64,{}", b64))
 }
 
 #[tauri::command]

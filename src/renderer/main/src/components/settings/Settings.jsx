@@ -2,7 +2,6 @@ import {
     BoltIcon,
     Cog6ToothIcon,
     ComputerDesktopIcon,
-    KeyIcon,
     QueueListIcon
 } from "@heroicons/react/20/solid"
 import { useQuery } from "@tanstack/react-query"
@@ -21,7 +20,6 @@ import Modal from "../Modal"
 import ExporterSettings from "./ExporterSettings"
 import GeneralSettings from "./GeneralSettings"
 import HotkeysSettings from "./HotkeysSettings"
-import LicenseSettings from "./LicenseSettings"
 import RecorderSettings from "./RecorderSettings"
 
 export const SETTINGS_GENERAL = "general"
@@ -69,10 +67,6 @@ export default function Settings() {
                     <BoltIcon className="h-5 w-5" />Hotkeys
                     <span><kbd className="kbd kbd-sm mr-2">ctrl</kbd><kbd className="kbd kbd-sm">/</kbd></span>
                 </a></li>
-                <li><a className={`${openSettings === SETTINGS_LICENSE ? "menu-active" : ""}`}
-                    onClick={() => dispatch(setOpenSettings(SETTINGS_LICENSE))}>
-                    <KeyIcon className="h-5 w-5" />License
-                </a></li>
                 <div className="flex-1 flex flex-col justify-end py-4">
                     <div className="divider"></div>
                     <span className="px-4 flex flex-row gap-2 cursor-default">
@@ -91,7 +85,6 @@ export default function Settings() {
                     {openSettings === SETTINGS_RECORDER && <RecorderSettings />}
                     {openSettings === SETTINGS_EXPORTER && <ExporterSettings />}
                     {openSettings === SETTINGS_HOTKEYS && <HotkeysSettings />}
-                    {openSettings === SETTINGS_LICENSE && <LicenseSettings />}
                 </div>
             </div>
         </div>

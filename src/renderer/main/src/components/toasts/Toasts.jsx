@@ -9,11 +9,7 @@ import WarningToast from "../../../../components/toasts/WarningToast"
 import {
     TOAST_ERROR,
     TOAST_ERROR_CAPTURE,
-    TOAST_EXPIRED_LIFETIME_LICENSE,
-    TOAST_EXPIRED_SUBSCRIPTION,
     TOAST_EXPORT_COMPLETED,
-    TOAST_LICENSE_ACTIVATED,
-    TOAST_LICENSE_ALREADY_USED,
     TOAST_SUCCESS,
     TOAST_UPDATE,
     TOAST_WARNING
@@ -23,11 +19,7 @@ import {
     selectToasts
 } from "../../../../src/redux/appSlice"
 import CaptureErrorToast from "./CaptureErrorToast"
-import ExpiredLifetimeLicenseToast from "./ExpiredLifetimeLicenseToast"
-import ExpiredSubscriptionToast from "./ExpiredSubscriptionToast"
 import ExportCompletedToast from "./ExportCompletedToast"
-import LicenseActivatedToast from "./LicenseActivatedToast"
-import LicenseAlreadyUsedToast from "./LicenseAlreadyUsedToast"
 import UpdateToast from "./UpdateToast"
 
 export default function Toasts() {
@@ -42,14 +34,6 @@ export default function Toasts() {
         return toasts.map(({ type, id, text, autoDismiss }) => {
             switch (type) {
                 case TOAST_UPDATE: return <UpdateToast key={id} id={id}
-                    dismiss={dismiss} />
-                case TOAST_LICENSE_ACTIVATED: return <LicenseActivatedToast key={id} id={id}
-                    dismiss={dismiss} />
-                case TOAST_LICENSE_ALREADY_USED: return <LicenseAlreadyUsedToast key={id} id={id}
-                    dismiss={dismiss} />
-                case TOAST_EXPIRED_LIFETIME_LICENSE: return <ExpiredLifetimeLicenseToast key={id} id={id}
-                    dismiss={dismiss} />
-                case TOAST_EXPIRED_SUBSCRIPTION: return <ExpiredSubscriptionToast key={id} id={id}
                     dismiss={dismiss} />
                 case TOAST_EXPORT_COMPLETED: return <ExportCompletedToast key={id} id={id} text={text}
                     dismiss={dismiss} />

@@ -3,7 +3,6 @@ pub mod background;
 pub mod encoding;
 pub mod exporter;
 pub mod files;
-pub mod license;
 pub mod presets;
 pub mod projects;
 pub mod recording;

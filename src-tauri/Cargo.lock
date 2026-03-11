@@ -1159,6 +1159,7 @@ dependencies = [
 name = "flowtake"
 version = "1.23.1"
 dependencies = [
+ "base64 0.22.1",
  "dirs",
  "env_logger",
  "glob",

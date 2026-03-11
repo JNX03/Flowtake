@@ -11,10 +11,7 @@ import {
     openProject,
     TOAST_ERROR,
     TOAST_ERROR_CAPTURE,
-    TOAST_EXPIRED_LIFETIME_LICENSE,
-    TOAST_EXPIRED_SUBSCRIPTION,
     TOAST_EXPORT_COMPLETED,
-    TOAST_LICENSE_ALREADY_USED,
     TOAST_UPDATE,
     TOAST_WARNING
 } from "../../src/helpers"
@@ -23,10 +20,8 @@ import {
     selectCapturers,
     selectEncoders,
     selectHasProject,
-    selectIsReceivingUpdates,
     setCapturers,
     setEncoders,
-    setIsReceivingUpdates,
     setLoaderMessage
 } from "../../src/redux/appSlice"
 import { selectTargetScale as selectCameraZoomTargetScale } from "../../src/redux/cameraZoomSlice"
@@ -36,12 +31,6 @@ import {
     selectPlaybackRate,
     selectSystemAudioVolume
 } from "../../src/redux/clipSlice"
-import {
-    selectHasLicense,
-    setEmail,
-    setHasLicense,
-    setIsChecking
-} from "../../src/redux/licenseSlice"
 import {
     selectAlpha,
     selectBorderRadius,
@@ -77,12 +66,10 @@ import Toasts from "./components/toasts/Toasts"
 
 export default function App() {
 
-    const hasLicense = useSelector(selectHasLicense)
     const hasProject = useSelector(selectHasProject)
     const isRecording = useSelector(selectIsRecording)
     const capturers = useSelector(selectCapturers)
     const encoders = useSelector(selectEncoders)
-    const isReceivingUpdates = useSelector(selectIsReceivingUpdates)
     const layout = useSelector(selectLayout)
     const microphoneAudioVolume = useSelector(selectMicrophoneAudioVolume)
     const systemAudioVolume = useSelector(selectSystemAudioVolume)
@@ -131,67 +118,19 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        window.electron.ipcRenderer.once('license', (_e, data) => {
-            try {
-                const { isValid, message, isReceivingUpdates, email } = data || {}
-                dispatch(setHasLicense(isValid ?? true))
-                dispatch(setIsChecking(false))
-                dispatch(setIsReceivingUpdates(isReceivingUpdates ?? true))
-                dispatch(setEmail(email ?? null))
-                switch (message) {
-                    case "no_network":
-                        dispatch(addToast({ type: TOAST_WARNING, text: "Couldn't check license. No internet connection." }))
-                        break
-                    case "license_already_used":
-                        dispatch(addToast({ type: TOAST_LICENSE_ALREADY_USED }))
-                        break
-                    case "transaction_refunded":
-                        dispatch(addToast({ type: TOAST_WARNING, text: "License invalid." }))
-                        break
-                    case "expired_lifetime_license":
-                        dispatch(addToast({ type: TOAST_EXPIRED_LIFETIME_LICENSE }))
-                        break
-                    case "invalid_version":
-                        dispatch(addToast({ type: TOAST_WARNING, text: "Invalid version." }))
-                        break
-                    case "subscription_expired":
-                        dispatch(addToast({ type: TOAST_EXPIRED_SUBSCRIPTION }))
-                        break
-                    default:
-                        break
-                }
-            } catch (e) {
-                console.error("[Flowtake] License handling error:", e)
-                dispatch(setHasLicense(true))
-                dispatch(setIsChecking(false))
-                dispatch(setIsReceivingUpdates(true))
-            }
-        })
-        dispatch(setIsChecking(true))
-        window.electron.ipcRenderer.invoke("get-license").catch(e => {
-            console.error("[Flowtake] get-license error:", e)
-            dispatch(setHasLicense(true))
-            dispatch(setIsChecking(false))
-            dispatch(setIsReceivingUpdates(true))
-        })
-    }, [dispatch])
-
-    useEffect(() => {
         if (capturers.length === 0 && encoders.length === 0) getCapturersAndEncoders()
     }, [capturers.length, encoders.length, getCapturersAndEncoders])
 
     useEffect(() => {
-        if (hasLicense && isReceivingUpdates) {
-            const handleUpdateDownloaded = () => { dispatch(addToast({ type: TOAST_UPDATE })) }
+        const handleUpdateDownloaded = () => { dispatch(addToast({ type: TOAST_UPDATE })) }
 
-            window.electron.ipcRenderer.on('update-downloaded', handleUpdateDownloaded)
-            window.electron.ipcRenderer.invoke("check-for-updates").catch(e => console.warn("[Flowtake] Update check failed:", e))
+        window.electron.ipcRenderer.on('update-downloaded', handleUpdateDownloaded)
+        window.electron.ipcRenderer.invoke("check-for-updates").catch(e => console.warn("[Flowtake] Update check failed:", e))
 
-            return () => {
-                window.electron.ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded)
-            }
+        return () => {
+            window.electron.ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded)
         }
-    }, [dispatch, hasLicense, isReceivingUpdates])
+    }, [dispatch])
 
     useEffect(() => {
         const handleRecordingCanceled = () => dispatch(setIsRecording(false))

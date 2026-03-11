@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState = {
-    hasLicense: false,
+    hasLicense: true,
     isChecking: false,
     email: null
 }

@@ -81,9 +81,6 @@ const COMMAND_MAP = {
     'check-for-updates': 'check_for_updates',
     'install-update': 'install_update',
     'choose-export-directory': 'choose_export_directory',
-    // License
-    'get-license': 'get_license',
-    'activate': 'activate',
     // Background
     'update-background': 'update_background',
     'get-wallpapers': 'get_wallpapers',
@@ -143,7 +140,6 @@ const ARGS_MAP = {
     'write_file': (args) => ({ fhId: args[0], data: Array.from(new Uint8Array(args[1])), position: args[2] }),
     'close_file': (args) => ({ fhId: args[0] }),
     'get_size': (args) => ({ fhId: args[0] }),
-    'activate': (args) => ({ licenseKey: args[0] }),
     'save_preset': (args) => ({ preset: args[0] }),
     'get_presets': (args) => ({ page: args[0] }),
     'delete_preset': (args) => ({ id: args[0] }),
