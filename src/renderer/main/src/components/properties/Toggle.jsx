@@ -15,7 +15,7 @@ export default function Toggle({ leftLabel, rightLabel, value, onChange, isIndet
     return (
         <label className={`fieldset-label w-full cursor-pointer ${(justifyBetween ?? true) ? 'justify-between' : 'gap-4'}`}>
             {leftLabel}
-            <input ref={toggleRef} type="checkbox" className="toggle toggle-sm" checked={value} disabled={disabled}
+            <input ref={toggleRef} type="checkbox" className="toggle toggle-sm" checked={value ?? false} disabled={disabled}
                 onChange={onChange} />
             {rightLabel}
         </label>

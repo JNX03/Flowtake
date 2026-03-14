@@ -4,7 +4,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
-pub async fn get_encoders(app: AppHandle, force: Option<bool>) -> AppResult<Value> {
+pub async fn get_encoders(app: AppHandle, _force: Option<bool>) -> AppResult<Value> {
     // Query FFmpeg for available encoders
     let shell = app.shell();
     let output = shell

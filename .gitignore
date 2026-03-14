@@ -109,3 +109,4 @@ src-tauri/gen/
 .env.sentry-build-plugin
 
 sentry.properties
+electronoriginalcode

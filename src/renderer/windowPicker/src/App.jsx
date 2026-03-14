@@ -25,14 +25,8 @@ export default function App() {
         staleTime: Infinity
     })
 
-    // Filter out the window picker itself and any Flowtake windows
-    const filteredWindows = windows?.filter(w => {
-        const name = (w.name || '').toLowerCase()
-        return name !== 'select window' && name !== 'select window - flowtake'
-    }) || []
-
     const drawOutlines = () =>
-        filteredWindows.map((win, i) => {
+        windows.map((win, i) => {
             return <WindowOutline
                 onClick={() => onSelect(win)}
                 dimensions={win}
@@ -48,6 +42,6 @@ export default function App() {
     return (<PickerWrapper onCancel={onCancel}>
         {bgImage && <img src={bgImage} className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" alt="" draggable={false} />}
         <div className="absolute inset-0 bg-black/30 pointer-events-none" />
-        {!isPending && !isError && drawOutlines()}
+        {!isPending && !isError && windows && drawOutlines()}
     </PickerWrapper>)
 }

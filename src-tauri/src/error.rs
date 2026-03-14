@@ -17,12 +17,14 @@ pub enum AppError {
     #[error("File handle not found: {0}")]
     FileHandleNotFound(String),
 
+    #[allow(dead_code)]
     #[error("Project not found: {0}")]
     ProjectNotFound(String),
 
     #[error("No project open")]
     NoProjectOpen,
 
+    #[allow(dead_code)]
     #[error("License error: {0}")]
     LicenseError(String),
 

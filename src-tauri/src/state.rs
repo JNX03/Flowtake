@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 use serde_json::Value;
+use tauri_plugin_shell::process::CommandChild;
+use crate::mouse_tracker::MouseTracker;
 
 /// Global application state managed by Tauri
 pub struct AppState {
@@ -12,15 +14,21 @@ pub struct AppState {
     pub recording_id: Option<String>,
     pub file_handles: HashMap<String, File>,
     pub is_recording: bool,
+    #[allow(dead_code)]
     pub is_closing: bool,
     pub camera_chunks: Vec<Vec<u8>>,
     pub renders: HashMap<String, RenderState>,
     pub camera_mic_config: Option<Value>,
     pub ffmpeg_child_id: Option<u32>,
+    pub ffmpeg_child: Option<CommandChild>,
+    pub mouse_tracker: MouseTracker,
+    pub recording_start_timestamp: Option<i64>,
 }
 
 pub struct RenderState {
+    #[allow(dead_code)]
     pub id: String,
+    #[allow(dead_code)]
     pub project_id: String,
     pub output_path: PathBuf,
     pub temp_dir: PathBuf,
@@ -42,6 +50,9 @@ impl AppState {
             renders: HashMap::new(),
             camera_mic_config: None,
             ffmpeg_child_id: None,
+            ffmpeg_child: None,
+            mouse_tracker: MouseTracker::new(),
+            recording_start_timestamp: None,
         }
     }
 
@@ -61,6 +72,7 @@ impl AppState {
         self.project_temp_dir(id).join("camera.webm")
     }
 
+    #[allow(dead_code)]
     pub fn microphone_audio_file(&self, id: &str) -> PathBuf {
         self.project_temp_dir(id).join("camera.webm")
     }

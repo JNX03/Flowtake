@@ -1,6 +1,6 @@
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
 #[tauri::command]

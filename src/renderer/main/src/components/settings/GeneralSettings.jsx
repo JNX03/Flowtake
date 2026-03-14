@@ -23,7 +23,7 @@ export default function GeneralSettings() {
         <h4 className="font-semibold text-lg mb-4">General</h4>
 
         <Fieldset legend="Issue reporting" description="Restart Flowtake for changes to issue reporting to go into effect.">
-            <Toggle leftLabel="Automatically report issues" value={isPending || isError ? false : isIssueReportingEnabled}
+            <Toggle leftLabel="Automatically report issues" value={isPending || isError ? false : (isIssueReportingEnabled ?? false)}
                 onChange={onChangeIsIssueReportingEnabled} disabled={isPending || isError}
                 isIndeterminate={isPending || isError} />
         </Fieldset>

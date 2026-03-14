@@ -81,12 +81,30 @@ pub async fn init_recording(
 
     match source_type {
         "window" => {
-            let title = source
-                .get("name")
-                .or_else(|| source.get("title"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("Desktop");
-            ffmpeg_args.extend(["-i".to_string(), format!("title={}", title)]);
+            // Window source has pixel coordinates from GetWindowRect
+            // Capture the window's region from the desktop (like original Electron code)
+            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
+            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
+            let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(screen_w as i64);
+            let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(screen_h as i64);
+            let w = w.max(2);
+            let h = h.max(2);
+            // Make dimensions even (required by many codecs)
+            let w = w - (w % 2);
+            let h = h - (h % 2);
+
+            ffmpeg_args.extend([
+                "-draw_mouse".to_string(),
+                "0".to_string(),
+                "-offset_x".to_string(),
+                x.to_string(),
+                "-offset_y".to_string(),
+                y.to_string(),
+                "-video_size".to_string(),
+                format!("{}x{}", w, h),
+                "-i".to_string(),
+                "desktop".to_string(),
+            ]);
         }
         "area" => {
             // Area picker returns percentage-based coordinates (0-100)
@@ -106,6 +124,8 @@ pub async fn init_recording(
             let height = height - (height % 2);
 
             ffmpeg_args.extend([
+                "-draw_mouse".to_string(),
+                "0".to_string(),
                 "-offset_x".to_string(),
                 x.to_string(),
                 "-offset_y".to_string(),
@@ -117,8 +137,13 @@ pub async fn init_recording(
             ]);
         }
         _ => {
-            // Full screen capture
-            ffmpeg_args.extend(["-i".to_string(), "desktop".to_string()]);
+            // Full screen capture - hide mouse cursor (replaced by animation)
+            ffmpeg_args.extend([
+                "-draw_mouse".to_string(),
+                "0".to_string(),
+                "-i".to_string(),
+                "desktop".to_string(),
+            ]);
         }
     }
 
@@ -141,17 +166,17 @@ pub async fn init_recording(
         ]);
     }
 
-    // Output settings
-    // Use frag_keyframe+empty_moov to create fragmented MP4 that's valid even if FFmpeg is killed abruptly
+    // Output settings - use regular MP4 (not fragmented) for mediabunny compatibility
+    // Graceful FFmpeg shutdown via stdin "q" ensures the file is properly finalized
     ffmpeg_args.extend([
         "-c:v".to_string(),
         "libx264".to_string(),
+        "-crf".to_string(),
+        "25".to_string(),
         "-preset".to_string(),
         "ultrafast".to_string(),
         "-pix_fmt".to_string(),
         "yuv420p".to_string(),
-        "-movflags".to_string(),
-        "frag_keyframe+empty_moov+default_base_moof".to_string(),
         screen_video_path,
     ]);
 
@@ -208,6 +233,7 @@ pub async fn init_recording(
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
+    .content_protected(true)
     .build();
 
     match recorder_window {
@@ -266,6 +292,7 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                         {
                             let mut state = state.lock().unwrap();
                             state.ffmpeg_child_id = Some(pid);
+                            state.ffmpeg_child = Some(child);
                         }
 
                         // Spawn a task to monitor FFmpeg output
@@ -312,6 +339,13 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
         }
     }
 
+    // Start mouse tracking
+    {
+        let mut state = state.lock().unwrap();
+        state.mouse_tracker.start();
+        state.recording_start_timestamp = Some(chrono::Utc::now().timestamp_millis());
+    }
+
     // Emit recording-started to the recorder window
     app.emit("recording-started", true).ok();
     Ok(())
@@ -331,20 +365,30 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 
     let state = app.state::<Mutex<AppState>>();
 
-    // Kill FFmpeg process
+    // Stop mouse tracking and record the stop timestamp
+    let stop_timestamp = chrono::Utc::now().timestamp_millis();
+
+    // Kill FFmpeg process gracefully
     kill_ffmpeg(&app);
 
     // Wait for FFmpeg to fully terminate and flush file
-    // Graceful shutdown needs more time than force kill
     tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
 
-    let (project_id, recording_id) = {
+    let (project_id, recording_id, mouse_events, recording_start_ts) = {
         let mut state = state.lock().unwrap();
         state.is_recording = false;
+
+        // Stop mouse tracker and collect events
+        state.mouse_tracker.stop();
+        let start_ts = state.recording_start_timestamp.unwrap_or(stop_timestamp);
+        let events = state.mouse_tracker.get_events(start_ts);
+
         let pid = state.project_id.clone();
         let rid = state.recording_id.clone();
         state.ffmpeg_child_id = None;
-        (pid, rid)
+        state.ffmpeg_child = None;
+        state.recording_start_timestamp = None;
+        (pid, rid, events, start_ts)
     };
 
     log::info!(
@@ -425,18 +469,28 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                 dest_video.metadata().map(|m| m.len()).unwrap_or(0)
             );
 
-            // Get source name from stored config
-            let source_name = {
+            // Get source name and screen coords from stored config
+            let (source_name, left_trim, right_trim, top_trim, bottom_trim) = {
                 let s = state.lock().unwrap();
-                s.camera_mic_config
-                    .as_ref()
+                let config = s.camera_mic_config.as_ref();
+                let name = config
                     .and_then(|c| c.get("sourceName"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("Recording")
-                    .to_string()
+                    .to_string();
+                // Screen coords for trim values (already stored in ffmpegArgs context)
+                (name, 0, 0, 0, 0)
             };
 
-            // Create a basic project.json
+            // Compute actual video duration using FFmpeg probe
+            let duration_ms = get_video_duration_ms(&app, &dest_video).await
+                .unwrap_or_else(|_| {
+                    // Fallback: estimate from recording timestamps
+                    (stop_timestamp - recording_start_ts).max(1000)
+                });
+            log::info!("[stop_recording] Video duration: {}ms", duration_ms);
+
+            // Create project.json with mouse events and actual duration
             let project_json = serde_json::json!({
                 "version": 1,
                 "project": {
@@ -448,20 +502,20 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     "cameraVideoDimensions": null,
                     "padding": 1,
                     "borderRadius": 0,
-                    "mouseEvents": [],
-                    "leftTrim": 0,
-                    "rightTrim": 0,
-                    "topTrim": 0,
-                    "bottomTrim": 0,
+                    "mouseEvents": mouse_events,
+                    "leftTrim": left_trim,
+                    "rightTrim": right_trim,
+                    "topTrim": top_trim,
+                    "bottomTrim": bottom_trim,
                     "videoDetails": {
                         "start": 0,
-                        "end": 10000
+                        "end": duration_ms
                     }
                 },
                 "clipAnims": {
                     "entities": [{
                         "start": 0,
-                        "end": 10000,
+                        "end": duration_ms,
                         "layout": {
                             "mode": "screen-fullscreen"
                         }
@@ -605,6 +659,7 @@ pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
     let recording_id = {
         let mut state = state.lock().unwrap();
         state.ffmpeg_child_id = None;
+        state.ffmpeg_child = None;
         state.recording_id.clone()
     };
 
@@ -633,6 +688,9 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
         let mut state = state.lock().unwrap();
         state.is_recording = false;
         state.ffmpeg_child_id = None;
+        state.ffmpeg_child = None;
+        state.mouse_tracker.stop();
+        state.recording_start_timestamp = None;
         state.recording_id.take()
     };
 
@@ -670,55 +728,102 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
     Ok(())
 }
 
-/// Stop the FFmpeg process gracefully so it can flush and finalize the output file.
-/// On Windows, we first try to send Ctrl+C (GenerateConsoleCtrlEvent) to allow
-/// FFmpeg to write remaining fragments. If that fails, we fall back to taskkill /F.
-fn kill_ffmpeg(app: &AppHandle) {
-    let state = app.state::<Mutex<AppState>>();
-    let pid = {
-        let state = state.lock().unwrap();
-        state.ffmpeg_child_id
-    };
+/// Get video duration in milliseconds using FFmpeg
+async fn get_video_duration_ms(
+    app: &AppHandle,
+    video_path: &std::path::Path,
+) -> Result<i64, String> {
+    use tauri_plugin_shell::ShellExt;
 
-    if let Some(pid) = pid {
-        log::info!("[kill_ffmpeg] Stopping FFmpeg PID: {}", pid);
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
+    let path_str = video_path.to_string_lossy().to_string();
+    let shell = app.shell();
+    let output = shell
+        .sidecar("ffmpeg")
+        .map_err(|e| format!("FFmpeg sidecar error: {}", e))?
+        .args([
+            "-i",
+            &path_str,
+            "-f",
+            "null",
+            "-",
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("FFmpeg error: {}", e))?;
 
-            // First, try graceful stop: taskkill WITHOUT /F sends WM_CLOSE
-            // which FFmpeg handles by flushing and closing the file
-            let graceful = std::process::Command::new("taskkill")
-                .args(["/PID", &pid.to_string()])
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .output();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-            match graceful {
-                Ok(output) => {
-                    log::info!(
-                        "[kill_ffmpeg] Graceful stop result: status={}, stderr={}",
-                        output.status,
-                        String::from_utf8_lossy(&output.stderr)
-                    );
-                }
-                Err(e) => {
-                    log::warn!("[kill_ffmpeg] Graceful stop failed: {}, using force kill", e);
-                    std::process::Command::new("taskkill")
-                        .args(["/PID", &pid.to_string(), "/F"])
-                        .creation_flags(0x08000000)
-                        .output()
-                        .ok();
+    // Parse "Duration: HH:MM:SS.xx" from FFmpeg stderr
+    if let Some(pos) = stderr.find("Duration: ") {
+        let duration_str = &stderr[pos + 10..];
+        if let Some(end) = duration_str.find(',') {
+            let time_str = &duration_str[..end];
+            let parts: Vec<&str> = time_str.split(':').collect();
+            if parts.len() == 3 {
+                let hours: f64 = parts[0].parse().unwrap_or(0.0);
+                let minutes: f64 = parts[1].parse().unwrap_or(0.0);
+                let seconds: f64 = parts[2].parse().unwrap_or(0.0);
+                let total_ms = ((hours * 3600.0 + minutes * 60.0 + seconds) * 1000.0) as i64;
+                if total_ms > 0 {
+                    return Ok(total_ms);
                 }
             }
         }
-        #[cfg(not(target_os = "windows"))]
-        {
-            // Send SIGINT to FFmpeg for graceful shutdown
-            std::process::Command::new("kill")
-                .args(["-SIGINT", &pid.to_string()])
-                .output()
-                .ok();
+    }
+
+    Err("Could not parse duration".to_string())
+}
+
+/// Stop the FFmpeg process gracefully by writing "q\n" to stdin.
+/// This is how the original Electron code stopped FFmpeg - it allows FFmpeg
+/// to flush its output buffers and properly finalize the video file.
+/// Falls back to taskkill /F if stdin write fails.
+fn kill_ffmpeg(app: &AppHandle) {
+    let state = app.state::<Mutex<AppState>>();
+    let (pid, child) = {
+        let mut state = state.lock().unwrap();
+        (state.ffmpeg_child_id, state.ffmpeg_child.take())
+    };
+
+    if let Some(mut child) = child {
+        let pid = pid.unwrap_or(0);
+        log::info!("[kill_ffmpeg] Sending 'q' to FFmpeg PID: {}", pid);
+
+        // Write "q\n" to stdin - this is the FFmpeg quit command
+        // FFmpeg will flush its buffers and finalize the output file
+        match child.write(b"q\n") {
+            Ok(_) => {
+                log::info!("[kill_ffmpeg] Sent 'q' command to FFmpeg stdin");
+            }
+            Err(e) => {
+                log::warn!("[kill_ffmpeg] Failed to write to stdin: {}, using force kill", e);
+                // Fall back to force kill
+                force_kill_ffmpeg(pid);
+            }
         }
+    } else if let Some(pid) = pid {
+        log::warn!("[kill_ffmpeg] No child handle, force killing PID: {}", pid);
+        force_kill_ffmpeg(pid);
+    }
+}
+
+/// Force kill FFmpeg process by PID as a last resort
+fn force_kill_ffmpeg(pid: u32) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output()
+            .ok();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output()
+            .ok();
     }
 }
 

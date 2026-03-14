@@ -46,7 +46,7 @@ export default function ExporterSettings() {
                 >
                     Select folder
                 </Button>
-                <input type="text" value={isGetPending || isGetError ? "" : exportDirectory}
+                <input type="text" value={isGetPending || isGetError ? "" : (exportDirectory || "")}
                     placeholder="Export directory"
                     className="join-item input w-full"
                     readOnly

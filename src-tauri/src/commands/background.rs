@@ -84,7 +84,7 @@ pub async fn get_wallpapers(app: AppHandle) -> AppResult<Value> {
 }
 
 #[tauri::command]
-pub async fn sync_background(app: AppHandle, background: Value) -> AppResult<Value> {
+pub async fn sync_background(_app: AppHandle, background: Value) -> AppResult<Value> {
     // Background sync - returns the background config
     Ok(background)
 }

@@ -262,7 +262,7 @@ pub async fn get_shareable_url(_app: AppHandle, _title: Option<String>) -> AppRe
 }
 
 #[tauri::command]
-pub async fn upload(app: AppHandle, render_id: String) -> AppResult<()> {
+pub async fn upload(app: AppHandle, _render_id: String) -> AppResult<()> {
     app.emit_to("exporter", "upload-progress", 100).ok();
     Ok(())
 }

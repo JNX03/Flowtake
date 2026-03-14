@@ -2,27 +2,24 @@ import PropTypes from "prop-types"
 import {
     forwardRef,
     useEffect,
+    useMemo,
     useRef,
     useState
 } from "react"
 import { useSelector } from "react-redux"
-import { convertFileSrc } from "@tauri-apps/api/core"
 import { selectId } from "../src/redux/projectSlice"
-
-// Map video URL schemes to video types for the get_video_path command
-function getVideoType(src) {
-    if (src.includes("screen")) return "screen"
-    if (src.includes("camera")) return "camera"
-    if (src.includes("microphone")) return "microphone"
-    return "screen"
-}
 
 const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, className, param, onReady, onError }, ref) => {
 
     const internalRef = useRef(null)
+
     const projectId = useSelector(selectId)
-    const [resolvedSrc, setResolvedSrc] = useState(null)
+
     const [retryCount, setRetryCount] = useState(0)
+
+    const fullSrc = useMemo(
+        () => `${src}?projectId=${projectId}${param ? `&${param.title}=${param.value}` : ""}`,
+        [src, param, projectId])
 
     const maxRetries = 3
 
@@ -37,39 +34,16 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
         }
     }, [ref])
 
-    // Resolve the video file path to an asset URL
-    useEffect(() => {
-        if (!projectId || !src) return
-
-        const videoType = getVideoType(src)
-        console.log("[Media] Resolving video path for:", videoType, "projectId:", projectId)
-
-        window.electron.ipcRenderer.invoke("get-video-path", videoType, projectId)
-            .then(filePath => {
-                if (filePath) {
-                    const assetUrl = convertFileSrc(filePath)
-                    console.log("[Media] Resolved to asset URL:", assetUrl)
-                    setResolvedSrc(assetUrl)
-                } else {
-                    console.error("[Media] No file path returned for", videoType)
-                }
-            })
-            .catch(err => {
-                console.error("[Media] Failed to get video path:", err)
-            })
-    }, [src, projectId, retryCount])
 
     useEffect(() => {
-        if (resolvedSrc) {
+        if (fullSrc) {
             const video = internalRef.current
-            if (!video) return
-
             let timeoutId
             let canPlayListener
 
             const handleVideoError = () => {
                 const err = video.error
-                console.error("[Media] Video error:", err?.code, err?.message, "src:", resolvedSrc)
+                console.error("[Media] Video error:", err?.code, err?.message, "src:", fullSrc)
             }
             video.addEventListener('error', handleVideoError)
 
@@ -86,17 +60,21 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
 
             const recoverVideo = () => {
                 console.warn(`Video load timeout (attempt ${retryCount + 1}/${maxRetries})`)
+
                 video.pause()
                 video.removeAttribute('src')
                 video.load()
 
-                const separator = resolvedSrc.includes('?') ? '&' : '?'
-                const newSrc = `${resolvedSrc}${separator}t=${Date.now()}`
+                const separator = fullSrc.includes('?') ? '&' : '?'
+                const newSrc = `${fullSrc}${separator}t=${Date.now()}&retry=${retryCount}`
+
                 video.src = newSrc
                 setupListeners()
+
                 setRetryCount(prev => prev + 1)
             }
 
+            // Immediate check if already loaded
             if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
                 handleCanPlay()
                 return
@@ -120,27 +98,29 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
                 video.removeEventListener('error', handleVideoError)
             }
         }
-    }, [retryCount, resolvedSrc, onReady, onError])
+    }, [retryCount, fullSrc, onReady, onError])
 
     return <>{isVideo
         ? <video
             ref={internalRef}
-            src={resolvedSrc || ""}
+            src={fullSrc}
             title={title}
             controls={controls}
             className={className}
             preload={preload || "auto"}
             muted={muted}
+            crossOrigin="anonymous"
             playsInline
             />
         : <audio
         ref={internalRef}
-            src={resolvedSrc || ""}
+            src={fullSrc}
             title={title}
             controls={controls}
             className={className}
             preload={preload || "auto"}
             muted={muted}
+            crossOrigin="anonymous"
             />}
     </>
 })

@@ -1,6 +1,7 @@
 mod commands;
 mod state;
 mod error;
+mod mouse_tracker;
 
 use state::AppState;
 use std::sync::Mutex;
