@@ -134,24 +134,31 @@ export default function App() {
 
     useEffect(() => {
         const handleRecordingCanceled = () => dispatch(setIsRecording(false))
+        const handleRecordingStopped = () => dispatch(setIsRecording(false))
 
         window.electron.ipcRenderer.on('recording-canceled', handleRecordingCanceled)
+        window.electron.ipcRenderer.on('recording-stopped', handleRecordingStopped)
 
         return () => {
             window.electron.ipcRenderer.removeListener('recording-canceled', handleRecordingCanceled)
+            window.electron.ipcRenderer.removeListener('recording-stopped', handleRecordingStopped)
         }
     }, [dispatch])
 
     useEffect(() => {
         const handleLoad = (_e, message) => dispatch(setLoaderMessage(message || ''))
         const handleProjectCreated = async (_e, id) => {
+            console.log("[Flowtake] project-created event received, id:", id)
             try {
                 const actions = await openProject(id, true, layout, microphoneAudioVolume, systemAudioVolume,
                     zoomBlurStrength, cameraZoomtargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
                     maskFill, intro, outro, zoomTargetScale)
+                console.log("[Flowtake] openProject returned", actions.length, "actions")
                 actions.forEach(action => dispatch(action))
             } catch (e) {
                 console.error("[Flowtake] Project creation error:", e)
+                dispatch(addToast({ type: TOAST_ERROR, text: "Failed to open recording: " + (e?.message || String(e)) }))
+                dispatch(setLoaderMessage(null))
             }
         }
         const handleRecordingError = async (_e, error) => {

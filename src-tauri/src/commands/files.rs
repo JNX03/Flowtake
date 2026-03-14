@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
+use base64::Engine as _;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
@@ -53,6 +54,8 @@ pub async fn open_file(
         }
     };
 
+    crate::debug_log(&format!("[open_file] type={}, flag={}, path={:?}", r#type, flag, file_path));
+
     let file = match flag.as_str() {
         "r" => std::fs::File::open(&file_path)?,
         "w" => std::fs::File::create(&file_path)?,
@@ -64,6 +67,7 @@ pub async fn open_file(
     };
 
     let id = format!("fh-{}", uuid::Uuid::new_v4());
+    crate::debug_log(&format!("[open_file] Opened {} as {}", r#type, id));
     state.file_handles.insert(id.clone(), file);
     Ok(id)
 }
@@ -74,7 +78,7 @@ pub async fn read_file(
     fh_id: String,
     start: u64,
     end: u64,
-) -> AppResult<Vec<u8>> {
+) -> AppResult<String> {
     let state = app.state::<Mutex<AppState>>();
     let mut state = state.lock().unwrap();
 
@@ -87,7 +91,9 @@ pub async fn read_file(
     let mut buffer = vec![0u8; len];
     file.seek(SeekFrom::Start(start))?;
     file.read_exact(&mut buffer)?;
-    Ok(buffer)
+
+    // Return as base64 to avoid slow JSON array serialization of Vec<u8>
+    Ok(base64::engine::general_purpose::STANDARD.encode(&buffer))
 }
 
 #[tauri::command]
@@ -135,4 +141,30 @@ pub async fn get_size(app: AppHandle, fh_id: String) -> AppResult<u64> {
 
     let metadata = file.metadata()?;
     Ok(metadata.len())
+}
+
+/// Get the absolute file path for a video file so frontend can use convertFileSrc
+#[tauri::command]
+pub async fn get_video_path(
+    app: AppHandle,
+    video_type: String,
+    project_id: Option<String>,
+) -> AppResult<String> {
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+
+    let pid = project_id
+        .as_deref()
+        .or(state.project_id.as_deref())
+        .ok_or(AppError::NoProjectOpen)?;
+
+    let path = match video_type.as_str() {
+        "screen" => state.screen_video_file(pid),
+        "camera" | "microphone" => state.camera_video_file(pid),
+        _ => state.screen_video_file(pid),
+    };
+
+    crate::debug_log(&format!("[get_video_path] type={}, path={:?}, exists={}", video_type, path, path.exists()));
+
+    Ok(path.to_string_lossy().to_string())
 }

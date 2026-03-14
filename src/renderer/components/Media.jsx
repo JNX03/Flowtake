@@ -2,26 +2,29 @@ import PropTypes from "prop-types"
 import {
     forwardRef,
     useEffect,
-    useMemo,
     useRef,
     useState
 } from "react"
 import { useSelector } from "react-redux"
+import { convertFileSrc } from "@tauri-apps/api/core"
 import { selectId } from "../src/redux/projectSlice"
+
+// Map video URL schemes to video types for the get_video_path command
+function getVideoType(src) {
+    if (src.includes("screen")) return "screen"
+    if (src.includes("camera")) return "camera"
+    if (src.includes("microphone")) return "microphone"
+    return "screen"
+}
 
 const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, className, param, onReady, onError }, ref) => {
 
     const internalRef = useRef(null)
-    
     const projectId = useSelector(selectId)
-
+    const [resolvedSrc, setResolvedSrc] = useState(null)
     const [retryCount, setRetryCount] = useState(0)
 
-    const fullSrc = useMemo(
-        () => `${src}?projectId=${projectId}${param ? `&${param.title}=${param.value}` : ""}`,
-        [src, param, projectId])
-
-    const maxRetries = 3 // Maximum number of retry attempts
+    const maxRetries = 3
 
     // Combine forwarded ref and internal ref
     useEffect(() => {
@@ -34,12 +37,41 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
         }
     }, [ref])
 
+    // Resolve the video file path to an asset URL
+    useEffect(() => {
+        if (!projectId || !src) return
+
+        const videoType = getVideoType(src)
+        console.log("[Media] Resolving video path for:", videoType, "projectId:", projectId)
+
+        window.electron.ipcRenderer.invoke("get-video-path", videoType, projectId)
+            .then(filePath => {
+                if (filePath) {
+                    const assetUrl = convertFileSrc(filePath)
+                    console.log("[Media] Resolved to asset URL:", assetUrl)
+                    setResolvedSrc(assetUrl)
+                } else {
+                    console.error("[Media] No file path returned for", videoType)
+                }
+            })
+            .catch(err => {
+                console.error("[Media] Failed to get video path:", err)
+            })
+    }, [src, projectId, retryCount])
 
     useEffect(() => {
-        if (fullSrc) {
+        if (resolvedSrc) {
             const video = internalRef.current
+            if (!video) return
+
             let timeoutId
             let canPlayListener
+
+            const handleVideoError = () => {
+                const err = video.error
+                console.error("[Media] Video error:", err?.code, err?.message, "src:", resolvedSrc)
+            }
+            video.addEventListener('error', handleVideoError)
 
             const handleCanPlay = () => {
                 clearTimeout(timeoutId)
@@ -47,46 +79,34 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
             }
 
             const setupListeners = () => {
-                // Clean up previous listener if exists
                 if (canPlayListener) video.removeEventListener('canplay', canPlayListener)
-
                 canPlayListener = () => { handleCanPlay() }
-
                 video.addEventListener('canplay', canPlayListener, { once: true })
             }
 
             const recoverVideo = () => {
                 console.warn(`Video load timeout (attempt ${retryCount + 1}/${maxRetries})`)
-                
-                // 1. Reset the video element
                 video.pause()
                 video.removeAttribute('src')
                 video.load()
 
-                // 2. Force a new request with cache busting and network bypass
-                const separator = fullSrc.includes('?') ? '&' : '?'
-                const newSrc = `${fullSrc}${separator}t=${Date.now()}&retry=${retryCount}`
-                
-                // 3. Reapply source and listeners
+                const separator = resolvedSrc.includes('?') ? '&' : '?'
+                const newSrc = `${resolvedSrc}${separator}t=${Date.now()}`
                 video.src = newSrc
                 setupListeners()
-
                 setRetryCount(prev => prev + 1)
             }
 
-            // Immediate check if already loaded
             if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
                 handleCanPlay()
                 return
             }
 
             setupListeners()
-            
-            // Fallback timeout with retry logic
+
             timeoutId = setTimeout(() => {
                 if (retryCount < maxRetries - 1) {
                     recoverVideo()
-                    // Reset timeout for the next attempt
                     timeoutId = setTimeout(() => recoverVideo(), 5000)
                 } else {
                     console.error('Max retries reached, giving up')
@@ -97,31 +117,30 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
             return () => {
                 clearTimeout(timeoutId)
                 if (canPlayListener) video.removeEventListener('canplay', canPlayListener)
-                }
+                video.removeEventListener('error', handleVideoError)
+            }
         }
-    }, [retryCount, fullSrc, onReady, onError]) // Retry when retryCount changes
+    }, [retryCount, resolvedSrc, onReady, onError])
 
     return <>{isVideo
         ? <video
             ref={internalRef}
-            src={fullSrc}
+            src={resolvedSrc || ""}
             title={title}
             controls={controls}
             className={className}
             preload={preload || "auto"}
             muted={muted}
-            crossOrigin="anonymous"
             playsInline
             />
         : <audio
         ref={internalRef}
-            src={fullSrc}
+            src={resolvedSrc || ""}
             title={title}
             controls={controls}
             className={className}
             preload={preload || "auto"}
             muted={muted}
-            crossOrigin="anonymous"
             />}
     </>
 })

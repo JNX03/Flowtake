@@ -142,7 +142,17 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
     const actions = []
     const json = await window.electron.ipcRenderer.invoke("open-project", id)
     if (json) {
-        const duration = await RendererInputReader.getDuration(PROJECT_SCREEN_VIDEO, { projectId: id })
+        let duration
+        try {
+            // Add timeout to prevent hanging on corrupted video files
+            const durationPromise = RendererInputReader.getDuration(PROJECT_SCREEN_VIDEO, { projectId: id })
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("getDuration timeout")), 5000))
+            duration = await Promise.race([durationPromise, timeoutPromise])
+        } catch (e) {
+            console.warn("[Flowtake] Failed to get video duration, using fallback:", e)
+            duration = json?.project?.videoDetails?.end || 10000
+        }
         actions.push(setDuration(duration))
 
         // This prevents initialization, which is necessary only for new projects
@@ -160,13 +170,19 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         actions.push(applyCameraZoomAnimsProperties(json.cameraZoomAnims))
         if (json.cursorCoords) actions.push(applyCursorCoordsProperties(json.cursorCoords))
 
-        if (json.project.background) {
-            const synchedBackground = await window.electron.ipcRenderer.invoke("sync-background", json.project.background)
-            if (!shallowEqual(json.project.background, synchedBackground))
-                actions.push(setBackground(synchedBackground))
-        } else {
-            const gradients = await window.electron.ipcRenderer.invoke("store-get", "backgroundGradients")
-            actions.push(setBackground({ type: "gradient", config: gradients[0] }))
+        try {
+            if (json.project?.background) {
+                const synchedBackground = await window.electron.ipcRenderer.invoke("sync-background", json.project.background)
+                if (synchedBackground && !shallowEqual(json.project.background, synchedBackground))
+                    actions.push(setBackground(synchedBackground))
+            } else {
+                const gradients = await window.electron.ipcRenderer.invoke("store-get", "backgroundGradients")
+                if (gradients && gradients[0]) {
+                    actions.push(setBackground({ type: "gradient", config: gradients[0] }))
+                }
+            }
+        } catch (e) {
+            console.warn("[Flowtake] Background setup failed, using default:", e)
         }
 
         // upgrade configs

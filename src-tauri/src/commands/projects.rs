@@ -26,9 +26,9 @@ pub async fn get_projects(app: AppHandle, page: Option<usize>) -> AppResult<Valu
         vec![]
     };
     entries.sort_by(|a, b| {
-        let a_saved = a.get("lastSaved").and_then(|v| v.as_str()).unwrap_or("");
-        let b_saved = b.get("lastSaved").and_then(|v| v.as_str()).unwrap_or("");
-        b_saved.cmp(a_saved)
+        let a_saved = a.get("lastSaved").and_then(|v| v.as_i64()).unwrap_or(0);
+        let b_saved = b.get("lastSaved").and_then(|v| v.as_i64()).unwrap_or(0);
+        b_saved.cmp(&a_saved)
     });
 
     let total_pages = if entries.is_empty() {
@@ -52,6 +52,8 @@ pub async fn get_projects(app: AppHandle, page: Option<usize>) -> AppResult<Valu
 pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
 
+    crate::debug_log(&format!("[open_project] Opening project: {}", id));
+
     // Set project ID
     {
         let mut state = state.lock().unwrap();
@@ -60,14 +62,24 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
         std::fs::create_dir_all(&temp_dir)?;
     }
 
-    // Get zip path from store
+    // Get zip path from store (check both flat key and nested "projects" object)
     let store = app
         .store("store.json")
         .map_err(|e| AppError::General(e.to_string()))?;
+
+    // Try flat key first
     let project_key = format!("projects.{}.path", id);
-    let zip_path = store
+    let mut zip_path = store
         .get(&project_key)
         .and_then(|v| v.as_str().map(|s| s.to_string()));
+
+    // Fall back to nested projects object
+    if zip_path.is_none() {
+        zip_path = store
+            .get("projects")
+            .and_then(|v| v.get(&id).cloned())
+            .and_then(|v| v.get("path").and_then(|p| p.as_str().map(|s| s.to_string())));
+    }
 
     let zip_path = match zip_path {
         Some(p) => p,

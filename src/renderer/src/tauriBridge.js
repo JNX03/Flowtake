@@ -62,6 +62,7 @@ const COMMAND_MAP = {
     'write': 'write_file',
     'close': 'close_file',
     'get-size': 'get_size',
+    'get-video-path': 'get_video_path',
     // Windows
     'close-window': 'close_window',
     'destroy': 'destroy_window',
@@ -69,6 +70,7 @@ const COMMAND_MAP = {
     'close-window-picker-window': 'close_window_picker_window',
     'select-window': 'select_window',
     'get-windows': 'get_windows',
+    'get-picker-screenshot': 'get_picker_screenshot',
     'open-area-picker': 'open_area_picker',
     'close-area-picker-window': 'close_area_picker_window',
     'select-area': 'select_area',
@@ -140,6 +142,7 @@ const ARGS_MAP = {
     'write_file': (args) => ({ fhId: args[0], data: Array.from(new Uint8Array(args[1])), position: args[2] }),
     'close_file': (args) => ({ fhId: args[0] }),
     'get_size': (args) => ({ fhId: args[0] }),
+    'get_video_path': (args) => ({ videoType: args[0], projectId: args[1] }),
     'save_preset': (args) => ({ preset: args[0] }),
     'get_presets': (args) => ({ page: args[0] }),
     'delete_preset': (args) => ({ id: args[0] }),

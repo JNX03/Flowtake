@@ -42,10 +42,11 @@ export default function NewRecording({ isOpen }) {
     staleTime: Infinity
   })
 
-  const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview } = useQuery({
+  const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError } = useQuery({
     queryKey: ['captureSourcePreview', source?.id, source?.type, source?.name, source],
     queryFn: () => window.electron.ipcRenderer.invoke("get-source-screenshot", source),
-    gcTime: 0
+    gcTime: 0,
+    retry: 1
   })
 
   const addNote = () => window.electron.ipcRenderer.invoke("add-note")
@@ -127,15 +128,21 @@ export default function NewRecording({ isOpen }) {
         </div>
 
         <div className={`aspect-video w-full relative flex items-center justify-center rounded-xl overflow-hidden shadow-lg bg-linear-to-br from-primary via-secondary to-accent ${source.type === SOURCE_TYPE_SCREEN ? "p-0" : "p-6"}`} >
-          {!isPendingCaptureSourcePreview && captureSourcePreview && (
+          {!isPendingCaptureSourcePreview && captureSourcePreview && !isPreviewError && (
             <img
               src={captureSourcePreview}
               className="max-w-full max-h-full bg-base-100 shadow-xl rounded-sm"
+              onError={(e) => { e.target.style.display = 'none' }}
             />
           )}
           {isPendingCaptureSourcePreview && (
             <div className="w-full h-full flex items-center justify-center bg-base-100 shadow-xl rounded-sm">
               <span className="loading loading-spinner"></span>
+            </div>
+          )}
+          {isPreviewError && (
+            <div className="w-full h-full flex items-center justify-center bg-base-100 shadow-xl rounded-sm">
+              <span className="text-sm opacity-50">Preview unavailable</span>
             </div>
           )}
           <CameraPreview />

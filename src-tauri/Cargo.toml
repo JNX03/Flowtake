@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
 tauri-plugin-fs = "2"
@@ -39,3 +39,4 @@ notify-rust = "4"
 hostname = "0.4"
 walkdir = "2"
 base64 = "0.22"
+chrono = "0.4"

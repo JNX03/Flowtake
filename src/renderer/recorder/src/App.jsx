@@ -141,7 +141,7 @@ export default function App() {
     }
 
     return <>
-        <TitleBar overlayButtons={1} title={isRecording ? formattedTime : "Recording"} />
+        <TitleBar overlayButtons={1} title={isRecording ? formattedTime : "Recording"} hideControls />
         <div className={`h-full w-full py-1 ${cameraMicConfig?.videoTrack ? "px-2" : "px-5"}`}>
             <div className="flex justify-between items-center gap-1 overflow-hidden">
 

@@ -67,6 +67,18 @@ pub async fn init_recording(
         "30".to_string(),
     ];
 
+    // Get screen dimensions for area percentage conversion
+    let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
+        if let Ok(Some(monitor)) = main_win.current_monitor() {
+            let size = monitor.size();
+            (size.width as f64, size.height as f64)
+        } else {
+            (1920.0, 1080.0)
+        }
+    } else {
+        (1920.0, 1080.0)
+    };
+
     match source_type {
         "window" => {
             let title = source
@@ -77,16 +89,22 @@ pub async fn init_recording(
             ffmpeg_args.extend(["-i".to_string(), format!("title={}", title)]);
         }
         "area" => {
-            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
-            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
-            let width = source
-                .get("width")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(1920);
-            let height = source
-                .get("height")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(1080);
+            // Area picker returns percentage-based coordinates (0-100)
+            let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
+            let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+
+            // Convert percentages to pixels
+            let x = (x_pct / 100.0 * screen_w) as i64;
+            let y = (y_pct / 100.0 * screen_h) as i64;
+            let width = ((w_pct / 100.0 * screen_w) as i64).max(2);
+            let height = ((h_pct / 100.0 * screen_h) as i64).max(2);
+
+            // Make dimensions even (required by many codecs)
+            let width = width - (width % 2);
+            let height = height - (height % 2);
+
             ffmpeg_args.extend([
                 "-offset_x".to_string(),
                 x.to_string(),
@@ -124,6 +142,7 @@ pub async fn init_recording(
     }
 
     // Output settings
+    // Use frag_keyframe+empty_moov to create fragmented MP4 that's valid even if FFmpeg is killed abruptly
     ffmpeg_args.extend([
         "-c:v".to_string(),
         "libx264".to_string(),
@@ -131,6 +150,8 @@ pub async fn init_recording(
         "ultrafast".to_string(),
         "-pix_fmt".to_string(),
         "yuv420p".to_string(),
+        "-movflags".to_string(),
+        "frag_keyframe+empty_moov+default_base_moof".to_string(),
         screen_video_path,
     ]);
 
@@ -139,11 +160,17 @@ pub async fn init_recording(
         let mut state = state.lock().unwrap();
         // We'll store args as a JSON value in camera_mic_config alongside the config
         // Actually, let's store the args path for later use
+        let source_name = source
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Recording")
+            .to_string();
         state.camera_mic_config = Some(serde_json::json!({
             "videoTrack": camera_mic_config.get("videoTrack"),
             "audioTrack": camera_mic_config.get("audioTrack"),
             "constraints": camera_mic_config.get("constraints"),
             "ffmpegArgs": ffmpeg_args,
+            "sourceName": source_name,
         }));
     }
 
@@ -300,10 +327,16 @@ pub async fn pause_recording(app: AppHandle, pause: bool) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
+    use tauri_plugin_store::StoreExt;
+
     let state = app.state::<Mutex<AppState>>();
 
     // Kill FFmpeg process
     kill_ffmpeg(&app);
+
+    // Wait for FFmpeg to fully terminate and flush file
+    // Graceful shutdown needs more time than force kill
+    tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
 
     let (project_id, recording_id) = {
         let mut state = state.lock().unwrap();
@@ -313,6 +346,12 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         state.ffmpeg_child_id = None;
         (pid, rid)
     };
+
+    log::info!(
+        "[stop_recording] project_id={:?}, recording_id={:?}",
+        project_id,
+        recording_id
+    );
 
     // Close recorder window
     if let Some(recorder_win) = app.get_webview_window("recorder") {
@@ -326,29 +365,232 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         main_win.set_focus().ok();
     }
 
-    // If we have a recording, move the screen video to the project folder
-    if let Some(ref rid) = recording_id {
-        if let Some(ref pid) = project_id {
-            let state_lock = state.lock().unwrap();
-            let recording_video = state_lock.project_temp_dir(rid).join("screen.mp4");
-            let project_temp = state_lock.project_temp_dir(pid);
-            drop(state_lock);
+    app.emit_to("main", "load", "Creating project...").ok();
 
-            std::fs::create_dir_all(&project_temp).ok();
-            let dest = project_temp.join("screen.mp4");
+    // Check if we have a valid recording
+    let recording_video_path = if let Some(ref rid) = recording_id {
+        let state_lock = state.lock().unwrap();
+        let path = state_lock.project_temp_dir(rid).join("screen.mp4");
+        drop(state_lock);
+        Some(path)
+    } else {
+        None
+    };
 
-            if recording_video.exists() {
-                std::fs::rename(&recording_video, &dest).ok();
+    let has_video = recording_video_path
+        .as_ref()
+        .map(|p| {
+            let exists = p.exists();
+            let size = p.metadata().map(|m| m.len()).unwrap_or(0);
+            log::info!(
+                "[stop_recording] Video file: {:?}, exists={}, size={}",
+                p,
+                exists,
+                size
+            );
+            exists && size > 0
+        })
+        .unwrap_or(false);
+
+    if has_video {
+        if let (Some(ref rid), Some(ref pid)) = (&recording_id, &project_id) {
+            let (recording_video, project_temp, projects_dir) = {
+                let state_lock = state.lock().unwrap();
+                (
+                    state_lock.project_temp_dir(rid).join("screen.mp4"),
+                    state_lock.project_temp_dir(pid),
+                    state_lock.projects_dir.clone(),
+                )
+            };
+
+            // Create project temp dir
+            if let Err(e) = std::fs::create_dir_all(&project_temp) {
+                log::error!("[stop_recording] Failed to create project temp dir: {}", e);
             }
+            let dest_video = project_temp.join("screen.mp4");
+
+            // Move video: try rename first, fall back to copy+delete
+            if std::fs::rename(&recording_video, &dest_video).is_err() {
+                log::warn!("[stop_recording] rename failed, trying copy");
+                if let Err(e) = std::fs::copy(&recording_video, &dest_video) {
+                    log::error!("[stop_recording] copy also failed: {}", e);
+                } else {
+                    std::fs::remove_file(&recording_video).ok();
+                }
+            }
+
+            log::info!(
+                "[stop_recording] dest_video exists={}, size={}",
+                dest_video.exists(),
+                dest_video.metadata().map(|m| m.len()).unwrap_or(0)
+            );
+
+            // Get source name from stored config
+            let source_name = {
+                let s = state.lock().unwrap();
+                s.camera_mic_config
+                    .as_ref()
+                    .and_then(|c| c.get("sourceName"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Recording")
+                    .to_string()
+            };
+
+            // Create a basic project.json
+            let project_json = serde_json::json!({
+                "version": 1,
+                "project": {
+                    "id": pid,
+                    "name": source_name,
+                    "hasCameraVideo": false,
+                    "hasMicrophoneAudio": false,
+                    "hasSystemAudio": false,
+                    "cameraVideoDimensions": null,
+                    "padding": 1,
+                    "borderRadius": 0,
+                    "mouseEvents": [],
+                    "leftTrim": 0,
+                    "rightTrim": 0,
+                    "topTrim": 0,
+                    "bottomTrim": 0,
+                    "videoDetails": {
+                        "start": 0,
+                        "end": 10000
+                    }
+                },
+                "clipAnims": {
+                    "entities": [{
+                        "start": 0,
+                        "end": 10000,
+                        "layout": {
+                            "mode": "screen-fullscreen"
+                        }
+                    }]
+                }
+            });
+
+            // Write project.json
+            let project_json_path = project_temp.join("project.json");
+            if let Err(e) = std::fs::write(
+                &project_json_path,
+                serde_json::to_string_pretty(&project_json).unwrap_or_default(),
+            ) {
+                log::error!("[stop_recording] Failed to write project.json: {}", e);
+            }
+
+            // Create zip with video + project.json
+            let zip_path = projects_dir.join(format!("{}.zip", pid));
+            std::fs::create_dir_all(&projects_dir).ok();
+
+            log::info!("[stop_recording] Creating zip at: {:?}", zip_path);
+
+            let zip_ok = if let Ok(zip_file) = std::fs::File::create(&zip_path) {
+                let mut zip = zip::ZipWriter::new(zip_file);
+                let options = zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Stored);
+
+                // Add project.json
+                if let Ok(pj_data) = std::fs::read(&project_json_path) {
+                    zip.start_file("project.json", options).ok();
+                    std::io::Write::write_all(&mut zip, &pj_data).ok();
+                }
+
+                // Add screen.mp4 - stream it to avoid loading full video in memory
+                if let Ok(video_meta) = dest_video.metadata() {
+                    let video_size = video_meta.len();
+                    log::info!(
+                        "[stop_recording] Adding video to zip, size={}",
+                        video_size
+                    );
+                    if let Ok(mut video_file) = std::fs::File::open(&dest_video) {
+                        zip.start_file("screen.mp4", options).ok();
+                        std::io::copy(&mut video_file, &mut zip).ok();
+                    }
+                }
+
+                zip.finish().ok();
+                true
+            } else {
+                log::error!("[stop_recording] Failed to create zip file");
+                false
+            };
+
+            // Store project metadata in the Tauri store
+            if zip_ok {
+                if let Ok(store) = app.store("store.json") {
+                    let zip_str = zip_path.to_string_lossy().to_string();
+
+                    // Get existing projects map or create new one
+                    let mut projects = store
+                        .get("projects")
+                        .and_then(|v| {
+                            if let Value::Object(map) = v {
+                                Some(map)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default();
+
+                    // Add new project entry
+                    projects.insert(
+                        pid.clone(),
+                        serde_json::json!({
+                            "id": pid,
+                            "lastSaved": chrono::Utc::now().timestamp_millis(),
+                            "name": source_name,
+                            "path": zip_str,
+                        }),
+                    );
+
+                    store.set("projects", Value::Object(projects));
+
+                    // Also store flat key for open_project compatibility
+                    store.set(
+                        format!("projects.{}.path", pid),
+                        serde_json::json!(zip_str),
+                    );
+                    store.save().ok();
+                    log::info!("[stop_recording] Project stored: {}", pid);
+                } else {
+                    log::error!("[stop_recording] Failed to open store");
+                }
+            }
+
+            // Clear project_id so open_project can set it fresh
+            {
+                let mut state = state.lock().unwrap();
+                state.project_id = None;
+                state.file_handles.clear();
+            }
+
+            // Emit project-created to the main window
+            log::info!("[stop_recording] Emitting project-created: {}", pid);
+            app.emit_to("main", "project-created", pid.as_str()).ok();
+            // Clear the loader message
+            app.emit_to("main", "load", "").ok();
+        }
+    } else {
+        // No valid recording - reset cleanly
+        log::warn!(
+            "[stop_recording] No video file found at: {:?}",
+            recording_video_path
+        );
+        app.emit_to("main", "recording-canceled", "").ok();
+        app.emit_to("main", "load", serde_json::Value::Null).ok();
+    }
+
+    app.emit("recording-stopped", true).ok();
+
+    // Clean up recording temp dir (not project temp dir!)
+    if let Some(ref rid) = recording_id {
+        let state_lock = state.lock().unwrap();
+        let rec_temp = state_lock.project_temp_dir(rid);
+        drop(state_lock);
+        if rec_temp.exists() {
+            std::fs::remove_dir_all(&rec_temp).ok();
         }
     }
-
-    // Emit events
-    if let Some(id) = project_id {
-        app.emit_to("main", "load", "Creating project...").ok();
-        app.emit_to("main", "project-created", &id).ok();
-    }
-    app.emit("recording-stopped", true).ok();
 
     Ok(())
 }
@@ -428,7 +670,9 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
     Ok(())
 }
 
-/// Kill the FFmpeg process if running
+/// Stop the FFmpeg process gracefully so it can flush and finalize the output file.
+/// On Windows, we first try to send Ctrl+C (GenerateConsoleCtrlEvent) to allow
+/// FFmpeg to write remaining fragments. If that fails, we fall back to taskkill /F.
 fn kill_ffmpeg(app: &AppHandle) {
     let state = app.state::<Mutex<AppState>>();
     let pid = {
@@ -437,18 +681,39 @@ fn kill_ffmpeg(app: &AppHandle) {
     };
 
     if let Some(pid) = pid {
-        // Send 'q' to FFmpeg via taskkill on Windows
-        // FFmpeg responds to 'q' key to gracefully stop, but since we're using sidecar
-        // we need to kill the process
+        log::info!("[kill_ffmpeg] Stopping FFmpeg PID: {}", pid);
         #[cfg(target_os = "windows")]
         {
-            std::process::Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/F"])
-                .output()
-                .ok();
+            use std::os::windows::process::CommandExt;
+
+            // First, try graceful stop: taskkill WITHOUT /F sends WM_CLOSE
+            // which FFmpeg handles by flushing and closing the file
+            let graceful = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string()])
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .output();
+
+            match graceful {
+                Ok(output) => {
+                    log::info!(
+                        "[kill_ffmpeg] Graceful stop result: status={}, stderr={}",
+                        output.status,
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
+                Err(e) => {
+                    log::warn!("[kill_ffmpeg] Graceful stop failed: {}, using force kill", e);
+                    std::process::Command::new("taskkill")
+                        .args(["/PID", &pid.to_string(), "/F"])
+                        .creation_flags(0x08000000)
+                        .output()
+                        .ok();
+                }
+            }
         }
         #[cfg(not(target_os = "windows"))]
         {
+            // Send SIGINT to FFmpeg for graceful shutdown
             std::process::Command::new("kill")
                 .args(["-SIGINT", &pid.to_string()])
                 .output()
@@ -461,72 +726,107 @@ fn kill_ffmpeg(app: &AppHandle) {
 pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<String> {
     use base64::Engine;
 
+    let state = app.state::<Mutex<AppState>>();
+    let temp_dir = {
+        let s = state.lock().unwrap();
+        s.temp_dir.clone()
+    };
+    std::fs::create_dir_all(&temp_dir).ok();
+    let screenshot_path = temp_dir.join("preview_screenshot.png");
+    let screenshot_str = screenshot_path.to_string_lossy().to_string();
+
+    // Get screen dimensions for coordinate calculations
+    let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
+        if let Ok(Some(monitor)) = main_win.current_monitor() {
+            let size = monitor.size();
+            (size.width as f64, size.height as f64)
+        } else {
+            (1920.0, 1080.0)
+        }
+    } else {
+        (1920.0, 1080.0)
+    };
+
+    // Determine capture coordinates based on source type (like original Electron code)
     let source_type = source
         .get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("screen");
 
-    // Build FFmpeg args based on source type
-    let mut args: Vec<String> = vec![
-        "-f".to_string(),
-        "gdigrab".to_string(),
-        "-framerate".to_string(),
-        "1".to_string(),
-        "-draw_mouse".to_string(),
-        "0".to_string(),
-    ];
-
-    match source_type {
-        "window" => {
-            let title = source
-                .get("name")
-                .or_else(|| source.get("title"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("Desktop");
-            args.extend(["-i".to_string(), format!("title={}", title)]);
-        }
+    let (offset_x, offset_y, cap_w, cap_h) = match source_type {
         "area" => {
+            // Area source has percentage-based coordinates
+            let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
+            let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+
+            let x = (x_pct / 100.0 * screen_w) as i64;
+            let y = (y_pct / 100.0 * screen_h) as i64;
+            let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
+            let h = ((h_pct / 100.0 * screen_h) as i64).max(2);
+            // Make dimensions even
+            (x, y, w - (w % 2), h - (h % 2))
+        }
+        "window" => {
+            // Window source has pixel coordinates from GetWindowRect
             let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
-            let width = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
-            let height = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
-            args.extend([
-                "-offset_x".to_string(), x.to_string(),
-                "-offset_y".to_string(), y.to_string(),
-                "-video_size".to_string(), format!("{}x{}", width, height),
-                "-i".to_string(), "desktop".to_string(),
-            ]);
+            let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(screen_w as i64);
+            let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(screen_h as i64);
+            let w = w.max(2);
+            let h = h.max(2);
+            (x, y, w - (w % 2), h - (h % 2))
         }
         _ => {
             // Full screen
-            args.extend(["-i".to_string(), "desktop".to_string()]);
+            (0, 0, screen_w as i64, screen_h as i64)
         }
-    }
+    };
 
-    args.extend([
-        "-frames:v".to_string(), "1".to_string(),
-        "-f".to_string(), "image2pipe".to_string(),
-        "-vcodec".to_string(), "png".to_string(),
-        "pipe:1".to_string(),
-    ]);
+    let offset_x_str = offset_x.to_string();
+    let offset_y_str = offset_y.to_string();
+    let video_size_str = format!("{}x{}", cap_w, cap_h);
+
+    let args = vec![
+        "-y",
+        "-f", "gdigrab",
+        "-framerate", "1",
+        "-draw_mouse", "0",
+        "-offset_x", &offset_x_str,
+        "-offset_y", &offset_y_str,
+        "-video_size", &video_size_str,
+        "-i", "desktop",
+        "-frames:v", "1",
+        "-update", "true",
+        &screenshot_str,
+    ];
 
     let shell = app.shell();
-    let str_args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let output = shell
         .sidecar("ffmpeg")
-        .map_err(|e| AppError::General(e.to_string()))?
-        .args(&str_args)
+        .map_err(|e| AppError::General(format!("FFmpeg sidecar error: {}", e)))?
+        .args(&args)
         .output()
         .await
-        .map_err(|e| AppError::General(e.to_string()))?;
+        .map_err(|e| AppError::General(format!("FFmpeg execution error: {}", e)))?;
 
-    if output.stdout.is_empty() {
-        return Err(AppError::General("Screenshot capture returned empty data".to_string()));
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log::warn!("[FFmpeg screenshot] stderr: {}", stderr);
     }
 
-    // Return as base64 data URL for direct use in <img src>
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&output.stdout);
-    Ok(format!("data:image/png;base64,{}", b64))
+    if screenshot_path.exists() {
+        let data = std::fs::read(&screenshot_path)?;
+        std::fs::remove_file(&screenshot_path).ok();
+        if data.is_empty() {
+            return Err(AppError::General("Screenshot file is empty".to_string()));
+        }
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+        Ok(format!("data:image/png;base64,{}", b64))
+    } else {
+        Err(AppError::General("Screenshot capture failed".to_string()))
+    }
 }
 
 #[tauri::command]

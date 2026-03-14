@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AreaSelector } from "@bmunozg/react-image-area"
 import { CursorArrowRaysIcon } from "@heroicons/react/24/outline"
 import PickerWrapper from "../../components/PickerWrapper"
@@ -9,10 +9,18 @@ export default function App() {
     const MIN_HEIGHT = 10
 
     const [areas, setAreas] = useState([])
+    const [bgImage, setBgImage] = useState(null)
+
+    // Fetch the pre-captured screenshot (captured by Rust before this window opened)
+    useEffect(() => {
+        window.electron.ipcRenderer.invoke("get-picker-screenshot")
+            .then(dataUrl => { if (dataUrl) setBgImage(dataUrl) })
+            .catch(e => console.warn("[AreaPicker] Screenshot failed:", e))
+    }, [])
 
     const onCancel = () => window.electron.ipcRenderer.invoke("close-area-picker-window")
 
-    const onSelect = () => window.electron.ipcRenderer.invoke("select-area", areas[0])
+    const onSelect = () => window.electron.ipcRenderer.invoke("select-area", { ...areas[0], type: "area", name: "Area" })
 
     const customRender = areaProps => {
         if (!areaProps.isChanging) {
@@ -30,7 +38,11 @@ export default function App() {
         <AreaSelector areas={areas} maxAreas={1} minWidth={MIN_WIDTH} minHeight={MIN_HEIGHT}
             unit="percentage" onChange={setAreas}
             customAreaRenderer={customRender}>
-            <div className="w-screen h-screen"></div>
+            {bgImage
+                ? <img src={bgImage} className="w-screen h-screen object-cover select-none" alt="" draggable={false} />
+                : <div className="w-screen h-screen bg-base-300 flex items-center justify-center">
+                    <span className="loading loading-spinner loading-lg"></span>
+                </div>}
         </AreaSelector>
     </PickerWrapper>)
 }

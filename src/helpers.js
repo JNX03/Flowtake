@@ -1,10 +1,11 @@
 export const VIDEO_SCHEME = "video"
-export const VIDEO_SCHEME_PREFIX = `${VIDEO_SCHEME}://`
 export const SCREEN_VIDEO = "screen"
 export const CAMERA_VIDEO = "camera"
 export const MICROPHONE_AUDIO = "microphone"
 export const RENDERED_VIDEO = "rendered"
 export const RENDERED_VIDEO_WITH_AUDIO = "renderedWithAudio"
+// Tauri v2 on Windows WebView2: custom protocols are accessed via http://<scheme>.localhost/
+export const VIDEO_SCHEME_PREFIX = `http://${VIDEO_SCHEME}.localhost/`
 export const SCREEN_VIDEO_URL = `${VIDEO_SCHEME_PREFIX}${SCREEN_VIDEO}`
 export const CAMERA_VIDEO_URL = `${VIDEO_SCHEME_PREFIX}${CAMERA_VIDEO}`
 export const MICROPHONE_AUDIO_URL = `${VIDEO_SCHEME_PREFIX}${MICROPHONE_AUDIO}`
