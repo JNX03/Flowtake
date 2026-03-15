@@ -3,7 +3,6 @@ import {
     DocumentTextIcon,
     FilmIcon,
     MusicalNoteIcon,
-    PhotoIcon,
     PlusIcon,
     Square2StackIcon,
     XMarkIcon
