@@ -893,6 +893,11 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
     let offset_y_str = offset_y.to_string();
     let video_size_str = format!("{}x{}", cap_w, cap_h);
 
+    // Ensure main window is content-protected (excluded from screen capture)
+    if let Some(main_win) = app.get_webview_window("main") {
+        main_win.set_content_protected(true).ok();
+    }
+
     let args = vec![
         "-y",
         "-f", "gdigrab",

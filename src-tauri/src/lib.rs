@@ -337,6 +337,8 @@ pub fn run() {
                 // Wait briefly for webview to initialize
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 if let Some(win) = handle.get_webview_window("main") {
+                    // Exclude main window from screen captures (preview & recording)
+                    win.set_content_protected(true).ok();
                     win.show().ok();
                     win.set_focus().ok();
                 }
