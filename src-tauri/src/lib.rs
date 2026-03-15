@@ -330,6 +330,17 @@ pub fn run() {
                 state.temp_dir = temp_dir;
             }
 
+            // Show main window once webview is ready (avoid white screen flash)
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Wait briefly for webview to initialize
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if let Some(win) = handle.get_webview_window("main") {
+                    win.show().ok();
+                    win.set_focus().ok();
+                }
+            });
+
             log::info!(
                 "Flowtake v{} started",
                 app.config().version.as_deref().unwrap_or("unknown")

@@ -125,6 +125,10 @@ static HOOK_THREAD_ID: std::sync::LazyLock<Mutex<u32>> =
     std::sync::LazyLock::new(|| Mutex::new(0));
 
 #[cfg(target_os = "windows")]
+static LAST_MOUSEMOVE_TIME: std::sync::LazyLock<Mutex<i64>> =
+    std::sync::LazyLock::new(|| Mutex::new(0));
+
+#[cfg(target_os = "windows")]
 impl MouseTracker {
     fn run_hook_loop(events: Arc<Mutex<Vec<MouseEvent>>>, is_running: Arc<Mutex<bool>>) {
         use windows::Win32::UI::WindowsAndMessaging::*;
@@ -181,6 +185,7 @@ impl MouseTracker {
         *HOOK_EVENTS.lock().unwrap() = None;
         *HOOK_RUNNING.lock().unwrap() = None;
         *HOOK_THREAD_ID.lock().unwrap() = 0;
+        *LAST_MOUSEMOVE_TIME.lock().unwrap() = 0;
 
         log::info!("[MouseTracker] Mouse hook removed");
     }
@@ -196,17 +201,30 @@ impl MouseTracker {
             let mouse_struct = &*(l_param.0 as *const MSLLHOOKSTRUCT);
             let now = chrono::Utc::now().timestamp_millis();
 
-            let (event_type, button) = match w_param.0 as u32 {
+            let msg = w_param.0 as u32;
+
+            let (event_type, button) = match msg {
                 WM_LBUTTONDOWN => (Some("mousedown"), "left"),
                 WM_LBUTTONUP => (Some("mouseup"), "left"),
                 WM_RBUTTONDOWN => (Some("mousedown"), "right"),
                 WM_RBUTTONUP => (Some("mouseup"), "right"),
                 WM_MBUTTONDOWN => (Some("mousedown"), "middle"),
                 WM_MBUTTONUP => (Some("mouseup"), "middle"),
+                WM_MOUSEMOVE => (Some("mousemove"), ""),
                 _ => (None, ""),
             };
 
             if let Some(event_type) = event_type {
+                // For mousemove, sample at ~50ms intervals to avoid flooding
+                if event_type == "mousemove" {
+                    let mut last_time = LAST_MOUSEMOVE_TIME.lock().unwrap();
+                    if now - *last_time < 50 {
+                        // Skip this mousemove, too soon
+                        return CallNextHookEx(None, n_code, w_param, l_param);
+                    }
+                    *last_time = now;
+                }
+
                 let event = MouseEvent {
                     x: mouse_struct.pt.x,
                     y: mouse_struct.pt.y,

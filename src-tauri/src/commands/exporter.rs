@@ -204,12 +204,33 @@ pub async fn clean_up_temp_folder(app: AppHandle, render_id: String) -> AppResul
 #[tauri::command]
 pub async fn copy_to_videos_folder(app: AppHandle, render_id: String) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
-    let state = state.lock().unwrap();
-    if let Some(render) = state.renders.get(&render_id) {
-        let source = render.temp_dir.join("output.mp4");
-        if source.exists() {
-            std::fs::copy(&source, &render.output_path)?;
+    let (source, dest) = {
+        let state = state.lock().unwrap();
+        if let Some(render) = state.renders.get(&render_id) {
+            (render.temp_dir.join("output.mp4"), render.output_path.clone())
+        } else {
+            log::error!("[copy_to_videos] Render not found: {}", render_id);
+            return Err(AppError::General(format!("Render not found: {}", render_id)));
         }
+    };
+
+    log::info!("[copy_to_videos] source={:?} exists={} dest={:?}", source, source.exists(), dest);
+
+    if source.exists() {
+        let source_size = source.metadata().map(|m| m.len()).unwrap_or(0);
+        log::info!("[copy_to_videos] source size: {} bytes", source_size);
+        if source_size == 0 {
+            return Err(AppError::General("Output video is empty".to_string()));
+        }
+        // Ensure export directory exists
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::copy(&source, &dest)?;
+        log::info!("[copy_to_videos] Copied to {:?}", dest);
+    } else {
+        log::error!("[copy_to_videos] Output file not found at {:?}", source);
+        return Err(AppError::General(format!("Output video not found: {:?}", source)));
     }
     Ok(())
 }

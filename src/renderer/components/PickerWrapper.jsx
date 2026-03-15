@@ -1,8 +1,8 @@
 import { XMarkIcon } from "@heroicons/react/20/solid"
 import PropTypes from "prop-types"
 
-export default function PickerWrapper({ children, onCancel }) { 
-    return (<div className="h-full w-full relative overflow-hidden">
+export default function PickerWrapper({ children, onCancel }) {
+    return (<div className="h-full w-full relative overflow-hidden" style={{ background: 'rgba(0,0,0,0.01)' }}>
         <div className="absolute z-10 w-full top-0 flex justify-center pt-1 pointer-events-none">
             <div className="flex items-center px-3 py-2 bg-base-300 rounded-xl shadow-lg pointer-events-auto">
                 <button className="btn btn-sm btn-error" onClick={onCancel}>

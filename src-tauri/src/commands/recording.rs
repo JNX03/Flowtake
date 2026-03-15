@@ -81,29 +81,19 @@ pub async fn init_recording(
 
     match source_type {
         "window" => {
-            // Window source has pixel coordinates from GetWindowRect
-            // Capture the window's region from the desktop (like original Electron code)
-            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
-            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
-            let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(screen_w as i64);
-            let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(screen_h as i64);
-            let w = w.max(2);
-            let h = h.max(2);
-            // Make dimensions even (required by many codecs)
-            let w = w - (w % 2);
-            let h = h - (h % 2);
+            // Capture only the selected window by title (not the desktop region)
+            // This ensures only that window's content is recorded, even if other
+            // windows overlap it
+            let window_name = source
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Desktop");
 
             ffmpeg_args.extend([
                 "-draw_mouse".to_string(),
                 "0".to_string(),
-                "-offset_x".to_string(),
-                x.to_string(),
-                "-offset_y".to_string(),
-                y.to_string(),
-                "-video_size".to_string(),
-                format!("{}x{}", w, h),
                 "-i".to_string(),
-                "desktop".to_string(),
+                format!("title={}", window_name),
             ]);
         }
         "area" => {
@@ -852,15 +842,61 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
         (1920.0, 1080.0)
     };
 
-    // Determine capture coordinates based on source type (like original Electron code)
+    // Determine capture coordinates based on source type
     let source_type = source
         .get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("screen");
 
+    // Window type: capture by title (early return)
+    if source_type == "window" {
+        let window_name = source
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Desktop");
+        let title_input = format!("title={}", window_name);
+
+        let args = vec![
+            "-y",
+            "-f", "gdigrab",
+            "-framerate", "1",
+            "-draw_mouse", "0",
+            "-i", &title_input,
+            "-frames:v", "1",
+            "-update", "true",
+            &screenshot_str,
+        ];
+
+        let shell = app.shell();
+        let output = shell
+            .sidecar("ffmpeg")
+            .map_err(|e| AppError::General(format!("FFmpeg sidecar error: {}", e)))?
+            .args(&args)
+            .output()
+            .await
+            .map_err(|e| AppError::General(format!("FFmpeg execution error: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::warn!("[FFmpeg screenshot window] stderr: {}", stderr);
+        }
+
+        if screenshot_path.exists() {
+            let data = std::fs::read(&screenshot_path)?;
+            std::fs::remove_file(&screenshot_path).ok();
+            if data.is_empty() {
+                return Err(AppError::General("Screenshot file is empty".to_string()));
+            }
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+            return Ok(format!("data:image/png;base64,{}", b64));
+        } else {
+            return Err(AppError::General("Screenshot capture failed".to_string()));
+        }
+    }
+
+    // Area and screen types: capture by coordinates
     let (offset_x, offset_y, cap_w, cap_h) = match source_type {
         "area" => {
-            // Area source has percentage-based coordinates
             let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
@@ -870,17 +906,6 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let y = (y_pct / 100.0 * screen_h) as i64;
             let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
             let h = ((h_pct / 100.0 * screen_h) as i64).max(2);
-            // Make dimensions even
-            (x, y, w - (w % 2), h - (h % 2))
-        }
-        "window" => {
-            // Window source has pixel coordinates from GetWindowRect
-            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
-            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
-            let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(screen_w as i64);
-            let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(screen_h as i64);
-            let w = w.max(2);
-            let h = h.max(2);
             (x, y, w - (w % 2), h - (h % 2))
         }
         _ => {

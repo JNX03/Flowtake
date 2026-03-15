@@ -21,31 +21,27 @@ pub async fn destroy_window(app: AppHandle) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
-    // Hide main window first so it doesn't appear in the screenshot
+    // Hide main window first
     if let Some(main_win) = app.get_webview_window("main") {
         main_win.hide().map_err(|e| AppError::Tauri(e))?;
     }
 
-    // Small delay to let the window actually hide before capturing
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-
-    // Capture a screenshot of the desktop showing all other windows
-    capture_desktop_screenshot(&app).await.ok();
-
-    // Get monitor dimensions for explicit sizing
-    let (mon_w, mon_h) = if let Some(main_win) = app.get_webview_window("main") {
-        if let Ok(Some(monitor)) = main_win.current_monitor() {
+    // Get primary monitor dimensions
+    let (mon_w, mon_h) = {
+        let monitors = app.available_monitors().unwrap_or_default();
+        if let Some(monitor) = monitors.first() {
             let size = monitor.size();
             let scale = monitor.scale_factor();
             ((size.width as f64 / scale), (size.height as f64 / scale))
         } else {
             (1920.0, 1080.0)
         }
-    } else {
-        (1920.0, 1080.0)
     };
 
-    // Create fullscreen window picker with explicit size
+    log::info!("[window_picker] Monitor size: {}x{}", mon_w, mon_h);
+
+    // Create transparent fullscreen overlay - like original Electron version
+    // User sees real desktop through it, with hoverable outlines over windows
     let _window = WebviewWindowBuilder::new(
         &app,
         "windowPicker",
@@ -56,9 +52,10 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .position(0.0, 0.0)
     .resizable(false)
     .decorations(false)
+    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
-    .maximized(true)
+    .content_protected(true)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 
@@ -164,6 +161,25 @@ pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
         // Build script with PID injected at the top as a PowerShell variable
         let pid_line = format!("$appPid = [uint32]{}", our_pid);
         let ps_script = format!("{}\n{}", pid_line, r#"
+# Collect entire process tree (flowtake.exe + WebView2 child processes)
+$allPids = New-Object 'System.Collections.Generic.HashSet[uint32]'
+[void]$allPids.Add($appPid)
+$procs = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId 2>$null
+if ($procs) {
+    # Find children recursively (up to 3 levels for WebView2)
+    for ($i = 0; $i -lt 3; $i++) {
+        $newPids = @()
+        foreach ($p in $procs) {
+            if ($allPids.Contains([uint32]$p.ParentProcessId) -and -not $allPids.Contains([uint32]$p.ProcessId)) {
+                $newPids += [uint32]$p.ProcessId
+            }
+        }
+        if ($newPids.Count -eq 0) { break }
+        foreach ($np in $newPids) { [void]$allPids.Add($np) }
+    }
+}
+$pidArray = [uint32[]]@($allPids)
+
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -199,7 +215,8 @@ public class WinEnum {
         public int Left, Top, Right, Bottom;
     }
 
-    public static List<Dictionary<string, object>> GetVisibleWindows(uint appPid) {
+    public static List<Dictionary<string, object>> GetVisibleWindows(uint[] excludePids) {
+        var pidSet = new HashSet<uint>(excludePids);
         var result = new List<Dictionary<string, object>>();
         EnumWindows((hWnd, lParam) => {
             if (!IsWindowVisible(hWnd)) return true;
@@ -211,10 +228,10 @@ public class WinEnum {
             DwmGetWindowAttribute(hWnd, 14, out cloaked, sizeof(int));
             if (cloaked != 0) return true;
 
-            // Skip the Flowtake app process windows
+            // Skip any window belonging to Flowtake process tree
             uint pid = 0;
             GetWindowThreadProcessId(hWnd, out pid);
-            if (pid == appPid) return true;
+            if (pidSet.Contains(pid)) return true;
 
             StringBuilder sb = new StringBuilder(len + 1);
             GetWindowText(hWnd, sb, sb.Capacity);
@@ -247,7 +264,7 @@ public class WinEnum {
 }
 "@
 
-$windows = [WinEnum]::GetVisibleWindows($appPid)
+$windows = [WinEnum]::GetVisibleWindows($pidArray)
 if ($windows -eq $null) { $windows = @() }
 ConvertTo-Json -InputObject @($windows) -Depth 3
 "#);
@@ -293,7 +310,17 @@ ConvertTo-Json -InputObject @($windows) -Depth 3
         _ => vec![],
     };
 
-    // Clamp coordinates to screen (PID-based filter in C# already removes our own windows)
+    // Filter out Flowtake windows by exact title match + system windows
+    // The PID tree filter may miss windows if WebView2 process isn't registered yet
+    let flowtake_titles: Vec<&str> = vec![
+        "flowtake",
+        "select window - flowtake",
+        "window picker - flowtake",
+        "recording - flowtake",
+        "select area",
+        "select area - flowtake",
+    ];
+
     let filtered: Vec<Value> = windows
         .into_iter()
         .filter(|w| {
@@ -302,7 +329,7 @@ ConvertTo-Json -InputObject @($windows) -Depth 3
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_lowercase();
-            name != "program manager"
+            name != "program manager" && !flowtake_titles.contains(&name.as_str())
         })
         .map(|mut w| {
             // Clamp coordinates to screen bounds (like original limitCoordsToScreen)
@@ -345,17 +372,16 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     capture_desktop_screenshot(&app).await.ok();
 
-    // Get monitor dimensions for explicit sizing
-    let (mon_w, mon_h) = if let Some(main_win) = app.get_webview_window("main") {
-        if let Ok(Some(monitor)) = main_win.current_monitor() {
+    // Get primary monitor dimensions
+    let (mon_w, mon_h) = {
+        let monitors = app.available_monitors().unwrap_or_default();
+        if let Some(monitor) = monitors.first() {
             let size = monitor.size();
             let scale = monitor.scale_factor();
             ((size.width as f64 / scale), (size.height as f64 / scale))
         } else {
             (1920.0, 1080.0)
         }
-    } else {
-        (1920.0, 1080.0)
     };
 
     let _window = WebviewWindowBuilder::new(
@@ -369,7 +395,6 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .maximized(true)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 

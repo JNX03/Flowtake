@@ -50,3 +50,9 @@ createRoot(document.getElementById('root')).render(
         </ErrorBoundary>
     </StrictMode>
 )
+
+// Show main window once React has rendered (avoids white screen flash on startup)
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+requestAnimationFrame(() => {
+    getCurrentWebviewWindow().show().catch(() => {})
+})
