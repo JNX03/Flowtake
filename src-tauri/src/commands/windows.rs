@@ -446,10 +446,10 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
         WebviewUrl::App("src/renderer/note/index.html".into()),
     )
     .title("Teleprompter")
-    .inner_size(420.0, 500.0)
-    .min_inner_size(280.0, 200.0)
+    .inner_size(460.0, 580.0)
+    .min_inner_size(320.0, 300.0)
     .resizable(true)
-    .decorations(true)
+    .decorations(false)
     .always_on_top(true)
     .content_protected(true)
     .transparent(false)

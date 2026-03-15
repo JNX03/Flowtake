@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
     useDispatch,
     useSelector
@@ -26,6 +26,7 @@ export default function OverlayTracks() {
     const isMinimized = useSelector(selectIsMaskingModeEnabled)
     const duration = useSelector(selectDuration)
     const pxPerMs = useSelector(selectPxPerMs)
+    const [dragOverTrack, setDragOverTrack] = useState(null)
 
     const overlaysByTrack = useMemo(() => {
         const map = {}
@@ -57,6 +58,7 @@ export default function OverlayTracks() {
     const handleDrop = useCallback((e, trackId) => {
         e.preventDefault()
         e.stopPropagation()
+        setDragOverTrack(null)
         try {
             const data = JSON.parse(e.dataTransfer.getData("application/json"))
             const rect = e.currentTarget.getBoundingClientRect()
@@ -86,18 +88,22 @@ export default function OverlayTracks() {
         } catch { /* ignore */ }
     }, [dispatch, duration, pxPerMs])
 
-    const handleDragOver = useCallback(e => {
+    const handleDragOver = useCallback((e, trackId) => {
         e.preventDefault()
         e.dataTransfer.dropEffect = "copy"
+        setDragOverTrack(trackId)
     }, [])
+
+    const handleDragLeave = useCallback(() => setDragOverTrack(null), [])
 
     if (tracks.length === 0) return null
 
     return tracks.map(track => (
         <div key={`overlay-track-${track.id}`}
             onDrop={e => handleDrop(e, track.id)}
-            onDragOver={handleDragOver}
-            className="relative"
+            onDragOver={e => handleDragOver(e, track.id)}
+            onDragLeave={handleDragLeave}
+            className={`relative transition-colors ${dragOverTrack === track.id ? "bg-accent/10 ring-1 ring-accent/30 ring-inset rounded" : ""}`}
         >
             <Row
                 name={OVERLAY_TRACKS}

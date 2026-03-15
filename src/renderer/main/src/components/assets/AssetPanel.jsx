@@ -6,11 +6,9 @@ import {
     PhotoIcon,
     PlusIcon,
     Square2StackIcon,
-    TrashIcon,
     XMarkIcon
 } from "@heroicons/react/16/solid"
-import { SparklesIcon } from "@heroicons/react/24/outline"
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import {
     useDispatch,
     useSelector
@@ -29,6 +27,50 @@ const TABS = [
     { id: "shapes", label: "Shapes", icon: Square2StackIcon },
 ]
 
+function importFileAsAsset(dispatch, file) {
+    const reader = new FileReader()
+    reader.onload = () => {
+        if (file.type.startsWith("audio/")) {
+            const audio = new Audio(reader.result)
+            audio.addEventListener("loadedmetadata", () => {
+                dispatch(addAsset({
+                    id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    name: file.name,
+                    type: "audio",
+                    category: "audio",
+                    src: reader.result,
+                    size: file.size,
+                    mimeType: file.type,
+                    duration: Math.round(audio.duration * 1000),
+                }))
+            }, { once: true })
+            audio.addEventListener("error", () => {
+                dispatch(addAsset({
+                    id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    name: file.name,
+                    type: "audio",
+                    category: "audio",
+                    src: reader.result,
+                    size: file.size,
+                    mimeType: file.type,
+                    duration: 5000,
+                }))
+            }, { once: true })
+        } else {
+            dispatch(addAsset({
+                id: `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                name: file.name,
+                type: file.type.startsWith("video/") ? "video" : "image",
+                category: "media",
+                src: reader.result,
+                size: file.size,
+                mimeType: file.type,
+            }))
+        }
+    }
+    reader.readAsDataURL(file)
+}
+
 export default function AssetPanel({ isOpen, onToggle }) {
 
     const dispatch = useDispatch()
@@ -37,6 +79,8 @@ export default function AssetPanel({ isOpen, onToggle }) {
     const shapeAssets = useSelector(state => selectBuiltInAssetsByCategory(state, "shapes"))
 
     const [activeTab, setActiveTab] = useState("import")
+    const [isDraggingOver, setIsDraggingOver] = useState(false)
+    const dragCounter = useRef(0)
 
     const mediaAssets = importedAssets.filter(a => a.category === "media")
     const audioAssets = importedAssets.filter(a => a.category === "audio")
@@ -47,21 +91,7 @@ export default function AssetPanel({ isOpen, onToggle }) {
         input.accept = "video/*,image/*"
         input.multiple = true
         input.onchange = e => {
-            Array.from(e.target.files).forEach(file => {
-                const reader = new FileReader()
-                reader.onload = () => {
-                    dispatch(addAsset({
-                        id: `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                        name: file.name,
-                        type: file.type.startsWith("video/") ? "video" : "image",
-                        category: "media",
-                        src: reader.result,
-                        size: file.size,
-                        mimeType: file.type,
-                    }))
-                }
-                reader.readAsDataURL(file)
-            })
+            Array.from(e.target.files).forEach(file => importFileAsAsset(dispatch, file))
         }
         input.click()
     }, [dispatch])
@@ -72,38 +102,7 @@ export default function AssetPanel({ isOpen, onToggle }) {
         input.accept = "audio/*"
         input.multiple = true
         input.onchange = e => {
-            Array.from(e.target.files).forEach(file => {
-                const reader = new FileReader()
-                reader.onload = () => {
-                    // Get audio duration
-                    const audio = new Audio(reader.result)
-                    audio.addEventListener("loadedmetadata", () => {
-                        dispatch(addAsset({
-                            id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                            name: file.name,
-                            type: "audio",
-                            category: "audio",
-                            src: reader.result,
-                            size: file.size,
-                            mimeType: file.type,
-                            duration: Math.round(audio.duration * 1000),
-                        }))
-                    })
-                    audio.addEventListener("error", () => {
-                        dispatch(addAsset({
-                            id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                            name: file.name,
-                            type: "audio",
-                            category: "audio",
-                            src: reader.result,
-                            size: file.size,
-                            mimeType: file.type,
-                            duration: 5000,
-                        }))
-                    })
-                }
-                reader.readAsDataURL(file)
-            })
+            Array.from(e.target.files).forEach(file => importFileAsAsset(dispatch, file))
         }
         input.click()
     }, [dispatch])
@@ -112,6 +111,38 @@ export default function AssetPanel({ isOpen, onToggle }) {
         e.dataTransfer.setData("application/json", JSON.stringify(asset))
         e.dataTransfer.effectAllowed = "copy"
     }, [])
+
+    // OS file drop into panel
+    const handlePanelDragEnter = useCallback(e => {
+        e.preventDefault()
+        dragCounter.current++
+        if (e.dataTransfer.types.includes("Files")) setIsDraggingOver(true)
+    }, [])
+
+    const handlePanelDragLeave = useCallback(e => {
+        e.preventDefault()
+        dragCounter.current--
+        if (dragCounter.current <= 0) { setIsDraggingOver(false); dragCounter.current = 0 }
+    }, [])
+
+    const handlePanelDragOver = useCallback(e => {
+        e.preventDefault()
+        if (e.dataTransfer.types.includes("Files")) e.dataTransfer.dropEffect = "copy"
+    }, [])
+
+    const handlePanelDrop = useCallback(e => {
+        e.preventDefault()
+        setIsDraggingOver(false)
+        dragCounter.current = 0
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length === 0) return
+        files.forEach(file => importFileAsAsset(dispatch, file))
+        // Auto-switch tab based on what was dropped
+        const hasAudio = files.some(f => f.type.startsWith("audio/"))
+        const hasMedia = files.some(f => f.type.startsWith("video/") || f.type.startsWith("image/"))
+        if (hasAudio && !hasMedia) setActiveTab("audio")
+        else if (hasMedia) setActiveTab("import")
+    }, [dispatch])
 
     if (!isOpen) {
         return (
@@ -131,23 +162,36 @@ export default function AssetPanel({ isOpen, onToggle }) {
     }
 
     return (
-        <div className="w-64 bg-base-100 rounded-lg flex flex-col h-full shrink-0 overflow-hidden">
-            {/* Tab bar - like CapCut */}
+        <div className="w-56 bg-base-100 rounded-lg flex flex-col h-full shrink-0 overflow-hidden relative"
+            onDragEnter={handlePanelDragEnter}
+            onDragLeave={handlePanelDragLeave}
+            onDragOver={handlePanelDragOver}
+            onDrop={handlePanelDrop}
+        >
+            {/* File drop overlay */}
+            {isDraggingOver && (
+                <div className="absolute inset-0 z-50 bg-info/10 border-2 border-dashed border-info rounded-lg flex flex-col items-center justify-center gap-2 pointer-events-none">
+                    <ArrowDownTrayIcon className="size-8 text-info animate-bounce" />
+                    <span className="text-xs font-medium text-info">Drop files here</span>
+                </div>
+            )}
+
+            {/* Tab bar */}
             <div className="flex items-center border-b border-base-content/10 shrink-0">
                 {TABS.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex-1 flex flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-medium transition-colors
+                        className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 text-[10px] font-medium transition-colors
                             ${activeTab === tab.id
                                 ? "text-info border-b-2 border-info"
                                 : "opacity-50 hover:opacity-80"}`}
                     >
-                        <tab.icon className="size-4" />
+                        <tab.icon className="size-3.5" />
                         {tab.label}
                     </button>
                 ))}
-                <button onClick={onToggle} className="btn btn-ghost btn-xs px-2 opacity-40 hover:opacity-100">
+                <button onClick={onToggle} className="btn btn-ghost btn-xs px-1 opacity-40 hover:opacity-100">
                     <XMarkIcon className="size-3" />
                 </button>
             </div>
@@ -182,12 +226,13 @@ export default function AssetPanel({ isOpen, onToggle }) {
 function ImportTab({ mediaAssets, onImport, onRemove, onDragStart }) {
     return (<>
         <button onClick={onImport}
-            className="btn btn-sm btn-outline btn-info w-full gap-2 mb-3">
+            className="btn btn-sm btn-outline btn-info w-full gap-2 mb-2">
             <PlusIcon className="size-4" />
             Import Media
         </button>
         {mediaAssets.length === 0 ? (
-            <EmptyState icon={<FilmIcon className="size-8 opacity-20" />} text="Import videos or images to get started" />
+            <EmptyState icon={<FilmIcon className="size-8 opacity-20" />}
+                text="Drop video/image files here or click Import" />
         ) : (
             <div className="grid grid-cols-2 gap-1.5">
                 {mediaAssets.map(asset => (
@@ -203,12 +248,13 @@ function ImportTab({ mediaAssets, onImport, onRemove, onDragStart }) {
 function AudioTab({ audioAssets, onImport, onRemove, onDragStart }) {
     return (<>
         <button onClick={onImport}
-            className="btn btn-sm btn-outline btn-secondary w-full gap-2 mb-3">
+            className="btn btn-sm btn-outline btn-secondary w-full gap-2 mb-2">
             <PlusIcon className="size-4" />
             Import Audio
         </button>
         {audioAssets.length === 0 ? (
-            <EmptyState icon={<MusicalNoteIcon className="size-8 opacity-20" />} text="Import audio files (MP3, WAV, etc.)" />
+            <EmptyState icon={<MusicalNoteIcon className="size-8 opacity-20" />}
+                text="Drop audio files here or click Import" />
         ) : (
             <div className="flex flex-col gap-1">
                 {audioAssets.map(asset => (

@@ -28,10 +28,10 @@ export default function AddTrackButton() {
         <div className="relative">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="btn btn-xs btn-ghost gap-1 opacity-50 hover:opacity-100"
+                className="btn btn-xs btn-ghost gap-1 opacity-60 hover:opacity-100 w-full justify-start"
             >
-                <PlusIcon className="size-3" />
-                <span className="text-[10px]">Add Track</span>
+                <PlusIcon className="size-3.5" />
+                <span className="text-[10px] font-medium">Add Track</span>
             </button>
             {isOpen && (
                 <>

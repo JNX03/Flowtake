@@ -106,10 +106,10 @@ export default function Properties() {
     }
 
     return (
-        <div className="w-[26rem] relative">
+        <div className="w-80 shrink-0 relative">
             <div className="absolute left-0 top-0 right-0 bottom-0">
-                <div className="flex flex-row gap-2 h-full">
-                    <ul className="menu bg-base-100 rounded-lg overflow-y-auto no-scrollbar">
+                <div className="flex flex-row gap-1.5 h-full">
+                    <ul className="menu bg-base-100 rounded-lg overflow-y-auto no-scrollbar shrink-0">
                         <li>
                             <button onClick={() => open(SCREEN_RECORDING)}
                                 className={`tooltip tooltip-left ${openSection === SCREEN_RECORDING ? "menu-active" : ""}`}

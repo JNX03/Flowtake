@@ -2,7 +2,8 @@ import {
     useCallback,
     useEffect,
     useMemo,
-    useRef
+    useRef,
+    useState
 } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
 import {
@@ -21,6 +22,8 @@ import {
     ZOOMS
 } from "../../../../src/helpers"
 import {
+    addAudioClip,
+    addTrack as addAudioTrack,
     selectAudioClipIds,
     selectAudioTracks,
     toggleTrackLock,
@@ -46,6 +49,8 @@ import {
     selectIsPlaying
 } from "../../../../src/redux/editorSlice"
 import {
+    addOverlay,
+    addOverlayTrack,
     selectOverlayIds,
     selectOverlayTracks,
     toggleOverlayTrackLock,
@@ -122,6 +127,9 @@ export default function Timeline() {
         return msToPx(ms, pxPerMs)
     }, [pxPerMs])
 
+    const [isDragOver, setIsDragOver] = useState(false)
+    const dragCounterRef = useRef(0)
+
     const container = useRef(null)
     const timeline = useRef(null)
     const headerScroll = useRef(null)
@@ -194,6 +202,83 @@ export default function Timeline() {
         if (t < start || t > end) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
         else if (isPlaying && t > scrollThreshold) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
     }, [pxPerMs, isPlaying])
+
+    // Timeline drop zone - auto-creates tracks when dropping from assets
+    const handleTimelineDragOver = useCallback(e => {
+        // Only accept internal drag (application/json), not OS files
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "copy"
+    }, [])
+
+    const handleTimelineDragEnter = useCallback(e => {
+        e.preventDefault()
+        dragCounterRef.current++
+        setIsDragOver(true)
+    }, [])
+
+    const handleTimelineDragLeave = useCallback(e => {
+        e.preventDefault()
+        dragCounterRef.current--
+        if (dragCounterRef.current <= 0) { setIsDragOver(false); dragCounterRef.current = 0 }
+    }, [])
+
+    const handleTimelineDrop = useCallback(e => {
+        e.preventDefault()
+        setIsDragOver(false)
+        dragCounterRef.current = 0
+        try {
+            const raw = e.dataTransfer.getData("application/json")
+            if (!raw) return
+            const data = JSON.parse(raw)
+            const time = 0
+            const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+            if (data.type === "audio" || data.category === "audio") {
+                // Auto-create audio track if none exist, then add clip
+                const trackId = audioTracks.length > 0 ? audioTracks[0].id : null
+                if (trackId === null) dispatch(addAudioTrack())
+                // Use setTimeout to let the track be created first
+                setTimeout(() => {
+                    dispatch(addAudioClip({
+                        id: `audio-${uid}`,
+                        start: time,
+                        end: Math.min(time + (data.duration || 5000), duration),
+                        trackIndex: trackId ?? 0,
+                        name: data.name || "Audio",
+                        volume: 1,
+                        src: data.src || null
+                    }))
+                }, trackId === null ? 10 : 0)
+            } else if (data.type === "text" || data.type === "shape" || data.type === "image" || data.type === "video") {
+                const trackId = overlayTracks.length > 0 ? overlayTracks[0].id : null
+                if (trackId === null) dispatch(addOverlayTrack())
+                const base = {
+                    id: `overlay-${uid}`,
+                    start: time,
+                    end: Math.min(time + 4000, duration),
+                    trackIndex: trackId ?? 0,
+                    opacity: 1,
+                    position: { x: 0.5, y: 0.5 },
+                }
+                setTimeout(() => {
+                    if (data.type === "text") {
+                        dispatch(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
+                            fontSize: data.config?.fontSize || 32, fontWeight: data.config?.fontWeight || 600,
+                            color: data.config?.color || "#ffffff" }))
+                    } else if (data.type === "shape") {
+                        dispatch(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
+                            fill: data.config?.fill || "#6C5CE7", stroke: data.config?.stroke || "none",
+                            strokeWidth: data.config?.strokeWidth || 0, width: data.config?.width || 200,
+                            height: data.config?.height || 100, borderRadius: data.config?.borderRadius || 0,
+                            radius: data.config?.radius || 0 }))
+                    } else {
+                        dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
+                            src: data.src || null, width: 320, height: 240 }))
+                    }
+                }, trackId === null ? 10 : 0)
+            }
+        } catch { /* ignore invalid drops */ }
+    }, [dispatch, duration, audioTracks, overlayTracks])
 
     const mini = isMaskingModeEnabled
 
@@ -273,7 +358,11 @@ export default function Timeline() {
 
                     {/* Timeline tracks content */}
                     <div ref={container}
-                        className={`flex-1 px-20 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar`}>
+                        onDragOver={handleTimelineDragOver}
+                        onDragEnter={handleTimelineDragEnter}
+                        onDragLeave={handleTimelineDragLeave}
+                        onDrop={handleTimelineDrop}
+                        className={`flex-1 px-20 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar relative`}>
                         {duration && <div ref={timeline}
                             className="grid grid-cols-1 gap-1 relative bg-size-[100%_100%] z-0 min-h-full"
                             style={{ width: `${timelineWidth}px`, backgroundImage: getGridBackgroundImage(gridSpacing) }}>
@@ -291,6 +380,15 @@ export default function Timeline() {
                             <AudioTracks />
                             <OverlayTracks />
                         </div>}
+
+                        {/* Drop zone indicator */}
+                        {isDragOver && (
+                            <div className="absolute inset-0 z-40 flex items-end justify-center pb-4 pointer-events-none">
+                                <div className="bg-info/15 border-2 border-dashed border-info/50 rounded-lg px-6 py-3 backdrop-blur-sm">
+                                    <span className="text-xs font-medium text-info">Drop here to add to timeline</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

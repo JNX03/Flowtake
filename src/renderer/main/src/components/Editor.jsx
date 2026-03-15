@@ -62,9 +62,9 @@ export default function Editor() {
             <SettingsButton />
             <UpgradeButton />
         </TitleBar>
-        <div className="bg-base-300 flex flex-col h-full relative">
+        <div className="bg-base-300 flex flex-col h-full relative overflow-hidden">
             {/* Top section: Assets | Preview | Properties */}
-            <div className="pt-1 pl-2 pr-2 flex gap-2 flex-1 overflow-auto min-h-0">
+            <div className="pt-1 px-1.5 flex gap-1.5 flex-1 overflow-hidden min-h-0">
                 <AssetPanel
                     isOpen={isAssetPanelOpen}
                     onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
