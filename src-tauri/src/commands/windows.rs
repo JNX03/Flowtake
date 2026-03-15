@@ -450,6 +450,7 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     .resizable(true)
     .decorations(true)
     .always_on_top(true)
+    .content_protected(true)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 
@@ -459,7 +460,7 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
 /// Detect the window at a given screen point by enumerating windows in z-order.
 /// No hiding/showing - just finds the topmost non-Flowtake window containing the point.
 #[tauri::command]
-pub async fn get_window_at_point(app: AppHandle, x: i32, y: i32) -> AppResult<Value> {
+pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<Value> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::WindowsAndMessaging::{
