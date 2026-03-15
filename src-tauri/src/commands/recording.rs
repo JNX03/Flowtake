@@ -865,6 +865,10 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
             let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
+            // Clamp to screen bounds
+            let w = w.min(screen_w as i64 - x);
+            let h = h.min(screen_h as i64 - y);
+            log::info!("[screenshot] window: x={} y={} w={} h={} screen={}x{}", x, y, w, h, screen_w, screen_h);
             (x, y, (w - (w % 2)).max(2), (h - (h % 2)).max(2))
         }
         "area" => {

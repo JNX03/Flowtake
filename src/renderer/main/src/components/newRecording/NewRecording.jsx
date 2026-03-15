@@ -46,7 +46,9 @@ export default function NewRecording({ isOpen }) {
     queryKey: ['captureSourcePreview', source?.id, source?.type, source?.name, source],
     queryFn: () => window.electron.ipcRenderer.invoke("get-source-screenshot", source),
     gcTime: 0,
-    retry: 1
+    retry: 1,
+    // Refresh preview every 2 seconds for live-ish feel
+    refetchInterval: 2000,
   })
 
   const addNote = () => window.electron.ipcRenderer.invoke("add-note")
