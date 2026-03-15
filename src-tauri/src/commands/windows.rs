@@ -40,8 +40,7 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
 
     log::info!("[window_picker] Monitor size: {}x{}", mon_w, mon_h);
 
-    // Create transparent fullscreen overlay - like original Electron version
-    // User sees real desktop through it, with hoverable outlines over windows
+    // Transparent fullscreen overlay with window outlines
     let _window = WebviewWindowBuilder::new(
         &app,
         "windowPicker",
@@ -141,11 +140,13 @@ pub async fn select_window(app: AppHandle, window: Value) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
-    // Get screen dimensions for coordinate clamping
+    // Get screen dimensions in logical pixels for coordinate clamping
+    // (matching C# DPI-unaware coordinates)
     let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
         if let Ok(Some(monitor)) = main_win.current_monitor() {
             let size = monitor.size();
-            (size.width as i64, size.height as i64)
+            let scale = monitor.scale_factor();
+            ((size.width as f64 / scale) as i64, (size.height as f64 / scale) as i64)
         } else {
             (1920, 1080)
         }
@@ -216,6 +217,8 @@ public class WinEnum {
     }
 
     public static List<Dictionary<string, object>> GetVisibleWindows(uint[] excludePids) {
+        // NOTE: No SetProcessDpiAwareness - coordinates stay in logical/virtualized pixels
+        // matching FFmpeg gdigrab which is also DPI-unaware
         var pidSet = new HashSet<uint>(excludePids);
         var result = new List<Dictionary<string, object>>();
         EnumWindows((hWnd, lParam) => {

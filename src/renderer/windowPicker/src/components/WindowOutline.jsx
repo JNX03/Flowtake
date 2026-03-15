@@ -1,17 +1,24 @@
 import { WindowIcon } from "@heroicons/react/24/outline"
 import PropTypes from 'prop-types'
-import { useMemo } from "react"
 
-export default function WindowOutline({ dimensions, onClick }) {
-    const left = useMemo(() => dimensions.x / window.devicePixelRatio, [dimensions])
-    const top = useMemo(() => dimensions.y / window.devicePixelRatio, [dimensions])
-    const width = useMemo(() => dimensions.width / window.devicePixelRatio, [dimensions])
-    const height = useMemo(() => dimensions.height / window.devicePixelRatio, [dimensions])
+export default function WindowOutline({ dimensions, name, onClick }) {
+    // Coordinates are in logical pixels (DPI-unaware, matching FFmpeg and overlay window)
+    const left = dimensions.x
+    const top = dimensions.y
+    const width = dimensions.width
+    const height = dimensions.height
 
     return <>
-        {left !== null && top !== null && width !== null && height !== null && (<div
-            className="absolute border-transparent bg-transparent border-4 hover:border-primary hover:bg-primary/10 transition-colors rounded-md cursor-pointer flex justify-center items-center group"
-            style={{ left, top, width, height }} onClick={onClick} >
+        {width > 0 && height > 0 && (<div
+            className="absolute border-4 border-transparent hover:border-primary hover:bg-primary/10 transition-colors rounded-md cursor-pointer flex flex-col justify-center items-center group"
+            style={{
+                left, top, width, height,
+                backgroundColor: 'rgba(128,128,128,0.01)'
+            }}
+            onClick={onClick} >
+            {name && <div className="absolute top-2 left-2 px-2 py-1 bg-base-300/80 rounded text-xs text-base-content opacity-0 group-hover:opacity-100 transition-opacity max-w-[250px] truncate">
+                {name}
+            </div>}
             <button className="btn btn-primary opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" >
                 <WindowIcon className="size-6 scale-x-[-1]" />
                 Record window
@@ -27,5 +34,6 @@ WindowOutline.propTypes = {
         x: PropTypes.number.isRequired,
         y: PropTypes.number.isRequired
     }).isRequired,
+    name: PropTypes.string,
     onClick: PropTypes.func.isRequired
 }
