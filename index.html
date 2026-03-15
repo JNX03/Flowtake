@@ -18,69 +18,71 @@
 
 <body class="hyphens-auto h-full max-h-full bg-base-300">
   <div id="root" class="h-full max-h-full pt-8 m-0 relative"></div>
-  <!-- Splash screen matching app design -->
+  <!-- Splash screen with real-time progress -->
   <div id="splash">
     <style>
       @keyframes splash-in { from { opacity:0 } to { opacity:1 } }
-      @keyframes splash-spin { to { transform: rotate(360deg) } }
-      @keyframes splash-pulse { 0%,100% { opacity:0.4 } 50% { opacity:1 } }
-      @keyframes splash-bar { 0% { width:0 } 100% { width:68% } }
+      @keyframes splash-check { from { opacity:0;transform:scale(0.5) } to { opacity:1;transform:scale(1) } }
       #splash {
         position:fixed;inset:0;z-index:9999;
         background:#0f0f23;
         display:flex;flex-direction:column;
-        animation: splash-in .2s ease-out;
+        animation: splash-in .15s ease-out;
       }
-      #splash.removing { opacity:0; transition:opacity .2s ease-out }
-      /* Title bar replica */
+      #splash.removing { opacity:0; transition:opacity .15s ease-out }
       #splash-titlebar {
         height:32px;display:flex;align-items:center;padding:0 8px;
-        -webkit-app-region:drag;
-        flex-shrink:0;
+        -webkit-app-region:drag;flex-shrink:0;
       }
-      #splash-titlebar-icon {
-        width:20px;height:20px;margin-right:8px;border-radius:4px;
-      }
+      #splash-titlebar-icon { width:20px;height:20px;margin-right:8px;border-radius:4px }
       #splash-titlebar-text {
         font-family:Poppins,system-ui,sans-serif;font-size:14px;font-weight:600;
         color:rgba(240,240,255,0.85);margin:0;
       }
-      /* Center content */
       #splash-content {
         flex:1;display:flex;flex-direction:column;
-        align-items:center;justify-content:center;gap:28px;
+        align-items:center;justify-content:center;gap:24px;
       }
-      /* Logo */
       #splash-logo {
-        width:72px;height:72px;border-radius:16px;
-        filter:drop-shadow(0 0 24px rgba(108,92,231,0.3));
+        width:64px;height:64px;border-radius:14px;
+        filter:drop-shadow(0 0 20px rgba(108,92,231,0.3));
       }
-      /* Brand text */
       #splash-brand {
-        font-family:Poppins,system-ui,sans-serif;font-size:22px;font-weight:600;
+        font-family:Poppins,system-ui,sans-serif;font-size:20px;font-weight:600;
         color:rgba(240,240,255,0.9);margin:0;letter-spacing:0.01em;
       }
-      /* Loading bar */
-      #splash-loader {
-        display:flex;flex-direction:column;align-items:center;gap:10px;
-        width:180px;
-      }
+      #splash-loader { display:flex;flex-direction:column;align-items:center;gap:14px;width:220px }
       #splash-bar-track {
         width:100%;height:3px;border-radius:2px;
-        background:rgba(108,92,231,0.15);overflow:hidden;
+        background:rgba(108,92,231,0.12);overflow:hidden;
       }
       #splash-bar-fill {
-        height:100%;border-radius:2px;
+        height:100%;border-radius:2px;width:0%;
         background:linear-gradient(90deg,#6C5CE7,#00CEC9);
-        animation:splash-bar 1.8s ease-in-out infinite alternate;
+        transition:width .4s cubic-bezier(0.4,0,0.2,1);
       }
-      #splash-status {
-        font-family:system-ui,sans-serif;font-size:12px;font-weight:400;
-        color:rgba(240,240,255,0.35);margin:0;
-        animation:splash-pulse 2s ease-in-out infinite;
+      #splash-stages { display:flex;flex-direction:column;gap:6px;width:100% }
+      .splash-stage {
+        display:flex;align-items:center;gap:8px;
+        font-family:system-ui,sans-serif;font-size:11px;font-weight:400;
+        color:rgba(240,240,255,0.2);margin:0;
+        transition:color .3s ease,opacity .3s ease;
+      }
+      .splash-stage.active { color:rgba(240,240,255,0.6) }
+      .splash-stage.done { color:rgba(0,206,201,0.7) }
+      .splash-stage-icon {
+        width:14px;height:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+      }
+      .splash-stage-spinner {
+        width:12px;height:12px;border:1.5px solid rgba(108,92,231,0.3);
+        border-top-color:#6C5CE7;border-radius:50%;
+        animation:splash-spin .6s linear infinite;
+      }
+      @keyframes splash-spin { to { transform:rotate(360deg) } }
+      .splash-stage-check {
+        animation:splash-check .2s ease-out;
       }
     </style>
-    <!-- Title bar -->
     <div id="splash-titlebar">
       <svg id="splash-titlebar-icon" viewBox="0 0 256 256" fill="none">
         <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
@@ -93,7 +95,6 @@
       </svg>
       <p id="splash-titlebar-text">Flowtake</p>
     </div>
-    <!-- Center -->
     <div id="splash-content">
       <svg id="splash-logo" viewBox="0 0 256 256" fill="none">
         <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
@@ -113,12 +114,74 @@
       <p id="splash-brand">Flowtake</p>
       <div id="splash-loader">
         <div id="splash-bar-track"><div id="splash-bar-fill"></div></div>
-        <p id="splash-status">Loading...</p>
+        <div id="splash-stages">
+          <p class="splash-stage active" data-stage="bridge">
+            <span class="splash-stage-icon"><span class="splash-stage-spinner"></span></span>
+            Initializing core
+          </p>
+          <p class="splash-stage" data-stage="framework">
+            <span class="splash-stage-icon"></span>
+            Loading interface
+          </p>
+          <p class="splash-stage" data-stage="store">
+            <span class="splash-stage-icon"></span>
+            Preparing workspace
+          </p>
+          <p class="splash-stage" data-stage="render">
+            <span class="splash-stage-icon"></span>
+            Building UI
+          </p>
+          <p class="splash-stage" data-stage="devices">
+            <span class="splash-stage-icon"></span>
+            Detecting devices
+          </p>
+        </div>
       </div>
     </div>
   </div>
   <script>
-    // Global error handler to catch any JS errors that prevent rendering
+    // Splash progress API
+    var _splashStages = ['bridge','framework','store','render','devices'];
+    var _splashDone = {};
+    var _checkSvg = '<svg class="splash-stage-check" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#00CEC9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    window.splashUpdate = function(stageId) {
+      _splashDone[stageId] = true;
+      var doneCount = 0;
+      for (var i = 0; i < _splashStages.length; i++) {
+        var sid = _splashStages[i];
+        var el = document.querySelector('[data-stage="'+sid+'"]');
+        if (!el) continue;
+        if (_splashDone[sid]) {
+          doneCount++;
+          el.className = 'splash-stage done';
+          el.querySelector('.splash-stage-icon').innerHTML = _checkSvg;
+        } else if (doneCount === i) {
+          el.className = 'splash-stage active';
+          el.querySelector('.splash-stage-icon').innerHTML = '<span class="splash-stage-spinner"></span>';
+        }
+      }
+      var pct = (doneCount / _splashStages.length) * 100;
+      var fill = document.getElementById('splash-bar-fill');
+      if (fill) fill.style.width = pct + '%';
+    };
+
+    window.splashDismiss = function() {
+      var fill = document.getElementById('splash-bar-fill');
+      if (fill) fill.style.width = '100%';
+      var splash = document.getElementById('splash');
+      if (splash) {
+        splash.classList.add('removing');
+        // Use display:none after fade instead of remove() to avoid
+        // interfering with React's DOM reconciliation
+        setTimeout(function() {
+          splash.style.display = 'none';
+          splash.style.pointerEvents = 'none';
+        }, 160);
+      }
+    };
+
+    // Global error handlers
     window.onerror = function(msg, url, line, col, error) {
       document.getElementById('root').innerHTML = '<pre style="color:red;padding:20px;font-size:14px;">ERROR: ' + msg + '\n' + url + ':' + line + ':' + col + '\n' + (error ? error.stack : '') + '</pre>';
     };

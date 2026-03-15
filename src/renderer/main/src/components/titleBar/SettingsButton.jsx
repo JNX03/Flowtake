@@ -1,7 +1,7 @@
 import { Cog6ToothIcon } from "@heroicons/react/16/solid"
 import { useDispatch } from "react-redux"
 import { setOpenSettings } from "../../../../src/redux/appSlice"
-import { SETTINGS_GENERAL } from "../settings/settings"
+import { SETTINGS_GENERAL } from "../settings/constants"
 
 export default function SettingsButton() {
     const dispatch = useDispatch()

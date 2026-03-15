@@ -3,7 +3,8 @@ import {
     lazy,
     Suspense,
     useCallback,
-    useEffect
+    useEffect,
+    useRef
 } from "react"
 import {
     useDispatch,
@@ -90,6 +91,7 @@ export default function App() {
 
     const dispatch = useDispatch()
     const queryClient = useQueryClient()
+    const splashDismissed = useRef(false)
 
     const getCapturersAndEncoders = useCallback(async () => {
         try {
@@ -121,13 +123,53 @@ export default function App() {
         }
     }, [dispatch])
 
+    const dismissSplash = useCallback(() => {
+        if (splashDismissed.current) return
+        splashDismissed.current = true
+        // Defer DOM changes outside React's commit cycle
+        setTimeout(() => {
+            if (window.splashUpdate) window.splashUpdate('devices')
+            if (window.splashDismiss) window.splashDismiss()
+        }, 0)
+    }, [])
+
+    // Consume early-fetched data from main.jsx (started during splash)
+    // This runs immediately on mount - no 100ms delay
     useEffect(() => {
-        // Defer non-critical startup work to let the UI render first
-        const timer = setTimeout(() => {
-            if (capturers.length === 0 && encoders.length === 0) getCapturersAndEncoders()
-        }, 100)
-        return () => clearTimeout(timer)
-    }, [capturers.length, encoders.length, getCapturersAndEncoders])
+        if (capturers.length > 0 || encoders.length > 0) {
+            dismissSplash()
+            return
+        }
+
+        const consumeEarlyData = async () => {
+            try {
+                if (window.__earlyData) {
+                    const [c, e] = await Promise.all([
+                        window.__earlyData.capturers,
+                        window.__earlyData.encoders
+                    ])
+                    dispatch(setCapturers(Array.isArray(c) ? c : []))
+                    dispatch(setEncoders(Array.isArray(e) ? e : []))
+                    window.__earlyData = null
+                } else {
+                    await getCapturersAndEncoders()
+                }
+            } catch (err) {
+                console.error("[Flowtake] Early data fetch failed, retrying:", err)
+                await getCapturersAndEncoders()
+            }
+
+            dismissSplash()
+        }
+
+        consumeEarlyData()
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Fallback: dismiss splash after 4s max (in case device detection hangs)
+    useEffect(() => {
+        const timeout = setTimeout(dismissSplash, 4000)
+        return () => clearTimeout(timeout)
+    }, [dismissSplash])
 
     useEffect(() => {
         const handleUpdateDownloaded = () => { dispatch(addToast({ type: TOAST_UPDATE })) }
@@ -198,28 +240,30 @@ export default function App() {
         if (!hasProject) queryClient.invalidateQueries()
     }, [hasProject, queryClient])
 
-    return (<>
-        <div className="h-full overflow-auto">
-            {!hasProject && !isRecording && <Launcher />}
-            {hasProject && <Suspense fallback={null}><Editor /></Suspense>}
+    return (
+        <div className="h-full relative">
+            <div className="h-full overflow-auto">
+                {!hasProject && !isRecording && <Launcher />}
+                {hasProject && <Suspense fallback={null}><Editor /></Suspense>}
+            </div>
+            <Loader />
+            <Toasts />
+            <Suspense fallback={null}>
+                <Settings />
+                <CloseModal />
+                <PermissionsModal />
+            </Suspense>
+            {hasProject && <Suspense fallback={null}>
+                <ClickMenu />
+                <ClipMenu />
+                <MaskMenu />
+                <NewClipMenu />
+                <NewMaskMenu />
+                <NewSubtitleMenu />
+                <NewZoomMenu />
+                <SubtitleMenu />
+                <ZoomMenu />
+            </Suspense>}
         </div>
-        <Loader />
-        <Toasts />
-        <Suspense fallback={null}>
-            <Settings />
-            <CloseModal />
-            <PermissionsModal />
-        </Suspense>
-        {hasProject && <Suspense fallback={null}>
-            <ClickMenu />
-            <ClipMenu />
-            <MaskMenu />
-            <NewClipMenu />
-            <NewMaskMenu />
-            <NewSubtitleMenu />
-            <NewZoomMenu />
-            <SubtitleMenu />
-            <ZoomMenu />
-        </Suspense>}
-    </>)
+    )
 }

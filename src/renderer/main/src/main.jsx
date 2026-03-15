@@ -1,8 +1,15 @@
 import { initTauriBridge } from '../../src/tauriBridge'
 
-// Initialize Tauri bridge BEFORE any code that uses window.electron
+// Stage 1: Initialize Tauri bridge
 initTauriBridge()
+if (window.splashUpdate) window.splashUpdate('bridge')
 
+// Start FFmpeg discovery EARLY (runs in parallel with React setup + render)
+const earlyCapturers = window.electron.ipcRenderer.invoke("get-capturers").catch(() => [])
+const earlyEncoders = window.electron.ipcRenderer.invoke("get-encoders").catch(() => [])
+window.__earlyData = { capturers: earlyCapturers, encoders: earlyEncoders }
+
+// Stage 2: Load framework
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from "react-redux"
@@ -11,8 +18,12 @@ import {
     QueryClientProvider
 } from '@tanstack/react-query'
 import '../../src/assets/index.css'
+if (window.splashUpdate) window.splashUpdate('framework')
+
+// Stage 3: Create store
 import store from "../../src/redux/store"
 import App from "./App"
+if (window.splashUpdate) window.splashUpdate('store')
 
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -39,6 +50,7 @@ class ErrorBoundary extends React.Component {
 
 const queryClient = new QueryClient()
 
+// Stage 4: Render
 createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
@@ -49,13 +61,10 @@ createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
 )
 
-// Show main window and dismiss splash as soon as React commits
+// Show main window after React commits, but let App.jsx handle splash dismissal
+// after early data resolves
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 requestAnimationFrame(() => {
+    if (window.splashUpdate) window.splashUpdate('render')
     getCurrentWebviewWindow().show().catch(() => {})
-    const splash = document.getElementById('splash')
-    if (splash) {
-        splash.classList.add('removing')
-        setTimeout(() => splash.remove(), 200)
-    }
 })

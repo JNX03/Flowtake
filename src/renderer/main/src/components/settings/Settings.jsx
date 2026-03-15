@@ -22,11 +22,7 @@ import GeneralSettings from "./GeneralSettings"
 import HotkeysSettings from "./HotkeysSettings"
 import RecorderSettings from "./RecorderSettings"
 
-export const SETTINGS_GENERAL = "general"
-export const SETTINGS_RECORDER = "recorder"
-export const SETTINGS_EXPORTER = "exporter"
-export const SETTINGS_LICENSE = "license"
-export const SETTINGS_HOTKEYS = "hotkeys"
+export { SETTINGS_GENERAL, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS } from "./constants"
 
 export default function Settings() {
     const dispatch = useDispatch()

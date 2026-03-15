@@ -76,51 +76,70 @@ export default function Projects({ isOpen }) {
         maskBlurStrength, maskAlpha, maskBorderRadius, maskFill, intro, outro, zoomTargetScale, dispatch])
 
     return (<>
-        <div className={`flex px-4 pt-10 pb-4 gap-4 ${isOpen ? "" : "hidden"}`}>
-            <span className="flex-1 text-sm text-base-content/70 flex items-center">
-                Open a project from File Explorer or select a recent recording.
-            </span>
-
-            <Button
-                className="btn-primary"
-                onClick={findProject}
-                disabled={isOpening}
-                isLoading={isOpening}
-                icon={DocumentMagnifyingGlassIcon}
-            >
-                Open project
-            </Button>
-            <div className={`join ${isOpen ? "" : "hidden"}`}>
+        <div className={`flex flex-col gap-4 ${isOpen ? "" : "hidden"}`}>
+            {/* Actions bar */}
+            <div className="flex items-center gap-3">
                 <Button
-                    className="join-item"
-                    onClick={() => setPage(page - 1)}
-                    disabled={isPending || isError || projects.totalPages === 0 || page === 0}
-                    icon={ChevronLeftIcon}
-                />
-                <Button
-                    className="join-item"
-                    onClick={() => setPage(page + 1)}
-                    disabled={isPending || isError || projects.totalPages === 0 || page === projects.totalPages - 1}
-                    icon={ChevronRightIcon}
-                />
+                    className="btn-primary btn-sm"
+                    onClick={findProject}
+                    disabled={isOpening}
+                    isLoading={isOpening}
+                    icon={DocumentMagnifyingGlassIcon}
+                    size="sm"
+                >
+                    Open project
+                </Button>
+                <div className="flex-1" />
+                <div className="join">
+                    <Button
+                        className="join-item btn-sm"
+                        onClick={() => setPage(page - 1)}
+                        disabled={isPending || isError || projects?.totalPages === 0 || page === 0}
+                        icon={ChevronLeftIcon}
+                        size="sm"
+                    />
+                    <Button
+                        className="join-item btn-sm"
+                        onClick={() => setPage(page + 1)}
+                        disabled={isPending || isError || projects?.totalPages === 0 || page === (projects?.totalPages ?? 1) - 1}
+                        icon={ChevronRightIcon}
+                        size="sm"
+                    />
+                </div>
             </div>
+
+            {/* Projects list */}
+            {isPending && (
+                <div className="flex items-center justify-center py-16">
+                    <span className="loading loading-spinner loading-md text-primary/40"></span>
+                </div>
+            )}
+            {!isPending && !isError && projects?.items?.length > 0 && (
+                <div className="rounded-xl overflow-hidden bg-base-200/30 border border-base-content/5">
+                    <table className="table table-sm">
+                        <thead>
+                            <tr className="border-b border-base-content/5">
+                                <th className="text-base-content/40 font-normal text-xs">Project name</th>
+                                <th className="text-base-content/40 font-normal text-xs">Last updated</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {projects?.items.map(project => (
+                                <ProjectRow key={project.id} project={project} refetch={refetch} />
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {!isPending && !isError && (!projects?.items || projects.items.length === 0) && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                    <DocumentMagnifyingGlassIcon className="size-10 text-base-content/10" />
+                    <p className="text-sm text-base-content/30">No projects yet</p>
+                    <p className="text-xs text-base-content/20">Record your first screen capture to get started</p>
+                </div>
+            )}
         </div>
-        {!isPending && !isError && projects.items.length > 0 &&
-            <div className={`flex-1 flex flex-col gap-12 py-4 overflow-auto bg-base-100 rounded-lg ${isOpen ? "" : "hidden"}`}>
-                <table className="table">
-                    <thead>
-                        <tr>
-                            <th>Project name</th>
-                            <th>Last updated</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {projects?.items.map(project => (<ProjectRow key={project.id} project={project}
-                            refetch={refetch} />))}
-                    </tbody>
-                </table>
-            </div>}
     </>)
 }
 
