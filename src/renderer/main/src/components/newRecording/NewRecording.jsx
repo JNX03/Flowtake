@@ -115,7 +115,7 @@ export default function NewRecording({ isOpen }) {
             <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} />
             <div
               className="tooltip"
-              data-tip="Add notes that will be visible while recording, but won't appear in the video."
+              data-tip="Open teleprompter - notes visible to you but hidden from the recording."
             >
               <button onClick={addNote} className="btn">
                 <DocumentIcon className="size-6" />

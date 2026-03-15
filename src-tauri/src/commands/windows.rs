@@ -445,12 +445,14 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
         &note_id,
         WebviewUrl::App("src/renderer/note/index.html".into()),
     )
-    .title("Note")
-    .inner_size(300.0, 200.0)
+    .title("Teleprompter")
+    .inner_size(420.0, 500.0)
+    .min_inner_size(280.0, 200.0)
     .resizable(true)
     .decorations(true)
     .always_on_top(true)
     .content_protected(true)
+    .transparent(false)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 
