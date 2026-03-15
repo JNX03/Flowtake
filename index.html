@@ -139,6 +139,7 @@
       </div>
     </div>
   </div>
+  <div id="error-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#1a1a2e;overflow:auto;"></div>
   <script>
     // Splash progress API
     var _splashStages = ['bridge','framework','store','render','devices'];
@@ -181,12 +182,20 @@
       }
     };
 
-    // Global error handlers
+    // Global error handlers — render in a separate overlay so we never
+    // destroy React's DOM tree (which causes removeChild errors).
+    function _showErrorOverlay(html) {
+      var overlay = document.getElementById('error-overlay');
+      if (overlay) {
+        overlay.style.display = 'block';
+        overlay.innerHTML = html;
+      }
+    }
     window.onerror = function(msg, url, line, col, error) {
-      document.getElementById('root').innerHTML = '<pre style="color:red;padding:20px;font-size:14px;">ERROR: ' + msg + '\n' + url + ':' + line + ':' + col + '\n' + (error ? error.stack : '') + '</pre>';
+      _showErrorOverlay('<pre style="color:red;padding:20px;font-size:14px;">ERROR: ' + msg + '\n' + url + ':' + line + ':' + col + '\n' + (error ? error.stack : '') + '</pre>');
     };
     window.addEventListener('unhandledrejection', function(e) {
-      document.getElementById('root').innerHTML = '<pre style="color:red;padding:20px;font-size:14px;">PROMISE ERROR: ' + e.reason + '\n' + (e.reason && e.reason.stack ? e.reason.stack : '') + '</pre>';
+      _showErrorOverlay('<pre style="color:red;padding:20px;font-size:14px;">PROMISE ERROR: ' + e.reason + '\n' + (e.reason && e.reason.stack ? e.reason.stack : '') + '</pre>');
     });
   </script>
   <script type="module" src="./src/renderer/main/src/main.jsx"></script>
