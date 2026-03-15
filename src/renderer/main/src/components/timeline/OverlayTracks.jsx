@@ -3,6 +3,7 @@ import {
     useDispatch,
     useSelector
 } from "react-redux"
+import { getDragItem, clearDragItem } from "../../dragState"
 import { OVERLAY_TRACKS, pxToMs } from "../../../../src/helpers"
 import {
     addOverlay,
@@ -60,7 +61,9 @@ export default function OverlayTracks() {
         e.stopPropagation()
         setDragOverTrack(null)
         try {
-            const data = JSON.parse(e.dataTransfer.getData("application/json"))
+            const { data } = getDragItem()
+            clearDragItem()
+            if (!data) return
             const rect = e.currentTarget.getBoundingClientRect()
             const offsetX = e.clientX - rect.left
             const time = pxToMs(offsetX, pxPerMs)

@@ -79,6 +79,25 @@ export const overlaySlice = createSlice({
             const track = state.tracks.find(t => t.id === action.payload)
             if (track) track.locked = !track.locked
         },
+        addKeyframe: (state, action) => {
+            const { overlayId, time, props } = action.payload
+            const overlay = state.entities[overlayId]
+            if (!overlay) return
+            if (!overlay.keyframes) overlay.keyframes = []
+            const idx = overlay.keyframes.findIndex(k => k.time === time)
+            if (idx >= 0) {
+                overlay.keyframes[idx] = { ...overlay.keyframes[idx], ...props, time }
+            } else {
+                overlay.keyframes.push({ time, ...props })
+                overlay.keyframes.sort((a, b) => a.time - b.time)
+            }
+        },
+        removeKeyframe: (state, action) => {
+            const { overlayId, time } = action.payload
+            const overlay = state.entities[overlayId]
+            if (!overlay || !overlay.keyframes) return
+            overlay.keyframes = overlay.keyframes.filter(k => k.time !== time)
+        },
     },
 })
 
@@ -96,6 +115,8 @@ export const {
     updateOverlayTrack,
     toggleOverlayTrackVisibility,
     toggleOverlayTrackLock,
+    addKeyframe,
+    removeKeyframe,
 } = overlaySlice.actions
 
 export const selectAllOverlays = state => selectAll(state.undoableState.present.overlayAnims)

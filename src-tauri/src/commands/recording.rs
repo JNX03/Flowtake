@@ -212,7 +212,7 @@ pub async fn init_recording(
         let size = m.size();
         let scale = m.scale_factor();
         let h = (size.height as f64 / scale) as f64;
-        (h - 60.0, h)
+        (h - 72.0, h)
     } else {
         (800.0, 900.0)
     };
@@ -223,8 +223,9 @@ pub async fn init_recording(
         WebviewUrl::App("src/renderer/recorder/index.html".into()),
     )
     .title("Recording - Flowtake")
-    .inner_size(360.0, 48.0)
+    .inner_size(420.0, 56.0)
     .position(10.0, win_y)
+    .transparent(true)
     .resizable(false)
     .minimizable(false)
     .maximizable(false)

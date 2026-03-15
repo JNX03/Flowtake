@@ -72,6 +72,7 @@ import {
     setWidth
 } from "../../../../src/redux/timelineSlice"
 import { selectZoomIds } from "../../../../src/redux/zoomSlice"
+import { getDragItem, clearDragItem } from "../../dragState"
 import AddTrackButton from "./AddTrackButton"
 import AudioTracks from "./AudioTracks"
 import Clicks from "./Clicks"
@@ -203,9 +204,8 @@ export default function Timeline() {
         else if (isPlaying && t > scrollThreshold) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
     }, [pxPerMs, isPlaying])
 
-    // Timeline drop zone - auto-creates tracks when dropping from assets
+    // Timeline drop zone - accept internal asset drags
     const handleTimelineDragOver = useCallback(e => {
-        // Only accept internal drag (application/json), not OS files
         e.preventDefault()
         e.dataTransfer.dropEffect = "copy"
     }, [])
@@ -227,9 +227,9 @@ export default function Timeline() {
         setIsDragOver(false)
         dragCounterRef.current = 0
         try {
-            const raw = e.dataTransfer.getData("application/json")
-            if (!raw) return
-            const data = JSON.parse(raw)
+            const { data } = getDragItem()
+            clearDragItem()
+            if (!data) return
             const time = 0
             const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 

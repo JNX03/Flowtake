@@ -132,6 +132,7 @@ import SubtitleConfig from "../../../src/scene/subtitle/SubtitleConfig"
 import ZoomConfig from "../../../src/scene/zoom/ZoomConfig"
 import PreviewWorkerManager from "../../../src/workers/PreviewWorkerManager"
 import AspectRatioDropdown from "./AspectRatioDropdown"
+import OverlayCanvas from "./OverlayCanvas"
 import VideoWrapper from "./VideoWrapper"
 
 export default function Preview() {
@@ -221,6 +222,8 @@ export default function Preview() {
     const cameraVideoRef = useRef(null)
     const hasManagerRef = useRef(false)
 
+    const [canvasRect, setCanvasRect] = useState(null)
+
     const { width: wrapperWidth, height: wrapperHeight, ref } = useResizeDetector()
 
     const createManager = useCallback(async () => {
@@ -305,6 +308,22 @@ export default function Preview() {
             canvasRef.current.style.width = `${dims.css.x}px`
             canvasRef.current.style.height = `${dims.css.y}px`
             dispatch(setRendererDims(dims.renderer))
+            // Update overlay canvas rect after layout settles
+            requestAnimationFrame(() => {
+                if (canvasRef.current) {
+                    const parent = canvasRef.current.parentElement
+                    if (parent) {
+                        const parentRect = parent.getBoundingClientRect()
+                        const cRect = canvasRef.current.getBoundingClientRect()
+                        setCanvasRect({
+                            left: cRect.left - parentRect.left,
+                            top: cRect.top - parentRect.top,
+                            width: cRect.width,
+                            height: cRect.height,
+                        })
+                    }
+                }
+            })
         }
     }, [aspectRatio, dispatch, wrapperWidth, wrapperHeight])
 
@@ -536,6 +555,7 @@ export default function Preview() {
     return (
         <div ref={ref} className="flex-1 min-w-0 flex items-center justify-center flex-col relative group">
             <canvas ref={canvasRef} className="rounded-md shadow-lg overflow-hidden" />
+            <OverlayCanvas canvasRect={canvasRect} />
             <div className={`absolute flex items-center px-3 py-2 bg-base-300/50 backdrop-blur-xs rounded-xl shadow-lg ${isPlaying ? "opacity-0 bottom-0" : "opacity-100 bottom-2"} transition-all group-hover:opacity-100 group-hover:bottom-2`}>
                 <div className="join">
                     {!isPlaying && <button onClick={onPlay} disabled={!videoDetails || time >= videoDetails.end}

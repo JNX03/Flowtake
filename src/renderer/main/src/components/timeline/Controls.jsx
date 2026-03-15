@@ -128,13 +128,13 @@ export default function Controls({ onScrollToStart }) {
     }, [isSnappingEnabled, clicks, clips, zooms, subtitles, masks, audioClips, overlays, time, isMaskingModeEnabled, isPlaying, dispatch])
 
     return (
-        <div className="absolute left-1 bottom-4 z-50 flex flex-col justify-center">
+        <div className="absolute right-1 bottom-4 z-50 flex flex-col justify-center">
             <div className="flex flex-col p-2 gap-2 bg-base-300/50 backdrop-blur-xs rounded-lg shadow-lg">
-                <button className="btn btn-xs tooltip tooltip-right z-10" data-tip="Go to start"
+                <button className="btn btn-xs tooltip tooltip-left z-10" data-tip="Go to start"
                     onClick={onScrollToStart} disabled={isPlaying || scrollLeft === 0}>
                     <ArrowLeftIcon className="size-4" />
                 </button>
-                <div className="join tooltip tooltip-right" data-tip="Zoom">
+                <div className="join tooltip tooltip-left" data-tip="Zoom">
                     <button className="btn btn-xs btn-square join-item z-10"
                         onClick={onClickZoomIn} disabled={pxPerMs >= steps.at(-1)}>
                         <MagnifyingGlassPlusIcon className="size-4" />
@@ -144,14 +144,14 @@ export default function Controls({ onScrollToStart }) {
                         <MagnifyingGlassMinusIcon className="size-4" />
                     </button>
                 </div>
-                <button className="btn btn-xs tooltip tooltip-right z-10"
+                <button className="btn btn-xs tooltip tooltip-left z-10"
                     data-tip={isSnappingEnabled ? "Disable alignment helpers" : "Enable alignment helpers"}
                     onClick={() => { dispatch(setIsSnappingEnabled(!isSnappingEnabled)) }} disabled={isPlaying}>
                     {isSnappingEnabled
                         ? <LinkSlashIcon className="size-4" />
                         : <LinkIcon className="size-4" />}
                 </button>
-                <button className={`btn btn-xs ${isMaskingModeEnabled ? "btn-info" : ""} tooltip tooltip-right z-10`}
+                <button className={`btn btn-xs ${isMaskingModeEnabled ? "btn-info" : ""} tooltip tooltip-left z-10`}
                     data-tip={isMaskingModeEnabled ? "Disable masking mode" : "Enable masking mode"}
                     onClick={onClickEnableMaskingMode} >
                     <Bars4Icon className="size-4" />

@@ -7,8 +7,9 @@ import {
     TrashIcon,
     VideoCameraIcon,
     VideoCameraSlashIcon,
+    XMarkIcon,
 } from "@heroicons/react/20/solid"
-import { StopIcon } from "@heroicons/react/24/outline"
+import { StopIcon } from "@heroicons/react/24/solid"
 import { useQuery } from "@tanstack/react-query"
 import moment from "moment"
 import momentDurationFormatSetup from "moment-duration-format"
@@ -169,177 +170,230 @@ export default function App() {
         window.electron.ipcRenderer.invoke("add-note")
     }
 
-    // Pre-recording states (loading / countdown)
+    // ─── Shared pill wrapper ─────────────────────────────────────────
+    const Pill = ({ children, className = "" }) => (
+        <div
+            className={`h-full w-full flex items-center select-none rounded-2xl ${className}`}
+            style={{
+                WebkitAppRegion: "drag",
+                background: "rgba(15, 15, 35, 0.85)",
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05) inset",
+            }}
+        >
+            {children}
+        </div>
+    )
+
+    // ─── Control button helper ───────────────────────────────────────
+    const CtrlBtn = ({ onClick, title, children, variant = "ghost", className = "" }) => {
+        const base = "flex items-center justify-center rounded-lg transition-all duration-150 "
+        const variants = {
+            ghost: "w-8 h-8 hover:bg-white/10 active:bg-white/15 text-base-content/70 hover:text-base-content",
+            stop: "w-9 h-9 bg-red-500 hover:bg-red-400 active:bg-red-600 text-white shadow-lg shadow-red-500/25",
+        }
+        return (
+            <button
+                onClick={onClick}
+                title={title}
+                className={`${base} ${variants[variant] || variants.ghost} ${className}`}
+                style={{ WebkitAppRegion: "no-drag" }}
+            >
+                {children}
+            </button>
+        )
+    }
+
+    // ─── Pre-recording: countdown / loading ──────────────────────────
     if (!isRecording) {
         return (
-            <div
-                className="h-full w-full flex items-center justify-between px-3 select-none"
-                style={{ WebkitAppRegion: "drag" }}
-            >
-                {/* Camera preview */}
-                {hasCam && (
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-base-content/20">
-                        <video ref={cameraVideoRef} autoPlay muted className="object-cover h-full w-full bg-base-100" />
-                    </div>
-                )}
+            <div className="h-full w-full p-1">
+                <Pill>
+                    {/* Camera preview */}
+                    {hasCam && (
+                        <div className="ml-3 w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-white/10">
+                            <video ref={cameraVideoRef} autoPlay muted className="object-cover h-full w-full bg-base-300" />
+                        </div>
+                    )}
 
-                {/* Countdown */}
-                {countdown !== null && (
-                    <div className="flex-1 flex items-center justify-center">
-                        <span className="font-semibold font-brand text-2xl tabular-nums">{countdown}</span>
-                    </div>
-                )}
+                    {/* Countdown number with ring */}
+                    {countdown !== null && (
+                        <div className="flex-1 flex items-center justify-center gap-3">
+                            <div className="relative flex items-center justify-center">
+                                {/* Animated ring */}
+                                <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                                    <circle
+                                        cx="18" cy="18" r="15"
+                                        fill="none"
+                                        stroke="rgba(255,255,255,0.08)"
+                                        strokeWidth="2.5"
+                                    />
+                                    <circle
+                                        cx="18" cy="18" r="15"
+                                        fill="none"
+                                        stroke="#6C5CE7"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeDasharray={`${(countdown / 5) * 94.25} 94.25`}
+                                        className="transition-all duration-700 ease-linear"
+                                    />
+                                </svg>
+                                <span className="absolute font-semibold font-brand text-lg tabular-nums text-white">
+                                    {countdown}
+                                </span>
+                            </div>
+                            <span className="text-[11px] text-base-content/40 font-medium tracking-wide uppercase">
+                                Starting...
+                            </span>
+                        </div>
+                    )}
 
-                {/* Loading spinner */}
-                {countdown === null && (
-                    <div className="flex-1 flex items-center justify-center">
-                        <span className="loading loading-spinner loading-sm"></span>
-                    </div>
-                )}
+                    {/* Loading spinner */}
+                    {countdown === null && (
+                        <div className="flex-1 flex items-center justify-center gap-2">
+                            <span className="loading loading-spinner loading-sm text-primary"></span>
+                            <span className="text-[11px] text-base-content/40 font-medium">Preparing...</span>
+                        </div>
+                    )}
 
-                {/* Cancel */}
-                {countdown !== null && (
-                    <button
-                        onClick={onClickCancel}
-                        className="btn btn-xs btn-ghost btn-square"
-                        title="Cancel"
-                        style={{ WebkitAppRegion: "no-drag" }}
-                    >
-                        <TrashIcon className="size-3.5" />
-                    </button>
-                )}
+                    {/* Cancel */}
+                    {countdown !== null && (
+                        <div className="mr-2">
+                            <CtrlBtn onClick={onClickCancel} title="Cancel recording">
+                                <XMarkIcon className="size-4" />
+                            </CtrlBtn>
+                        </div>
+                    )}
+                </Pill>
             </div>
         )
     }
 
-    // Recording state - full control bar
+    // ─── Recording: full control bar ─────────────────────────────────
     return (
-        <div
-            className="h-full w-full flex items-center px-2 gap-0.5 select-none"
-            style={{ WebkitAppRegion: "drag" }}
-        >
-            {/* Camera preview circle */}
-            {hasCam && (
-                <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-base-content/20">
-                    <video
-                        ref={cameraVideoRef}
-                        autoPlay
-                        muted
-                        className={`object-cover h-full w-full bg-base-100 transition-opacity ${isCameraOff ? 'opacity-0' : ''}`}
-                    />
-                    {isCameraOff && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-base-100">
-                            <VideoCameraSlashIcon className="size-3 opacity-40" />
+        <div className="h-full w-full p-1">
+            <Pill className="px-2 gap-1">
+
+                {/* Left section: status indicator */}
+                <div className="flex items-center gap-2.5 pl-2">
+                    {/* Camera preview */}
+                    {hasCam && (
+                        <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-white/10">
+                            <video
+                                ref={cameraVideoRef}
+                                autoPlay
+                                muted
+                                className={`object-cover h-full w-full bg-base-300 transition-opacity ${isCameraOff ? 'opacity-0' : ''}`}
+                            />
+                            {isCameraOff && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-base-300">
+                                    <VideoCameraSlashIcon className="size-3 opacity-30" />
+                                </div>
+                            )}
                         </div>
                     )}
+
+                    {/* Recording dot + timer */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex items-center justify-center w-3 h-3">
+                            {!isPaused && (
+                                <div className="absolute w-3 h-3 rounded-full bg-red-500/40 animate-ping" />
+                            )}
+                            <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
+                                isPaused ? 'bg-amber-400' : 'bg-red-500'
+                            }`} />
+                        </div>
+                        <div className="flex flex-col leading-none">
+                            <span className="font-brand font-semibold text-sm tabular-nums tracking-tight text-white">
+                                {formattedTime}
+                            </span>
+                            {isPaused && (
+                                <span className="text-[9px] text-amber-400 font-bold tracking-widest mt-0.5">
+                                    PAUSED
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
-            )}
 
-            {/* Recording indicator + Timer */}
-            <div className="flex items-center gap-1.5 px-1.5 min-w-0">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isPaused ? 'bg-warning' : 'bg-red-500 animate-pulse'}`} />
-                <span className="font-brand font-semibold text-xs tabular-nums tracking-tight">
-                    {formattedTime}
-                </span>
-                {isPaused && (
-                    <span className="text-[9px] text-warning font-bold tracking-wider">PAUSED</span>
-                )}
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-5 bg-base-content/15 mx-0.5 flex-shrink-0" />
-
-            {/* Toggle controls: Mic, Camera, Teleprompter */}
-            <div className="flex items-center" style={{ WebkitAppRegion: "no-drag" }}>
-                {hasMic && (
-                    <button
-                        onClick={toggleMic}
-                        className={`btn btn-xs btn-square btn-ghost relative ${isMicMuted ? 'text-error' : ''}`}
-                        title={isMicMuted ? "Unmute microphone" : "Mute microphone"}
+                {/* Center: device toggles */}
+                <div className="flex-1 flex items-center justify-center">
+                    <div
+                        className="flex items-center gap-0.5 rounded-lg p-0.5"
+                        style={{ background: "rgba(255,255,255,0.04)" }}
                     >
-                        <MicrophoneIcon className="size-3.5" />
-                        {isMicMuted && (
-                            <div className="absolute w-[1.5px] h-4 bg-error rotate-45 rounded-full" />
+                        {hasMic && (
+                            <CtrlBtn
+                                onClick={toggleMic}
+                                title={isMicMuted ? "Unmute microphone" : "Mute microphone"}
+                                className={isMicMuted ? "!text-red-400" : ""}
+                            >
+                                <div className="relative">
+                                    <MicrophoneIcon className="size-3.5" />
+                                    {isMicMuted && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-[1.5px] h-4 bg-red-400 rotate-45 rounded-full" />
+                                        </div>
+                                    )}
+                                </div>
+                            </CtrlBtn>
                         )}
-                    </button>
-                )}
 
-                {hasCam && (
-                    <button
-                        onClick={toggleCamera}
-                        className={`btn btn-xs btn-square btn-ghost ${isCameraOff ? 'text-error' : ''}`}
-                        title={isCameraOff ? "Turn on camera" : "Turn off camera"}
+                        {hasCam && (
+                            <CtrlBtn
+                                onClick={toggleCamera}
+                                title={isCameraOff ? "Turn on camera" : "Turn off camera"}
+                                className={isCameraOff ? "!text-red-400" : ""}
+                            >
+                                {isCameraOff
+                                    ? <VideoCameraSlashIcon className="size-3.5" />
+                                    : <VideoCameraIcon className="size-3.5" />
+                                }
+                            </CtrlBtn>
+                        )}
+
+                        <CtrlBtn onClick={openTeleprompter} title="Open teleprompter">
+                            <DocumentTextIcon className="size-3.5" />
+                        </CtrlBtn>
+                    </div>
+                </div>
+
+                {/* Right: recording actions */}
+                <div className="flex items-center gap-1 pr-1.5">
+                    {/* Pause / Resume */}
+                    {!isPaused ? (
+                        <CtrlBtn onClick={onClickPause} title="Pause recording">
+                            <PauseIcon className="size-4" />
+                        </CtrlBtn>
+                    ) : (
+                        <CtrlBtn onClick={onClickResume} title="Resume recording" className="!text-emerald-400 hover:!text-emerald-300">
+                            <PlayIcon className="size-4" />
+                        </CtrlBtn>
+                    )}
+
+                    {/* Restart */}
+                    <CtrlBtn onClick={onClickRestart} title="Restart recording">
+                        <ArrowPathIcon className="size-3.5" />
+                    </CtrlBtn>
+
+                    {/* Cancel */}
+                    <CtrlBtn onClick={onClickCancel} title="Cancel recording">
+                        <TrashIcon className="size-3.5" />
+                    </CtrlBtn>
+
+                    {/* Stop — the most important button, visually prominent */}
+                    <CtrlBtn
+                        onClick={onClickStop}
+                        title="Stop & save recording"
+                        variant="stop"
                     >
-                        {isCameraOff
-                            ? <VideoCameraSlashIcon className="size-3.5" />
-                            : <VideoCameraIcon className="size-3.5" />
-                        }
-                    </button>
-                )}
+                        <StopIcon className="size-4" />
+                    </CtrlBtn>
+                </div>
 
-                <button
-                    onClick={openTeleprompter}
-                    className="btn btn-xs btn-square btn-ghost"
-                    title="Open teleprompter"
-                >
-                    <DocumentTextIcon className="size-3.5" />
-                </button>
-            </div>
-
-            {/* Spacer */}
-            <div className="flex-1 min-w-1" />
-
-            {/* Divider */}
-            <div className="w-px h-5 bg-base-content/15 mx-0.5 flex-shrink-0" />
-
-            {/* Recording controls */}
-            <div className="flex items-center gap-0.5" style={{ WebkitAppRegion: "no-drag" }}>
-                {/* Pause / Resume */}
-                {!isPaused ? (
-                    <button
-                        onClick={onClickPause}
-                        className="btn btn-xs btn-square btn-ghost"
-                        title="Pause recording"
-                    >
-                        <PauseIcon className="size-3.5" />
-                    </button>
-                ) : (
-                    <button
-                        onClick={onClickResume}
-                        className="btn btn-xs btn-square btn-ghost text-accent"
-                        title="Resume recording"
-                    >
-                        <PlayIcon className="size-3.5" />
-                    </button>
-                )}
-
-                {/* Restart */}
-                <button
-                    onClick={onClickRestart}
-                    className="btn btn-xs btn-square btn-ghost"
-                    title="Restart recording"
-                >
-                    <ArrowPathIcon className="size-3.5" />
-                </button>
-
-                {/* Cancel */}
-                <button
-                    onClick={onClickCancel}
-                    className="btn btn-xs btn-square btn-ghost"
-                    title="Cancel recording"
-                >
-                    <TrashIcon className="size-3.5" />
-                </button>
-
-                {/* Stop - prominent red button */}
-                <button
-                    onClick={onClickStop}
-                    className="btn btn-sm btn-square btn-error ml-1"
-                    title="Stop & save recording"
-                >
-                    <StopIcon className="size-4" />
-                </button>
-            </div>
+            </Pill>
         </div>
     )
 }

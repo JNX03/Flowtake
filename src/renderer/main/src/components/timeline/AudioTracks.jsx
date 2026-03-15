@@ -3,6 +3,7 @@ import {
     useDispatch,
     useSelector
 } from "react-redux"
+import { getDragItem, clearDragItem } from "../../dragState"
 import { AUDIO_TRACKS, pxToMs } from "../../../../src/helpers"
 import {
     addAudioClip,
@@ -81,7 +82,9 @@ export default function AudioTracks() {
         e.stopPropagation()
         setDragOverTrack(null)
         try {
-            const data = JSON.parse(e.dataTransfer.getData("application/json"))
+            const { data } = getDragItem()
+            clearDragItem()
+            if (!data) return
             if (data.type === "audio" || data.category === "audio") {
                 const rect = e.currentTarget.getBoundingClientRect()
                 const offsetX = e.clientX - rect.left
