@@ -81,15 +81,16 @@ pub async fn init_recording(
 
     match source_type {
         "window" => {
-            // Capture the window's region on desktop using coordinates
-            // Coordinates are in logical pixels (DPI-unaware), matching FFmpeg
-            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
-            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
+            // Coordinates from get_window_at_point are in physical pixels
+            // FFmpeg gdigrab is also DPI-aware on this system, so pass directly
+            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
+            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
             let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
-            // Make dimensions even (required by many codecs)
             let w = (w - (w % 2)).max(2);
             let h = (h - (h % 2)).max(2);
+
+            log::info!("[recording] window: x={} y={} w={} h={}", x, y, w, h);
 
             ffmpeg_args.extend([
                 "-draw_mouse".to_string(),
@@ -859,9 +860,9 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
     // All types: capture by coordinates
     let (offset_x, offset_y, cap_w, cap_h) = match source_type {
         "window" => {
-            // Window coordinates are in logical pixels (DPI-unaware, matching FFmpeg)
-            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
-            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
+            // Physical pixel coords from get_window_at_point, pass directly to FFmpeg
+            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
+            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
             let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
             (x, y, (w - (w % 2)).max(2), (h - (h % 2)).max(2))

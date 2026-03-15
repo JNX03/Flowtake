@@ -279,6 +279,7 @@ pub fn run() {
             commands::windows::close_area_picker_window,
             commands::windows::select_area,
             commands::windows::add_note,
+            commands::windows::get_window_at_point,
             // App
             commands::app::get_version,
             commands::app::get_machine_id,

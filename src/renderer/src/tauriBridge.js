@@ -75,6 +75,7 @@ const COMMAND_MAP = {
     'close-area-picker-window': 'close_area_picker_window',
     'select-area': 'select_area',
     'add-note': 'add_note',
+    'get-window-at-point': 'get_window_at_point',
     // App
     'get-version': 'get_version',
     'get-machine-id': 'get_machine_id',
@@ -152,6 +153,7 @@ const ARGS_MAP = {
     'set_encoder': (args) => ({ encoder: args[0] }),
     'get_capturers': (args) => ({ force: args[0] }),
     'set_capturer': (args) => ({ capturer: args[0] }),
+    'get_window_at_point': (args) => ({ x: args[0], y: args[1] }),
     'get_projects': (args) => ({ page: args[0] }),
 };
 

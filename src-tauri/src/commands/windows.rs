@@ -3,6 +3,14 @@ use crate::state::AppState;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::{HWND, BOOL, LPARAM};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetWindowTextW, GetWindowTextLengthW,
+    GetWindowThreadProcessId,
+};
+
 #[tauri::command]
 pub async fn close_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("main") {
@@ -446,4 +454,126 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     .map_err(|e| AppError::Tauri(e))?;
 
     Ok(())
+}
+
+/// Detect the window at a given screen point by enumerating windows in z-order.
+/// No hiding/showing - just finds the topmost non-Flowtake window containing the point.
+#[tauri::command]
+pub async fn get_window_at_point(app: AppHandle, x: i32, y: i32) -> AppResult<Value> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            EnumWindows, GetWindowRect, IsWindowVisible as WinIsVisible,
+        };
+        use std::sync::Mutex as StdMutex;
+
+        let our_pid = std::process::id();
+        let flowtake_titles: Vec<String> = vec![
+            "flowtake".into(), "select window - flowtake".into(),
+            "window picker - flowtake".into(), "recording - flowtake".into(),
+            "select area".into(), "select area - flowtake".into(),
+        ];
+
+        // Shared result - first matching window found
+        let result: std::sync::Arc<StdMutex<Option<Value>>> =
+            std::sync::Arc::new(StdMutex::new(None));
+
+        struct CallbackData {
+            x: i32,
+            y: i32,
+            our_pid: u32,
+            flowtake_titles: Vec<String>,
+            result: std::sync::Arc<StdMutex<Option<Value>>>,
+        }
+
+        let data = Box::new(CallbackData {
+            x, y, our_pid, flowtake_titles, result: result.clone(),
+        });
+        let data_ptr = Box::into_raw(data);
+
+        unsafe extern "system" fn enum_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+            let data = &*(lparam.0 as *const CallbackData);
+
+            // Already found a result? Stop.
+            if data.result.lock().unwrap().is_some() {
+                return BOOL(0);
+            }
+
+            // Skip invisible windows
+            if !WinIsVisible(hwnd).as_bool() {
+                return BOOL(1);
+            }
+
+            // Skip our own process
+            let mut pid: u32 = 0;
+            GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            if pid == data.our_pid {
+                return BOOL(1);
+            }
+
+            // Get title
+            let len = GetWindowTextLengthW(hwnd);
+            if len == 0 { return BOOL(1); }
+            let mut buf = vec![0u16; (len + 1) as usize];
+            GetWindowTextW(hwnd, &mut buf);
+            let title = String::from_utf16_lossy(&buf[..len as usize]);
+            if title.is_empty() || title == "Program Manager" {
+                return BOOL(1);
+            }
+
+            // Skip Flowtake windows
+            let lower = title.to_lowercase();
+            if data.flowtake_titles.iter().any(|t| t == &lower) {
+                return BOOL(1);
+            }
+
+            // Get window rect
+            let mut rect = windows::Win32::Foundation::RECT::default();
+            let _ = GetWindowRect(hwnd, &mut rect);
+            let w = rect.right - rect.left;
+            let h = rect.bottom - rect.top;
+            if w <= 0 || h <= 0 { return BOOL(1); }
+
+            // Check if point is inside this window's rect
+            if data.x >= rect.left && data.x < rect.right &&
+               data.y >= rect.top && data.y < rect.bottom {
+                // Clamp to avoid negative coords (invisible window borders)
+                let cx = rect.left.max(0);
+                let cy = rect.top.max(0);
+                let cw = w - (cx - rect.left);
+                let ch = h - (cy - rect.top);
+                let val = serde_json::json!({
+                    "name": title,
+                    "id": (hwnd.0 as i64).to_string(),
+                    "type": "window",
+                    "x": cx,
+                    "y": cy,
+                    "width": cw,
+                    "height": ch
+                });
+                *data.result.lock().unwrap() = Some(val);
+                return BOOL(0); // Stop enumeration
+            }
+
+            BOOL(1) // Continue
+        }
+
+        unsafe {
+            let _ = EnumWindows(
+                Some(enum_callback),
+                LPARAM(data_ptr as isize),
+            );
+            // Clean up
+            drop(Box::from_raw(data_ptr));
+        }
+
+        let found = result.lock().unwrap().take();
+        Ok(found.unwrap_or(Value::Null))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, x, y);
+        Ok(Value::Null)
+    }
 }
