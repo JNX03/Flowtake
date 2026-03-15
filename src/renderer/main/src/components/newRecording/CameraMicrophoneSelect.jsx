@@ -8,7 +8,8 @@ import {
 } from "@tanstack/react-query"
 import {
   useCallback,
-  useEffect
+  useEffect,
+  useState
 } from "react"
 import Button from "../../../../components/Button"
 import {
@@ -19,6 +20,7 @@ import {
 export default function CameraMicrophoneSelect() {
 
   const queryClient = useQueryClient()
+  const [permissionDenied, setPermissionDenied] = useState({ video: false, audio: false })
 
   const detect = useCallback(async (type, mediaDevices) => {
     const devices = mediaDevices.filter(({ kind }) => kind === `${type}input`)
@@ -60,7 +62,17 @@ export default function CameraMicrophoneSelect() {
         stream.getTracks().forEach(track => track.stop())
       }
     } catch (e) {
+      // If permission was denied or device not available, mark it and stop retrying
+      if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+        setPermissionDenied(prev => ({ ...prev, [type]: true }))
+        return configs
+      }
       console.log(e)
+    }
+
+    // Clear denied state on success
+    if (configs.length > 0) {
+      setPermissionDenied(prev => ({ ...prev, [type]: false }))
     }
 
     return configs
@@ -177,6 +189,7 @@ export default function CameraMicrophoneSelect() {
   })
 
   const clearCache = () => {
+    setPermissionDenied({ video: false, audio: false })
     setCameras(null)
     setMicrophones(null)
     queryClient.invalidateQueries({ queryKey: ['devices'] })
@@ -186,17 +199,19 @@ export default function CameraMicrophoneSelect() {
     if (!isPendingMediaDevices &&
       !isPendingCameras &&
       !isPendingDetectCameras &&
+      !permissionDenied.video &&
       !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "videoinput"), cameras))
       detectCameras()
-  }, [mediaDevices, detectCameras, isPendingDetectCameras, isPendingMediaDevices, cameras, isPendingCameras, areDevicesEqual])
+  }, [mediaDevices, detectCameras, isPendingDetectCameras, isPendingMediaDevices, cameras, isPendingCameras, areDevicesEqual, permissionDenied.video])
 
   useEffect(() => {
     if (!isPendingMediaDevices &&
       !isPendingMicrophones &&
       !isPendingDetectMicrophones &&
+      !permissionDenied.audio &&
       !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "audioinput"), microphones))
       detectMicrophones()
-  }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual])
+  }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual, permissionDenied.audio])
 
   const options = (sources, defaultValue) => {
     const options = [<option value="-1" key={0}>{defaultValue}</option>]
@@ -213,31 +228,45 @@ export default function CameraMicrophoneSelect() {
     isPendingDetectMicrophones || isPendingCamera || isPendingMicrophone || isPendingSetCamera ||
     isPendingSetMicrophone || isPendingSetCameras || isPendingSetMicrophones
 
+  const hasAnyDenied = permissionDenied.video || permissionDenied.audio
+
   return (
-    <div className="join w-full flex min-w-0">
-      <select
-        onChange={onSelectCamera}
-        disabled={isPending}
-        value={camera ?? "-1"}
-        className="select join-item flex-1 min-w-0"
-      >
-        {options(cameras, "No camera")}
-      </select>
-      <select
-        onChange={onSelectMicrophone}
-        disabled={isPending}
-        value={microphone ?? "-1"}
-        className="select join-item flex-1 min-w-0"
-      >
-        {options(microphones, "No microphone")}
-      </select>
-      <Button
-        onClick={clearCache}
-        className="join-item"
-        disabled={isPending}
-        isLoading={isPending}
-        icon={ArrowPathIcon}
-      />
+    <div className="flex flex-col gap-1 w-full">
+      <div className="join w-full flex min-w-0">
+        <select
+          onChange={onSelectCamera}
+          disabled={isPending || permissionDenied.video}
+          value={camera ?? "-1"}
+          className={`select join-item flex-1 min-w-0 ${permissionDenied.video ? "select-error" : ""}`}
+        >
+          {permissionDenied.video
+            ? <option value="-1">Camera not available</option>
+            : options(cameras, "No camera")}
+        </select>
+        <select
+          onChange={onSelectMicrophone}
+          disabled={isPending || permissionDenied.audio}
+          value={microphone ?? "-1"}
+          className={`select join-item flex-1 min-w-0 ${permissionDenied.audio ? "select-error" : ""}`}
+        >
+          {permissionDenied.audio
+            ? <option value="-1">Mic not available</option>
+            : options(microphones, "No microphone")}
+        </select>
+        <Button
+          onClick={clearCache}
+          className="join-item"
+          disabled={isPending}
+          isLoading={isPending}
+          icon={ArrowPathIcon}
+          tooltip={hasAnyDenied ? "Retry permission request" : undefined}
+        />
+      </div>
+      {hasAnyDenied && (
+        <p className="text-xs text-warning">
+          Permission denied. Click refresh to try again.
+        </p>
+      )}
     </div>
   )
 }

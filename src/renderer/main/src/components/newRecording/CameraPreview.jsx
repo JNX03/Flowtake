@@ -80,7 +80,9 @@ export default function CameraPreview() {
         if (
           e.name === "NotReadableError" ||
           e.name === "NotFoundError" ||
-          e.name === "MediaTrackError"
+          e.name === "MediaTrackError" ||
+          e.name === "NotAllowedError" ||
+          e.name === "PermissionDeniedError"
         ) {
           return null
         } else throw e
@@ -88,6 +90,7 @@ export default function CameraPreview() {
     },
     staleTime: 0,
     gcTime: 0,
+    retry: false,
     enabled: (!!camera || !!microphone) && !!cameras && !!microphones && !isCloseRequested
   })
 

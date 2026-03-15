@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query"
 import {
+    lazy,
+    Suspense,
     useCallback,
     useEffect
 } from "react"
@@ -47,22 +49,24 @@ import {
     selectBlurStrength as selectZoomBlurStrength,
     selectTargetScale as selectZoomTargetScale
 } from "../../src/redux/zoomSlice"
-import CloseModal from "./components/CloseModal"
-import ClickMenu from "./components/contextMenus/ClickMenu"
-import ClipMenu from "./components/contextMenus/ClipMenu"
-import MaskMenu from "./components/contextMenus/MaskMenu"
-import NewClipMenu from "./components/contextMenus/NewClipMenu"
-import NewMaskMenu from "./components/contextMenus/NewMaskMenu"
-import NewSubtitleMenu from "./components/contextMenus/NewSubtitleMenu"
-import NewZoomMenu from "./components/contextMenus/NewZoomMenu"
-import SubtitleMenu from "./components/contextMenus/SubtitleMenu"
-import ZoomMenu from "./components/contextMenus/ZoomMenu"
-import Editor from "./components/Editor"
 import Launcher from "./components/Launcher"
 import Loader from "./components/Loader"
-import PermissionsModal from "./components/PermissionsModal"
-import Settings from "./components/settings/settings"
 import Toasts from "./components/toasts/Toasts"
+
+// Lazy-load heavy components not needed at startup
+const Editor = lazy(() => import("./components/Editor"))
+const Settings = lazy(() => import("./components/settings/settings"))
+const CloseModal = lazy(() => import("./components/CloseModal"))
+const PermissionsModal = lazy(() => import("./components/PermissionsModal"))
+const ClickMenu = lazy(() => import("./components/contextMenus/ClickMenu"))
+const ClipMenu = lazy(() => import("./components/contextMenus/ClipMenu"))
+const MaskMenu = lazy(() => import("./components/contextMenus/MaskMenu"))
+const NewClipMenu = lazy(() => import("./components/contextMenus/NewClipMenu"))
+const NewMaskMenu = lazy(() => import("./components/contextMenus/NewMaskMenu"))
+const NewSubtitleMenu = lazy(() => import("./components/contextMenus/NewSubtitleMenu"))
+const NewZoomMenu = lazy(() => import("./components/contextMenus/NewZoomMenu"))
+const SubtitleMenu = lazy(() => import("./components/contextMenus/SubtitleMenu"))
+const ZoomMenu = lazy(() => import("./components/contextMenus/ZoomMenu"))
 
 export default function App() {
 
@@ -189,14 +193,16 @@ export default function App() {
     return (<>
         <div className="h-full overflow-auto">
             {!hasProject && !isRecording && <Launcher />}
-            {hasProject && <Editor />}
+            {hasProject && <Suspense fallback={null}><Editor /></Suspense>}
         </div>
         <Loader />
         <Toasts />
-        <Settings />
-        <CloseModal />
-        <PermissionsModal />
-        {hasProject && <>
+        <Suspense fallback={null}>
+            <Settings />
+            <CloseModal />
+            <PermissionsModal />
+        </Suspense>
+        {hasProject && <Suspense fallback={null}>
             <ClickMenu />
             <ClipMenu />
             <MaskMenu />
@@ -206,6 +212,6 @@ export default function App() {
             <NewZoomMenu />
             <SubtitleMenu />
             <ZoomMenu />
-        </>}
+        </Suspense>}
     </>)
 }

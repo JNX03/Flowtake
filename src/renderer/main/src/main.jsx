@@ -55,4 +55,10 @@ createRoot(document.getElementById('root')).render(
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 requestAnimationFrame(() => {
     getCurrentWebviewWindow().show().catch(() => {})
+    // Fade out and remove the splash screen
+    const splash = document.getElementById('splash')
+    if (splash) {
+        splash.classList.add('removing')
+        splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+    }
 })

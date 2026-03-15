@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Flowtake</title>
+  <link rel="icon" type="image/png" href="./src/renderer/src/assets/favicon.png" />
   <meta http-equiv="Content-Security-Policy" content="
       default-src 'self' https://asset.localhost asset:;
       script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval';
@@ -17,6 +18,105 @@
 
 <body class="hyphens-auto h-full max-h-full bg-base-300">
   <div id="root" class="h-full max-h-full pt-8 m-0 relative"></div>
+  <!-- Splash screen matching app design -->
+  <div id="splash">
+    <style>
+      @keyframes splash-in { from { opacity:0 } to { opacity:1 } }
+      @keyframes splash-spin { to { transform: rotate(360deg) } }
+      @keyframes splash-pulse { 0%,100% { opacity:0.4 } 50% { opacity:1 } }
+      @keyframes splash-bar { 0% { width:0 } 100% { width:68% } }
+      #splash {
+        position:fixed;inset:0;z-index:9999;
+        background:#0f0f23;
+        display:flex;flex-direction:column;
+        animation: splash-in .2s ease-out;
+      }
+      #splash.removing { opacity:0; transition:opacity .2s ease-out }
+      /* Title bar replica */
+      #splash-titlebar {
+        height:32px;display:flex;align-items:center;padding:0 8px;
+        -webkit-app-region:drag;
+        flex-shrink:0;
+      }
+      #splash-titlebar-icon {
+        width:20px;height:20px;margin-right:8px;border-radius:4px;
+      }
+      #splash-titlebar-text {
+        font-family:Poppins,system-ui,sans-serif;font-size:14px;font-weight:600;
+        color:rgba(240,240,255,0.85);margin:0;
+      }
+      /* Center content */
+      #splash-content {
+        flex:1;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:28px;
+      }
+      /* Logo */
+      #splash-logo {
+        width:72px;height:72px;border-radius:16px;
+        filter:drop-shadow(0 0 24px rgba(108,92,231,0.3));
+      }
+      /* Brand text */
+      #splash-brand {
+        font-family:Poppins,system-ui,sans-serif;font-size:22px;font-weight:600;
+        color:rgba(240,240,255,0.9);margin:0;letter-spacing:0.01em;
+      }
+      /* Loading bar */
+      #splash-loader {
+        display:flex;flex-direction:column;align-items:center;gap:10px;
+        width:180px;
+      }
+      #splash-bar-track {
+        width:100%;height:3px;border-radius:2px;
+        background:rgba(108,92,231,0.15);overflow:hidden;
+      }
+      #splash-bar-fill {
+        height:100%;border-radius:2px;
+        background:linear-gradient(90deg,#6C5CE7,#00CEC9);
+        animation:splash-bar 1.8s ease-in-out infinite alternate;
+      }
+      #splash-status {
+        font-family:system-ui,sans-serif;font-size:12px;font-weight:400;
+        color:rgba(240,240,255,0.35);margin:0;
+        animation:splash-pulse 2s ease-in-out infinite;
+      }
+    </style>
+    <!-- Title bar -->
+    <div id="splash-titlebar">
+      <svg id="splash-titlebar-icon" viewBox="0 0 256 256" fill="none">
+        <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
+        <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="#12122a"/>
+        <polygon points="103,76 192,128 103,180" fill="#6C5CE7"/>
+        <polygon points="107,82 180,124 107,128" fill="#8C7AFF" opacity="0.4"/>
+        <rect x="62" y="100" width="22" height="7" rx="3.5" fill="#00CEC9"/>
+        <rect x="56" y="123" width="30" height="7" rx="3.5" fill="#00CEC9"/>
+        <rect x="65" y="146" width="16" height="7" rx="3.5" fill="#00CEC9"/>
+      </svg>
+      <p id="splash-titlebar-text">Flowtake</p>
+    </div>
+    <!-- Center -->
+    <div id="splash-content">
+      <svg id="splash-logo" viewBox="0 0 256 256" fill="none">
+        <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
+        <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="#12122a"/>
+        <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="url(#sg)" />
+        <defs><linearGradient id="sg" x1="0.3" y1="0" x2="0.7" y2="1">
+          <stop offset="0%" stop-color="#6C5CE7" stop-opacity="0.12"/>
+          <stop offset="100%" stop-color="#6C5CE7" stop-opacity="0"/>
+        </linearGradient></defs>
+        <polygon points="103,76 192,128 103,180" fill="#6C5CE7"/>
+        <polygon points="107,82 180,124 107,128" fill="#8C7AFF" opacity="0.4"/>
+        <rect x="62" y="100" width="22" height="7" rx="3.5" fill="#00CEC9"/>
+        <rect x="56" y="123" width="30" height="7" rx="3.5" fill="#00CEC9"/>
+        <rect x="65" y="146" width="16" height="7" rx="3.5" fill="#00CEC9"/>
+        <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="none" stroke="#6C5CE7" stroke-opacity="0.15" stroke-width="1.5"/>
+      </svg>
+      <p id="splash-brand">Flowtake</p>
+      <div id="splash-loader">
+        <div id="splash-bar-track"><div id="splash-bar-fill"></div></div>
+        <p id="splash-status">Loading...</p>
+      </div>
+    </div>
+  </div>
   <script>
     // Global error handler to catch any JS errors that prevent rendering
     window.onerror = function(msg, url, line, col, error) {
