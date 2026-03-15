@@ -3,7 +3,7 @@ import { initTauriBridge } from '../../src/tauriBridge'
 // Initialize Tauri bridge BEFORE any code that uses window.electron
 initTauriBridge()
 
-import React, { StrictMode } from 'react'
+import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from "react-redux"
 import {
@@ -40,25 +40,22 @@ class ErrorBoundary extends React.Component {
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')).render(
-    <StrictMode>
-        <ErrorBoundary>
-            <QueryClientProvider client={queryClient}>
-                <Provider store={store}>
-                    <App />
-                </Provider>
-            </QueryClientProvider>
-        </ErrorBoundary>
-    </StrictMode>
+    <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+            <Provider store={store}>
+                <App />
+            </Provider>
+        </QueryClientProvider>
+    </ErrorBoundary>
 )
 
-// Show main window once React has rendered (avoids white screen flash on startup)
+// Show main window and dismiss splash as soon as React commits
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 requestAnimationFrame(() => {
     getCurrentWebviewWindow().show().catch(() => {})
-    // Fade out and remove the splash screen
     const splash = document.getElementById('splash')
     if (splash) {
         splash.classList.add('removing')
-        splash.addEventListener('transitionend', () => splash.remove(), { once: true })
+        setTimeout(() => splash.remove(), 200)
     }
 })

@@ -74,15 +74,35 @@ import {
     updateZoom,
     upsertZooms
 } from "./redux/zoomSlice"
-import RendererInputReader from "./RendererInputReader"
-import CameraZoomConfig from "./scene/cameraZoom/CameraZoomConfig"
-import ClickConfig from "./scene/click/ClickConfig"
-import ClipConfig from "./scene/clip/ClipConfig"
-import CursorTypeConfig from "./scene/cursorType/CursorTypeConfig"
-import MaskConfig from "./scene/mask/MaskConfig"
-import PanConfig from "./scene/pan/PanConfig"
-import SubtitleConfig from "./scene/subtitle/SubtitleConfig"
-import ZoomConfig from "./scene/zoom/ZoomConfig"
+
+// Lazy-loaded heavy scene modules (Pixi.js, configs, etc.)
+// These are only needed when opening/editing a project, not at startup.
+const _configs = {}
+async function loadConfigs() {
+    if (_configs.loaded) return _configs
+    const [RIR, CC, CkC, ClC, CtC, MC, PC, SC, ZC] = await Promise.all([
+        import("./RendererInputReader"),
+        import("./scene/cameraZoom/CameraZoomConfig"),
+        import("./scene/click/ClickConfig"),
+        import("./scene/clip/ClipConfig"),
+        import("./scene/cursorType/CursorTypeConfig"),
+        import("./scene/mask/MaskConfig"),
+        import("./scene/pan/PanConfig"),
+        import("./scene/subtitle/SubtitleConfig"),
+        import("./scene/zoom/ZoomConfig"),
+    ])
+    _configs.RendererInputReader = RIR.default
+    _configs.CameraZoomConfig = CC.default
+    _configs.ClickConfig = CkC.default
+    _configs.ClipConfig = ClC.default
+    _configs.CursorTypeConfig = CtC.default
+    _configs.MaskConfig = MC.default
+    _configs.PanConfig = PC.default
+    _configs.SubtitleConfig = SC.default
+    _configs.ZoomConfig = ZC.default
+    _configs.loaded = true
+    return _configs
+}
 
 export const TOAST_UPDATE = "toast-update"
 export const TOAST_LICENSE_ACTIVATED = "toast-license-activated"
@@ -139,13 +159,18 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
     defaultClipPlaybackRate, defaultMaskBlurStrength, defaultMaskAlpha, defaultMaskBorderRadius, defaultMaskFill,
     defaultZoomIntro, defaultZoomOutro, defaultZoomTargetScale, onError = null) => {
 
+    // Load configs and project data in parallel
+    const [cfgs, json] = await Promise.all([
+        loadConfigs(),
+        window.electron.ipcRenderer.invoke("open-project", id)
+    ])
+
     const actions = []
-    const json = await window.electron.ipcRenderer.invoke("open-project", id)
     if (json) {
         let duration
         try {
             // Add timeout to prevent hanging on corrupted video files
-            const durationPromise = RendererInputReader.getDuration(PROJECT_SCREEN_VIDEO, { projectId: id })
+            const durationPromise = cfgs.RendererInputReader.getDuration(PROJECT_SCREEN_VIDEO, { projectId: id })
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("getDuration timeout")), 5000))
             duration = await Promise.race([durationPromise, timeoutPromise])
@@ -188,39 +213,39 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         // upgrade configs
         if (json.clipAnims?.entities)
             actions.push(setClips(
-                json.clipAnims.entities.map(config => new ClipConfig(config, defaultClipPlaybackRate, defaultClipLayout,
+                json.clipAnims.entities.map(config => new cfgs.ClipConfig(config, defaultClipPlaybackRate, defaultClipLayout,
                     defaultClipMicrophoneAudioVolume, defaultClipSystemAudioVolume).serialize())))
 
         if (json.clickAnims?.entities)
             actions.push(setClicks(
-                json.clickAnims.entities.map(config => new ClickConfig(config).serialize())))
+                json.clickAnims.entities.map(config => new cfgs.ClickConfig(config).serialize())))
 
         if (json.cursorTypeAnims?.entities)
             actions.push(setCursorTypes(
-                json.cursorTypeAnims.entities.map(config => new CursorTypeConfig(config).serialize())))
+                json.cursorTypeAnims.entities.map(config => new cfgs.CursorTypeConfig(config).serialize())))
 
         if (json.subtitleAnims?.entities)
             actions.push(setSubtitles(
-                json.subtitleAnims.entities.map(config => new SubtitleConfig(config).serialize())))
+                json.subtitleAnims.entities.map(config => new cfgs.SubtitleConfig(config).serialize())))
 
         if (json.panAnims?.entities)
             actions.push(setPans(
-                json.panAnims.entities.map(config => new PanConfig(config, defaultZoomIntro, defaultZoomOutro,
+                json.panAnims.entities.map(config => new cfgs.PanConfig(config, defaultZoomIntro, defaultZoomOutro,
                     defaultZoomTargetScale).serialize())))
 
         if (json.zoomAnims?.entities)
             actions.push(setZooms(
-                json.zoomAnims.entities.map(config => new ZoomConfig(config, defaultZoomIntro, defaultZoomOutro,
+                json.zoomAnims.entities.map(config => new cfgs.ZoomConfig(config, defaultZoomIntro, defaultZoomOutro,
                     defaultZoomTargetScale, defaultZoomBlurStrength).serialize())))
 
         if (json.cameraZoomAnims?.entities)
             actions.push(setCameraZooms(
-                json.cameraZoomAnims.entities.map(config => new CameraZoomConfig(config, defaultZoomIntro,
+                json.cameraZoomAnims.entities.map(config => new cfgs.CameraZoomConfig(config, defaultZoomIntro,
                     defaultZoomOutro, defaultCameraZoomTargetScale).serialize())))
 
         if (json.maskAnims?.entities)
             actions.push(setMasks(
-                json.maskAnims.entities.map(config => new MaskConfig(config, defaultMaskBlurStrength, defaultMaskAlpha,
+                json.maskAnims.entities.map(config => new cfgs.MaskConfig(config, defaultMaskBlurStrength, defaultMaskAlpha,
                     defaultMaskBorderRadius, defaultMaskFill).serialize())))
 
         actions.push(setHasProject(true))
@@ -337,11 +362,11 @@ export const splitZoom = (zoom, pan, cameraZoom, time, defaultCameraZoomTargetSc
     return [
         setIsZoomMenuOpen(false),
         withGroup(upsertZooms(
-            split(zoom, ZoomConfig, time, [defaultIntro, defaultOutro, defaultZoomTargetScale, defaultZoomBlurStrength])), group),
+            split(zoom, _configs.ZoomConfig, time, [defaultIntro, defaultOutro, defaultZoomTargetScale, defaultZoomBlurStrength])), group),
         withGroup(upsertPans(
-            split(pan, PanConfig, time, [defaultIntro, defaultOutro, defaultZoomTargetScale])), group),
+            split(pan, _configs.PanConfig, time, [defaultIntro, defaultOutro, defaultZoomTargetScale])), group),
         withGroup(upsertCameraZooms(
-            split(cameraZoom, CameraZoomConfig, time, [defaultIntro, defaultOutro, defaultCameraZoomTargetScale])), group),
+            split(cameraZoom, _configs.CameraZoomConfig, time, [defaultIntro, defaultOutro, defaultCameraZoomTargetScale])), group),
         setSelectedIds([])
     ]
 }
@@ -387,7 +412,7 @@ const getStartAndEnd = (duration, configs, time) => {
 }
 
 export const createClip = (time, clips, playbackRate, layout, microphoneAudioVolume, systemAudioVolume, duration) =>
-    addClip((new ClipConfig({ ...getStartAndEnd(duration, clips, time) }, playbackRate, layout, microphoneAudioVolume,
+    addClip((new _configs.ClipConfig({ ...getStartAndEnd(duration, clips, time) }, playbackRate, layout, microphoneAudioVolume,
         systemAudioVolume)).serialize())
 
 export const createZoom = (time, configs, duration, defaultCameraZoomTargetScale, defaultBlurStrength,
@@ -395,11 +420,11 @@ export const createZoom = (time, configs, duration, defaultCameraZoomTargetScale
 
     const args = getStartAndEnd(duration, configs, time)
 
-    const zoom = (new ZoomConfig(args, defaultZoomIntro, defaultZoomOutro, defaultZoomTargetScale, defaultBlurStrength))
+    const zoom = (new _configs.ZoomConfig(args, defaultZoomIntro, defaultZoomOutro, defaultZoomTargetScale, defaultBlurStrength))
         .serialize()
-    const pan = (new PanConfig(args, defaultZoomIntro, defaultZoomOutro, defaultZoomTargetScale))
+    const pan = (new _configs.PanConfig(args, defaultZoomIntro, defaultZoomOutro, defaultZoomTargetScale))
         .serialize()
-    const cameraZoom = (new CameraZoomConfig(args, defaultZoomIntro, defaultZoomOutro, defaultCameraZoomTargetScale))
+    const cameraZoom = (new _configs.CameraZoomConfig(args, defaultZoomIntro, defaultZoomOutro, defaultCameraZoomTargetScale))
         .serialize()
 
     const group = getGroup("add")
@@ -411,7 +436,7 @@ export const createZoom = (time, configs, duration, defaultCameraZoomTargetScale
 }
 
 export const createSubtitle = (time, subtitles, duration) =>
-    addSubtitle((new SubtitleConfig({ ...getStartAndEnd(duration, subtitles, time), text: "Subtitle" })).serialize())
+    addSubtitle((new _configs.SubtitleConfig({ ...getStartAndEnd(duration, subtitles, time), text: "Subtitle" })).serialize())
 
 export const createMask = (time, row, leftTrim, rightTrim, topTrim, bottomTrim, videoDims, duration, masks,
     defaultMaskBlurStrength, defaultMaskAlpha, defaultMaskBorderRadius, defaultMaskFill) => {
@@ -427,7 +452,7 @@ export const createMask = (time, row, leftTrim, rightTrim, topTrim, bottomTrim, 
         y: videoDims.y - topTrim - bottomTrim
     }
 
-    return addMask((new MaskConfig(
+    return addMask((new _configs.MaskConfig(
         {
             ...getStartAndEnd(duration, configs, time),
             row,

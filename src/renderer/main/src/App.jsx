@@ -122,16 +122,24 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        if (capturers.length === 0 && encoders.length === 0) getCapturersAndEncoders()
+        // Defer non-critical startup work to let the UI render first
+        const timer = setTimeout(() => {
+            if (capturers.length === 0 && encoders.length === 0) getCapturersAndEncoders()
+        }, 100)
+        return () => clearTimeout(timer)
     }, [capturers.length, encoders.length, getCapturersAndEncoders])
 
     useEffect(() => {
         const handleUpdateDownloaded = () => { dispatch(addToast({ type: TOAST_UPDATE })) }
-
         window.electron.ipcRenderer.on('update-downloaded', handleUpdateDownloaded)
-        window.electron.ipcRenderer.invoke("check-for-updates").catch(e => console.warn("[Flowtake] Update check failed:", e))
+
+        // Defer update check to not block startup
+        const timer = setTimeout(() => {
+            window.electron.ipcRenderer.invoke("check-for-updates").catch(e => console.warn("[Flowtake] Update check failed:", e))
+        }, 2000)
 
         return () => {
+            clearTimeout(timer)
             window.electron.ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded)
         }
     }, [dispatch])
