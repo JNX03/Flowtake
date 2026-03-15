@@ -3,8 +3,8 @@ name: Release
 on:
   push:
     tags:
-      # Matches major releases only: v1.0.0, v2.0.0, v3.0.0, ...
-      - 'v[0-9]+.0.0'
+      # Matches major releases only: v1.0.0, v2.0.0, v10.0.0, ...
+      - 'v[0-9]*.0.0'
   workflow_dispatch:
     inputs:
       tag:
