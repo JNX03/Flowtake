@@ -100,9 +100,14 @@ pub async fn read_file(
 pub async fn write_file(
     app: AppHandle,
     fh_id: String,
-    data: Vec<u8>,
+    data: String,
     position: u64,
 ) -> AppResult<()> {
+    // Data arrives as base64-encoded string for efficient IPC transfer
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&data)
+        .map_err(|e| AppError::General(format!("Base64 decode error: {}", e)))?;
+
     let state = app.state::<Mutex<AppState>>();
     let mut state = state.lock().unwrap();
 
@@ -112,7 +117,7 @@ pub async fn write_file(
         .ok_or_else(|| AppError::FileHandleNotFound(fh_id.clone()))?;
 
     file.seek(SeekFrom::Start(position))?;
-    file.write_all(&data)?;
+    file.write_all(&bytes)?;
     Ok(())
 }
 

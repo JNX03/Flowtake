@@ -5,6 +5,16 @@ import { postIpc } from "./helpers"
 
 const BATCH_SIZE = 100
 
+// Decode base64 string to Uint8Array (Tauri backend returns base64-encoded binary data)
+function base64ToUint8Array(base64) {
+    const binaryString = atob(base64)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+    }
+    return bytes
+}
+
 export default class WorkerInputReader extends RendererInputReader {
     constructor(videoType, args) {
         super(videoType, args)
@@ -57,8 +67,13 @@ export default class WorkerInputReader extends RendererInputReader {
         this.fhId = await postIpc("open", [this.videoType, "r", this.args])
     }
 
-    read(start, end) {
-        return postIpc("read", [this.fhId, start, end])
+    async read(start, end) {
+        const result = await postIpc("read", [this.fhId, start, end])
+        // Tauri returns base64-encoded string, decode to Uint8Array for mediabunny
+        if (typeof result === 'string') {
+            return base64ToUint8Array(result)
+        }
+        return new Uint8Array(result)
     }
 
     getSize() {

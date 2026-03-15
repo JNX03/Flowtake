@@ -140,7 +140,16 @@ const ARGS_MAP = {
     'upload': (args) => ({ renderId: args[0] }),
     'open_file': (args) => ({ type: args[0], flag: args[1], args: args[2] }),
     'read_file': (args) => ({ fhId: args[0], start: args[1], end: args[2] }),
-    'write_file': (args) => ({ fhId: args[0], data: Array.from(new Uint8Array(args[1])), position: args[2] }),
+    'write_file': (args) => {
+        // Base64-encode binary data for efficient IPC transfer (matches read_file pattern)
+        const bytes = args[1] instanceof Uint8Array ? args[1] : new Uint8Array(args[1]);
+        let binary = '';
+        const chunkSize = 0x8000; // Process in 32KB chunks to avoid stack overflow
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
+        }
+        return { fhId: args[0], data: btoa(binary), position: args[2] };
+    },
     'close_file': (args) => ({ fhId: args[0] }),
     'get_size': (args) => ({ fhId: args[0] }),
     'get_video_path': (args) => ({ videoType: args[0], projectId: args[1] }),

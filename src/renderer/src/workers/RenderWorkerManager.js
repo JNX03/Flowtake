@@ -89,7 +89,7 @@ export default class RenderWorkerManager extends WorkerManager {
                 this.onProcessed()
                 break
             case RENDER_ERROR:
-                renderStore.dispatch(updateRender({ id, changes: { status: RENDER_CANCELED } }))
+                renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_CANCELED } }))
                 renderStore.dispatch(addToast({ type: TOAST_ERROR, text: "Render failed" }))
                 this.isCancelled = true
                 this.onProcessed()
