@@ -9,9 +9,9 @@ export default function HotkeysSettings() {
 
     useHotkeys("ctrl+slash", () => { dispatch(setOpenSettings(null)) })
 
-    return (<>
-        <h4 className="font-semibold text-lg mb-4">Hotkeys</h4>
-        <table className="table table-sm table-zebra w-full">
+    return (<div className="flex flex-col gap-4">
+        <h4 className="font-semibold text-lg">Hotkeys</h4>
+        <table className="table table-sm table-zebra w-full rounded-box overflow-hidden">
             <thead><tr><th>General</th><th></th></tr></thead>
             <tbody>
                 <tr>
@@ -125,6 +125,6 @@ export default function HotkeysSettings() {
                 </tr>
             </tbody>
         </table>
-    </>)
+    </div>)
 }
 

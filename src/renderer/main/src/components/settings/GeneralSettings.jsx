@@ -19,15 +19,15 @@ export default function GeneralSettings() {
 
     const openLogsDirectory = () => { window.electron.ipcRenderer.invoke("open-logs-dir") }
 
-    return (<>
-        <h4 className="font-semibold text-lg mb-4">General</h4>
+    return (<div className="flex flex-col gap-4">
+        <h4 className="font-semibold text-lg">General</h4>
 
         <Fieldset legend="Issue reporting" description="Restart Flowtake for changes to issue reporting to go into effect.">
-            <Toggle leftLabel="Automatically report issues" value={isPending || isError ? false : (isIssueReportingEnabled ?? false)}
+            <Toggle leftLabel="Automatically report issues" value={isPending || isError ? false : isIssueReportingEnabled}
                 onChange={onChangeIsIssueReportingEnabled} disabled={isPending || isError}
                 isIndeterminate={isPending || isError} />
         </Fieldset>
 
-        <Button icon={FolderOpenIcon} className="mt-4" onClick={openLogsDirectory}>Open logs folder</Button>
-    </>)
+        <Button icon={FolderOpenIcon} onClick={openLogsDirectory}>Open logs folder</Button>
+    </div>)
 }

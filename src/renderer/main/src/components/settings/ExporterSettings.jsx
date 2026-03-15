@@ -31,8 +31,8 @@ export default function ExporterSettings() {
         onMutate: () => { setError(null) }
     })
 
-    return (<>
-        <h4 className="font-semibold text-lg mb-4">Exporter</h4>
+    return (<div className="flex flex-col gap-4">
+        <h4 className="font-semibold text-lg">Exporter</h4>
 
         <Fieldset legend="Export directory">
             <div className="label">Choose the folder for your exported videos</div>
@@ -46,7 +46,7 @@ export default function ExporterSettings() {
                 >
                     Select folder
                 </Button>
-                <input type="text" value={isGetPending || isGetError ? "" : (exportDirectory || "")}
+                <input type="text" value={isGetPending || isGetError ? "" : exportDirectory}
                     placeholder="Export directory"
                     className="join-item input w-full"
                     readOnly
@@ -54,5 +54,5 @@ export default function ExporterSettings() {
             </div>
             {error && <p className="label text-error">{error}</p>}
         </Fieldset>
-    </>)
+    </div>)
 }

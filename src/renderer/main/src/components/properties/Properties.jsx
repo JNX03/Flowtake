@@ -5,7 +5,9 @@ import {
     ComputerDesktopIcon,
     CursorArrowRippleIcon,
     FilmIcon,
+    MusicalNoteIcon,
     PhotoIcon,
+    Square2StackIcon,
     VideoCameraIcon
 } from "@heroicons/react/24/outline"
 import {
@@ -13,19 +15,23 @@ import {
     useSelector
 } from "react-redux"
 import {
+    AUDIO_TRACKS,
     BACKGROUND,
     CAMERA_RECORDING,
     CLICKS,
     CLIPS,
     CURSOR,
     MASKS,
+    OVERLAY_TRACKS,
     SCREEN_RECORDING,
     SUBTITLES,
     TRANSCRIPT,
     ZOOMS
 } from "../../../../src/helpers"
+import { selectAudioClipIds } from "../../../../src/redux/audioTrackSlice"
 import { selectClipIds } from "../../../../src/redux/clipSlice"
 import { selectMaskIds } from "../../../../src/redux/maskSlice"
+import { selectOverlayIds } from "../../../../src/redux/overlaySlice"
 import {
     selectHasCameraVideo,
     selectHasMicrophoneAudio
@@ -38,12 +44,14 @@ import {
     setSelectedRow
 } from "../../../../src/redux/timelineSlice"
 import { selectZoomIds } from "../../../../src/redux/zoomSlice"
+import AudioTrackSection from "./AudioTrackSection"
 import BackgroundSection from "./BackgroundSection"
 import CameraSection from "./CameraSection"
 import ClickSection from "./ClickSection"
 import ClipSection from "./ClipSection"
 import CursorSection from "./CursorSection"
 import MaskSection from "./MaskSection"
+import OverlaySection from "./OverlaySection"
 import ScreenRecordingSection from "./ScreenRecordingSection"
 import SubtitleSection from "./SubtitleSection"
 import TranscriptSection from "./TranscriptSection"
@@ -58,6 +66,8 @@ export default function Properties() {
     const clipAnimIds = useSelector(selectClipIds)
     const zoomAnimIds = useSelector(selectZoomIds)
     const maskAnimIds = useSelector(selectMaskIds)
+    const audioClipIds = useSelector(selectAudioClipIds)
+    const overlayIds = useSelector(selectOverlayIds)
     const openSection = useSelector(selectOpenSection)
 
     const open = section => {
@@ -77,6 +87,16 @@ export default function Properties() {
                 dispatch(setSelectedIds(maskAnimIds))
                 dispatch(setSelectedRow(MASKS))
                 break
+            case AUDIO_TRACKS:
+                dispatch(setIsMaskingModeEnabled(false))
+                dispatch(setSelectedIds(audioClipIds))
+                dispatch(setSelectedRow(AUDIO_TRACKS))
+                break
+            case OVERLAY_TRACKS:
+                dispatch(setIsMaskingModeEnabled(false))
+                dispatch(setSelectedIds(overlayIds))
+                dispatch(setSelectedRow(OVERLAY_TRACKS))
+                break
             default:
                 dispatch(setIsMaskingModeEnabled(false))
                 dispatch(setSelectedIds([]))
@@ -89,7 +109,7 @@ export default function Properties() {
         <div className="w-[26rem] relative">
             <div className="absolute left-0 top-0 right-0 bottom-0">
                 <div className="flex flex-row gap-2 h-full">
-                    <ul className="menu bg-base-100 rounded-lg">
+                    <ul className="menu bg-base-100 rounded-lg overflow-y-auto no-scrollbar">
                         <li>
                             <button onClick={() => open(SCREEN_RECORDING)}
                                 className={`tooltip tooltip-left ${openSection === SCREEN_RECORDING ? "menu-active" : ""}`}
@@ -146,6 +166,21 @@ export default function Properties() {
                                 <Bars4Icon className="w-6 h-6" />
                             </button>
                         </li>
+                        <div className="divider my-0" />
+                        <li>
+                            <button onClick={() => open(AUDIO_TRACKS)}
+                                className={`tooltip tooltip-left ${openSection === AUDIO_TRACKS ? "menu-active" : ""}`}
+                                data-tip="Audio Tracks">
+                                <MusicalNoteIcon className="w-6 h-6" />
+                            </button>
+                        </li>
+                        <li>
+                            <button onClick={() => open(OVERLAY_TRACKS)}
+                                className={`tooltip tooltip-left ${openSection === OVERLAY_TRACKS ? "menu-active" : ""}`}
+                                data-tip="Overlays">
+                                <Square2StackIcon className="w-6 h-6" />
+                            </button>
+                        </li>
                     </ul>
                     <div className="flex-1 h-full">
                         {openSection === SCREEN_RECORDING && <ScreenRecordingSection />}
@@ -158,6 +193,8 @@ export default function Properties() {
                         {openSection === ZOOMS && <ZoomSection />}
                         {openSection === SUBTITLES && <SubtitleSection />}
                         {openSection === MASKS && <MaskSection />}
+                        {openSection === AUDIO_TRACKS && <AudioTrackSection />}
+                        {openSection === OVERLAY_TRACKS && <OverlaySection />}
                     </div>
                 </div>
             </div>

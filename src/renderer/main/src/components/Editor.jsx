@@ -1,5 +1,6 @@
 import {
-    useEffect
+    useEffect,
+    useState
 } from "react"
 import {
     useDispatch,
@@ -15,6 +16,7 @@ import { selectIsInitialized } from "../../../src/redux/editorSlice"
 import {
     selectName
 } from "../../../src/redux/projectSlice"
+import AssetPanel from "./assets/AssetPanel"
 import ExportButton from "./ExportButton"
 import PresetsDropdown from "./presets/PresetsDropdown"
 import Preview from "./Preview"
@@ -33,12 +35,10 @@ import UpgradeButton from "./titleBar/UpgradeButton"
 export default function Editor() {
 
     const dispatch = useDispatch()
-
     const hasProject = useSelector(selectHasProject)
-
     const isInitialized = useSelector(selectIsInitialized)
-
     const name = useSelector(selectName)
+    const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(true)
 
     useEffect(() => {
         if (hasProject) dispatch(ActionCreators.clearHistory())
@@ -63,10 +63,16 @@ export default function Editor() {
             <UpgradeButton />
         </TitleBar>
         <div className="bg-base-300 flex flex-col h-full relative">
-            <div className="pt-1 pl-2 pr-2 flex gap-2 flex-1 overflow-auto">
+            {/* Top section: Assets | Preview | Properties */}
+            <div className="pt-1 pl-2 pr-2 flex gap-2 flex-1 overflow-auto min-h-0">
+                <AssetPanel
+                    isOpen={isAssetPanelOpen}
+                    onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
+                />
                 <Preview />
                 <Properties />
             </div>
+            {/* Bottom section: Timeline */}
             <Timeline />
         </div>
     </>)

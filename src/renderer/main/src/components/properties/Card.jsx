@@ -5,9 +5,11 @@ import {
     useSelector
 } from "react-redux"
 import {
+    AUDIO_TRACKS,
     CLICKS,
     CLIPS,
     MASKS,
+    OVERLAY_TRACKS,
     SCREEN_RECORDING,
     SUBTITLES,
     ZOOMS
@@ -40,6 +42,8 @@ export default function Card({ icon, title, children, showClose }) {
             case ZOOMS: return "badge-secondary"
             case SUBTITLES: return "bg-tertiary text-tertiary-content border-tertiary"
             case MASKS: return "badge-neutral"
+            case AUDIO_TRACKS: return "badge-secondary"
+            case OVERLAY_TRACKS: return "badge-accent"
             default: return ""
         }
     }

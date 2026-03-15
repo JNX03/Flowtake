@@ -54,7 +54,10 @@ export default function Gradients() {
 
     const { data: gradients, isPending, isError, refetch } = useQuery({
         queryKey: ['backgroundGradients'],
-        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "backgroundGradients"),
+        queryFn: async () => {
+            const result = await window.electron.ipcRenderer.invoke("store-get", "backgroundGradients")
+            return result ?? []
+        },
         staleTime: Infinity
     })
 
@@ -67,7 +70,7 @@ export default function Gradients() {
         const id = `gradient-${self.crypto.randomUUID()}`
         setGradientLoading(id)
         const config = { color1, color2, color3, direction, id }
-        const updatedGradients = [config, ...gradients]
+        const updatedGradients = [config, ...(gradients || [])]
         if (updatedGradients.length > 40) updatedGradients.pop()
         await window.electron.ipcRenderer.invoke("store-set", "backgroundGradients", updatedGradients)
         await refetch()

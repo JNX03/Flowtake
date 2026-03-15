@@ -19,6 +19,7 @@ import {
     useDispatch,
     useSelector
 } from "react-redux"
+import { selectAllAudioClips } from "../../../../src/redux/audioTrackSlice"
 import {
     selectAllClicks
 } from "../../../../src/redux/clickSlice"
@@ -31,6 +32,7 @@ import {
     selectIsPlaying
 } from "../../../../src/redux/editorSlice"
 import { selectAllMasks } from "../../../../src/redux/maskSlice"
+import { selectAllOverlays } from "../../../../src/redux/overlaySlice"
 import {
     selectAllSubtitles
 } from "../../../../src/redux/subtitleSlice"
@@ -76,6 +78,8 @@ export default function Controls({ onScrollToStart }) {
     const zooms = useSelector(selectAllZooms)
     const subtitles = useSelector(selectAllSubtitles)
     const masks = useSelector(selectAllMasks)
+    const audioClips = useSelector(selectAllAudioClips)
+    const overlays = useSelector(selectAllOverlays)
 
     const steps = useMemo(() => {
         const result = [width / duration]
@@ -114,14 +118,14 @@ export default function Controls({ onScrollToStart }) {
 
     useEffect(() => {
         if (isSnappingEnabled && !isPlaying) {
-            const allElements = [...clicks, ...clips, ...zooms, ...subtitles]
+            const allElements = [...clicks, ...clips, ...zooms, ...subtitles, ...audioClips, ...overlays]
             if (isMaskingModeEnabled) allElements.push(...masks)
             let lines = allElements.flatMap(({ start, end }) => [start, end])
             lines.push(time)
             lines = [...new Set(lines)].sort((a, b) => a - b)
             dispatch(setSnappingLines(lines))
         }
-    }, [isSnappingEnabled, clicks, clips, zooms, subtitles, masks, time, isMaskingModeEnabled, isPlaying, dispatch])
+    }, [isSnappingEnabled, clicks, clips, zooms, subtitles, masks, audioClips, overlays, time, isMaskingModeEnabled, isPlaying, dispatch])
 
     return (
         <div className="absolute left-1 bottom-4 z-50 flex flex-col justify-center">

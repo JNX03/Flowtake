@@ -6,6 +6,7 @@ import {
 } from "@heroicons/react/20/solid"
 import { useQuery } from "@tanstack/react-query"
 import { useHotkeys } from "react-hotkeys-hook"
+import PropTypes from "prop-types"
 import {
     useDispatch,
     useSelector
@@ -45,39 +46,50 @@ export default function Settings() {
 
     return (<Modal isOpen={!!openSettings} title={"Settings"} close={() => dispatch(setOpenSettings(null))}
         modalBoxClassNames="w-full max-w-3xl h-150 flex flex-col">
-        <div className="flex flex-row gap-5 flex-1 min-h-0">
-            <ul className="menu bg-base-300 rounded-box shadow-lg w-56">
-                <li><a className={`${openSettings === SETTINGS_GENERAL ? "menu-active" : ""}`}
-                    onClick={() => dispatch(setOpenSettings(SETTINGS_GENERAL))}>
-                    <Cog6ToothIcon className="h-5 w-5" />General
-                </a></li>
-                <li><a className={`${openSettings === SETTINGS_RECORDER ? "menu-active" : ""}`}
-                    onClick={() => dispatch(setOpenSettings(SETTINGS_RECORDER))}>
-                    <ComputerDesktopIcon className="h-5 w-5" />Recorder
-                </a></li>
-                <li><a className={`${openSettings === SETTINGS_EXPORTER ? "menu-active" : ""}`}
-                    onClick={() => dispatch(setOpenSettings(SETTINGS_EXPORTER))}>
-                    <QueueListIcon className="h-5 w-5" />Exporter
-                </a></li>
-                <li><a className={`${openSettings === SETTINGS_HOTKEYS ? "menu-active" : ""}`}
-                    onClick={() => dispatch(setOpenSettings(SETTINGS_HOTKEYS))}>
-                    <BoltIcon className="h-5 w-5" />Hotkeys
-                    <span><kbd className="kbd kbd-sm mr-2">ctrl</kbd><kbd className="kbd kbd-sm">/</kbd></span>
-                </a></li>
-                <div className="flex-1 flex flex-col justify-end py-4">
-                    <div className="divider"></div>
-                    <span className="px-4 flex flex-row gap-2 cursor-default">
-                        <div className="avatar">
-                            <div className="w-5 h-5"><img src={icon} /></div>
-                        </div>
-                        <span className="text-sm flex-1 font-brand">
-                            <span className="font-bold">Flowtake</span> {!isPending && !isError && <>{version}</>}
-                        </span>
-                    </span>
+        <div className="flex flex-row gap-6 flex-1 min-h-0">
+            {/* Sidebar */}
+            <nav className="w-48 flex-shrink-0 flex flex-col">
+                <div className="flex flex-col gap-0.5">
+                    <NavItem icon={Cog6ToothIcon} label="General"
+                        active={openSettings === SETTINGS_GENERAL}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_GENERAL))} />
+                    <NavItem icon={ComputerDesktopIcon} label="Recorder"
+                        active={openSettings === SETTINGS_RECORDER}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_RECORDER))} />
+                    <NavItem icon={QueueListIcon} label="Exporter"
+                        active={openSettings === SETTINGS_EXPORTER}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_EXPORTER))} />
+                    <NavItem icon={BoltIcon} label="Hotkeys"
+                        active={openSettings === SETTINGS_HOTKEYS}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_HOTKEYS))}
+                        badge={<span className="ml-auto"><kbd className="kbd kbd-xs mr-0.5">ctrl</kbd><kbd className="kbd kbd-xs">/</kbd></span>}
+                    />
                 </div>
-            </ul>
-            <div className="flex-1 flex flex-col">
-                <div className="overflow-y-auto overflow-x-hidden h-full py-2">
+
+                {/* Footer */}
+                <div className="mt-auto pt-4 border-t border-base-content/5">
+                    <div className="flex items-center gap-2 px-2">
+                        <img src={icon} className="size-5 rounded" />
+                        <span className="text-xs font-brand">
+                            <span className="font-semibold">Flowtake</span>
+                            {!isPending && !isError && <span className="text-base-content/40 ml-1">{version}</span>}
+                        </span>
+                    </div>
+                    <a
+                        href="https://github.com/JNX03/Flowtake"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-2 mt-2 text-[11px] text-base-content/25 hover:text-base-content/50 transition-colors"
+                    >
+                        <GitHubIcon className="size-3" />
+                        Open Source
+                    </a>
+                </div>
+            </nav>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0 border-l border-base-content/5 pl-6">
+                <div className="overflow-y-auto overflow-x-hidden h-full">
                     {openSettings === SETTINGS_GENERAL && <GeneralSettings />}
                     {openSettings === SETTINGS_RECORDER && <RecorderSettings />}
                     {openSettings === SETTINGS_EXPORTER && <ExporterSettings />}
@@ -86,4 +98,37 @@ export default function Settings() {
             </div>
         </div>
     </Modal>)
+}
+
+function NavItem({ icon: Icon, label, active, onClick, badge }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all
+                ${active
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-base-content/50 hover:text-base-content/80 hover:bg-base-content/5"
+                }`}
+        >
+            <Icon className="size-4 flex-shrink-0" />
+            {label}
+            {badge}
+        </button>
+    )
+}
+
+NavItem.propTypes = {
+    icon: PropTypes.elementType.isRequired,
+    label: PropTypes.string.isRequired,
+    active: PropTypes.bool,
+    onClick: PropTypes.func.isRequired,
+    badge: PropTypes.node
+}
+
+function GitHubIcon({ className }) {
+    return (
+        <svg className={className} viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+        </svg>
+    )
 }

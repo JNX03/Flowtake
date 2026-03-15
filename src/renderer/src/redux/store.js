@@ -14,6 +14,15 @@ import appReducer, {
     setIsProjectClosing,
     setLoaderMessage
 } from './appSlice'
+import assetReducer, { reset as resetAssets } from './assetSlice'
+import audioTrackAnimsReducer, {
+    audioTrackSlice,
+    reset as resetAudioTrackAnims
+} from './audioTrackSlice'
+import overlayAnimsReducer, {
+    overlaySlice,
+    reset as resetOverlayAnims
+} from './overlaySlice'
 import cameraZoomAnimsReducer, {
     cameraSlice,
     reset as resetCameraZoomAnims
@@ -83,7 +92,9 @@ const filterSlices = isAnyOf(
     ...Object.values(zoomSlice.actions),
     ...Object.values(cameraSlice.actions),
     ...Object.values(cursorCoordsSlice.actions),
-    ...Object.values(maskSlice.actions)
+    ...Object.values(maskSlice.actions),
+    ...Object.values(audioTrackSlice.actions),
+    ...Object.values(overlaySlice.actions)
 )
 
 // Set of excluded action types for O(1) lookup
@@ -97,6 +108,8 @@ const EXCLUDED_ACTION_TYPES = new Set([
     clickSlice.actions.setClicks.type,
     subtitleSlice.actions.setSubtitles.type,
     maskSlice.actions.setMasks.type,
+    audioTrackSlice.actions.setAudioClips.type,
+    overlaySlice.actions.setOverlays.type,
 ])
 
 const filterActions = action => !EXCLUDED_ACTION_TYPES.has(action.type)
@@ -151,6 +164,9 @@ closeListenerMiddleware.startListening({
         dispatch(resetZoomAnims())
         dispatch(resetCursorCoords())
         dispatch(resetMaskAnims())
+        dispatch(resetAudioTrackAnims())
+        dispatch(resetOverlayAnims())
+        dispatch(resetAssets())
         dispatch(setLoaderMessage("Saving project..."))
         await window.electron.ipcRenderer.invoke("close-project")
         dispatch(setIsProjectClosing(false))
@@ -167,6 +183,7 @@ export default configureStore({
         license: licenseReducer,
         timeline: timelineReducer,
         contextMenu: contextMenuReducer,
+        assets: assetReducer,
         undoableState: undoable(
             combineReducers({
                 project: projectReducer,
@@ -179,6 +196,8 @@ export default configureStore({
                 zoomAnims: zoomAnimsReducer,
                 cameraZoomAnims: cameraZoomAnimsReducer,
                 maskAnims: maskAnimsReducer,
+                audioTrackAnims: audioTrackAnimsReducer,
+                overlayAnims: overlayAnimsReducer,
             }),
             {
                 filter: combineFilters(filterSlices, filterActions, filterPreventUndo),
@@ -204,7 +223,9 @@ const save = debounce(async (dispatch, getState) => {
         zoomAnims,
         cameraZoomAnims,
         cursorCoords,
-        maskAnims
+        maskAnims,
+        audioTrackAnims,
+        overlayAnims
     } = getState().undoableState.present
 
     // Only save if a project is currently opened
@@ -220,6 +241,8 @@ const save = debounce(async (dispatch, getState) => {
             cameraZoomAnims: serializeEntitySlice(cameraZoomAnims),
             cursorCoords: serializeEntitySlice(cursorCoords, false),
             maskAnims: serializeEntitySlice(maskAnims),
+            audioTrackAnims: serializeEntitySlice(audioTrackAnims),
+            overlayAnims: serializeEntitySlice(overlayAnims),
         }
 
         await window.electron.ipcRenderer.invoke("save-json", slices)

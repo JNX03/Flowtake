@@ -84,9 +84,9 @@ export default function RecorderSettings() {
         setIsFpsLoading(false)
     }
 
-    return (<>
-        <h4 className="font-semibold text-lg mb-4">Recorder</h4>
-        <span className="my-2 block">
+    return (<div className="flex flex-col gap-4">
+        <h4 className="font-semibold text-lg">Recorder</h4>
+        <span className="block">
             <Hint>
                 <span className="font-bold">Having issues recording or can&apos;t see any encoders below?</span> Flowtake tries to detect available recording options for your hardware automatically.
                 Make sure your GPU drivers are up-to-date and
@@ -145,5 +145,5 @@ export default function RecorderSettings() {
                     onClick={() => onSelectFps(60)}>60FPS</Button>
             </div>
         </Fieldset>
-    </>)
+    </div>)
 }

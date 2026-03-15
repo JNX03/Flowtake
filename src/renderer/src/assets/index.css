@@ -64,3 +64,42 @@
 .no-scrollbar {
     scrollbar-width: none;
 }
+
+/* Drop zone animation */
+.drop-zone-active {
+    outline: 2px dashed color-mix(in oklab, var(--color-info) 60%, transparent);
+    outline-offset: -2px;
+    background: color-mix(in oklab, var(--color-info) 5%, transparent);
+}
+
+/* Track header transition */
+.track-header-enter {
+    animation: track-slide-in 0.2s ease-out;
+}
+
+@keyframes track-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Asset item drag feedback */
+[draggable="true"] {
+    touch-action: none;
+}
+
+[draggable="true"]:active {
+    opacity: 0.7;
+}
+
+/* Divider in properties menu */
+.menu .divider {
+    margin: 4px 8px;
+    height: 1px;
+    background: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}

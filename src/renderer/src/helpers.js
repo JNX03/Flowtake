@@ -45,6 +45,14 @@ import {
     setMasks
 } from "./redux/maskSlice"
 import {
+    applyProperties as applyAudioTrackAnimsProperties,
+    setAudioClips
+} from "./redux/audioTrackSlice"
+import {
+    applyProperties as applyOverlayAnimsProperties,
+    setOverlays
+} from "./redux/overlaySlice"
+import {
     addPan,
     applyProperties as applyPanAnimsProperties,
     removePan,
@@ -133,6 +141,8 @@ export const CLIPS = "clips"
 export const ZOOMS = "zooms"
 export const SUBTITLES = "subtitles"
 export const MASKS = "masks"
+export const AUDIO_TRACKS = "audio-tracks"
+export const OVERLAY_TRACKS = "overlay-tracks"
 export const SCREEN_RECORDING = "screen-recording"
 export const CAMERA_RECORDING = "camera-recording"
 export const BACKGROUND = "background"
@@ -194,6 +204,8 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         actions.push(applyZoomAnimsProperties(json.zoomAnims))
         actions.push(applyCameraZoomAnimsProperties(json.cameraZoomAnims))
         if (json.cursorCoords) actions.push(applyCursorCoordsProperties(json.cursorCoords))
+        if (json.audioTrackAnims) actions.push(applyAudioTrackAnimsProperties(json.audioTrackAnims))
+        if (json.overlayAnims) actions.push(applyOverlayAnimsProperties(json.overlayAnims))
 
         try {
             if (json.project?.background) {
@@ -479,7 +491,9 @@ export const getPresettableData = presentState => {
         cameraZoomAnims,
         subtitleAnims,
         cursorCoords,
-        maskAnims
+        maskAnims,
+        audioTrackAnims,
+        overlayAnims
     } = presentState
 
     const presettableData = {
@@ -492,7 +506,9 @@ export const getPresettableData = presentState => {
         zoomAnims: serializeEntitySlice(zoomAnims, false),
         cameraZoomAnims: serializeEntitySlice(cameraZoomAnims, false),
         cursorCoords: serializeEntitySlice(cursorCoords, false),
-        maskAnims: serializeEntitySlice(maskAnims, false)
+        maskAnims: serializeEntitySlice(maskAnims, false),
+        audioTrackAnims: serializeEntitySlice(audioTrackAnims, false),
+        overlayAnims: serializeEntitySlice(overlayAnims, false)
     }
 
     delete presettableData.project.name

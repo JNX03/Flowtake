@@ -11,13 +11,22 @@ import {
 } from "react-redux"
 import { useResizeDetector } from "react-resize-detector"
 import {
+    AUDIO_TRACKS,
     CLIPS,
     getGridBackgroundImage,
     msToPx,
+    OVERLAY_TRACKS,
     pxToMs,
     SUBTITLES,
     ZOOMS
 } from "../../../../src/helpers"
+import {
+    selectAudioClipIds,
+    selectAudioTracks,
+    toggleTrackLock,
+    toggleTrackMute,
+    removeTrack as removeAudioTrack
+} from "../../../../src/redux/audioTrackSlice"
 import { selectClipIds } from "../../../../src/redux/clipSlice"
 import {
     closeAllContextMenus,
@@ -37,6 +46,13 @@ import {
     selectIsPlaying
 } from "../../../../src/redux/editorSlice"
 import {
+    selectOverlayIds,
+    selectOverlayTracks,
+    toggleOverlayTrackLock,
+    toggleOverlayTrackVisibility,
+    removeOverlayTrack
+} from "../../../../src/redux/overlaySlice"
+import {
     selectSubtitleIds,
     selectTotalSubtitles
 } from "../../../../src/redux/subtitleSlice"
@@ -51,13 +67,18 @@ import {
     setWidth
 } from "../../../../src/redux/timelineSlice"
 import { selectZoomIds } from "../../../../src/redux/zoomSlice"
+import AddTrackButton from "./AddTrackButton"
+import AudioTracks from "./AudioTracks"
 import Clicks from "./Clicks"
 import Clips from "./Clips"
 import Controls from "./Controls"
 import Cursor from "./Cursor"
 import Masks from "./Masks"
+import OverlayTracks from "./OverlayTracks"
 import Subtitles from "./Subtitles"
+import TimelineToolbar from "./TimelineToolbar"
 import TimeScale from "./TimeScale"
+import TrackHeader from "./TrackHeader"
 import Zooms from "./Zooms"
 
 export default function Timeline() {
@@ -71,13 +92,16 @@ export default function Timeline() {
     const pxPerMs = useSelector(selectPxPerMs)
     const isMaskingModeEnabled = useSelector(selectIsMaskingModeEnabled)
 
-    // Additional selectors for timeline functionality
     const totalSubtitles = useSelector(selectTotalSubtitles)
     const selectedIds = useSelector(selectSelectedIds)
     const selectedRow = useSelector(selectSelectedRow)
     const clipIds = useSelector(selectClipIds)
     const zoomIds = useSelector(selectZoomIds)
     const subtitleIds = useSelector(selectSubtitleIds)
+    const audioClipIds = useSelector(selectAudioClipIds)
+    const overlayIds = useSelector(selectOverlayIds)
+    const audioTracks = useSelector(selectAudioTracks)
+    const overlayTracks = useSelector(selectOverlayTracks)
 
     const isClipMenuOpen = useSelector(selectIsClipMenuOpen)
     const isClickMenuOpen = useSelector(selectIsClickMenuOpen)
@@ -98,9 +122,9 @@ export default function Timeline() {
         return msToPx(ms, pxPerMs)
     }, [pxPerMs])
 
-    // Timeline refs and state
     const container = useRef(null)
     const timeline = useRef(null)
+    const headerScroll = useRef(null)
     const isPlayingRef = useRef(isPlaying)
 
     const { width: containerWidth } = useResizeDetector({ targetRef: container })
@@ -118,58 +142,46 @@ export default function Timeline() {
     useHotkeys('esc', () => {
         dispatch(setSelectedIds([]))
         dispatch(closeAllContextMenus())
-    },
-        { enabled: areHotkeysEnabled },
-        [areHotkeysEnabled])
+    }, { enabled: areHotkeysEnabled }, [areHotkeysEnabled])
 
     useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
 
-    // Handle timeline scroll position tracking
+    // Sync vertical scroll between track headers and timeline content
     useEffect(() => {
+        const el = container.current
+        if (!el) return
         const onScroll = () => {
-            if (container.current && timeline.current && !isPlayingRef.current) {
-                dispatch(setScrollLeft(container.current.scrollLeft))
+            if (headerScroll.current) headerScroll.current.scrollTop = el.scrollTop
 
+            if (!isPlayingRef.current) {
+                dispatch(setScrollLeft(el.scrollLeft))
                 if (isClipMenuOpen || isClickMenuOpen || isZoomMenuOpen || isSubtitleMenuOpen || isNewClipMenuOpen ||
                     isNewZoomMenuOpen || isNewSubtitleMenuOpen || isMaskMenuOpen || isNewMaskMenuOpen)
                     dispatch(closeAllContextMenus())
             }
         }
-
-        const scrollContainer = container.current
-
-        if (!isPlayingRef.current) {
-            scrollContainer?.addEventListener("scroll", onScroll)
-        }
-
-        return () => { scrollContainer?.removeEventListener("scroll", onScroll) }
+        if (!isPlayingRef.current) el.addEventListener("scroll", onScroll)
+        return () => el.removeEventListener("scroll", onScroll)
     }, [dispatch, pxPerMs, isClipMenuOpen, isClickMenuOpen, isZoomMenuOpen, isSubtitleMenuOpen, isNewClipMenuOpen,
         isNewZoomMenuOpen, isNewSubtitleMenuOpen, isMaskMenuOpen, isNewMaskMenuOpen])
 
-    // handle unselecting an id if its entity was deleted
+    // Unselect deleted entities
     useEffect(() => {
         if (selectedIds.length >= 1) {
             let ids = null
             switch (selectedRow) {
-                case SUBTITLES: {
-                    ids = subtitleIds
-                    break
-                }
-                case CLIPS: {
-                    ids = clipIds
-                    break
-                }
-                case ZOOMS: {
-                    ids = zoomIds
-                    break
-                }
+                case SUBTITLES: ids = subtitleIds; break
+                case CLIPS: ids = clipIds; break
+                case ZOOMS: ids = zoomIds; break
+                case AUDIO_TRACKS: ids = audioClipIds; break
+                case OVERLAY_TRACKS: ids = overlayIds; break
             }
             if (ids) {
                 const newSelectedIds = selectedIds.filter(id => ids.includes(id))
                 if (newSelectedIds.length !== selectedIds.length) dispatch(setSelectedIds(newSelectedIds))
             }
         }
-    }, [clipIds, dispatch, selectedIds, selectedIds.length, selectedRow, subtitleIds, zoomIds])
+    }, [clipIds, dispatch, selectedIds, selectedIds.length, selectedRow, subtitleIds, zoomIds, audioClipIds, overlayIds])
 
     const scrollToStart = useCallback(() => {
         if (container.current) container.current.scrollLeft = 0
@@ -177,44 +189,109 @@ export default function Timeline() {
 
     const scrollToCursor = useCallback(t => {
         const scrollThreshold = pxToMs(container.current.clientWidth, pxPerMs) * 0.8
-
         const start = pxToMs(container.current.scrollLeft, pxPerMs)
         const end = start + pxToMs(container.current.clientWidth, pxPerMs)
-
         if (t < start || t > end) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
         else if (isPlaying && t > scrollThreshold) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
     }, [pxPerMs, isPlaying])
 
-    // TODO: disable all timeline actions when isPlaying
-
-    const getHeight = () => {
-        if (totalSubtitles > 0 && isMaskingModeEnabled) return "h-50"
-        if (totalSubtitles === 0 && isMaskingModeEnabled) return "h-47"
-        if (totalSubtitles === 0) return "h-43"
-        return "h-56"
-    }
+    const mini = isMaskingModeEnabled
 
     return (
-        <div className={`w-full p-2 ${getHeight()} transition-all select-none`}>
-            <div className="flex h-full bg-base-100 rounded-lg relative z-0">
+        <div className="w-full p-2 flex-1 min-h-48 select-none">
+            <div className="flex flex-col h-full bg-base-100 rounded-lg relative z-0">
 
-                <Controls onScrollToStart={scrollToStart} />
+                {/* Toolbar */}
+                <TimelineToolbar />
 
-                <div ref={container} className={`px-20 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"}`}>
-                    {duration && <div ref={timeline} className="grid grid-cols-1 gap-1 relative bg-size-[100%_100%] z-0"
-                        style={{ width: `${timelineWidth}px`, backgroundImage: getGridBackgroundImage(gridSpacing) }}>
+                <div className="flex flex-1 min-h-0">
+                    {/* Zoom/snap controls */}
+                    <Controls onScrollToStart={scrollToStart} />
 
-                        <Cursor onScrollToCursor={scrollToCursor} />
+                    {/* Track headers - left column */}
+                    <div ref={headerScroll}
+                        className="w-28 shrink-0 flex-col border-r border-base-content/10 overflow-hidden hidden lg:flex">
+                        {/* TimeScale spacer */}
+                        <div className="h-4 shrink-0" />
+                        <div className="h-4 shrink-0" />
+                        {/* Clicks row spacer */}
+                        <div className={`${mini ? "h-2" : "h-4"} shrink-0 flex items-center px-2`}>
+                            {!mini && <span className="text-[9px] opacity-30 truncate">Clicks</span>}
+                        </div>
+                        {/* Built-in tracks */}
+                        <TrackHeader name="Clips" color="primary" isMinimized={mini} />
+                        <TrackHeader name="Zooms" color="secondary" isMinimized={mini} />
+                        {totalSubtitles > 0 && <TrackHeader name="Subtitles" color="tertiary" isMinimized={mini} />}
 
-                        <TimeScale />
+                        {isMaskingModeEnabled && <TrackHeader name="Masks" color="neutral" isMinimized={false} />}
 
-                        <Clicks />
-                        <Clips />
-                        <Zooms />
-                        {totalSubtitles > 0 && <Subtitles />}
+                        {/* Audio track headers */}
+                        {audioTracks.length > 0 && (
+                            <div className="border-t border-base-content/5 mt-1 pt-1">
+                                {audioTracks.map(track => (
+                                    <TrackHeader
+                                        key={`ah-${track.id}`}
+                                        name={track.name}
+                                        color="secondary"
+                                        isMuted={track.muted}
+                                        isLocked={track.locked}
+                                        onToggleMute={() => dispatch(toggleTrackMute(track.id))}
+                                        onToggleLock={() => dispatch(toggleTrackLock(track.id))}
+                                        onRemove={() => dispatch(removeAudioTrack(track.id))}
+                                        isRemovable
+                                        isMinimized={mini}
+                                    />
+                                ))}
+                            </div>
+                        )}
 
-                        {isMaskingModeEnabled && <Masks />}
-                    </div>}
+                        {/* Overlay track headers */}
+                        {overlayTracks.length > 0 && (
+                            <div className="border-t border-base-content/5 mt-1 pt-1">
+                                {overlayTracks.map(track => (
+                                    <TrackHeader
+                                        key={`oh-${track.id}`}
+                                        name={track.name}
+                                        color="accent"
+                                        isLocked={track.locked}
+                                        isVisible={track.visible}
+                                        onToggleLock={() => dispatch(toggleOverlayTrackLock(track.id))}
+                                        onToggleVisible={() => dispatch(toggleOverlayTrackVisibility(track.id))}
+                                        onRemove={() => dispatch(removeOverlayTrack(track.id))}
+                                        isRemovable
+                                        isMinimized={mini}
+                                    />
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Add Track */}
+                        <div className="mt-auto py-1.5 px-1 border-t border-base-content/5">
+                            <AddTrackButton />
+                        </div>
+                    </div>
+
+                    {/* Timeline tracks content */}
+                    <div ref={container}
+                        className={`flex-1 px-20 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar`}>
+                        {duration && <div ref={timeline}
+                            className="grid grid-cols-1 gap-1 relative bg-size-[100%_100%] z-0 min-h-full"
+                            style={{ width: `${timelineWidth}px`, backgroundImage: getGridBackgroundImage(gridSpacing) }}>
+
+                            <Cursor onScrollToCursor={scrollToCursor} />
+                            <TimeScale />
+
+                            <Clicks />
+                            <Clips />
+                            <Zooms />
+                            {totalSubtitles > 0 && <Subtitles />}
+                            {isMaskingModeEnabled && <Masks />}
+
+                            {/* Audio & Overlay tracks - rendered inline */}
+                            <AudioTracks />
+                            <OverlayTracks />
+                        </div>}
+                    </div>
                 </div>
             </div>
         </div>
