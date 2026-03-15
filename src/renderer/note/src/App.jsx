@@ -3,50 +3,89 @@ import TitleBar from "../../components/TitleBar"
 import {
     MagnifyingGlassMinusIcon,
     MagnifyingGlassPlusIcon,
-    PlayIcon,
-    PauseIcon,
     ArrowPathIcon,
     MicrophoneIcon,
     PencilSquareIcon,
     ViewColumnsIcon,
-    ChevronUpIcon,
-    ChevronDownIcon,
 } from "@heroicons/react/16/solid"
 
 const FONT_SIZES = [16, 20, 26, 34, 44]
-const SCROLL_SPEEDS = [0.3, 0.6, 1, 1.5, 2.5]
-const SPEED_LABELS = ["0.3x", "0.6x", "1x", "1.5x", "2.5x"]
 
-// Speech recognition setup
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
 
+// Normalize a word for fuzzy matching: lowercase, strip punctuation
+function normalize(word) {
+    return word.toLowerCase().replace(/[^a-z0-9']/g, "")
+}
+
+// Check if two normalized words are a close enough match
+function wordsMatch(spoken, script) {
+    if (!spoken || !script) return false
+    if (spoken === script) return true
+    // Allow partial match for longer words (speech recognition can truncate)
+    if (script.length > 4 && spoken.length > 3) {
+        if (script.startsWith(spoken) || spoken.startsWith(script)) return true
+    }
+    // Simple edit distance check for short words - allow 1 char difference
+    if (Math.abs(spoken.length - script.length) <= 1 && spoken.length >= 3) {
+        let diffs = 0
+        const maxLen = Math.max(spoken.length, script.length)
+        for (let i = 0; i < maxLen; i++) {
+            if (spoken[i] !== script[i]) diffs++
+            if (diffs > 1) return false
+        }
+        return true
+    }
+    return false
+}
+
+// Split text into tokens preserving whitespace for rendering
+// Returns array of { word, trailing } where trailing is the whitespace/newlines after the word
+function tokenize(text) {
+    const tokens = []
+    const regex = /(\S+)([\s]*)/g
+    let match
+    while ((match = regex.exec(text)) !== null) {
+        tokens.push({ word: match[1], trailing: match[2] })
+    }
+    return tokens
+}
+
 export default function App() {
-    // Core state
     const [text, setText] = useState("")
     const [mode, setMode] = useState("edit") // "edit" | "teleprompter"
     const [fontSize, setFontSize] = useState(2)
     const [isRecording, setIsRecording] = useState(false)
 
-    // Teleprompter state
-    const [isScrolling, setIsScrolling] = useState(false)
-    const [scrollSpeed, setScrollSpeed] = useState(2) // index into SCROLL_SPEEDS
+    // Speech-follow state
+    const [isFollowing, setIsFollowing] = useState(false)
+    const [cursor, setCursor] = useState(0) // index of current word in script
+    const [interimCursor, setInterimCursor] = useState(0) // tentative position from interim results
     const [isMirrored, setIsMirrored] = useState(false)
-
-    // Speech-to-text state
-    const [isListening, setIsListening] = useState(false)
-    const [interimText, setInterimText] = useState("")
     const [hasSpeechSupport] = useState(() => !!SpeechRecognition)
 
-    // Timer state
+    // Edit mode dictation
+    const [isDictating, setIsDictating] = useState(false)
+    const [interimText, setInterimText] = useState("")
+
+    // Timer
     const [elapsed, setElapsed] = useState(0)
 
     // Refs
     const scrollRef = useRef(null)
-    const scrollAnimRef = useRef(null)
     const recognitionRef = useRef(null)
     const timerRef = useRef(null)
-    const lastScrollTime = useRef(null)
-    const highlightRef = useRef(null)
+    const cursorRef = useRef(0) // mirror of cursor for use in callbacks
+    const currentWordRef = useRef(null) // ref to the current highlighted word element
+    const tokensRef = useRef([]) // mirror of tokens for use in callbacks
+
+    // Compute tokens from text
+    const tokens = tokenize(text)
+    tokensRef.current = tokens
+    const normalizedScript = tokens.map(t => normalize(t.word))
+
+    // Keep cursorRef in sync
+    useEffect(() => { cursorRef.current = cursor }, [cursor])
 
     // Recording events
     useEffect(() => {
@@ -59,47 +98,106 @@ export default function App() {
         const onStopped = () => {
             setIsRecording(false)
             clearInterval(timerRef.current)
-            setIsScrolling(false)
         }
         window.electron.ipcRenderer.on('recording-started', onStarted)
         window.electron.ipcRenderer.on('recording-stopped', onStopped)
         window.electron.ipcRenderer.on('recording-canceled', onStopped)
-        return () => {
-            clearInterval(timerRef.current)
+        return () => clearInterval(timerRef.current)
+    }, [])
+
+    // Auto-scroll to keep current word visible
+    useEffect(() => {
+        if (mode !== "teleprompter" || !currentWordRef.current || !scrollRef.current) return
+        const container = scrollRef.current
+        const el = currentWordRef.current
+        const elRect = el.getBoundingClientRect()
+        const containerRect = container.getBoundingClientRect()
+
+        // Scroll so current word is roughly in the top third of the view
+        const targetOffset = containerRect.height * 0.33
+        const currentOffset = elRect.top - containerRect.top
+        if (Math.abs(currentOffset - targetOffset) > 40) {
+            container.scrollTo({
+                top: container.scrollTop + (currentOffset - targetOffset),
+                behavior: "smooth"
+            })
+        }
+    }, [cursor, interimCursor, mode])
+
+    // Match spoken words against the script, advancing the cursor
+    const matchSpokenWords = useCallback((spokenText, isFinal) => {
+        const spokenWords = spokenText.trim().split(/\s+/).map(normalize).filter(Boolean)
+        if (spokenWords.length === 0) return
+
+        const scriptNorm = tokensRef.current.map(t => normalize(t.word))
+        let pos = cursorRef.current
+
+        // Try to match each spoken word to the script starting from current position
+        // Allow looking ahead up to 3 words to handle skips/insertions
+        for (const spoken of spokenWords) {
+            const lookAhead = Math.min(pos + 5, scriptNorm.length)
+            let matched = false
+            for (let j = pos; j < lookAhead; j++) {
+                if (wordsMatch(spoken, scriptNorm[j])) {
+                    pos = j + 1
+                    matched = true
+                    break
+                }
+            }
+            // If no match in look-ahead, the user might have ad-libbed - skip this spoken word
+            if (!matched) continue
+        }
+
+        if (isFinal && pos > cursorRef.current) {
+            setCursor(pos)
+            setInterimCursor(pos)
+        } else if (!isFinal && pos > cursorRef.current) {
+            setInterimCursor(pos)
         }
     }, [])
 
-    // Auto-scroll animation
-    useEffect(() => {
-        if (!isScrolling || mode !== "teleprompter") {
-            cancelAnimationFrame(scrollAnimRef.current)
-            lastScrollTime.current = null
-            return
-        }
-        const el = scrollRef.current
-        if (!el) return
+    // Start speech following in teleprompter mode
+    const startFollowing = useCallback(() => {
+        if (!hasSpeechSupport) return
+        const recognition = new SpeechRecognition()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = "en-US"
 
-        const step = (timestamp) => {
-            if (lastScrollTime.current !== null) {
-                const delta = timestamp - lastScrollTime.current
-                const px = SCROLL_SPEEDS[scrollSpeed] * delta * 0.04
-                el.scrollTop += px
-
-                // Stop at the bottom
-                if (el.scrollTop >= el.scrollHeight - el.clientHeight) {
-                    setIsScrolling(false)
-                    return
+        recognition.onresult = (event) => {
+            let finalTranscript = ""
+            let interim = ""
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript
+                } else {
+                    interim += transcript
                 }
             }
-            lastScrollTime.current = timestamp
-            scrollAnimRef.current = requestAnimationFrame(step)
+            if (finalTranscript) matchSpokenWords(finalTranscript, true)
+            if (interim) matchSpokenWords(interim, false)
         }
-        scrollAnimRef.current = requestAnimationFrame(step)
-        return () => cancelAnimationFrame(scrollAnimRef.current)
-    }, [isScrolling, scrollSpeed, mode])
 
-    // Speech recognition
-    const startListening = useCallback(() => {
+        recognition.onerror = (event) => {
+            if (event.error !== "no-speech") {
+                console.warn("Speech recognition error:", event.error)
+            }
+        }
+
+        recognition.onend = () => {
+            if (recognitionRef.current) {
+                try { recognitionRef.current.start() } catch (e) { /* already started */ }
+            }
+        }
+
+        recognitionRef.current = recognition
+        recognition.start()
+        setIsFollowing(true)
+    }, [hasSpeechSupport, matchSpokenWords])
+
+    // Start dictation in edit mode (appends spoken text)
+    const startDictating = useCallback(() => {
         if (!hasSpeechSupport) return
         const recognition = new SpeechRecognition()
         recognition.continuous = true
@@ -119,67 +217,59 @@ export default function App() {
             }
             if (finalTranscript) {
                 setText(prev => {
-                    const separator = prev && !prev.endsWith("\n") && !prev.endsWith(" ") ? " " : ""
-                    return prev + separator + finalTranscript
+                    const sep = prev && !prev.endsWith("\n") && !prev.endsWith(" ") ? " " : ""
+                    return prev + sep + finalTranscript
                 })
             }
             setInterimText(interim)
-
-            // Auto-scroll to bottom when new speech comes in
-            if (scrollRef.current) {
-                requestAnimationFrame(() => {
-                    if (scrollRef.current) {
-                        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-                    }
-                })
-            }
         }
 
         recognition.onerror = (event) => {
-            if (event.error !== "no-speech") {
-                console.warn("Speech recognition error:", event.error)
-            }
+            if (event.error !== "no-speech") console.warn("Speech error:", event.error)
         }
 
         recognition.onend = () => {
-            // Restart if still listening (browser stops after silence)
             if (recognitionRef.current) {
-                try { recognitionRef.current.start() } catch (e) { /* already started */ }
+                try { recognitionRef.current.start() } catch (e) { /* */ }
             }
         }
 
         recognitionRef.current = recognition
         recognition.start()
-        setIsListening(true)
+        setIsDictating(true)
     }, [hasSpeechSupport])
 
-    const stopListening = useCallback(() => {
+    const stopRecognition = useCallback(() => {
         if (recognitionRef.current) {
             const ref = recognitionRef.current
             recognitionRef.current = null
             ref.stop()
         }
-        setIsListening(false)
+        setIsFollowing(false)
+        setIsDictating(false)
         setInterimText("")
     }, [])
 
     // Cleanup
-    useEffect(() => () => stopListening(), [stopListening])
+    useEffect(() => () => stopRecognition(), [stopRecognition])
 
     const toggleMode = () => {
         if (mode === "edit") {
+            stopRecognition()
             setMode("teleprompter")
-            // Reset scroll position when entering teleprompter
+            setCursor(0)
+            setInterimCursor(0)
             if (scrollRef.current) scrollRef.current.scrollTop = 0
         } else {
+            stopRecognition()
             setMode("edit")
-            setIsScrolling(false)
         }
     }
 
-    const resetScroll = () => {
+    const resetProgress = () => {
+        setCursor(0)
+        setInterimCursor(0)
         if (scrollRef.current) scrollRef.current.scrollTop = 0
-        setIsScrolling(false)
     }
 
     const formatTime = (ms) => {
@@ -191,7 +281,52 @@ export default function App() {
         return `${pad(m)}:${pad(s % 60)}`
     }
 
-    const displayText = text + (interimText ? (text ? " " : "") + interimText : "")
+    // Determine the visual cursor (use interim for more responsive highlighting)
+    const visualCursor = Math.max(cursor, interimCursor)
+
+    // Render script words with highlighting
+    const renderScript = () => {
+        if (tokens.length === 0) {
+            return (
+                <p className="text-center opacity-30 mt-8" style={{ fontSize: FONT_SIZES[fontSize] }}>
+                    No script yet. Switch to edit mode to type or paste your script.
+                </p>
+            )
+        }
+
+        return (
+            <p className="leading-loose whitespace-pre-wrap break-words"
+                style={{ fontSize: FONT_SIZES[fontSize] + 4 }}>
+                {tokens.map((token, i) => {
+                    let className = ""
+                    let ref = undefined
+
+                    if (i < cursor) {
+                        // Already spoken - dim it
+                        className = "text-base-content/30 transition-colors duration-300"
+                    } else if (i < visualCursor) {
+                        // Interim match - slightly highlighted
+                        className = "text-accent/60 transition-colors duration-200"
+                    } else if (i === visualCursor) {
+                        // Current word - bright highlight
+                        className = "text-accent font-semibold transition-colors duration-200"
+                        ref = currentWordRef
+                    } else {
+                        // Upcoming - normal
+                        className = "text-base-content transition-colors duration-300"
+                    }
+
+                    return (
+                        <span key={i} ref={ref} className={className}>
+                            {token.word}{token.trailing}
+                        </span>
+                    )
+                })}
+            </p>
+        )
+    }
+
+    const progress = tokens.length > 0 ? Math.round((cursor / tokens.length) * 100) : 0
 
     return (<>
         <TitleBar title="Teleprompter">
@@ -232,34 +367,31 @@ export default function App() {
         </TitleBar>
 
         <div className="flex flex-col h-[calc(100%-2rem)] w-full">
-            {/* Edit mode */}
+            {/* ===== EDIT MODE ===== */}
             {mode === "edit" && (
                 <div className="flex-1 flex flex-col min-h-0 p-2 gap-2">
                     <textarea
-                        ref={scrollRef}
                         className="textarea textarea-bordered flex-1 resize-none leading-relaxed"
                         style={{ fontSize: FONT_SIZES[fontSize] }}
-                        placeholder="Type your script here, or use the mic to dictate..."
+                        placeholder="Type or paste your script here, or use the mic to dictate..."
                         value={text}
                         onChange={e => setText(e.target.value)}
                     />
 
-                    {/* Speech-to-text indicator */}
-                    {isListening && interimText && (
+                    {isDictating && interimText && (
                         <div className="text-xs text-accent opacity-70 px-1 truncate">
                             {interimText}
                         </div>
                     )}
 
-                    {/* Bottom toolbar */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                         {hasSpeechSupport && (
                             <button
-                                className={`btn btn-sm ${isListening ? "btn-error" : "btn-ghost"}`}
-                                onClick={isListening ? stopListening : startListening}
-                                title={isListening ? "Stop dictation" : "Start dictation"}>
+                                className={`btn btn-sm ${isDictating ? "btn-error" : "btn-ghost"}`}
+                                onClick={isDictating ? stopRecognition : startDictating}
+                                title={isDictating ? "Stop dictation" : "Start dictation"}>
                                 <MicrophoneIcon className="size-4" />
-                                <span className="text-xs">{isListening ? "Stop" : "Dictate"}</span>
+                                <span className="text-xs">{isDictating ? "Stop" : "Dictate"}</span>
                             </button>
                         )}
                         <div className="flex-1" />
@@ -267,107 +399,77 @@ export default function App() {
                             {text.split(/\s+/).filter(Boolean).length} words
                         </span>
                     </div>
+
+                    {!text && (
+                        <div className="text-xs opacity-40 space-y-1 px-1">
+                            <p>This window won't appear in your recording.</p>
+                            <p>Write your script, then switch to teleprompter mode.</p>
+                            <p>Speak and it follows along, highlighting where you are.</p>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* Teleprompter mode */}
+            {/* ===== TELEPROMPTER MODE ===== */}
             {mode === "teleprompter" && (
                 <div className="flex-1 flex flex-col min-h-0">
-                    {/* Scrolling text area with fade edges */}
+                    {/* Script display with fade edges */}
                     <div className="relative flex-1 min-h-0">
-                        {/* Top fade */}
-                        <div className="absolute top-0 left-0 right-0 h-12 z-10 pointer-events-none"
+                        <div className="absolute top-0 left-0 right-0 h-14 z-10 pointer-events-none"
                             style={{ background: "linear-gradient(to bottom, var(--color-base-300), transparent)" }} />
-                        {/* Bottom fade */}
-                        <div className="absolute bottom-0 left-0 right-0 h-12 z-10 pointer-events-none"
+                        <div className="absolute bottom-0 left-0 right-0 h-14 z-10 pointer-events-none"
                             style={{ background: "linear-gradient(to top, var(--color-base-300), transparent)" }} />
 
                         <div
                             ref={scrollRef}
-                            className="h-full overflow-y-auto px-6 py-14 no-scrollbar"
-                            style={{
-                                transform: isMirrored ? "scaleX(-1)" : "none",
-                            }}>
-                            {displayText ? (
-                                <p className="leading-loose text-base-content whitespace-pre-wrap break-words"
-                                    style={{ fontSize: FONT_SIZES[fontSize] + 4 }}>
-                                    {displayText}
-                                </p>
-                            ) : (
-                                <p className="text-center opacity-30 mt-8"
-                                    style={{ fontSize: FONT_SIZES[fontSize] }}>
-                                    No text yet. Switch to edit mode to type or dictate your script.
-                                </p>
-                            )}
+                            className="h-full overflow-y-auto px-6 py-16 no-scrollbar"
+                            style={{ transform: isMirrored ? "scaleX(-1)" : "none" }}>
+                            {renderScript()}
                         </div>
                     </div>
 
-                    {/* Teleprompter controls */}
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-base-200/80 border-t border-base-content/10">
-                        {/* Play / Pause */}
-                        <button
-                            className={`btn btn-sm ${isScrolling ? "btn-warning" : "btn-primary"}`}
-                            onClick={() => setIsScrolling(!isScrolling)}
-                            title={isScrolling ? "Pause" : "Play"}>
-                            {isScrolling
-                                ? <PauseIcon className="size-4" />
-                                : <PlayIcon className="size-4" />
-                            }
-                        </button>
-
-                        {/* Reset */}
-                        <button className="btn btn-sm btn-ghost" onClick={resetScroll} title="Reset to top">
-                            <ArrowPathIcon className="size-4" />
-                        </button>
-
-                        {/* Speed control */}
-                        <div className="flex items-center gap-0.5">
-                            <button className="btn btn-xs btn-ghost"
-                                onClick={() => setScrollSpeed(Math.max(0, scrollSpeed - 1))}
-                                disabled={scrollSpeed === 0}>
-                                <ChevronDownIcon className="size-3" />
-                            </button>
-                            <span className="text-xs font-mono w-7 text-center opacity-70">
-                                {SPEED_LABELS[scrollSpeed]}
-                            </span>
-                            <button className="btn btn-xs btn-ghost"
-                                onClick={() => setScrollSpeed(Math.min(SCROLL_SPEEDS.length - 1, scrollSpeed + 1))}
-                                disabled={scrollSpeed === SCROLL_SPEEDS.length - 1}>
-                                <ChevronUpIcon className="size-3" />
-                            </button>
+                    {/* Progress bar */}
+                    {tokens.length > 0 && (
+                        <div className="h-1 bg-base-200">
+                            <div className="h-full bg-accent transition-all duration-500 ease-out"
+                                style={{ width: `${progress}%` }} />
                         </div>
+                    )}
 
-                        <div className="flex-1" />
-
-                        {/* Speech-to-text in teleprompter mode */}
+                    {/* Controls */}
+                    <div className="flex items-center gap-1.5 px-2 py-1.5 bg-base-200/80 border-t border-base-content/10">
+                        {/* Follow button - the main feature */}
                         {hasSpeechSupport && (
                             <button
-                                className={`btn btn-sm ${isListening ? "btn-error" : "btn-ghost"}`}
-                                onClick={isListening ? stopListening : startListening}
-                                title={isListening ? "Stop listening" : "Start speech-to-text"}>
+                                className={`btn btn-sm ${isFollowing ? "btn-error" : "btn-accent"}`}
+                                onClick={isFollowing ? stopRecognition : startFollowing}
+                                title={isFollowing ? "Stop following" : "Start following your voice"}>
                                 <MicrophoneIcon className="size-4" />
+                                <span className="text-xs">{isFollowing ? "Stop" : "Follow"}</span>
                             </button>
                         )}
 
-                        {/* Timer (shows during recording) */}
+                        {/* Reset */}
+                        <button className="btn btn-sm btn-ghost" onClick={resetProgress} title="Reset to beginning">
+                            <ArrowPathIcon className="size-4" />
+                        </button>
+
+                        <div className="flex-1" />
+
+                        {/* Progress text */}
+                        <span className="text-xs opacity-50 font-mono">
+                            {progress}%
+                        </span>
+
+                        {/* Recording timer */}
                         {isRecording && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 ml-2">
                                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                                 <span className="text-xs font-mono text-red-400">
                                     {formatTime(elapsed)}
                                 </span>
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-
-            {/* Info bar for edit mode */}
-            {mode === "edit" && !text && (
-                <div className="px-3 pb-2">
-                    <div className="text-xs opacity-40 space-y-1">
-                        <p>This window won't appear in your recording.</p>
-                        <p>Position it near your camera for a teleprompter effect.</p>
                     </div>
                 </div>
             )}
