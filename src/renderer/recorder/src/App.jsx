@@ -22,6 +22,28 @@ import {
 } from "react"
 import DeviceRecorder from "../../main/src/DeviceRecorder"
 
+// ─── Inline style tag for custom animations ──────────────────────
+const StyleTag = () => (
+    <style>{`
+        @keyframes rec-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+        @keyframes rec-ring {
+            0% { opacity: 0.5; transform: scale(1); }
+            100% { opacity: 0; transform: scale(2.2); }
+        }
+        @keyframes countdown-pop {
+            0% { opacity: 0; transform: scale(0.5); }
+            50% { opacity: 1; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .rec-dot { animation: rec-pulse 1.5s ease-in-out infinite; }
+        .rec-ring { animation: rec-ring 1.5s ease-out infinite; }
+        .countdown-num { animation: countdown-pop 0.35s ease-out; }
+    `}</style>
+)
+
 export default function App() {
 
     const [time, setTime] = useState(0)
@@ -83,7 +105,7 @@ export default function App() {
 
     useEffect(() => {
         if (cameraMicConfig && (deviceRecorder || (!cameraMicConfig.videoTrack && !cameraMicConfig.audioTrack)))
-            setCountdown(5)
+            setCountdown(3)
     }, [cameraMicConfig, deviceRecorder])
 
     useEffect(() => {
@@ -139,7 +161,7 @@ export default function App() {
         setIsMicMuted(false)
         setIsCameraOff(false)
         await deviceRecorder?.initFile()
-        setCountdown(5)
+        setCountdown(3)
     }
 
     const onClickCancel = async () => {
@@ -176,23 +198,36 @@ export default function App() {
             className={`h-full w-full flex items-center select-none rounded-2xl ${className}`}
             style={{
                 WebkitAppRegion: "drag",
-                background: "rgba(15, 15, 35, 0.85)",
-                backdropFilter: "blur(24px)",
-                WebkitBackdropFilter: "blur(24px)",
+                background: "#0e0e1f",
                 border: "1px solid rgba(255,255,255,0.08)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05) inset",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset",
             }}
         >
             {children}
         </div>
     )
 
+    // ─── Divider ─────────────────────────────────────────────────────
+    const Divider = () => (
+        <div className="w-px h-5 mx-1 flex-shrink-0" style={{ background: "rgba(255,255,255,0.08)" }} />
+    )
+
     // ─── Control button helper ───────────────────────────────────────
-    const CtrlBtn = ({ onClick, title, children, variant = "ghost", className = "" }) => {
-        const base = "flex items-center justify-center rounded-lg transition-all duration-150 "
+    const CtrlBtn = ({ onClick, title, children, variant = "ghost", active, className = "" }) => {
+        const base = "flex items-center justify-center transition-all duration-150 cursor-pointer "
         const variants = {
-            ghost: "w-8 h-8 hover:bg-white/10 active:bg-white/15 text-base-content/70 hover:text-base-content",
-            stop: "w-9 h-9 bg-red-500 hover:bg-red-400 active:bg-red-600 text-white shadow-lg shadow-red-500/25",
+            ghost: `w-9 h-9 rounded-xl hover:bg-white/[0.08] active:bg-white/[0.12] active:scale-95 ${
+                active === false ? "text-white/30" : "text-white/60 hover:text-white/90"
+            }`,
+            toggle: `w-9 h-9 rounded-xl ${
+                active
+                    ? "bg-white/[0.12] text-white/90"
+                    : "text-white/40 hover:bg-white/[0.06] hover:text-white/70"
+            } active:scale-95`,
+            pause: "w-10 h-10 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] active:bg-white/[0.18] active:scale-95 text-white/80 hover:text-white",
+            resume: "w-10 h-10 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:bg-emerald-500/40 active:scale-95 text-emerald-400 hover:text-emerald-300",
+            danger: "w-8 h-8 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 active:scale-95",
+            stop: "h-10 px-4 gap-2 rounded-xl bg-red-500 hover:bg-red-400 active:bg-red-600 active:scale-[0.97] text-white font-semibold text-[13px] shadow-lg shadow-red-500/20",
         }
         return (
             <button
@@ -209,11 +244,14 @@ export default function App() {
     // ─── Pre-recording: countdown / loading ──────────────────────────
     if (!isRecording) {
         return (
-            <div className="h-full w-full p-1">
-                <Pill>
+            <div className="h-full w-full px-px py-px">
+                <StyleTag />
+                <Pill className="px-3">
                     {/* Camera preview */}
                     {hasCam && (
-                        <div className="ml-3 w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-white/10">
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
+                            style={{ boxShadow: "0 0 0 2px rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.3)" }}
+                        >
                             <video ref={cameraVideoRef} autoPlay muted className="object-cover h-full w-full bg-base-300" />
                         </div>
                     )}
@@ -222,49 +260,52 @@ export default function App() {
                     {countdown !== null && (
                         <div className="flex-1 flex items-center justify-center gap-3">
                             <div className="relative flex items-center justify-center">
-                                {/* Animated ring */}
-                                <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                                <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
                                     <circle
                                         cx="18" cy="18" r="15"
                                         fill="none"
-                                        stroke="rgba(255,255,255,0.08)"
-                                        strokeWidth="2.5"
+                                        stroke="rgba(255,255,255,0.06)"
+                                        strokeWidth="2"
                                     />
                                     <circle
                                         cx="18" cy="18" r="15"
                                         fill="none"
-                                        stroke="#6C5CE7"
+                                        stroke="url(#countdown-grad)"
                                         strokeWidth="2.5"
                                         strokeLinecap="round"
-                                        strokeDasharray={`${(countdown / 5) * 94.25} 94.25`}
+                                        strokeDasharray={`${(countdown / 3) * 94.25} 94.25`}
                                         className="transition-all duration-700 ease-linear"
                                     />
+                                    <defs>
+                                        <linearGradient id="countdown-grad" x1="0" y1="0" x2="1" y2="1">
+                                            <stop offset="0%" stopColor="#818CF8" />
+                                            <stop offset="100%" stopColor="#6C5CE7" />
+                                        </linearGradient>
+                                    </defs>
                                 </svg>
-                                <span className="absolute font-semibold font-brand text-lg tabular-nums text-white">
+                                <span key={countdown} className="countdown-num absolute font-semibold text-lg tabular-nums text-white">
                                     {countdown}
                                 </span>
                             </div>
-                            <span className="text-[11px] text-base-content/40 font-medium tracking-wide uppercase">
-                                Starting...
+                            <span className="text-[11px] text-white/30 font-medium tracking-wide uppercase">
+                                Starting
                             </span>
                         </div>
                     )}
 
                     {/* Loading spinner */}
                     {countdown === null && (
-                        <div className="flex-1 flex items-center justify-center gap-2">
-                            <span className="loading loading-spinner loading-sm text-primary"></span>
-                            <span className="text-[11px] text-base-content/40 font-medium">Preparing...</span>
+                        <div className="flex-1 flex items-center justify-center gap-2.5">
+                            <span className="loading loading-spinner loading-sm text-indigo-400"></span>
+                            <span className="text-[11px] text-white/30 font-medium">Preparing...</span>
                         </div>
                     )}
 
                     {/* Cancel */}
                     {countdown !== null && (
-                        <div className="mr-2">
-                            <CtrlBtn onClick={onClickCancel} title="Cancel recording">
-                                <XMarkIcon className="size-4" />
-                            </CtrlBtn>
-                        </div>
+                        <CtrlBtn onClick={onClickCancel} title="Cancel recording">
+                            <XMarkIcon className="size-4" />
+                        </CtrlBtn>
                     )}
                 </Pill>
             </div>
@@ -273,23 +314,26 @@ export default function App() {
 
     // ─── Recording: full control bar ─────────────────────────────────
     return (
-        <div className="h-full w-full p-1">
-            <Pill className="px-2 gap-1">
+        <div className="h-full w-full px-px py-px">
+            <StyleTag />
+            <Pill className="px-2.5 gap-0.5">
 
-                {/* Left section: status indicator */}
-                <div className="flex items-center gap-2.5 pl-2">
+                {/* ── Left: Recording status ── */}
+                <div className="flex items-center gap-2.5 pl-1.5">
                     {/* Camera preview */}
                     {hasCam && (
-                        <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-white/10">
+                        <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0"
+                            style={{ boxShadow: "0 0 0 2px rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.3)" }}
+                        >
                             <video
                                 ref={cameraVideoRef}
                                 autoPlay
                                 muted
-                                className={`object-cover h-full w-full bg-base-300 transition-opacity ${isCameraOff ? 'opacity-0' : ''}`}
+                                className={`object-cover h-full w-full bg-base-300 transition-opacity duration-300 ${isCameraOff ? 'opacity-0' : ''}`}
                             />
                             {isCameraOff && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-base-300">
-                                    <VideoCameraSlashIcon className="size-3 opacity-30" />
+                                    <VideoCameraSlashIcon className="size-3.5 opacity-30" />
                                 </div>
                             )}
                         </div>
@@ -297,20 +341,20 @@ export default function App() {
 
                     {/* Recording dot + timer */}
                     <div className="flex items-center gap-2">
-                        <div className="relative flex items-center justify-center w-3 h-3">
+                        <div className="relative flex items-center justify-center w-3.5 h-3.5">
                             {!isPaused && (
-                                <div className="absolute w-3 h-3 rounded-full bg-red-500/40 animate-ping" />
+                                <div className="rec-ring absolute w-3 h-3 rounded-full bg-red-500/30" />
                             )}
-                            <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
+                            <div className={`rec-dot w-2.5 h-2.5 rounded-full transition-colors duration-300 ${
                                 isPaused ? 'bg-amber-400' : 'bg-red-500'
-                            }`} />
+                            }`} style={isPaused ? { animation: 'none' } : {}} />
                         </div>
                         <div className="flex flex-col leading-none">
-                            <span className="font-brand font-semibold text-sm tabular-nums tracking-tight text-white">
+                            <span className="font-semibold text-[15px] tabular-nums tracking-tight text-white" style={{ fontVariantNumeric: "tabular-nums" }}>
                                 {formattedTime}
                             </span>
                             {isPaused && (
-                                <span className="text-[9px] text-amber-400 font-bold tracking-widest mt-0.5">
+                                <span className="text-[9px] text-amber-400/80 font-bold tracking-[0.15em] mt-0.5">
                                     PAUSED
                                 </span>
                             )}
@@ -318,78 +362,76 @@ export default function App() {
                     </div>
                 </div>
 
-                {/* Center: device toggles */}
-                <div className="flex-1 flex items-center justify-center">
-                    <div
-                        className="flex items-center gap-0.5 rounded-lg p-0.5"
-                        style={{ background: "rgba(255,255,255,0.04)" }}
-                    >
-                        {hasMic && (
-                            <CtrlBtn
-                                onClick={toggleMic}
-                                title={isMicMuted ? "Unmute microphone" : "Mute microphone"}
-                                className={isMicMuted ? "!text-red-400" : ""}
-                            >
-                                <div className="relative">
-                                    <MicrophoneIcon className="size-3.5" />
-                                    {isMicMuted && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-[1.5px] h-4 bg-red-400 rotate-45 rounded-full" />
-                                        </div>
-                                    )}
-                                </div>
-                            </CtrlBtn>
-                        )}
+                <Divider />
 
-                        {hasCam && (
-                            <CtrlBtn
-                                onClick={toggleCamera}
-                                title={isCameraOff ? "Turn on camera" : "Turn off camera"}
-                                className={isCameraOff ? "!text-red-400" : ""}
-                            >
-                                {isCameraOff
-                                    ? <VideoCameraSlashIcon className="size-3.5" />
-                                    : <VideoCameraIcon className="size-3.5" />
-                                }
-                            </CtrlBtn>
-                        )}
-
-                        <CtrlBtn onClick={openTeleprompter} title="Open teleprompter">
-                            <DocumentTextIcon className="size-3.5" />
-                        </CtrlBtn>
-                    </div>
-                </div>
-
-                {/* Right: recording actions */}
-                <div className="flex items-center gap-1 pr-1.5">
-                    {/* Pause / Resume */}
-                    {!isPaused ? (
-                        <CtrlBtn onClick={onClickPause} title="Pause recording">
-                            <PauseIcon className="size-4" />
-                        </CtrlBtn>
-                    ) : (
-                        <CtrlBtn onClick={onClickResume} title="Resume recording" className="!text-emerald-400 hover:!text-emerald-300">
-                            <PlayIcon className="size-4" />
+                {/* ── Center: Device toggles ── */}
+                <div className="flex items-center gap-0.5 px-0.5">
+                    {hasMic && (
+                        <CtrlBtn
+                            onClick={toggleMic}
+                            title={isMicMuted ? "Unmute microphone" : "Mute microphone"}
+                            variant="toggle"
+                            active={!isMicMuted}
+                        >
+                            <div className="relative">
+                                <MicrophoneIcon className="size-4" />
+                                {isMicMuted && (
+                                    <div className="absolute -top-0.5 -right-0.5 -bottom-0.5 -left-0.5 flex items-center justify-center">
+                                        <div className="w-[1.5px] h-[18px] bg-red-400 rotate-45 rounded-full" />
+                                    </div>
+                                )}
+                            </div>
                         </CtrlBtn>
                     )}
 
-                    {/* Restart */}
-                    <CtrlBtn onClick={onClickRestart} title="Restart recording">
+                    {hasCam && (
+                        <CtrlBtn
+                            onClick={toggleCamera}
+                            title={isCameraOff ? "Turn on camera" : "Turn off camera"}
+                            variant="toggle"
+                            active={!isCameraOff}
+                        >
+                            {isCameraOff
+                                ? <VideoCameraSlashIcon className="size-4" />
+                                : <VideoCameraIcon className="size-4" />
+                            }
+                        </CtrlBtn>
+                    )}
+
+                    <CtrlBtn onClick={openTeleprompter} title="Teleprompter" variant="toggle">
+                        <DocumentTextIcon className="size-4" />
+                    </CtrlBtn>
+                </div>
+
+                <Divider />
+
+                {/* ── Right: Actions ── */}
+                <div className="flex items-center gap-1 pr-1">
+                    {/* Pause / Resume — distinct states */}
+                    {!isPaused ? (
+                        <CtrlBtn onClick={onClickPause} title="Pause" variant="pause">
+                            <PauseIcon className="size-[18px]" />
+                        </CtrlBtn>
+                    ) : (
+                        <CtrlBtn onClick={onClickResume} title="Resume" variant="resume">
+                            <PlayIcon className="size-[18px]" />
+                        </CtrlBtn>
+                    )}
+
+                    {/* Restart — subtle destructive */}
+                    <CtrlBtn onClick={onClickRestart} title="Restart" variant="danger">
                         <ArrowPathIcon className="size-3.5" />
                     </CtrlBtn>
 
-                    {/* Cancel */}
-                    <CtrlBtn onClick={onClickCancel} title="Cancel recording">
+                    {/* Cancel — subtle destructive */}
+                    <CtrlBtn onClick={onClickCancel} title="Discard" variant="danger">
                         <TrashIcon className="size-3.5" />
                     </CtrlBtn>
 
-                    {/* Stop — the most important button, visually prominent */}
-                    <CtrlBtn
-                        onClick={onClickStop}
-                        title="Stop & save recording"
-                        variant="stop"
-                    >
+                    {/* Stop — THE primary action, labeled */}
+                    <CtrlBtn onClick={onClickStop} title="Stop & save" variant="stop">
                         <StopIcon className="size-4" />
+                        <span>Stop</span>
                     </CtrlBtn>
                 </div>
 

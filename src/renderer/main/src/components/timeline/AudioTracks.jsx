@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
     useDispatch,
     useSelector
 } from "react-redux"
-import { getDragItem, clearDragItem } from "../../dragState"
+import { subscribe, isDragActive, getHoverTarget } from "../../dragState"
 import { AUDIO_TRACKS, pxToMs } from "../../../../src/helpers"
 import {
     addAudioClip,
@@ -37,6 +37,14 @@ export default function AudioTracks() {
         })
         return map
     }, [tracks, allClips])
+
+    // Highlight track when pointer drag is active and hovering over it
+    useEffect(() => subscribe(() => {
+        if (!isDragActive()) { setDragOverTrack(null); return }
+        const hover = getHoverTarget()
+        if (hover?.zone === "audio-track") setDragOverTrack(hover.trackId)
+        else setDragOverTrack(null)
+    }), [])
 
     const importAudioToTrack = useCallback((trackId, time) => {
         const input = document.createElement("input")
@@ -77,47 +85,38 @@ export default function AudioTracks() {
         input.click()
     }, [dispatch, duration])
 
-    const handleDrop = useCallback((e, trackId) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragOverTrack(null)
-        try {
-            const { data } = getDragItem()
-            clearDragItem()
-            if (!data) return
-            if (data.type === "audio" || data.category === "audio") {
-                const rect = e.currentTarget.getBoundingClientRect()
-                const offsetX = e.clientX - rect.left
-                const time = pxToMs(offsetX, pxPerMs)
-                const clipDuration = data.duration || 4000
-                dispatch(addAudioClip({
-                    id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                    start: Math.max(0, time),
-                    end: Math.min(time + clipDuration, duration),
-                    trackIndex: trackId,
-                    name: data.name || "Audio",
-                    volume: 1,
-                    src: data.src || null
-                }))
-            }
-        } catch { /* ignore invalid drops */ }
+    // Listen for custom pointer-based drop events
+    useEffect(() => {
+        const handleDrop = (e) => {
+            const { data, target, clientX } = e.detail
+            if (!data || !target) return
+            if (target.zone !== "audio-track") return
+            if (data.type !== "audio" && data.category !== "audio") return
+
+            const trackId = target.trackId
+            const offsetX = clientX - target.rect.left
+            const time = pxToMs(offsetX, pxPerMs)
+            const clipDuration = data.duration || 4000
+            dispatch(addAudioClip({
+                id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                start: Math.max(0, time),
+                end: Math.min(time + clipDuration, duration),
+                trackIndex: trackId,
+                name: data.name || "Audio",
+                volume: 1,
+                src: data.src || null
+            }))
+        }
+        window.addEventListener("flowtake-drop", handleDrop)
+        return () => window.removeEventListener("flowtake-drop", handleDrop)
     }, [dispatch, duration, pxPerMs])
-
-    const handleDragOver = useCallback((e, trackId) => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = "copy"
-        setDragOverTrack(trackId)
-    }, [])
-
-    const handleDragLeave = useCallback(() => setDragOverTrack(null), [])
 
     if (tracks.length === 0) return null
 
     return tracks.map(track => (
         <div key={`audio-track-${track.id}`}
-            onDrop={e => handleDrop(e, track.id)}
-            onDragOver={e => handleDragOver(e, track.id)}
-            onDragLeave={handleDragLeave}
+            data-drop-zone="audio-track"
+            data-drop-track-id={track.id}
             className={`relative transition-colors ${dragOverTrack === track.id ? "bg-secondary/10 ring-1 ring-secondary/30 ring-inset rounded" : ""}`}
         >
             <Row

@@ -17,6 +17,7 @@ import {
     selectName
 } from "../../../src/redux/projectSlice"
 import AssetPanel from "./assets/AssetPanel"
+import DragOverlay from "./DragOverlay"
 import ExportButton from "./ExportButton"
 import PresetsDropdown from "./presets/PresetsDropdown"
 import Preview from "./Preview"
@@ -74,6 +75,7 @@ export default function Editor() {
             </div>
             {/* Bottom section: Timeline */}
             <Timeline />
+            <DragOverlay />
         </div>
     </>)
 }

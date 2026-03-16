@@ -18,7 +18,7 @@ import {
     selectAllAssets,
     selectBuiltInAssetsByCategory
 } from "../../../../src/redux/assetSlice"
-import { setDragItem, clearDragItem } from "../../dragState"
+import { startDrag } from "../../dragState"
 
 const TABS = [
     { id: "import", label: "Import", icon: ArrowDownTrayIcon },
@@ -107,16 +107,9 @@ export default function AssetPanel({ isOpen, onToggle }) {
         input.click()
     }, [dispatch])
 
-    // Use shared drag state instead of dataTransfer (avoids WebView size limits)
-    const handleDragStart = useCallback((e, asset) => {
-        setDragItem(asset.type || asset.category, asset)
-        // Set a small marker so drop targets know there's internal data
-        e.dataTransfer.setData("text/plain", "flowtake-asset")
-        e.dataTransfer.effectAllowed = "copyMove"
-    }, [])
-
-    const handleDragEnd = useCallback(() => {
-        clearDragItem()
+    // Pointer-event-based drag (HTML5 DnD is unreliable in Tauri WebView2)
+    const handlePointerDrag = useCallback((e, asset) => {
+        startDrag(asset.type || asset.category, asset, e)
     }, [])
 
     // OS file drop into panel
@@ -208,32 +201,28 @@ export default function AssetPanel({ isOpen, onToggle }) {
                     mediaAssets={mediaAssets}
                     onImport={handleImportMedia}
                     onRemove={id => dispatch(removeAsset(id))}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
+                    onPointerDrag={handlePointerDrag}
                 />}
                 {activeTab === "audio" && <AudioTab
                     audioAssets={audioAssets}
                     onImport={handleImportAudio}
                     onRemove={id => dispatch(removeAsset(id))}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
+                    onPointerDrag={handlePointerDrag}
                 />}
                 {activeTab === "text" && <TextTab
                     assets={textAssets}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
+                    onPointerDrag={handlePointerDrag}
                 />}
                 {activeTab === "shapes" && <ShapesTab
                     assets={shapeAssets}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
+                    onPointerDrag={handlePointerDrag}
                 />}
             </div>
         </div>
     )
 }
 
-function ImportTab({ mediaAssets, onImport, onRemove, onDragStart, onDragEnd }) {
+function ImportTab({ mediaAssets, onImport, onRemove, onPointerDrag }) {
     return (<>
         <button onClick={onImport}
             className="btn btn-sm btn-outline btn-info w-full gap-2 mb-2">
@@ -248,15 +237,14 @@ function ImportTab({ mediaAssets, onImport, onRemove, onDragStart, onDragEnd }) 
                 {mediaAssets.map(asset => (
                     <MediaCard key={asset.id} asset={asset}
                         onRemove={() => onRemove(asset.id)}
-                        onDragStart={e => onDragStart(e, asset)}
-                        onDragEnd={onDragEnd} />
+                        onPointerDrag={e => onPointerDrag(e, asset)} />
                 ))}
             </div>
         )}
     </>)
 }
 
-function AudioTab({ audioAssets, onImport, onRemove, onDragStart, onDragEnd }) {
+function AudioTab({ audioAssets, onImport, onRemove, onPointerDrag }) {
     return (<>
         <button onClick={onImport}
             className="btn btn-sm btn-outline btn-secondary w-full gap-2 mb-2">
@@ -271,23 +259,20 @@ function AudioTab({ audioAssets, onImport, onRemove, onDragStart, onDragEnd }) {
                 {audioAssets.map(asset => (
                     <AudioCard key={asset.id} asset={asset}
                         onRemove={() => onRemove(asset.id)}
-                        onDragStart={e => onDragStart(e, asset)}
-                        onDragEnd={onDragEnd} />
+                        onPointerDrag={e => onPointerDrag(e, asset)} />
                 ))}
             </div>
         )}
     </>)
 }
 
-function TextTab({ assets, onDragStart, onDragEnd }) {
+function TextTab({ assets, onPointerDrag }) {
     return (
         <div className="flex flex-col gap-1.5">
             <p className="text-[10px] opacity-40 mb-1">Drag to the preview or timeline</p>
             {assets.map(asset => (
                 <div key={asset.id}
-                    draggable
-                    onDragStart={e => onDragStart(e, asset)}
-                    onDragEnd={onDragEnd}
+                    onPointerDown={e => onPointerDrag(e, asset)}
                     className="px-3 py-2.5 bg-base-200 rounded-lg cursor-grab active:cursor-grabbing
                         hover:bg-base-content/10 transition-colors select-none"
                 >
@@ -304,15 +289,13 @@ function TextTab({ assets, onDragStart, onDragEnd }) {
     )
 }
 
-function ShapesTab({ assets, onDragStart, onDragEnd }) {
+function ShapesTab({ assets, onPointerDrag }) {
     return (
         <div className="grid grid-cols-2 gap-1.5">
             <p className="text-[10px] opacity-40 col-span-2 mb-1">Drag to the preview or timeline</p>
             {assets.map(asset => (
                 <div key={asset.id}
-                    draggable
-                    onDragStart={e => onDragStart(e, asset)}
-                    onDragEnd={onDragEnd}
+                    onPointerDown={e => onPointerDrag(e, asset)}
                     className="flex flex-col items-center gap-1 p-3 bg-base-200 rounded-lg cursor-grab
                         active:cursor-grabbing hover:bg-base-content/10 transition-colors select-none"
                 >
@@ -336,22 +319,23 @@ function ShapePreview({ config }) {
     return <div className="w-12 h-8" style={{ ...style, borderRadius: config.borderRadius || 0 }} />
 }
 
-function MediaCard({ asset, onRemove, onDragStart, onDragEnd }) {
+function MediaCard({ asset, onRemove, onPointerDrag }) {
     const isImage = asset.type === "image"
     return (
         <div className="relative group/card rounded-lg overflow-hidden bg-base-200 aspect-video cursor-grab active:cursor-grabbing"
-            draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
+            onPointerDown={onPointerDrag}>
             {isImage && asset.src ? (
-                <img src={asset.src} alt={asset.name} className="w-full h-full object-cover" draggable={false} />
+                <img src={asset.src} alt={asset.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
             ) : (
-                <div className="w-full h-full flex items-center justify-center">
+                <div className="w-full h-full flex items-center justify-center pointer-events-none">
                     <FilmIcon className="size-6 opacity-20" />
                 </div>
             )}
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 pt-4">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 pt-4 pointer-events-none">
                 <span className="text-[9px] text-white truncate block">{asset.name}</span>
             </div>
             <button onClick={e => { e.stopPropagation(); onRemove() }}
+                onPointerDown={e => e.stopPropagation()}
                 className="absolute top-1 right-1 btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5
                     opacity-0 group-hover/card:opacity-80 hover:!opacity-100 bg-black/50 rounded">
                 <XMarkIcon className="size-3 text-white" />
@@ -360,21 +344,22 @@ function MediaCard({ asset, onRemove, onDragStart, onDragEnd }) {
     )
 }
 
-function AudioCard({ asset, onRemove, onDragStart, onDragEnd }) {
+function AudioCard({ asset, onRemove, onPointerDrag }) {
     return (
         <div className="flex items-center gap-2 px-2 py-2 bg-base-200 rounded-lg cursor-grab active:cursor-grabbing
             hover:bg-base-content/10 transition-colors group/audio select-none"
-            draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
-            <div className="w-8 h-8 rounded bg-secondary/20 flex items-center justify-center shrink-0">
+            onPointerDown={onPointerDrag}>
+            <div className="w-8 h-8 rounded bg-secondary/20 flex items-center justify-center shrink-0 pointer-events-none">
                 <MusicalNoteIcon className="size-4 text-secondary" />
             </div>
-            <div className="flex flex-col min-w-0 flex-1">
+            <div className="flex flex-col min-w-0 flex-1 pointer-events-none">
                 <span className="text-xs truncate">{asset.name}</span>
                 {asset.duration && (
                     <span className="text-[10px] opacity-40">{formatDuration(asset.duration)}</span>
                 )}
             </div>
             <button onClick={e => { e.stopPropagation(); onRemove() }}
+                onPointerDown={e => e.stopPropagation()}
                 className="btn btn-ghost btn-xs p-0 min-h-0 h-5 w-5 opacity-0 group-hover/audio:opacity-50 hover:!opacity-100">
                 <XMarkIcon className="size-3" />
             </button>

@@ -1,25 +1,144 @@
-// Shared drag state for internal drag-and-drop.
-// HTML5 dataTransfer.setData() has size limits in some WebViews
-// which causes silent failures with large base64 data URLs.
-// This module stores drag data in memory instead.
+// Custom pointer-event-based drag-and-drop system.
+// HTML5 DnD (draggable/onDragStart/onDrop) is unreliable in Tauri's WebView2,
+// so we use pointer events + elementsFromPoint() for drop target detection.
 
-let _data = null
-let _type = null
+const KEY = "__flowtakeDrag"
+const LISTENERS_KEY = "__flowtakeDragListeners"
 
-export function setDragItem(type, data) {
-    _type = type
-    _data = data
+if (!window[LISTENERS_KEY]) window[LISTENERS_KEY] = new Set()
+
+function notify() {
+    for (const fn of window[LISTENERS_KEY]) {
+        try { fn() } catch {}
+    }
 }
+
+function getState() {
+    return window[KEY] || null
+}
+
+// --- Public API ---
 
 export function getDragItem() {
-    return { type: _type, data: _data }
-}
-
-export function clearDragItem() {
-    _type = null
-    _data = null
+    const s = getState()
+    return s ? { type: s.type, data: s.data } : { type: null, data: null }
 }
 
 export function hasDragItem() {
-    return _data !== null
+    const s = getState()
+    return s != null && s.data != null
+}
+
+export function isDragActive() {
+    const s = getState()
+    return s != null && s.active
+}
+
+export function getDragPos() {
+    const s = getState()
+    return s ? { x: s.x, y: s.y } : null
+}
+
+/** Returns the current hover target zone/trackId or null */
+export function getHoverTarget() {
+    const s = getState()
+    return s?.hoverTarget || null
+}
+
+export function clearDragItem() {
+    window[KEY] = null
+    notify()
+}
+
+// Legacy compat - used by AssetPanel's OS file drop (which still uses HTML5 DnD)
+export function setDragItem(type, data) {
+    window[KEY] = { type, data, active: false, x: 0, y: 0 }
+}
+
+export function subscribe(fn) {
+    window[LISTENERS_KEY].add(fn)
+    return () => window[LISTENERS_KEY].delete(fn)
+}
+
+/**
+ * Start a pointer-based drag from an asset panel item.
+ * Attaches window-level pointermove/pointerup listeners.
+ * On pointerup, finds the drop target via elementsFromPoint and
+ * dispatches a "flowtake-drop" CustomEvent on the window.
+ */
+export function startDrag(type, data, e) {
+    // Prevent text selection while dragging
+    e.preventDefault()
+
+    const startX = e.clientX
+    const startY = e.clientY
+    let started = false
+
+    window[KEY] = { type, data, active: false, x: startX, y: startY }
+
+    const onMove = (ev) => {
+        // Require a small movement before activating (avoid accidental drags)
+        if (!started) {
+            const dx = ev.clientX - startX
+            const dy = ev.clientY - startY
+            if (dx * dx + dy * dy < 25) return
+            started = true
+            window[KEY] = { ...window[KEY], active: true }
+            document.body.style.cursor = "grabbing"
+            document.body.style.userSelect = "none"
+        }
+        const hoverTarget = findDropTarget(ev.clientX, ev.clientY)
+        window[KEY] = { ...window[KEY], x: ev.clientX, y: ev.clientY, hoverTarget }
+        notify()
+    }
+
+    const onUp = (ev) => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        document.body.style.cursor = ""
+        document.body.style.userSelect = ""
+
+        if (!started) {
+            clearDragItem()
+            return
+        }
+
+        // Find drop target
+        const target = findDropTarget(ev.clientX, ev.clientY)
+        if (target) {
+            window.dispatchEvent(new CustomEvent("flowtake-drop", {
+                detail: {
+                    type: window[KEY]?.type,
+                    data: window[KEY]?.data,
+                    clientX: ev.clientX,
+                    clientY: ev.clientY,
+                    target
+                }
+            }))
+        }
+
+        clearDragItem()
+    }
+
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+}
+
+/**
+ * Scan elements under the pointer for a [data-drop-zone] attribute.
+ * Returns { zone, trackId, element, rect } or null.
+ */
+function findDropTarget(x, y) {
+    const elements = document.elementsFromPoint(x, y)
+    for (const el of elements) {
+        if (el.dataset.dropZone) {
+            return {
+                zone: el.dataset.dropZone,
+                trackId: el.dataset.dropTrackId != null ? Number(el.dataset.dropTrackId) : null,
+                element: el,
+                rect: el.getBoundingClientRect()
+            }
+        }
+    }
+    return null
 }

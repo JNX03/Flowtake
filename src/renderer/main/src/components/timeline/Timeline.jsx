@@ -72,7 +72,7 @@ import {
     setWidth
 } from "../../../../src/redux/timelineSlice"
 import { selectZoomIds } from "../../../../src/redux/zoomSlice"
-import { getDragItem, clearDragItem } from "../../dragState"
+import { subscribe, isDragActive } from "../../dragState"
 import AddTrackButton from "./AddTrackButton"
 import AudioTracks from "./AudioTracks"
 import Clicks from "./Clicks"
@@ -129,7 +129,6 @@ export default function Timeline() {
     }, [pxPerMs])
 
     const [isDragOver, setIsDragOver] = useState(false)
-    const dragCounterRef = useRef(0)
 
     const container = useRef(null)
     const timeline = useRef(null)
@@ -204,40 +203,23 @@ export default function Timeline() {
         else if (isPlaying && t > scrollThreshold) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
     }, [pxPerMs, isPlaying])
 
-    // Timeline drop zone - accept internal asset drags
-    const handleTimelineDragOver = useCallback(e => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = "copy"
-    }, [])
+    // Show drag-over indicator when a custom pointer drag is active
+    useEffect(() => subscribe(() => setIsDragOver(isDragActive())), [])
 
-    const handleTimelineDragEnter = useCallback(e => {
-        e.preventDefault()
-        dragCounterRef.current++
-        setIsDragOver(true)
-    }, [])
+    // Listen for custom drop events (from pointer-based drag system)
+    useEffect(() => {
+        const handleDrop = (e) => {
+            const { data, target } = e.detail
+            if (!data || !target) return
+            // Handle drops on the general "timeline" or "preview" zones (tracks handle their own)
+            if (target.zone !== "timeline" && target.zone !== "preview") return
 
-    const handleTimelineDragLeave = useCallback(e => {
-        e.preventDefault()
-        dragCounterRef.current--
-        if (dragCounterRef.current <= 0) { setIsDragOver(false); dragCounterRef.current = 0 }
-    }, [])
-
-    const handleTimelineDrop = useCallback(e => {
-        e.preventDefault()
-        setIsDragOver(false)
-        dragCounterRef.current = 0
-        try {
-            const { data } = getDragItem()
-            clearDragItem()
-            if (!data) return
             const time = 0
             const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
             if (data.type === "audio" || data.category === "audio") {
-                // Auto-create audio track if none exist, then add clip
                 const trackId = audioTracks.length > 0 ? audioTracks[0].id : null
                 if (trackId === null) dispatch(addAudioTrack())
-                // Use setTimeout to let the track be created first
                 setTimeout(() => {
                     dispatch(addAudioClip({
                         id: `audio-${uid}`,
@@ -277,7 +259,9 @@ export default function Timeline() {
                     }
                 }, trackId === null ? 10 : 0)
             }
-        } catch { /* ignore invalid drops */ }
+        }
+        window.addEventListener("flowtake-drop", handleDrop)
+        return () => window.removeEventListener("flowtake-drop", handleDrop)
     }, [dispatch, duration, audioTracks, overlayTracks])
 
     const mini = isMaskingModeEnabled
@@ -358,10 +342,7 @@ export default function Timeline() {
 
                     {/* Timeline tracks content */}
                     <div ref={container}
-                        onDragOver={handleTimelineDragOver}
-                        onDragEnter={handleTimelineDragEnter}
-                        onDragLeave={handleTimelineDragLeave}
-                        onDrop={handleTimelineDrop}
+                        data-drop-zone="timeline"
                         className={`flex-1 px-20 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar relative`}>
                         {duration && <div ref={timeline}
                             className="grid grid-cols-1 gap-1 relative bg-size-[100%_100%] z-0 min-h-full"

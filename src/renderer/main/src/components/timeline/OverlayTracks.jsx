@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
     useDispatch,
     useSelector
 } from "react-redux"
-import { getDragItem, clearDragItem } from "../../dragState"
+import { subscribe, isDragActive, getHoverTarget } from "../../dragState"
 import { OVERLAY_TRACKS, pxToMs } from "../../../../src/helpers"
 import {
     addOverlay,
@@ -38,6 +38,14 @@ export default function OverlayTracks() {
         return map
     }, [tracks, allOverlays])
 
+    // Highlight track when pointer drag is active and hovering over it
+    useEffect(() => subscribe(() => {
+        if (!isDragActive()) { setDragOverTrack(null); return }
+        const hover = getHoverTarget()
+        if (hover?.zone === "overlay-track") setDragOverTrack(hover.trackId)
+        else setDragOverTrack(null)
+    }), [])
+
     const handleDoubleClick = useCallback((time, trackId) => {
         const start = Math.max(time - 2000, 0)
         const end = Math.min(time + 2000, duration)
@@ -56,16 +64,17 @@ export default function OverlayTracks() {
         }))
     }, [dispatch, duration])
 
-    const handleDrop = useCallback((e, trackId) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragOverTrack(null)
-        try {
-            const { data } = getDragItem()
-            clearDragItem()
-            if (!data) return
-            const rect = e.currentTarget.getBoundingClientRect()
-            const offsetX = e.clientX - rect.left
+    // Listen for custom pointer-based drop events
+    useEffect(() => {
+        const handleDrop = (e) => {
+            const { data, target, clientX } = e.detail
+            if (!data || !target) return
+            if (target.zone !== "overlay-track") return
+            // Audio goes to audio tracks only
+            if (data.type === "audio" || data.category === "audio") return
+
+            const trackId = target.trackId
+            const offsetX = clientX - target.rect.left
             const time = pxToMs(offsetX, pxPerMs)
             const start = Math.max(0, time)
             const end = Math.min(time + 4000, duration)
@@ -88,24 +97,17 @@ export default function OverlayTracks() {
                 dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
                     src: data.src || null, width: 320, height: 240 }))
             }
-        } catch { /* ignore */ }
+        }
+        window.addEventListener("flowtake-drop", handleDrop)
+        return () => window.removeEventListener("flowtake-drop", handleDrop)
     }, [dispatch, duration, pxPerMs])
-
-    const handleDragOver = useCallback((e, trackId) => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = "copy"
-        setDragOverTrack(trackId)
-    }, [])
-
-    const handleDragLeave = useCallback(() => setDragOverTrack(null), [])
 
     if (tracks.length === 0) return null
 
     return tracks.map(track => (
         <div key={`overlay-track-${track.id}`}
-            onDrop={e => handleDrop(e, track.id)}
-            onDragOver={e => handleDragOver(e, track.id)}
-            onDragLeave={handleDragLeave}
+            data-drop-zone="overlay-track"
+            data-drop-track-id={track.id}
             className={`relative transition-colors ${dragOverTrack === track.id ? "bg-accent/10 ring-1 ring-accent/30 ring-inset rounded" : ""}`}
         >
             <Row

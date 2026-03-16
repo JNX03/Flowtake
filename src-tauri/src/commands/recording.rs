@@ -79,7 +79,8 @@ pub async fn init_recording(
         (1920.0, 1080.0)
     };
 
-    match source_type {
+    // Track the recording area offset for mouse coordinate adjustment
+    let (recording_offset_x, recording_offset_y): (i64, i64) = match source_type {
         "window" => {
             // Coordinates from get_window_at_point are in physical pixels
             // FFmpeg gdigrab is also DPI-aware on this system, so pass directly
@@ -104,6 +105,7 @@ pub async fn init_recording(
                 "-i".to_string(),
                 "desktop".to_string(),
             ]);
+            (x, y)
         }
         "area" => {
             // Area picker returns percentage-based coordinates (0-100)
@@ -134,6 +136,7 @@ pub async fn init_recording(
                 "-i".to_string(),
                 "desktop".to_string(),
             ]);
+            (x, y)
         }
         _ => {
             // Full screen capture - hide mouse cursor (replaced by animation)
@@ -143,8 +146,9 @@ pub async fn init_recording(
                 "-i".to_string(),
                 "desktop".to_string(),
             ]);
+            (0, 0)
         }
-    }
+    };
 
     // Add system audio capture if requested
     let has_system_audio = match &system_audio {
@@ -195,6 +199,8 @@ pub async fn init_recording(
             "constraints": camera_mic_config.get("constraints"),
             "ffmpegArgs": ffmpeg_args,
             "sourceName": source_name,
+            "recordingOffsetX": recording_offset_x,
+            "recordingOffsetY": recording_offset_y,
         }));
     }
 
@@ -212,7 +218,7 @@ pub async fn init_recording(
         let size = m.size();
         let scale = m.scale_factor();
         let h = (size.height as f64 / scale) as f64;
-        (h - 72.0, h)
+        (h - 80.0, h)
     } else {
         (800.0, 900.0)
     };
@@ -223,8 +229,8 @@ pub async fn init_recording(
         WebviewUrl::App("src/renderer/recorder/index.html".into()),
     )
     .title("Recording - Flowtake")
-    .inner_size(420.0, 56.0)
-    .position(10.0, win_y)
+    .inner_size(500.0, 60.0)
+    .position(16.0, win_y)
     .transparent(true)
     .resizable(false)
     .minimizable(false)
@@ -339,9 +345,20 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
         }
     }
 
-    // Start mouse tracking
+    // Start mouse tracking with recording area offset
     {
         let mut state = state.lock().unwrap();
+        // Get recording offset from stored config
+        let (offset_x, offset_y) = state
+            .camera_mic_config
+            .as_ref()
+            .map(|c| {
+                let x = c.get("recordingOffsetX").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let y = c.get("recordingOffsetY").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                (x, y)
+            })
+            .unwrap_or((0, 0));
+        state.mouse_tracker.set_offset(offset_x, offset_y);
         state.mouse_tracker.start();
         state.recording_start_timestamp = Some(chrono::Utc::now().timestamp_millis());
     }

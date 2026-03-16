@@ -553,7 +553,7 @@ export default function Preview() {
     }, [manager, isPlaying])
 
     return (
-        <div ref={ref} className="flex-1 min-w-0 flex items-center justify-center flex-col relative group">
+        <div ref={ref} data-drop-zone="preview" className="flex-1 min-w-0 flex items-center justify-center flex-col relative group">
             <canvas ref={canvasRef} className="rounded-md shadow-lg overflow-hidden" />
             <OverlayCanvas canvasRect={canvasRect} />
             <div className={`absolute flex items-center px-3 py-2 bg-base-300/50 backdrop-blur-xs rounded-xl shadow-lg ${isPlaying ? "opacity-0 bottom-0" : "opacity-100 bottom-2"} transition-all group-hover:opacity-100 group-hover:bottom-2`}>
