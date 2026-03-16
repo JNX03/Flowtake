@@ -2,11 +2,12 @@ import {
   ComputerDesktopIcon,
   CursorArrowRaysIcon,
   DocumentIcon,
-  WindowIcon
+  WindowIcon,
+  ChevronDownIcon
 } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
 import PropTypes from "prop-types"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   useDispatch,
   useSelector
@@ -32,11 +33,20 @@ export default function NewRecording({ isOpen }) {
   const dispatch = useDispatch()
   const source = useSelector(selectSource)
   const [isRecordingSystemAudio, setIsRecordingSystemAudio] = useState(false)
+  const [showMonitorPicker, setShowMonitorPicker] = useState(false)
+  const monitorPickerRef = useRef(null)
 
   const { data: defaultSystemAudioSource, isPending } = useQuery({
     queryKey: ['systemAudio'],
     queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultSystemAudioSource"),
     staleTime: Infinity
+  })
+
+  // Fetch available monitors
+  const { data: monitors } = useQuery({
+    queryKey: ['monitors'],
+    queryFn: () => window.electron.ipcRenderer.invoke("get-monitors"),
+    staleTime: 10000,
   })
 
   const prevPreviewRef = useRef(null)
@@ -53,6 +63,54 @@ export default function NewRecording({ isOpen }) {
   if (captureSourcePreview) prevPreviewRef.current = captureSourcePreview
 
   const addNote = () => window.electron.ipcRenderer.invoke("add-note")
+
+  // Close monitor picker when clicking outside
+  useEffect(() => {
+    if (!showMonitorPicker) return
+    const handleClick = (e) => {
+      if (monitorPickerRef.current && !monitorPickerRef.current.contains(e.target)) {
+        setShowMonitorPicker(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [showMonitorPicker])
+
+  const selectScreen = () => {
+    const monitorList = monitors || []
+    if (monitorList.length > 1) {
+      // Multiple monitors: show picker
+      setShowMonitorPicker(!showMonitorPicker)
+    } else if (monitorList.length === 1) {
+      // Single monitor: select it with dimensions
+      const m = monitorList[0]
+      dispatch(setSource({
+        name: m.isPrimary ? "Screen" : m.name,
+        type: SOURCE_TYPE_SCREEN,
+        id: m.id,
+        monitorX: m.x,
+        monitorY: m.y,
+        monitorWidth: m.width,
+        monitorHeight: m.height,
+      }))
+    } else {
+      // Fallback: select screen without monitor info (captures entire desktop)
+      dispatch(setSource({ name: "Screen", type: SOURCE_TYPE_SCREEN, id: "screen" }))
+    }
+  }
+
+  const selectMonitor = (m) => {
+    dispatch(setSource({
+      name: m.isPrimary ? "Screen" : m.name,
+      type: SOURCE_TYPE_SCREEN,
+      id: m.id,
+      monitorX: m.x,
+      monitorY: m.y,
+      monitorWidth: m.width,
+      monitorHeight: m.height,
+    }))
+    setShowMonitorPicker(false)
+  }
 
   const openWindowPicker = () => {
     window.electron.ipcRenderer.invoke("open-window-picker")
@@ -75,6 +133,13 @@ export default function NewRecording({ isOpen }) {
     } else if (!isRecordingSystemAudio) {
       dispatch(setOpenSettings(SETTINGS_RECORDER))
     }
+  }
+
+  // Build screen source label
+  const screenLabel = () => {
+    if (source.type !== SOURCE_TYPE_SCREEN) return "Screen"
+    if (source.name && source.name !== "Screen") return source.name
+    return "Screen"
   }
 
   return (
@@ -127,7 +192,7 @@ export default function NewRecording({ isOpen }) {
             {/* Source type badge */}
             <div className="absolute top-3 left-3">
               <span className="badge badge-sm bg-base-300/80 backdrop-blur-sm border-base-content/10 text-base-content/60 gap-1">
-                {source.type === SOURCE_TYPE_SCREEN && <><ComputerDesktopIcon className="size-3" /> Screen</>}
+                {source.type === SOURCE_TYPE_SCREEN && <><ComputerDesktopIcon className="size-3" /> {screenLabel()}</>}
                 {source.type === SOURCE_TYPE_WINDOW && <><WindowIcon className="size-3 scale-x-[-1]" /> {source.name || "Window"}</>}
                 {source.type === SOURCE_TYPE_AREA && <><CursorArrowRaysIcon className="size-3" /> Area</>}
               </span>
@@ -149,13 +214,37 @@ export default function NewRecording({ isOpen }) {
           <div>
             <label className="text-xs font-medium text-base-content/50 mb-2 block">Source</label>
             <div className="grid grid-cols-3 gap-1.5">
-              <SourceCard
-                icon={ComputerDesktopIcon}
-                label="Screen"
-                active={source.type === SOURCE_TYPE_SCREEN}
-                onClick={() => dispatch(setSource({ name: "Screen", type: SOURCE_TYPE_SCREEN, id: "screen" }))}
-                disabled={isPendingCaptureSourcePreview}
-              />
+              <div className="relative" ref={monitorPickerRef}>
+                <SourceCard
+                  icon={ComputerDesktopIcon}
+                  label="Screen"
+                  active={source.type === SOURCE_TYPE_SCREEN}
+                  onClick={selectScreen}
+                  disabled={isPendingCaptureSourcePreview}
+                  hasDropdown={monitors && monitors.length > 1}
+                />
+                {/* Monitor picker dropdown */}
+                {showMonitorPicker && monitors && monitors.length > 1 && (
+                  <div className="absolute top-full left-0 mt-1 z-50 bg-base-200 border border-base-content/10 rounded-lg shadow-lg min-w-[180px] py-1">
+                    {monitors.map((m, i) => (
+                      <button
+                        key={m.id}
+                        onClick={() => selectMonitor(m)}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-base-300/60 flex items-center gap-2 transition-colors
+                          ${source.id === m.id ? "text-primary font-medium" : "text-base-content/70"}`}
+                      >
+                        <ComputerDesktopIcon className="size-3.5 flex-shrink-0" />
+                        <span className="flex-1 truncate">
+                          {m.isPrimary ? `Monitor ${i + 1} (Primary)` : `Monitor ${i + 1}`}
+                        </span>
+                        <span className="text-base-content/30 text-[10px]">
+                          {m.width}x{m.height}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <SourceCard
                 icon={WindowIcon}
                 label="Window"
@@ -202,7 +291,7 @@ export default function NewRecording({ isOpen }) {
   )
 }
 
-function SourceCard({ icon: Icon, label, active, onClick, disabled, iconFlip }) {
+function SourceCard({ icon: Icon, label, active, onClick, disabled, iconFlip, hasDropdown }) {
   return (
     <button
       onClick={onClick}
@@ -215,7 +304,10 @@ function SourceCard({ icon: Icon, label, active, onClick, disabled, iconFlip }) 
         disabled:opacity-40 disabled:cursor-not-allowed`}
     >
       <Icon className={`size-4 flex-shrink-0 ${iconFlip ? "scale-x-[-1]" : ""}`} />
-      <span className="text-xs font-medium">{label}</span>
+      <span className="text-xs font-medium flex items-center gap-0.5">
+        {label}
+        {hasDropdown && <ChevronDownIcon className="size-2.5" />}
+      </span>
     </button>
   )
 }
@@ -227,6 +319,7 @@ SourceCard.propTypes = {
   onClick: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
   iconFlip: PropTypes.bool,
+  hasDropdown: PropTypes.bool,
 }
 
 NewRecording.propTypes = {

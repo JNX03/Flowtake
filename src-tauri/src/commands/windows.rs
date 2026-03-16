@@ -459,6 +459,40 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
+    let monitors = app.available_monitors().map_err(|e| AppError::Tauri(e))?;
+    let primary = app.primary_monitor().ok().flatten();
+
+    let mut result = Vec::new();
+    for (i, monitor) in monitors.iter().enumerate() {
+        let pos = monitor.position();
+        let size = monitor.size();
+        let scale = monitor.scale_factor();
+        let is_primary = primary
+            .as_ref()
+            .map(|p| p.position() == monitor.position() && p.size() == monitor.size())
+            .unwrap_or(i == 0);
+
+        let fallback_name = format!("Monitor {}", i + 1);
+        let name = monitor.name().unwrap_or(&fallback_name);
+
+        result.push(serde_json::json!({
+            "id": format!("monitor-{}", i),
+            "name": name,
+            "index": i,
+            "x": pos.x,
+            "y": pos.y,
+            "width": size.width,
+            "height": size.height,
+            "scaleFactor": scale,
+            "isPrimary": is_primary,
+        }));
+    }
+
+    Ok(Value::Array(result))
+}
+
 /// Detect the window at a given screen point by enumerating windows in z-order.
 /// No hiding/showing - just finds the topmost non-Flowtake window containing the point.
 #[tauri::command]

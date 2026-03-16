@@ -76,6 +76,7 @@ const COMMAND_MAP = {
     'select-area': 'select_area',
     'add-note': 'add_note',
     'get-window-at-point': 'get_window_at_point',
+    'get-monitors': 'get_monitors',
     // App
     'get-version': 'get_version',
     'get-machine-id': 'get_machine_id',

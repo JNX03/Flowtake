@@ -280,6 +280,7 @@ pub fn run() {
             commands::windows::select_area,
             commands::windows::add_note,
             commands::windows::get_window_at_point,
+            commands::windows::get_monitors,
             // App
             commands::app::get_version,
             commands::app::get_machine_id,

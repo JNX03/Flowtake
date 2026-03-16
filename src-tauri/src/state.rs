@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use serde_json::Value;
 use tauri_plugin_shell::process::CommandChild;
 use crate::mouse_tracker::MouseTracker;
@@ -25,6 +27,12 @@ pub struct AppState {
     pub recording_start_timestamp: Option<i64>,
     pub export_state_data: Option<Value>,
     pub export_section: Option<String>,
+    /// Stop flag for window capture thread (PrintWindow pipeline)
+    pub window_capture_stop: Arc<AtomicBool>,
+    /// Window capture thread handle
+    pub window_capture_thread: Option<std::thread::JoinHandle<()>>,
+    /// FFmpeg process spawned via std::process::Command (for window capture pipeline)
+    pub ffmpeg_process: Option<std::process::Child>,
 }
 
 pub struct RenderState {
@@ -57,6 +65,9 @@ impl AppState {
             recording_start_timestamp: None,
             export_state_data: None,
             export_section: None,
+            window_capture_stop: Arc::new(AtomicBool::new(false)),
+            window_capture_thread: None,
+            ffmpeg_process: None,
         }
     }
 
