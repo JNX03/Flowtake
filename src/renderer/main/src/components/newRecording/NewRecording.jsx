@@ -67,6 +67,23 @@ export default function NewRecording({ isOpen }) {
 
   const addNote = () => window.electron.ipcRenderer.invoke("add-note")
 
+  // Auto-select primary monitor when monitors are loaded and no specific monitor is set
+  useEffect(() => {
+    if (!monitors || monitors.length === 0) return
+    if (source.type === SOURCE_TYPE_SCREEN && !source.monitorWidth) {
+      const primary = monitors.find(m => m.isPrimary) || monitors[0]
+      dispatch(setSource({
+        name: primary.isPrimary ? "Screen" : primary.name,
+        type: SOURCE_TYPE_SCREEN,
+        id: primary.id,
+        monitorX: primary.x,
+        monitorY: primary.y,
+        monitorWidth: primary.width,
+        monitorHeight: primary.height,
+      }))
+    }
+  }, [monitors]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Close monitor picker when clicking outside
   useEffect(() => {
     if (!showMonitorPicker) return
@@ -243,7 +260,9 @@ export default function NewRecording({ isOpen }) {
                 <SourceCard
                   icon={ComputerDesktopIcon}
                   label="Screen"
-                  description="Full display capture"
+                  description={monitors && monitors.length > 1 && source.type === SOURCE_TYPE_SCREEN && source.id
+                    ? `${monitors.find(m => m.id === source.id)?.isPrimary ? "Primary" : monitors.findIndex(m => m.id === source.id) + 1} - ${source.monitorWidth}x${source.monitorHeight}`
+                    : "Full display capture"}
                   active={source.type === SOURCE_TYPE_SCREEN}
                   onClick={selectScreen}
                   disabled={isPendingCaptureSourcePreview}

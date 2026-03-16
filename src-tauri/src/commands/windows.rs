@@ -477,14 +477,21 @@ pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
         let fallback_name = format!("Monitor {}", i + 1);
         let name = monitor.name().unwrap_or(&fallback_name);
 
+        // Convert physical pixels to logical pixels for FFmpeg gdigrab compatibility
+        // gdigrab operates in DPI-unaware (logical) coordinate space
+        let logical_x = (pos.x as f64 / scale) as i32;
+        let logical_y = (pos.y as f64 / scale) as i32;
+        let logical_w = (size.width as f64 / scale) as u32;
+        let logical_h = (size.height as f64 / scale) as u32;
+
         result.push(serde_json::json!({
             "id": format!("monitor-{}", i),
             "name": name,
             "index": i,
-            "x": pos.x,
-            "y": pos.y,
-            "width": size.width,
-            "height": size.height,
+            "x": logical_x,
+            "y": logical_y,
+            "width": logical_w,
+            "height": logical_h,
             "scaleFactor": scale,
             "isPrimary": is_primary,
         }));

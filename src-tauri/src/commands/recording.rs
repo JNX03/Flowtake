@@ -342,11 +342,13 @@ pub async fn init_recording(
             "30".to_string(),
         ]);
 
-        // Get screen dimensions for area percentage conversion
+        // Get screen dimensions in logical pixels for area percentage conversion
+        // gdigrab operates in DPI-unaware (logical) coordinate space
         let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
             if let Ok(Some(monitor)) = main_win.current_monitor() {
                 let size = monitor.size();
-                (size.width as f64, size.height as f64)
+                let scale = monitor.scale_factor();
+                (size.width as f64 / scale, size.height as f64 / scale)
             } else {
                 (1920.0, 1080.0)
             }
@@ -1295,10 +1297,12 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
     let screenshot_path = temp_dir.join("preview_screenshot.png");
     let screenshot_str = screenshot_path.to_string_lossy().to_string();
 
+    // Use logical pixels for gdigrab compatibility (DPI-unaware coordinate space)
     let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
         if let Ok(Some(monitor)) = main_win.current_monitor() {
             let size = monitor.size();
-            (size.width as f64, size.height as f64)
+            let scale = monitor.scale_factor();
+            (size.width as f64 / scale, size.height as f64 / scale)
         } else {
             (1920.0, 1080.0)
         }
