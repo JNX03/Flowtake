@@ -126,5 +126,6 @@ export const selectTotalOverlays = state => selectTotal(state.undoableState.pres
 export const selectOverlayTracks = state => state.undoableState.present.overlayAnims.tracks
 export const selectOverlaysByTrack = (state, trackId) =>
     selectAll(state.undoableState.present.overlayAnims).filter(o => o.trackIndex === trackId)
+export const selectNextOverlayTrackId = state => state.undoableState.present.overlayAnims.nextTrackId
 
 export default overlaySlice.reducer

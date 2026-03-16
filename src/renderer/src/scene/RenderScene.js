@@ -104,6 +104,10 @@ export default class RenderScene extends Scene {
 
         this.maskAnimator.setState({ configs: masks })
 
+        if (args.overlayAnims) {
+            this.overlayAnimator.setState({ configs: args.overlayAnims, rendererDims })
+        }
+
         this.cursorShadow.alpha = cursorShadowAlpha
 
         await this.background.setState({ config: background })

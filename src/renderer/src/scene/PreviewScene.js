@@ -162,6 +162,9 @@ export default class PreviewScene extends Scene {
             case 'maskAnims':
                 this.maskAnimator.setState({ configs: payload })
                 break
+            case 'overlayAnims':
+                this.overlayAnimator?.setState({ configs: payload })
+                break
             case 'isCleaningUpScene':
                 this.destroy()
                 break

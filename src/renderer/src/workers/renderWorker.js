@@ -26,6 +26,7 @@ import {
     selectIsStatic
 } from "../redux/cursorTypeSlice"
 import { selectAllMasks } from "../redux/maskSlice"
+import { selectAllOverlays } from "../redux/overlaySlice"
 import { selectAllPans } from "../redux/panSlice"
 import {
     selectBackground,
@@ -163,6 +164,7 @@ class WorkerRenderer {
                 hasCameraVideoBackgroundBlur: selectHasCameraVideoBackgroundBlur(this.render.state),
                 cameraVideoBackgroundBlurAmount: selectCameraVideoBackgroundBlurAmount(this.render.state),
                 isCameraVideoMirrored: selectIsCameraVideoMirrored(this.render.state),
+                overlayAnims: selectAllOverlays(this.render.state),
             },
             duration)
 

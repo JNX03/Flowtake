@@ -37,6 +37,7 @@ import {
     selectAllClips,
     updateClip
 } from "../../../src/redux/clipSlice"
+import { selectAllOverlays } from "../../../src/redux/overlaySlice"
 import {
     selectBlurStrength as selectCursorBlurStrength,
     selectCutOff,
@@ -210,6 +211,7 @@ export default function Preview() {
     const id = useSelector(selectId)
 
     const maskAnims = useSelector(selectAllMasks)
+    const overlayAnims = useSelector(selectAllOverlays)
 
     const [manager, setManager] = useState(null)
 
@@ -539,6 +541,10 @@ export default function Preview() {
     useEffect(() => {
         manager?.postUpdate({ type: 'maskAnims', payload: maskAnims })
     }, [manager, maskAnims])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'overlayAnims', payload: overlayAnims })
+    }, [manager, overlayAnims])
 
     useEffect(() => {
         manager?.postUpdate({ type: 'cursorCoords.inertia', payload: inertia })

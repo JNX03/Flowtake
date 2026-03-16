@@ -30,6 +30,7 @@ import ClipAnimator from "./clip/ClipAnimator"
 import CursorAnimator from "./cursorAnim/CursorAnimator"
 import CursorTypeAnimator from "./cursorType/CursorTypeAnimator"
 import MaskAnimator from "./mask/MaskAnimator"
+import OverlayAnimator from "./overlay/OverlayAnimator"
 import PanAnimator from "./pan/PanAnimator"
 import Screen from "./Screen"
 import SubtitleAnimator from "./subtitle/SubtitleAnimator"
@@ -120,6 +121,8 @@ export default class Scene {
             this.cameraZoomAnimator = new CameraZoomAnimator(this.camera.outerContainer, this.camera.dims)
 
         this.maskAnimator = new MaskAnimator(this.screen.maskContainer, this.screen.dims, this.screen.container)
+
+        this.overlayAnimator = new OverlayAnimator(this.app.stage)
 
         this.cursorFill = cursorFill
         this.cursorStroke = cursorStroke
@@ -214,6 +217,7 @@ export default class Scene {
         this.zoomAnimator?.update(this.time, clipFrame)
         this.cameraZoomAnimator?.update(this.time, clipFrame)
         this.maskAnimator?.update(this.time)
+        this.overlayAnimator?.update(this.time)
 
         this.camera?.update()
     }
@@ -241,6 +245,8 @@ export default class Scene {
         this.cameraZoomAnimator?.setState({ rendererDims: this.rendererDims })
 
         this.maskAnimator.setState({ rendererDims: this.rendererDims })
+
+        this.overlayAnimator?.setState({ rendererDims: this.rendererDims })
 
         this.update()
         this.app?.render()
