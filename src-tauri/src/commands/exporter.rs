@@ -314,6 +314,26 @@ pub async fn cancel_running_render(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_render_video_path(app: AppHandle, render_id: String) -> AppResult<String> {
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+    if let Some(render) = state.renders.get(&render_id) {
+        Ok(render.output_path.to_string_lossy().to_string())
+    } else {
+        Err(AppError::General(format!(
+            "Render not found: {}",
+            render_id
+        )))
+    }
+}
+
+#[tauri::command]
+pub async fn open_url_in_browser(_app: AppHandle, url: String) -> AppResult<()> {
+    open::that(&url).map_err(|e| AppError::General(format!("Failed to open URL: {}", e)))?;
+    Ok(())
+}
+
 fn copy_dir_contents(
     src: &std::path::Path,
     dst: &std::path::Path,

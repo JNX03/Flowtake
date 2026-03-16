@@ -56,6 +56,8 @@ const COMMAND_MAP = {
     'upload': 'upload',
     'clear-pending-renders': 'clear_pending_renders',
     'cancel-running-render': 'cancel_running_render',
+    'get-render-video-path': 'get_render_video_path',
+    'open-url-in-browser': 'open_url_in_browser',
     // File operations
     'open': 'open_file',
     'read': 'read_file',
@@ -139,6 +141,8 @@ const ARGS_MAP = {
     'send_notification': (args) => ({ renderId: args[0] }),
     'get_shareable_url': (args) => ({ title: args[0] }),
     'upload': (args) => ({ renderId: args[0] }),
+    'get_render_video_path': (args) => ({ renderId: args[0] }),
+    'open_url_in_browser': (args) => ({ url: args[0] }),
     'open_file': (args) => ({ type: args[0], flag: args[1], args: args[2] }),
     'read_file': (args) => ({ fhId: args[0], start: args[1], end: args[2] }),
     'write_file': (args) => {

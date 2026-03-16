@@ -260,6 +260,8 @@ pub fn run() {
             commands::exporter::upload,
             commands::exporter::clear_pending_renders,
             commands::exporter::cancel_running_render,
+            commands::exporter::get_render_video_path,
+            commands::exporter::open_url_in_browser,
             // File operations
             commands::files::open_file,
             commands::files::read_file,
