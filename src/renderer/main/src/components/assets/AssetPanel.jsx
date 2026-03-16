@@ -323,9 +323,13 @@ function MediaCard({ asset, onRemove, onPointerDrag }) {
     const isImage = asset.type === "image"
     return (
         <div className="relative group/card rounded-lg overflow-hidden bg-base-200 aspect-video cursor-grab active:cursor-grabbing"
-            onPointerDown={onPointerDrag}>
+            onPointerDown={onPointerDrag}
+            onDragStart={e => e.preventDefault()}>
             {isImage && asset.src ? (
-                <img src={asset.src} alt={asset.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                <img src={asset.src} alt={asset.name}
+                    className="w-full h-full object-cover pointer-events-none select-none"
+                    draggable={false}
+                    style={{ WebkitUserDrag: "none" }} />
             ) : (
                 <div className="w-full h-full flex items-center justify-center pointer-events-none">
                     <FilmIcon className="size-6 opacity-20" />

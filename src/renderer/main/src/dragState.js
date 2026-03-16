@@ -67,7 +67,7 @@ export function subscribe(fn) {
  * dispatches a "flowtake-drop" CustomEvent on the window.
  */
 export function startDrag(type, data, e) {
-    // Prevent text selection while dragging
+    // Prevent text selection and native drag while dragging
     e.preventDefault()
 
     const startX = e.clientX
@@ -77,6 +77,7 @@ export function startDrag(type, data, e) {
     window[KEY] = { type, data, active: false, x: startX, y: startY }
 
     const onMove = (ev) => {
+        ev.preventDefault()
         // Require a small movement before activating (avoid accidental drags)
         if (!started) {
             const dx = ev.clientX - startX
@@ -93,8 +94,8 @@ export function startDrag(type, data, e) {
     }
 
     const onUp = (ev) => {
-        window.removeEventListener("pointermove", onMove)
-        window.removeEventListener("pointerup", onUp)
+        document.removeEventListener("mousemove", onMove, true)
+        document.removeEventListener("mouseup", onUp, true)
         document.body.style.cursor = ""
         document.body.style.userSelect = ""
 
@@ -120,8 +121,9 @@ export function startDrag(type, data, e) {
         clearDragItem()
     }
 
-    window.addEventListener("pointermove", onMove)
-    window.addEventListener("pointerup", onUp)
+    // Use mousemove/mouseup on document (capture phase) for max compatibility with WebView2
+    document.addEventListener("mousemove", onMove, true)
+    document.addEventListener("mouseup", onUp, true)
 }
 
 /**
