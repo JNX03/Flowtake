@@ -507,7 +507,7 @@ pub async fn init_recording(
         .get_webview_window("main")
         .and_then(|w| w.current_monitor().ok().flatten());
 
-    let overlay_w = 100.0;
+    let overlay_w = 200.0;
     let overlay_h = 20.0;
     let margin = 16.0;
 
@@ -527,6 +527,7 @@ pub async fn init_recording(
     )
     .title("Recording - Flowtake")
     .inner_size(overlay_w, overlay_h)
+    .min_inner_size(overlay_w, overlay_h)
     .position(16.0, win_y)
     .resizable(false)
     .minimizable(false)
