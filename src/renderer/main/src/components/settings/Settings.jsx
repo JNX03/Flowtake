@@ -2,7 +2,8 @@ import {
     BoltIcon,
     Cog6ToothIcon,
     ComputerDesktopIcon,
-    QueueListIcon
+    QueueListIcon,
+    SwatchIcon
 } from "@heroicons/react/20/solid"
 import { useQuery } from "@tanstack/react-query"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -18,13 +19,14 @@ import {
 } from "../../../../src/redux/appSlice"
 import { selectAreHotkeysEnabled } from "../../../../src/redux/editorSlice"
 import Modal from "../Modal"
+import AppearanceSettings from "./AppearanceSettings"
 import ExporterSettings from "./ExporterSettings"
 import GeneralSettings from "./GeneralSettings"
 import HotkeysSettings from "./HotkeysSettings"
 import RecorderSettings from "./RecorderSettings"
 
-import { SETTINGS_GENERAL, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS } from "./constants"
-export { SETTINGS_GENERAL, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS }
+import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS } from "./constants"
+export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS }
 
 export default function Settings() {
     const dispatch = useDispatch()
@@ -53,6 +55,9 @@ export default function Settings() {
                     <NavItem icon={Cog6ToothIcon} label="General"
                         active={openSettings === SETTINGS_GENERAL}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_GENERAL))} />
+                    <NavItem icon={SwatchIcon} label="Appearance"
+                        active={openSettings === SETTINGS_APPEARANCE}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_APPEARANCE))} />
                     <NavItem icon={ComputerDesktopIcon} label="Recorder"
                         active={openSettings === SETTINGS_RECORDER}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_RECORDER))} />
@@ -91,6 +96,7 @@ export default function Settings() {
             <div className="flex-1 min-w-0 border-l border-base-content/5 pl-6">
                 <div className="overflow-y-auto overflow-x-hidden h-full">
                     {openSettings === SETTINGS_GENERAL && <GeneralSettings />}
+                    {openSettings === SETTINGS_APPEARANCE && <AppearanceSettings />}
                     {openSettings === SETTINGS_RECORDER && <RecorderSettings />}
                     {openSettings === SETTINGS_EXPORTER && <ExporterSettings />}
                     {openSettings === SETTINGS_HOTKEYS && <HotkeysSettings />}

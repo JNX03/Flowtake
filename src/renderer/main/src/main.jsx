@@ -4,6 +4,13 @@ import { initTauriBridge } from '../../src/tauriBridge'
 initTauriBridge()
 if (window.splashUpdate) window.splashUpdate('bridge')
 
+// Load saved theme early so there's no flash of default theme
+window.electron.ipcRenderer.invoke("store-get", "appearance-theme")
+    .then((theme) => {
+        if (theme) document.documentElement.setAttribute("data-theme", theme)
+    })
+    .catch(() => {})
+
 // Start FFmpeg discovery EARLY (runs in parallel with React setup + render)
 const earlyCapturers = window.electron.ipcRenderer.invoke("get-capturers").catch(() => [])
 const earlyEncoders = window.electron.ipcRenderer.invoke("get-encoders").catch(() => [])

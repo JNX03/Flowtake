@@ -1,4 +1,5 @@
 export const SETTINGS_GENERAL = "general"
+export const SETTINGS_APPEARANCE = "appearance"
 export const SETTINGS_RECORDER = "recorder"
 export const SETTINGS_EXPORTER = "exporter"
 export const SETTINGS_LICENSE = "license"

@@ -4,15 +4,192 @@
     exclude: rootscrollgutter;
 }
 
+/* === Flowtake Dark (Default) === */
 @plugin "daisyui/theme" {
-    name: "dark";
+    name: "flowtake-dark";
     default: true;
+    prefersdark: true;
     --color-primary: "#6C5CE7";
     --color-accent: "#00CEC9";
     --color-secondary: "#E84393";
     --color-base-100: "#1a1a2e";
     --color-base-200: "#16213e";
     --color-base-300: "#0f0f23";
+    --color-base-content: "#e0e0f0";
+    --color-info: "#74b9ff";
+    --color-success: "#55efc4";
+    --color-warning: "#ffeaa7";
+    --color-error: "#ff7675";
+}
+
+/* === Tokyo Night === */
+@plugin "daisyui/theme" {
+    name: "tokyo-night";
+    prefersdark: true;
+    --color-primary: "#7aa2f7";
+    --color-accent: "#9ece6a";
+    --color-secondary: "#bb9af7";
+    --color-base-100: "#1a1b26";
+    --color-base-200: "#16161e";
+    --color-base-300: "#13131d";
+    --color-base-content: "#c0caf5";
+    --color-info: "#7dcfff";
+    --color-success: "#9ece6a";
+    --color-warning: "#e0af68";
+    --color-error: "#f7768e";
+}
+
+/* === Dracula === */
+@plugin "daisyui/theme" {
+    name: "dracula";
+    prefersdark: true;
+    --color-primary: "#bd93f9";
+    --color-accent: "#50fa7b";
+    --color-secondary: "#ff79c6";
+    --color-base-100: "#282a36";
+    --color-base-200: "#21222c";
+    --color-base-300: "#191a21";
+    --color-base-content: "#f8f8f2";
+    --color-info: "#8be9fd";
+    --color-success: "#50fa7b";
+    --color-warning: "#f1fa8c";
+    --color-error: "#ff5555";
+}
+
+/* === Nord === */
+@plugin "daisyui/theme" {
+    name: "nord-dark";
+    prefersdark: true;
+    --color-primary: "#88c0d0";
+    --color-accent: "#a3be8c";
+    --color-secondary: "#b48ead";
+    --color-base-100: "#2e3440";
+    --color-base-200: "#3b4252";
+    --color-base-300: "#242933";
+    --color-base-content: "#eceff4";
+    --color-info: "#81a1c1";
+    --color-success: "#a3be8c";
+    --color-warning: "#ebcb8b";
+    --color-error: "#bf616a";
+}
+
+/* === Catppuccin Mocha === */
+@plugin "daisyui/theme" {
+    name: "catppuccin-mocha";
+    prefersdark: true;
+    --color-primary: "#cba6f7";
+    --color-accent: "#a6e3a1";
+    --color-secondary: "#f38ba8";
+    --color-base-100: "#1e1e2e";
+    --color-base-200: "#181825";
+    --color-base-300: "#11111b";
+    --color-base-content: "#cdd6f4";
+    --color-info: "#89b4fa";
+    --color-success: "#a6e3a1";
+    --color-warning: "#f9e2af";
+    --color-error: "#f38ba8";
+}
+
+/* === Gruvbox Dark === */
+@plugin "daisyui/theme" {
+    name: "gruvbox-dark";
+    prefersdark: true;
+    --color-primary: "#fabd2f";
+    --color-accent: "#b8bb26";
+    --color-secondary: "#fb4934";
+    --color-base-100: "#282828";
+    --color-base-200: "#1d2021";
+    --color-base-300: "#171717";
+    --color-base-content: "#ebdbb2";
+    --color-info: "#83a598";
+    --color-success: "#b8bb26";
+    --color-warning: "#fabd2f";
+    --color-error: "#fb4934";
+}
+
+/* === Solarized Dark === */
+@plugin "daisyui/theme" {
+    name: "solarized-dark";
+    prefersdark: true;
+    --color-primary: "#268bd2";
+    --color-accent: "#2aa198";
+    --color-secondary: "#d33682";
+    --color-base-100: "#002b36";
+    --color-base-200: "#073642";
+    --color-base-300: "#001e27";
+    --color-base-content: "#93a1a1";
+    --color-info: "#268bd2";
+    --color-success: "#859900";
+    --color-warning: "#b58900";
+    --color-error: "#dc322f";
+}
+
+/* === Rose Pine === */
+@plugin "daisyui/theme" {
+    name: "rose-pine";
+    prefersdark: true;
+    --color-primary: "#c4a7e7";
+    --color-accent: "#9ccfd8";
+    --color-secondary: "#ebbcba";
+    --color-base-100: "#191724";
+    --color-base-200: "#1f1d2e";
+    --color-base-300: "#13111e";
+    --color-base-content: "#e0def4";
+    --color-info: "#9ccfd8";
+    --color-success: "#31748f";
+    --color-warning: "#f6c177";
+    --color-error: "#eb6f92";
+}
+
+/* === Synthwave '84 === */
+@plugin "daisyui/theme" {
+    name: "synthwave-84";
+    prefersdark: true;
+    --color-primary: "#f97e72";
+    --color-accent: "#36f9f6";
+    --color-secondary: "#ff7edb";
+    --color-base-100: "#2b213a";
+    --color-base-200: "#241b2f";
+    --color-base-300: "#1a1025";
+    --color-base-content: "#f0e4fc";
+    --color-info: "#36f9f6";
+    --color-success: "#72f1b8";
+    --color-warning: "#fede5d";
+    --color-error: "#fe4450";
+}
+
+/* === One Dark === */
+@plugin "daisyui/theme" {
+    name: "one-dark";
+    prefersdark: true;
+    --color-primary: "#61afef";
+    --color-accent: "#98c379";
+    --color-secondary: "#c678dd";
+    --color-base-100: "#282c34";
+    --color-base-200: "#21252b";
+    --color-base-300: "#1b1f27";
+    --color-base-content: "#abb2bf";
+    --color-info: "#61afef";
+    --color-success: "#98c379";
+    --color-warning: "#e5c07b";
+    --color-error: "#e06c75";
+}
+
+/* === Midnight === */
+@plugin "daisyui/theme" {
+    name: "midnight";
+    prefersdark: true;
+    --color-primary: "#82aaff";
+    --color-accent: "#c3e88d";
+    --color-secondary: "#c792ea";
+    --color-base-100: "#0F111A";
+    --color-base-200: "#090B10";
+    --color-base-300: "#060709";
+    --color-base-content: "#b4c2db";
+    --color-info: "#82aaff";
+    --color-success: "#c3e88d";
+    --color-warning: "#ffcb6b";
+    --color-error: "#ff5370";
 }
 
 @theme {
