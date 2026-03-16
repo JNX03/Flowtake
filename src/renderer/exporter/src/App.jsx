@@ -1,6 +1,6 @@
-import { PlusIcon } from "@heroicons/react/16/solid"
 import { useQuery } from "@tanstack/react-query"
 import {
+    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -10,7 +10,6 @@ import {
     useDispatch,
     useSelector
 } from "react-redux"
-import TitleBar from "../../components/TitleBar"
 import {
     EXPORTER_SECTION_NEW_RENDER,
     EXPORTER_SECTION_QUEUE,
@@ -28,6 +27,7 @@ import {
 import Form from "./components/form/NewRenderForm"
 import Queue from "./components/queue/Queue"
 import Toasts from "./components/Toasts"
+import VideoPreviewModal from "./components/VideoPreviewModal"
 
 export default function App() {
 
@@ -37,6 +37,16 @@ export default function App() {
     const totalRenders = useSelector(selectTotalRenders)
     const projectState = useSelector(selectProjectState)
 
+    const [previewState, setPreviewState] = useState({ isOpen: false, renderId: null, videoName: null })
+
+    const onPreview = useCallback((renderId, videoName) => {
+        setPreviewState({ isOpen: true, renderId, videoName })
+    }, [])
+
+    const closePreview = useCallback(() => {
+        setPreviewState({ isOpen: false, renderId: null, videoName: null })
+    }, [])
+
     const rendersRef = useRef(renders)
 
     const { data: initialOpenSection, isPending, isError } = useQuery({
@@ -45,7 +55,6 @@ export default function App() {
         staleTime: Infinity
     })
 
-    // Use a derived state pattern - calculate openSection based on query state
     const [userOpenSection, setUserOpenSection] = useState(null)
 
     const openSection = useMemo(() => {
@@ -86,44 +95,64 @@ export default function App() {
         else window.electron.ipcRenderer.invoke("close-exporter-window")
     }
 
-    const getTitle = () => {
-        switch (openSection) {
-            case EXPORTER_SECTION_QUEUE: return "Render queue"
-            case EXPORTER_SECTION_NEW_RENDER: return "Export"
-        }
-    }
-
     return (
         <div className="h-full flex flex-col bg-base-300 rounded-xl overflow-hidden border border-base-content/10">
-            <TitleBar title={getTitle()} >
-                {/* Tab switcher */}
-                <div className="flex items-center gap-1">
+            {/* Drag region - no window controls */}
+            <div className="h-8 flex-none flex items-center select-none" style={{ WebkitAppRegion: "drag" }}>
+                <span className="text-[11px] font-medium opacity-40 pl-4">Flowtake</span>
+            </div>
+
+            {/* Tab navigation */}
+            <div className="px-5 pb-1" style={{ WebkitAppRegion: "no-drag" }}>
+                <div className="flex gap-1 bg-base-100/50 rounded-lg p-1">
                     <button
                         onClick={() => setUserOpenSection(EXPORTER_SECTION_NEW_RENDER)}
-                        className={`btn btn-xs ${openSection === EXPORTER_SECTION_NEW_RENDER ? "btn-primary" : "btn-ghost"}`}
                         disabled={!projectState}
+                        className={`flex-1 text-xs font-medium py-1.5 px-3 rounded-md transition-all ${
+                            openSection === EXPORTER_SECTION_NEW_RENDER
+                                ? "bg-base-100 text-base-content shadow-sm"
+                                : "text-base-content/50 hover:text-base-content/70"
+                        }`}
                     >
-                        <PlusIcon className="size-3.5" /> New
+                        New Export
                     </button>
                     <button
                         onClick={() => setUserOpenSection(EXPORTER_SECTION_QUEUE)}
-                        className={`btn btn-xs ${openSection === EXPORTER_SECTION_QUEUE ? "btn-primary" : "btn-ghost"}`}
+                        className={`flex-1 text-xs font-medium py-1.5 px-3 rounded-md transition-all flex items-center justify-center gap-1.5 ${
+                            openSection === EXPORTER_SECTION_QUEUE
+                                ? "bg-base-100 text-base-content shadow-sm"
+                                : "text-base-content/50 hover:text-base-content/70"
+                        }`}
                     >
-                        Queue {totalRenders > 0 && <span className="badge badge-xs badge-neutral ml-0.5">{totalRenders}</span>}
+                        Queue
+                        {totalRenders > 0 && (
+                            <span className="bg-primary/15 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none">
+                                {totalRenders}
+                            </span>
+                        )}
                     </button>
                 </div>
-            </TitleBar>
+            </div>
+
+            {/* Content */}
             <div className="flex-1 overflow-hidden">
                 {!isPending && <div className="h-full overflow-y-auto">
                     <Form onAdd={onAdd} onCancel={onCancelNewRender}
                         isVisible={openSection === EXPORTER_SECTION_NEW_RENDER} />
-                    <Queue isVisible={openSection === EXPORTER_SECTION_QUEUE} />
+                    <Queue isVisible={openSection === EXPORTER_SECTION_QUEUE} onPreview={onPreview} />
                 </div>}
                 {isPending && <div className="flex items-center justify-center h-full">
-                    <span className="loading loading-spinner loading-md" />
+                    <span className="loading loading-spinner loading-sm opacity-40" />
                 </div>}
             </div>
+
             <Toasts />
+            <VideoPreviewModal
+                renderId={previewState.renderId}
+                videoName={previewState.videoName}
+                isOpen={previewState.isOpen}
+                onClose={closePreview}
+            />
         </div>
     )
 }

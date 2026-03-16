@@ -1,12 +1,10 @@
 import {
-    ArrowRightIcon,
-    XMarkIcon
+    ArrowRightIcon
 } from "@heroicons/react/24/outline"
 import {
-    FilmIcon,
-    Square2StackIcon,
     DevicePhoneMobileIcon,
-    ComputerDesktopIcon
+    ComputerDesktopIcon,
+    Square2StackIcon
 } from "@heroicons/react/24/solid"
 import {
     useMutation,
@@ -24,8 +22,6 @@ import {
     useDispatch,
     useSelector
 } from "react-redux"
-import Button from "../../../../components/Button"
-import Toggle from "../../../../main/src/components/properties/Toggle"
 import {
     getRenderQualityLabel,
     RENDER_PENDING,
@@ -171,12 +167,6 @@ export default function Form({ onAdd, onCancel, isVisible }) {
         if (useShareableUrl && quality === "very_high") setQuality("high")
     }, [quality, setQuality, useShareableUrl])
 
-    const onResolutionChange = event => setResolutionString(event.target.value)
-
-    const onFPSChange = event => setFps(Number(event.target.value))
-
-    const onQualityChange = event => setQuality(event.target.value)
-
     const onAddClicked = async () => {
         setIsInitializing(true)
         const state = structuredClone(projectState)
@@ -210,28 +200,35 @@ export default function Form({ onAdd, onCancel, isVisible }) {
     const isShareableUrlEnabled = () => {
         if (projectState === null) return false
         const { start, end } = projectState.undoableState.present.project.videoDetails
-        return end - start <= 10 * 60 * 1000    // 10 minutes
+        return end - start <= 10 * 60 * 1000
     }
 
     const is4K = res => res === "3840x2160" || res === "2160x3840" || res === "2160x2160"
 
     return (
         <div className={`flex flex-col h-full ${isVisible ? "" : "hidden"}`}>
-            <div className="flex-1 overflow-y-auto px-4 py-3">
-                <div className="flex flex-col gap-3">
-                    {/* Aspect Ratio - visual toggle buttons */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+                <div className="flex flex-col gap-5">
+
+                    {/* Aspect Ratio */}
                     <div>
-                        <label className="label text-xs opacity-60 mb-1.5">Aspect Ratio</label>
-                        <div className="flex gap-2">
+                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-40 mb-2 block">
+                            Aspect Ratio
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5">
                             {Object.entries(ASPECT_LABELS).map(([value, label]) => {
                                 const Icon = ASPECT_ICONS[value]
                                 return (
                                     <button
                                         key={value}
                                         onClick={() => setAspectRatio(value)}
-                                        className={`btn btn-sm flex-1 gap-1.5 ${aspectRatio === value ? "btn-primary" : "btn-ghost bg-base-100"}`}
+                                        className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                                            aspectRatio === value
+                                                ? "bg-primary text-primary-content"
+                                                : "bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
+                                        }`}
                                     >
-                                        <Icon className="size-4" />
+                                        <Icon className="size-3.5" />
                                         {label}
                                     </button>
                                 )
@@ -239,10 +236,12 @@ export default function Form({ onAdd, onCancel, isVisible }) {
                         </div>
                     </div>
 
-                    {/* Resolution - visual toggle buttons */}
+                    {/* Resolution */}
                     <div>
-                        <label className="label text-xs opacity-60 mb-1.5">Resolution</label>
-                        <div className="flex gap-2">
+                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-40 mb-2 block">
+                            Resolution
+                        </span>
+                        <div className="grid grid-cols-4 gap-1.5">
                             {resolutions.map(res => {
                                 const disabled4K = useShareableUrl && is4K(res)
                                 return (
@@ -250,26 +249,38 @@ export default function Form({ onAdd, onCancel, isVisible }) {
                                         key={res}
                                         onClick={() => !disabled4K && setResolutionString(res)}
                                         disabled={disabled4K || isPendingSetResolutionString || isPendingResolutionString}
-                                        className={`btn btn-sm flex-1 ${resolutionString === res ? "btn-primary" : "btn-ghost bg-base-100"} ${disabled4K ? "opacity-30" : ""}`}
+                                        className={`py-2 rounded-lg text-xs font-medium transition-all ${
+                                            disabled4K ? "opacity-20 cursor-not-allowed" : ""
+                                        } ${
+                                            resolutionString === res
+                                                ? "bg-primary text-primary-content"
+                                                : "bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
+                                        }`}
                                     >
-                                        <span className="text-xs">{resolutionLabels[res] || res}</span>
+                                        {resolutionLabels[res] || res}
                                     </button>
                                 )
                             })}
                         </div>
                     </div>
 
-                    {/* Frame Rate & Quality - side by side */}
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Frame Rate & Quality */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="label text-xs opacity-60 mb-1.5">Frame Rate</label>
-                            <div className="flex gap-2">
+                            <span className="text-[11px] font-medium uppercase tracking-wider opacity-40 mb-2 block">
+                                Frame Rate
+                            </span>
+                            <div className="grid grid-cols-2 gap-1.5">
                                 {[60, 30].map(fpsOption => (
                                     <button
                                         key={fpsOption}
                                         onClick={() => setFps(fpsOption)}
                                         disabled={isPendingSetFps || isPendingFps}
-                                        className={`btn btn-sm flex-1 ${fps === fpsOption ? "btn-primary" : "btn-ghost bg-base-100"}`}
+                                        className={`py-2 rounded-lg text-xs font-medium transition-all ${
+                                            fps === fpsOption
+                                                ? "bg-primary text-primary-content"
+                                                : "bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
+                                        }`}
                                     >
                                         {fpsOption} FPS
                                     </button>
@@ -277,10 +288,15 @@ export default function Form({ onAdd, onCancel, isVisible }) {
                             </div>
                         </div>
                         <div>
-                            <label className="label text-xs opacity-60 mb-1.5">Quality</label>
-                            <select onChange={onQualityChange} value={quality}
-                                className="select select-sm w-full bg-base-100"
-                                disabled={isPendingSetQuality || isPendingQuality}>
+                            <span className="text-[11px] font-medium uppercase tracking-wider opacity-40 mb-2 block">
+                                Quality
+                            </span>
+                            <select
+                                onChange={e => setQuality(e.target.value)}
+                                value={quality}
+                                className="select select-sm w-full bg-base-100 border-0 text-xs font-medium rounded-lg h-auto py-2"
+                                disabled={isPendingSetQuality || isPendingQuality}
+                            >
                                 {QUALITY_OPTIONS.map(opt => (
                                     <option
                                         key={opt.value}
@@ -294,45 +310,51 @@ export default function Form({ onAdd, onCancel, isVisible }) {
                         </div>
                     </div>
 
-                    {/* Info text */}
-                    <p className="text-xs opacity-40 leading-relaxed">
-                        Lower resolution and frame rate for faster exports. Quality affects file size but not export speed.
+                    <p className="text-[11px] opacity-30 leading-relaxed -mt-2">
+                        Lower resolution and frame rate for faster exports.
                     </p>
 
                     {/* Shareable Link */}
-                    <div className="bg-base-100 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
+                    <div className="bg-base-100 rounded-lg p-3.5">
+                        <label className="flex items-center justify-between cursor-pointer">
                             <span className="text-xs font-medium">Shareable Link</span>
-                            <Toggle rightLabel="" value={useShareableUrl} justifyBetween={false}
-                                onChange={event => setUseShareableUrl(event.target.checked)}
-                                disabled={!isShareableUrlEnabled()} />
-                        </div>
+                            <input
+                                type="checkbox"
+                                className="toggle toggle-sm toggle-primary"
+                                checked={useShareableUrl}
+                                onChange={e => setUseShareableUrl(e.target.checked)}
+                                disabled={!isShareableUrlEnabled()}
+                            />
+                        </label>
                         {useShareableUrl && (
-                            <ShareableUrl useShareableUrl={useShareableUrl} objectId={objectId} />
+                            <div className="mt-3">
+                                <ShareableUrl useShareableUrl={useShareableUrl} objectId={objectId} />
+                            </div>
                         )}
                         {!isShareableUrlEnabled() && (
-                            <p className="text-xs opacity-40">Available for videos up to 10 minutes.</p>
+                            <p className="text-[11px] opacity-30 mt-1.5">Available for videos up to 10 minutes.</p>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* Bottom action bar */}
-            <div className="px-4 py-3 border-t border-base-content/5 flex items-center justify-between">
-                <button onClick={onCancel} disabled={isInitializing}
-                    className="btn btn-sm btn-ghost gap-1">
-                    <XMarkIcon className="size-4" />
+            {/* Bottom actions */}
+            <div className="px-5 py-4 flex items-center gap-3">
+                <button
+                    onClick={onCancel}
+                    disabled={isInitializing}
+                    className="flex-1 py-2.5 rounded-lg text-xs font-medium bg-base-100 text-base-content/60 hover:text-base-content transition-all"
+                >
                     Cancel
                 </button>
-                <Button
-                    className="btn-sm btn-primary gap-1"
-                    disabled={!projectState}
-                    isLoading={isInitializing}
+                <button
                     onClick={onAddClicked}
-                    icon={ArrowRightIcon}
+                    disabled={!projectState || isInitializing}
+                    className="flex-1 py-2.5 rounded-lg text-xs font-medium bg-primary text-primary-content hover:brightness-110 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40"
                 >
-                    Export
-                </Button>
+                    {isInitializing && <span className="loading loading-spinner loading-xs" />}
+                    {!isInitializing && <>Export <ArrowRightIcon className="size-3.5" /></>}
+                </button>
             </div>
         </div>
     )
