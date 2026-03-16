@@ -38,6 +38,16 @@ export default function OverlayItem({ id }) {
         [dispatch, id]
     )
 
+    const onTrackChange = useCallback(
+        (start, end, newTrackId) => dispatch(updateOverlay({ id, changes: { start, end, trackIndex: newTrackId } })),
+        [dispatch, id]
+    )
+
+    const getTrackAnims = useCallback(
+        (trackId) => anims.filter(a => a.trackIndex === trackId),
+        [anims]
+    )
+
     const onSelect = useCallback(() => {
         dispatch(setSelectedRow(OVERLAY_TRACKS))
         dispatch(setOpenSection(OVERLAY_TRACKS))
@@ -65,7 +75,10 @@ export default function OverlayItem({ id }) {
 
     return (
         <FlexibleAction anim={anim} anims={trackAnims} isRowSelected={selectedRow === OVERLAY_TRACKS}
-            onChange={onChange} onSelect={onSelect} color="accent">
+            onChange={onChange} onSelect={onSelect} color="accent"
+            crossTrackEnabled currentTrackId={anim.trackIndex}
+            trackDropZone="overlay-track" getTrackAnims={getTrackAnims}
+            onTrackChange={onTrackChange}>
             <Label
                 line1={<>{getIcon()}{getTypeName()}</>}
                 line2={<span className="opacity-60 text-[10px]">{anim.overlayType}</span>}

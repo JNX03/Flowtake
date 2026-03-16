@@ -37,6 +37,16 @@ export default function AudioClip({ id }) {
         [dispatch, id]
     )
 
+    const onTrackChange = useCallback(
+        (start, end, newTrackId) => dispatch(updateAudioClip({ id, changes: { start, end, trackIndex: newTrackId } })),
+        [dispatch, id]
+    )
+
+    const getTrackAnims = useCallback(
+        (trackId) => anims.filter(a => a.trackIndex === trackId),
+        [anims]
+    )
+
     const onSelect = useCallback(() => {
         dispatch(setSelectedRow(AUDIO_TRACKS))
         dispatch(setOpenSection(AUDIO_TRACKS))
@@ -46,7 +56,10 @@ export default function AudioClip({ id }) {
 
     return (
         <FlexibleAction anim={anim} anims={trackAnims} isRowSelected={selectedRow === AUDIO_TRACKS}
-            onChange={onChange} onSelect={onSelect} color="secondary">
+            onChange={onChange} onSelect={onSelect} color="secondary"
+            crossTrackEnabled currentTrackId={anim.trackIndex}
+            trackDropZone="audio-track" getTrackAnims={getTrackAnims}
+            onTrackChange={onTrackChange}>
             <Label
                 line1={<><MusicalNoteIcon className="size-4 shrink-0 mr-1" />{anim.name || "Audio"}</>}
                 line2={<>
