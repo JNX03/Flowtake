@@ -1,5 +1,7 @@
 import {
-  ArrowPathIcon
+  ArrowPathIcon,
+  VideoCameraIcon,
+  MicrophoneIcon,
 } from "@heroicons/react/24/outline"
 import {
   useMutation,
@@ -11,7 +13,6 @@ import {
   useEffect,
   useState
 } from "react"
-import Button from "../../../../components/Button"
 import {
   CONSTRAINTS_AUDIO,
   CONSTRAINTS_VIDEO
@@ -231,41 +232,57 @@ export default function CameraMicrophoneSelect() {
   const hasAnyDenied = permissionDenied.video || permissionDenied.audio
 
   return (
-    <div className="flex flex-col gap-1 w-full">
-      <div className="join w-full flex min-w-0">
+    <div className="flex flex-col gap-2 w-full">
+      {/* Camera row */}
+      <div className="flex items-center gap-2">
+        <div className={`size-7 rounded-lg flex items-center justify-center flex-shrink-0 ${permissionDenied.video ? "bg-error/10 text-error/60" : "bg-base-content/5 text-base-content/40"}`}>
+          <VideoCameraIcon className="size-3.5" />
+        </div>
         <select
           onChange={onSelectCamera}
           disabled={isPending || permissionDenied.video}
           value={camera ?? "-1"}
-          className={`select join-item flex-1 min-w-0 ${permissionDenied.video ? "select-error" : ""}`}
+          className={`select select-sm flex-1 min-w-0 bg-transparent border-base-content/8 focus:border-primary/30 text-xs ${permissionDenied.video ? "select-error" : ""}`}
         >
           {permissionDenied.video
             ? <option value="-1">Camera not available</option>
             : options(cameras, "No camera")}
         </select>
+      </div>
+
+      {/* Microphone row */}
+      <div className="flex items-center gap-2">
+        <div className={`size-7 rounded-lg flex items-center justify-center flex-shrink-0 ${permissionDenied.audio ? "bg-error/10 text-error/60" : "bg-base-content/5 text-base-content/40"}`}>
+          <MicrophoneIcon className="size-3.5" />
+        </div>
         <select
           onChange={onSelectMicrophone}
           disabled={isPending || permissionDenied.audio}
           value={microphone ?? "-1"}
-          className={`select join-item flex-1 min-w-0 ${permissionDenied.audio ? "select-error" : ""}`}
+          className={`select select-sm flex-1 min-w-0 bg-transparent border-base-content/8 focus:border-primary/30 text-xs ${permissionDenied.audio ? "select-error" : ""}`}
         >
           {permissionDenied.audio
             ? <option value="-1">Mic not available</option>
             : options(microphones, "No microphone")}
         </select>
-        <Button
-          onClick={clearCache}
-          className="join-item"
-          disabled={isPending}
-          isLoading={isPending}
-          icon={ArrowPathIcon}
-          tooltip={hasAnyDenied ? "Retry permission request" : undefined}
-        />
       </div>
-      {hasAnyDenied && (
-        <p className="text-xs text-warning">
-          Permission denied. Click refresh to try again.
-        </p>
+
+      {/* Refresh / Permission denied */}
+      {(hasAnyDenied || isPending) && (
+        <div className="flex items-center gap-2 mt-0.5">
+          <div className="size-7 flex-shrink-0" />
+          {hasAnyDenied && (
+            <p className="text-[11px] text-warning flex-1">Permission denied</p>
+          )}
+          <button
+            onClick={clearCache}
+            disabled={isPending}
+            className="btn btn-ghost btn-xs gap-1 text-base-content/40 hover:text-base-content/70"
+          >
+            <ArrowPathIcon className={`size-3 ${isPending ? "animate-spin" : ""}`} />
+            <span className="text-[11px]">{hasAnyDenied ? "Retry" : "Refresh"}</span>
+          </button>
+        </div>
       )}
     </div>
   )
