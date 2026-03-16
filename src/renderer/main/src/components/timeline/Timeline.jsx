@@ -51,8 +51,10 @@ import {
 import {
     addOverlay,
     addOverlayTrack,
+    selectAllOverlays as selectAllOverlaysForDrop,
     selectOverlayIds,
     selectOverlayTracks,
+    selectNextOverlayTrackId,
     toggleOverlayTrackLock,
     toggleOverlayTrackVisibility,
     removeOverlayTrack
@@ -108,6 +110,8 @@ export default function Timeline() {
     const overlayIds = useSelector(selectOverlayIds)
     const audioTracks = useSelector(selectAudioTracks)
     const overlayTracks = useSelector(selectOverlayTracks)
+    const nextOverlayTrackId = useSelector(selectNextOverlayTrackId)
+    const allOverlaysForDrop = useSelector(selectAllOverlaysForDrop)
 
     const isClipMenuOpen = useSelector(selectIsClipMenuOpen)
     const isClickMenuOpen = useSelector(selectIsClickMenuOpen)
@@ -207,12 +211,12 @@ export default function Timeline() {
     useEffect(() => subscribe(() => setIsDragOver(isDragActive())), [])
 
     // Listen for custom drop events (from pointer-based drag system)
+    // Only handles "timeline" zone — "preview"/"overlay-canvas" are handled by OverlayCanvas
     useEffect(() => {
         const handleDrop = (e) => {
             const { data, target } = e.detail
             if (!data || !target) return
-            // Handle drops on the general "timeline" or "preview" zones (tracks handle their own)
-            if (target.zone !== "timeline" && target.zone !== "preview") return
+            if (target.zone !== "timeline") return
 
             const time = 0
             const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -225,22 +229,37 @@ export default function Timeline() {
                         id: `audio-${uid}`,
                         start: time,
                         end: Math.min(time + (data.duration || 5000), duration),
-                        trackIndex: trackId ?? 0,
+                        trackIndex: trackId ?? audioTracks.length,
                         name: data.name || "Audio",
                         volume: 1,
                         src: data.src || null
                     }))
                 }, trackId === null ? 10 : 0)
             } else if (data.type === "text" || data.type === "shape" || data.type === "image" || data.type === "video") {
-                const trackId = overlayTracks.length > 0 ? overlayTracks[0].id : null
-                if (trackId === null) dispatch(addOverlayTrack())
+                // Find a track without overlapping items, or create a new one
+                const start = time
+                const end = Math.min(time + 4000, duration)
+                let trackId = null
+                let needsNewTrack = false
+
+                if (overlayTracks.length > 0) {
+                    const available = overlayTracks.find(track => {
+                        const trackOverlays = allOverlaysForDrop.filter(o => o.trackIndex === track.id)
+                        return !trackOverlays.some(o => o.start < end && o.end > start)
+                    })
+                    trackId = available ? available.id : null
+                }
+
+                if (trackId === null) {
+                    needsNewTrack = true
+                    dispatch(addOverlayTrack())
+                    trackId = nextOverlayTrackId
+                }
+
                 const base = {
                     id: `overlay-${uid}`,
-                    start: time,
-                    end: Math.min(time + 4000, duration),
-                    trackIndex: trackId ?? 0,
-                    opacity: 1,
-                    position: { x: 0.5, y: 0.5 },
+                    start, end, trackIndex: trackId,
+                    opacity: 1, position: { x: 0.5, y: 0.5 },
                 }
                 setTimeout(() => {
                     if (data.type === "text") {
@@ -257,12 +276,12 @@ export default function Timeline() {
                         dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
                             src: data.src || null, width: 320, height: 240 }))
                     }
-                }, trackId === null ? 10 : 0)
+                }, needsNewTrack ? 10 : 0)
             }
         }
         window.addEventListener("flowtake-drop", handleDrop)
         return () => window.removeEventListener("flowtake-drop", handleDrop)
-    }, [dispatch, duration, audioTracks, overlayTracks])
+    }, [dispatch, duration, audioTracks, overlayTracks, allOverlaysForDrop, nextOverlayTrackId])
 
     const mini = isMaskingModeEnabled
 

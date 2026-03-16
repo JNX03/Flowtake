@@ -3,6 +3,7 @@ import {
 } from "@heroicons/react/16/solid"
 import {
     useCallback,
+    useEffect,
     useMemo,
     useRef,
     useState
@@ -11,13 +12,14 @@ import {
     useDispatch,
     useSelector
 } from "react-redux"
-import { getDragItem, clearDragItem, hasDragItem } from "../dragState"
+import { subscribe, isDragActive } from "../dragState"
 import { OVERLAY_TRACKS } from "../../../src/helpers"
 import {
     addOverlay,
     addOverlayTrack,
     selectAllOverlays,
     selectOverlayTracks,
+    selectNextOverlayTrackId,
     updateOverlay
 } from "../../../src/redux/overlaySlice"
 import { selectDuration } from "../../../src/redux/editorSlice"
@@ -65,7 +67,7 @@ export default function OverlayCanvas({ canvasRect }) {
     const selectedIds = useSelector(selectSelectedIds)
 
     const [isDragOver, setIsDragOver] = useState(false)
-    const dragCounterRef = useRef(0)
+    const nextTrackId = useSelector(selectNextOverlayTrackId)
 
     // Filter overlays visible at current time
     const visibleOverlays = useMemo(() =>
@@ -84,81 +86,81 @@ export default function OverlayCanvas({ canvasRect }) {
         dispatch(setSelectedIds([]))
     }, [dispatch])
 
-    // Drop from assets panel onto the preview
-    const handleDragOver = useCallback(e => {
-        if (hasDragItem()) {
-            e.preventDefault()
-            e.dataTransfer.dropEffect = "copy"
+    // Show drag-over highlight when pointer drag hovers over preview
+    useEffect(() => subscribe(() => setIsDragOver(isDragActive())), [])
+
+    // Listen for custom drop events from pointer-based drag system
+    useEffect(() => {
+        const handleDrop = (e) => {
+            const { data, target, clientX, clientY } = e.detail
+            if (!data || !target) return
+            // Only handle drops on the "preview" or "overlay-canvas" zone
+            if (target.zone !== "preview" && target.zone !== "overlay-canvas") return
+
+            // Skip audio - doesn't go on preview
+            if (data.type === "audio" || data.category === "audio") return
+
+            // Calculate normalized position from drop point
+            const rect = target.rect
+            const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+            const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+
+            // Find an available track or auto-create one
+            let trackId
+            if (overlayTracks.length > 0) {
+                // Find a track that doesn't have an overlap at this time range
+                const start = Math.max(0, time - 500)
+                const end = Math.min(start + 4000, duration)
+                const available = overlayTracks.find(track => {
+                    const trackOverlays = allOverlays.filter(o => o.trackIndex === track.id)
+                    return !trackOverlays.some(o => o.start < end && o.end > start)
+                })
+                trackId = available ? available.id : null
+                if (trackId === null) {
+                    // All tracks overlap — create a new one
+                    dispatch(addOverlayTrack())
+                    trackId = nextTrackId
+                }
+            } else {
+                dispatch(addOverlayTrack())
+                trackId = nextTrackId
+            }
+
+            const uid = `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+            const start = Math.max(0, time - 500)
+            const end = Math.min(start + 4000, duration)
+            const base = {
+                id: uid, start, end, trackIndex: trackId,
+                opacity: 1, position: { x, y }, rotation: 0, scale: 1,
+            }
+
+            setTimeout(() => {
+                if (data.type === "text") {
+                    dispatch(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
+                        fontSize: data.config?.fontSize || 32, fontWeight: data.config?.fontWeight || 600,
+                        color: data.config?.color || "#ffffff" }))
+                } else if (data.type === "shape") {
+                    dispatch(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
+                        fill: data.config?.fill || "#6C5CE7", stroke: data.config?.stroke || "none",
+                        strokeWidth: data.config?.strokeWidth || 0, width: data.config?.width || 200,
+                        height: data.config?.height || 100, borderRadius: data.config?.borderRadius || 0,
+                        radius: data.config?.radius || 0 }))
+                } else if (data.type === "image" || data.type === "video") {
+                    dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
+                        src: data.src || null, width: 320, height: 240 }))
+                }
+
+                // Auto-select the new overlay
+                setTimeout(() => {
+                    dispatch(setSelectedIds([uid]))
+                    dispatch(setSelectedRow(OVERLAY_TRACKS))
+                    dispatch(setOpenSection(OVERLAY_TRACKS))
+                }, 10)
+            }, overlayTracks.length === 0 ? 10 : 0)
         }
-    }, [])
-
-    const handleDragEnter = useCallback(e => {
-        e.preventDefault()
-        dragCounterRef.current++
-        if (hasDragItem()) setIsDragOver(true)
-    }, [])
-
-    const handleDragLeave = useCallback(e => {
-        e.preventDefault()
-        dragCounterRef.current--
-        if (dragCounterRef.current <= 0) { setIsDragOver(false); dragCounterRef.current = 0 }
-    }, [])
-
-    const handleDrop = useCallback(e => {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsDragOver(false)
-        dragCounterRef.current = 0
-
-        const { data } = getDragItem()
-        clearDragItem()
-        if (!data) return
-
-        // Calculate normalized position from drop point
-        const rect = e.currentTarget.getBoundingClientRect()
-        const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-        const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
-
-        // Skip audio - doesn't go on preview
-        if (data.type === "audio" || data.category === "audio") return
-
-        // Auto-create overlay track if none
-        let trackId = overlayTracks.length > 0 ? overlayTracks[0].id : null
-        if (trackId === null) {
-            dispatch(addOverlayTrack())
-            trackId = 0
-        }
-
-        const uid = `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-        const start = Math.max(0, time - 500)
-        const end = Math.min(start + 4000, duration)
-        const base = {
-            id: uid, start, end, trackIndex: trackId,
-            opacity: 1, position: { x, y }, rotation: 0, scale: 1,
-        }
-
-        if (data.type === "text") {
-            dispatch(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
-                fontSize: data.config?.fontSize || 32, fontWeight: data.config?.fontWeight || 600,
-                color: data.config?.color || "#ffffff" }))
-        } else if (data.type === "shape") {
-            dispatch(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
-                fill: data.config?.fill || "#6C5CE7", stroke: data.config?.stroke || "none",
-                strokeWidth: data.config?.strokeWidth || 0, width: data.config?.width || 200,
-                height: data.config?.height || 100, borderRadius: data.config?.borderRadius || 0,
-                radius: data.config?.radius || 0 }))
-        } else if (data.type === "image" || data.type === "video") {
-            dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
-                src: data.src || null, width: 320, height: 240 }))
-        }
-
-        // Auto-select the new overlay
-        setTimeout(() => {
-            dispatch(setSelectedIds([uid]))
-            dispatch(setSelectedRow(OVERLAY_TRACKS))
-            dispatch(setOpenSection(OVERLAY_TRACKS))
-        }, 10)
-    }, [dispatch, duration, time, overlayTracks])
+        window.addEventListener("flowtake-drop", handleDrop)
+        return () => window.removeEventListener("flowtake-drop", handleDrop)
+    }, [dispatch, duration, time, overlayTracks, allOverlays, nextTrackId])
 
     // Use canvas rect if available, otherwise cover full parent for drop target
     const hasRect = canvasRect && canvasRect.width > 0
@@ -169,12 +171,9 @@ export default function OverlayCanvas({ canvasRect }) {
     return (
         <div
             className="absolute"
+            data-drop-zone="overlay-canvas"
             style={style}
             onClick={deselectAll}
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
         >
             {/* Drop indicator */}
             {isDragOver && (

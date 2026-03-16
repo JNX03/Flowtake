@@ -7,7 +7,9 @@ import { subscribe, isDragActive, getHoverTarget } from "../../dragState"
 import { OVERLAY_TRACKS, pxToMs } from "../../../../src/helpers"
 import {
     addOverlay,
+    addOverlayTrack,
     selectAllOverlays,
+    selectNextOverlayTrackId,
     selectOverlayTracks,
 } from "../../../../src/redux/overlaySlice"
 import {
