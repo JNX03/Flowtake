@@ -89,25 +89,41 @@ export default function App() {
     const getTitle = () => {
         switch (openSection) {
             case EXPORTER_SECTION_QUEUE: return "Render queue"
-            case EXPORTER_SECTION_NEW_RENDER: return "New render"
+            case EXPORTER_SECTION_NEW_RENDER: return "Export"
         }
     }
 
-    return (<>
-        <TitleBar overlayButtons={2} title={getTitle()} >
-            {openSection === EXPORTER_SECTION_QUEUE && projectState !== null &&
-                <button onClick={() => { setUserOpenSection(EXPORTER_SECTION_NEW_RENDER) }} className="mt-1 btn btn-xs" >
-                    <PlusIcon className="size-4" /> New render
-                </button>}
-        </TitleBar>
-        {!isPending && <div className="px-2 pb-2 h-full">
-            <Form onAdd={onAdd} onCancel={onCancelNewRender}
-                isVisible={openSection === EXPORTER_SECTION_NEW_RENDER} />
-            <Queue isVisible={openSection === EXPORTER_SECTION_QUEUE} />
-        </div>}
-        {isPending && <div className="flex items-center justify-center h-full">
-            <span className="loading loading-spinner loading-md" />
-        </div>}
-        <Toasts />
-    </>)
+    return (
+        <div className="h-full flex flex-col bg-base-300 rounded-xl overflow-hidden border border-base-content/10">
+            <TitleBar title={getTitle()} >
+                {/* Tab switcher */}
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => setUserOpenSection(EXPORTER_SECTION_NEW_RENDER)}
+                        className={`btn btn-xs ${openSection === EXPORTER_SECTION_NEW_RENDER ? "btn-primary" : "btn-ghost"}`}
+                        disabled={!projectState}
+                    >
+                        <PlusIcon className="size-3.5" /> New
+                    </button>
+                    <button
+                        onClick={() => setUserOpenSection(EXPORTER_SECTION_QUEUE)}
+                        className={`btn btn-xs ${openSection === EXPORTER_SECTION_QUEUE ? "btn-primary" : "btn-ghost"}`}
+                    >
+                        Queue {totalRenders > 0 && <span className="badge badge-xs badge-neutral ml-0.5">{totalRenders}</span>}
+                    </button>
+                </div>
+            </TitleBar>
+            <div className="flex-1 overflow-hidden">
+                {!isPending && <div className="h-full overflow-y-auto">
+                    <Form onAdd={onAdd} onCancel={onCancelNewRender}
+                        isVisible={openSection === EXPORTER_SECTION_NEW_RENDER} />
+                    <Queue isVisible={openSection === EXPORTER_SECTION_QUEUE} />
+                </div>}
+                {isPending && <div className="flex items-center justify-center h-full">
+                    <span className="loading loading-spinner loading-md" />
+                </div>}
+            </div>
+            <Toasts />
+        </div>
+    )
 }

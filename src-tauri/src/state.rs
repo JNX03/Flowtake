@@ -23,6 +23,8 @@ pub struct AppState {
     pub ffmpeg_child: Option<CommandChild>,
     pub mouse_tracker: MouseTracker,
     pub recording_start_timestamp: Option<i64>,
+    pub export_state_data: Option<Value>,
+    pub export_section: Option<String>,
 }
 
 pub struct RenderState {
@@ -53,6 +55,8 @@ impl AppState {
             ffmpeg_child: None,
             mouse_tracker: MouseTracker::new(),
             recording_start_timestamp: None,
+            export_state_data: None,
+            export_section: None,
         }
     }
 

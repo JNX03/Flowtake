@@ -10,6 +10,14 @@ pub async fn open_export_window(
     state_data: Option<Value>,
     section: Option<String>,
 ) -> AppResult<()> {
+    // Store state data and section so the exporter can fetch them after loading
+    {
+        let state = app.state::<Mutex<AppState>>();
+        let mut state = state.lock().unwrap();
+        state.export_state_data = state_data.clone();
+        state.export_section = section.clone();
+    }
+
     // Close existing exporter window if any
     if let Some(existing) = app.get_webview_window("exporter") {
         existing.close().map_err(|e| AppError::Tauri(e))?;
@@ -21,14 +29,16 @@ pub async fn open_export_window(
         WebviewUrl::App("src/renderer/exporter/index.html".into()),
     )
     .title("Export - Flowtake")
-    .inner_size(500.0, 600.0)
+    .inner_size(520.0, 580.0)
     .center()
     .resizable(true)
     .min_inner_size(400.0, 400.0)
+    .decorations(false)
+    .transparent(true)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 
-    // Send initial state to exporter
+    // Also emit events for already-open windows that have listeners registered
     if let Some(state_data) = state_data {
         app.emit_to("exporter", "project-state", &state_data).ok();
     }
@@ -76,13 +86,17 @@ pub async fn get_project_for_export(app: AppHandle) -> AppResult<Value> {
 }
 
 #[tauri::command]
-pub async fn get_project_state(_app: AppHandle) -> AppResult<Value> {
-    Ok(Value::Null)
+pub async fn get_project_state(app: AppHandle) -> AppResult<Value> {
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+    Ok(state.export_state_data.clone().unwrap_or(Value::Null))
 }
 
 #[tauri::command]
-pub async fn get_open_section(_app: AppHandle) -> AppResult<Value> {
-    Ok(Value::Null)
+pub async fn get_open_section(app: AppHandle) -> AppResult<Value> {
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+    Ok(state.export_section.clone().map(|s| Value::String(s)).unwrap_or(Value::Null))
 }
 
 #[tauri::command]

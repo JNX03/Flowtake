@@ -49,12 +49,17 @@ export default function ExportButton() {
         dispatch(dismissToastsByType(TOAST_EXPORT_COMPLETED))
         // Get state snapshot at the time of the function call (button click)
         const currentState = store.getState()
-        await window.electron.ipcRenderer.invoke(
-            "open-export-window",
-            hasProject ? getProjectState(currentState) : null,
-            section
-        )
-        setIsClicked(false)
+        try {
+            await window.electron.ipcRenderer.invoke(
+                "open-export-window",
+                hasProject ? getProjectState(currentState) : null,
+                section
+            )
+        } catch (e) {
+            console.error("Failed to open export window:", e)
+        } finally {
+            setIsClicked(false)
+        }
     }, [dispatch, hasProject, store])
 
     const onNew = useCallback(() => {

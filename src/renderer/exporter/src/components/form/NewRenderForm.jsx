@@ -1,7 +1,13 @@
 import {
-    QueueListIcon,
+    ArrowRightIcon,
     XMarkIcon
 } from "@heroicons/react/24/outline"
+import {
+    FilmIcon,
+    Square2StackIcon,
+    DevicePhoneMobileIcon,
+    ComputerDesktopIcon
+} from "@heroicons/react/24/solid"
 import {
     useMutation,
     useQuery,
@@ -33,6 +39,26 @@ import {
 } from "../../../../src/redux/renderSlice"
 import { captureException } from "../../../../src/sentryHelpers"
 import ShareableUrl from "./ShareableUrl"
+
+const ASPECT_ICONS = {
+    "16x9": ComputerDesktopIcon,
+    "9x16": DevicePhoneMobileIcon,
+    "1x1": Square2StackIcon
+}
+
+const ASPECT_LABELS = {
+    "16x9": "16:9",
+    "9x16": "9:16",
+    "1x1": "1:1"
+}
+
+const QUALITY_OPTIONS = [
+    { value: "very_high", restrictShareable: true },
+    { value: "high" },
+    { value: "medium" },
+    { value: "low" },
+    { value: "very_low" }
+]
 
 export default function Form({ onAdd, onCancel, isVisible }) {
 
@@ -95,6 +121,13 @@ export default function Form({ onAdd, onCancel, isVisible }) {
         }
     }, [aspectRatio])
 
+    const resolutionLabels = useMemo(() => ({
+        "3840x2160": "4K", "2160x3840": "4K", "2160x2160": "4K",
+        "1920x1080": "1080p", "1080x1920": "1080p", "1080x1080": "1080p",
+        "1280x720": "720p", "720x1280": "720p", "720x720": "720p",
+        "854x480": "480p", "480x854": "480p", "480x480": "480p"
+    }), [])
+
     const getUrl = useCallback(async () => {
         const { id, presignedUrl } = await window.electron.ipcRenderer.invoke(
             "get-shareable-url",
@@ -111,8 +144,12 @@ export default function Form({ onAdd, onCancel, isVisible }) {
     }, [projectState])
 
     useEffect(() => {
-        if (!projectState) window.electron.ipcRenderer.invoke("get-project-state")
-    }, [projectState])
+        if (!projectState) {
+            window.electron.ipcRenderer.invoke("get-project-state").then(state => {
+                if (state) dispatch(setProjectState(state))
+            })
+        }
+    }, [projectState, dispatch])
 
     useEffect(() => {
         window.electron.ipcRenderer.on('project-state', (_e, state) => dispatch(setProjectState(state)))
@@ -135,8 +172,6 @@ export default function Form({ onAdd, onCancel, isVisible }) {
     }, [quality, setQuality, useShareableUrl])
 
     const onResolutionChange = event => setResolutionString(event.target.value)
-
-    const onAspectRatioChange = event => setAspectRatio(event.target.value)
 
     const onFPSChange = event => setFps(Number(event.target.value))
 
@@ -178,68 +213,126 @@ export default function Form({ onAdd, onCancel, isVisible }) {
         return end - start <= 10 * 60 * 1000    // 10 minutes
     }
 
-    return (
-        <div className={`flex justify-center items-center h-full ${isVisible ? "" : "hidden"}`}>
-            <div className="max-w-sm grid grid-cols-1 gap-2">
-                <fieldset className="fieldset bg-base-100 border border-base-200 px-4 pb-4 rounded-box">
-                    <legend className="fieldset-legend">Render Configuration</legend>
-                    <span className="mb-4">
-                        Lower resolution and frame rate for faster exports. Lower quality for smaller video file.
-                        Quality doesn&apos;t affect export speed.
-                    </span>
+    const is4K = res => res === "3840x2160" || res === "2160x3840" || res === "2160x2160"
 
-                    <div className="grid grid-cols-2 gap-4">
+    return (
+        <div className={`flex flex-col h-full ${isVisible ? "" : "hidden"}`}>
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="flex flex-col gap-3">
+                    {/* Aspect Ratio - visual toggle buttons */}
+                    <div>
+                        <label className="label text-xs opacity-60 mb-1.5">Aspect Ratio</label>
+                        <div className="flex gap-2">
+                            {Object.entries(ASPECT_LABELS).map(([value, label]) => {
+                                const Icon = ASPECT_ICONS[value]
+                                return (
+                                    <button
+                                        key={value}
+                                        onClick={() => setAspectRatio(value)}
+                                        className={`btn btn-sm flex-1 gap-1.5 ${aspectRatio === value ? "btn-primary" : "btn-ghost bg-base-100"}`}
+                                    >
+                                        <Icon className="size-4" />
+                                        {label}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Resolution - visual toggle buttons */}
+                    <div>
+                        <label className="label text-xs opacity-60 mb-1.5">Resolution</label>
+                        <div className="flex gap-2">
+                            {resolutions.map(res => {
+                                const disabled4K = useShareableUrl && is4K(res)
+                                return (
+                                    <button
+                                        key={res}
+                                        onClick={() => !disabled4K && setResolutionString(res)}
+                                        disabled={disabled4K || isPendingSetResolutionString || isPendingResolutionString}
+                                        className={`btn btn-sm flex-1 ${resolutionString === res ? "btn-primary" : "btn-ghost bg-base-100"} ${disabled4K ? "opacity-30" : ""}`}
+                                    >
+                                        <span className="text-xs">{resolutionLabels[res] || res}</span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Frame Rate & Quality - side by side */}
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="label">Aspect Ratio</label>
-                            <select onChange={onAspectRatioChange} value={aspectRatio} className="select">
-                                <option value="16x9">16:9</option>
-                                <option value="9x16">9:16</option>
-                                <option value="1x1">Square</option>
-                            </select>
+                            <label className="label text-xs opacity-60 mb-1.5">Frame Rate</label>
+                            <div className="flex gap-2">
+                                {[60, 30].map(fpsOption => (
+                                    <button
+                                        key={fpsOption}
+                                        onClick={() => setFps(fpsOption)}
+                                        disabled={isPendingSetFps || isPendingFps}
+                                        className={`btn btn-sm flex-1 ${fps === fpsOption ? "btn-primary" : "btn-ghost bg-base-100"}`}
+                                    >
+                                        {fpsOption} FPS
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div>
-                            <label className="label">Resolution</label>
-                            <select onChange={onResolutionChange} value={resolutionString} className="select"
-                                disabled={isPendingSetResolutionString || isPendingResolutionString}>
-                                {resolutions.map((res, i) => <option disabled={useShareableUrl && (res === "3840x2160" || res === "2160x3840" || res === "2160x2160")} key={`res-${i}`} value={res}>{res}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="label">Frame Rate</label>
-                            <select onChange={onFPSChange} value={fps} className="select"
-                                disabled={isPendingSetFps || isPendingFps}>
-                                <option value={60}>60 FPS</option>
-                                <option value={30}>30 FPS</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="label">Quality</label>
-                            <select onChange={onQualityChange} value={quality} className="select"
+                            <label className="label text-xs opacity-60 mb-1.5">Quality</label>
+                            <select onChange={onQualityChange} value={quality}
+                                className="select select-sm w-full bg-base-100"
                                 disabled={isPendingSetQuality || isPendingQuality}>
-                                <option disabled={useShareableUrl} value="very_high">{getRenderQualityLabel("very_high")}</option>
-                                <option value="high">{getRenderQualityLabel("high")}</option>
-                                <option value="medium">{getRenderQualityLabel("medium")}</option>
-                                <option value="low">{getRenderQualityLabel("low")}</option>
-                                <option value="very_low">{getRenderQualityLabel("very_low")}</option>
+                                {QUALITY_OPTIONS.map(opt => (
+                                    <option
+                                        key={opt.value}
+                                        disabled={useShareableUrl && opt.restrictShareable}
+                                        value={opt.value}
+                                    >
+                                        {getRenderQualityLabel(opt.value)}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     </div>
-                </fieldset>
-                <fieldset className="fieldset bg-base-100 border border-base-200 px-4 pb-4 rounded-box">
-                    <legend className="fieldset-legend">Shareable Link</legend>
-                    <span className="mb-4">Shareable links are currently only available for videos up to 10 minutes and with quality and resolution restrictions. </span>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Toggle rightLabel="Generate link" value={useShareableUrl} justifyBetween={false}
-                            onChange={event => setUseShareableUrl(event.target.checked)}
-                            disabled={!isShareableUrlEnabled()} />
-                        <ShareableUrl useShareableUrl={useShareableUrl} objectId={objectId} />
+
+                    {/* Info text */}
+                    <p className="text-xs opacity-40 leading-relaxed">
+                        Lower resolution and frame rate for faster exports. Quality affects file size but not export speed.
+                    </p>
+
+                    {/* Shareable Link */}
+                    <div className="bg-base-100 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium">Shareable Link</span>
+                            <Toggle rightLabel="" value={useShareableUrl} justifyBetween={false}
+                                onChange={event => setUseShareableUrl(event.target.checked)}
+                                disabled={!isShareableUrlEnabled()} />
+                        </div>
+                        {useShareableUrl && (
+                            <ShareableUrl useShareableUrl={useShareableUrl} objectId={objectId} />
+                        )}
+                        {!isShareableUrlEnabled() && (
+                            <p className="text-xs opacity-40">Available for videos up to 10 minutes.</p>
+                        )}
                     </div>
-                </fieldset>
-                <fieldset className="fieldset flex flex-row justify-end gap-2 pt-2">
-                    <Button disabled={isInitializing} onClick={onCancel} icon={XMarkIcon}>Cancel</Button>
-                    <Button className="btn-primary" disabled={!projectState} isLoading={isInitializing}
-                        onClick={onAddClicked} icon={QueueListIcon} >Queue render</Button>
-                </fieldset>
+                </div>
+            </div>
+
+            {/* Bottom action bar */}
+            <div className="px-4 py-3 border-t border-base-content/5 flex items-center justify-between">
+                <button onClick={onCancel} disabled={isInitializing}
+                    className="btn btn-sm btn-ghost gap-1">
+                    <XMarkIcon className="size-4" />
+                    Cancel
+                </button>
+                <Button
+                    className="btn-sm btn-primary gap-1"
+                    disabled={!projectState}
+                    isLoading={isInitializing}
+                    onClick={onAddClicked}
+                    icon={ArrowRightIcon}
+                >
+                    Export
+                </Button>
             </div>
         </div>
     )

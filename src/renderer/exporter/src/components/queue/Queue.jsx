@@ -1,3 +1,4 @@
+import { InboxIcon } from "@heroicons/react/24/outline"
 import PropTypes from "prop-types"
 import {
     useCallback,
@@ -62,18 +63,37 @@ export default function Queue({ isVisible }) {
     }, [totalProgress])
 
     return (
-        <div className={`h-full flex flex-col gap-2 ${isVisible ? "" : "hidden"}`}>
-            {isHintVisible && isRendering && <Hint dismiss={() => setIsHintVisible(false)}>
-                This is your render queue. You can close this window, your renders will continue in the background.
-            </Hint>}
-            <ul className="flex-1 overflow-y-auto overflow-x-hidden list bg-base-100 rounded-box shadow-md">
-                <li className="p-4 pb-2 flex flex-row items-center justify-between">
-                    <span className="text-xs opacity-60 tracking-wide">Render queue</span>
-                    {totalProgress !== null && (<progress className="progress progress-info w-42" value={totalProgress} max="100" />)}
-                </li>
-                {renders.map((item, i) => (<Row key={i} id={item.id} onProcessed={startNext} />))}
-            </ul>
-        </div >
+        <div className={`h-full flex flex-col ${isVisible ? "" : "hidden"}`}>
+            {isHintVisible && isRendering && <div className="px-3 pt-3">
+                <Hint dismiss={() => setIsHintVisible(false)}>
+                    You can close this window, renders will continue in the background.
+                </Hint>
+            </div>}
+
+            {totalProgress !== null && (
+                <div className="px-4 pt-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs opacity-60">Overall progress</span>
+                        <span className="text-xs font-medium">{Math.round(totalProgress)}%</span>
+                    </div>
+                    <progress className="progress progress-primary w-full h-1.5" value={totalProgress} max="100" />
+                </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto px-3 py-3">
+                {renders.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full opacity-40 gap-2">
+                        <InboxIcon className="size-10" />
+                        <span className="text-sm">No renders in queue</span>
+                    </div>
+                )}
+                {renders.length > 0 && (
+                    <ul className="list bg-base-100 rounded-lg overflow-hidden">
+                        {renders.map((item, i) => (<Row key={i} id={item.id} onProcessed={startNext} />))}
+                    </ul>
+                )}
+            </div>
+        </div>
     )
 }
 
