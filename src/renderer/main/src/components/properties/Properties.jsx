@@ -34,7 +34,8 @@ import { selectMaskIds } from "../../../../src/redux/maskSlice"
 import { selectOverlayIds } from "../../../../src/redux/overlaySlice"
 import {
     selectHasCameraVideo,
-    selectHasMicrophoneAudio
+    selectHasMicrophoneAudio,
+    selectHasSystemAudio
 } from "../../../../src/redux/projectSlice"
 import {
     selectOpenSection,
@@ -63,6 +64,8 @@ export default function Properties() {
 
     const hasCameraVideo = useSelector(selectHasCameraVideo)
     const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
+    const hasSystemAudio = useSelector(selectHasSystemAudio)
+    const hasAnyAudio = hasMicrophoneAudio || hasSystemAudio
     const clipAnimIds = useSelector(selectClipIds)
     const zoomAnimIds = useSelector(selectZoomIds)
     const maskAnimIds = useSelector(selectMaskIds)
@@ -138,10 +141,10 @@ export default function Properties() {
                                 <CursorArrowRippleIcon className="w-6 h-6" />
                             </button>
                         </li>
-                        {hasMicrophoneAudio && <li>
+                        {hasAnyAudio && <li>
                             <button onClick={() => open(TRANSCRIPT)}
                                 className={`tooltip tooltip-left ${openSection === TRANSCRIPT ? "menu-active" : ""}`}
-                                data-tip="Transcript">
+                                data-tip="Auto Transcribe">
                                 <ChatBubbleOvalLeftEllipsisIcon className="w-6 h-6" />
                             </button>
                         </li>}
@@ -187,7 +190,7 @@ export default function Properties() {
                         {openSection === CAMERA_RECORDING && hasCameraVideo && <CameraSection />}
                         {openSection === BACKGROUND && <BackgroundSection />}
                         {openSection === CURSOR && <CursorSection />}
-                        {openSection === TRANSCRIPT && hasMicrophoneAudio && <TranscriptSection />}
+                        {openSection === TRANSCRIPT && hasAnyAudio && <TranscriptSection />}
                         {openSection === CLIPS && <ClipSection />}
                         {openSection === CLICKS && <ClickSection />}
                         {openSection === ZOOMS && <ZoomSection />}

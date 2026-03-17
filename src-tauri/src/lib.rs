@@ -310,6 +310,8 @@ pub fn run() {
             commands::encoding::get_capturers,
             commands::encoding::set_capturer,
             commands::encoding::get_camera_video_buffer,
+            commands::encoding::get_screen_video_buffer,
+            commands::encoding::extract_audio_buffer,
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();

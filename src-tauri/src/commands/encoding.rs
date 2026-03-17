@@ -65,7 +65,8 @@ pub async fn set_encoder(app: AppHandle, encoder: String) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn get_capturers(_app: AppHandle, _force: Option<bool>) -> AppResult<Value> {
-    // On Windows, available capture methods
+    // Platform-specific capture methods
+    #[cfg(target_os = "windows")]
     let capturers = vec![
         serde_json::json!({
             "name": "GDI",
@@ -75,6 +76,49 @@ pub async fn get_capturers(_app: AppHandle, _force: Option<bool>) -> AppResult<V
         serde_json::json!({
             "name": "DirectX (DXGI)",
             "value": "dxgi",
+            "available": true
+        }),
+    ];
+
+    #[cfg(target_os = "macos")]
+    let capturers = vec![
+        serde_json::json!({
+            "name": "AVFoundation",
+            "value": "avfoundation",
+            "available": true
+        }),
+    ];
+
+    #[cfg(target_os = "linux")]
+    let capturers = {
+        let mut caps = vec![
+            serde_json::json!({
+                "name": "X11 Grab",
+                "value": "x11grab",
+                "available": true
+            }),
+        ];
+        // Check if PipeWire is available
+        if std::process::Command::new("pw-cli")
+            .arg("info")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            caps.push(serde_json::json!({
+                "name": "PipeWire",
+                "value": "pipewire",
+                "available": true
+            }));
+        }
+        caps
+    };
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let capturers = vec![
+        serde_json::json!({
+            "name": "X11 Grab",
+            "value": "x11grab",
             "available": true
         }),
     ];
@@ -114,4 +158,78 @@ pub async fn get_camera_video_buffer(app: AppHandle) -> AppResult<Vec<u8>> {
     } else {
         Ok(Vec::new())
     }
+}
+
+#[tauri::command]
+pub async fn get_screen_video_buffer(app: AppHandle) -> AppResult<Vec<u8>> {
+    use crate::state::AppState;
+    use std::sync::Mutex;
+
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+    let project_id = state
+        .project_id
+        .clone()
+        .ok_or(AppError::NoProjectOpen)?;
+    let screen_file = state.screen_video_file(&project_id);
+    drop(state);
+
+    if screen_file.exists() {
+        Ok(std::fs::read(&screen_file)?)
+    } else {
+        Ok(Vec::new())
+    }
+}
+
+/// Extract audio from a video file using FFmpeg sidecar and return as WAV buffer.
+/// This is more memory-efficient for large screen recordings since it only returns
+/// the audio track, not the full video.
+#[tauri::command]
+pub async fn extract_audio_buffer(app: AppHandle, source: String) -> AppResult<Vec<u8>> {
+    use crate::state::AppState;
+    use std::sync::Mutex;
+
+    let source_file = {
+        let state = app.state::<Mutex<AppState>>();
+        let state = state.lock().unwrap();
+        let project_id = state
+            .project_id
+            .clone()
+            .ok_or(AppError::NoProjectOpen)?;
+        match source.as_str() {
+            "screen" => state.screen_video_file(&project_id),
+            "camera" | "microphone" => state.camera_video_file(&project_id),
+            _ => return Err(AppError::General(format!("Unknown audio source: {}", source))),
+        }
+    };
+
+    if !source_file.exists() {
+        return Ok(Vec::new());
+    }
+
+    // Use FFmpeg to extract audio as WAV (PCM s16le, mono, 16kHz - optimal for Whisper)
+    let shell = app.shell();
+    let output = shell
+        .sidecar("ffmpeg")
+        .map_err(|e| AppError::General(e.to_string()))?
+        .args([
+            "-i",
+            source_file.to_str().unwrap_or_default(),
+            "-vn",           // no video
+            "-acodec", "pcm_s16le",
+            "-ar", "16000",  // 16kHz sample rate (Whisper expects this)
+            "-ac", "1",      // mono
+            "-f", "wav",     // WAV format
+            "pipe:1",        // output to stdout
+        ])
+        .output()
+        .await
+        .map_err(|e| AppError::General(format!("FFmpeg audio extraction failed: {}", e)))?;
+
+    if output.stdout.is_empty() {
+        // No audio track in the video
+        return Ok(Vec::new());
+    }
+
+    Ok(output.stdout)
 }

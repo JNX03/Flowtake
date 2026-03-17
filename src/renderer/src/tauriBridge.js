@@ -106,6 +106,8 @@ const COMMAND_MAP = {
     'get-capturers': 'get_capturers',
     'set-capturer': 'set_capturer',
     'get-camera-video-buffer': 'get_camera_video_buffer',
+    'get-screen-video-buffer': 'get_screen_video_buffer',
+    'extract-audio-buffer': 'extract_audio_buffer',
 };
 
 // Map IPC arguments from positional to named for Tauri invoke
@@ -169,6 +171,7 @@ const ARGS_MAP = {
     'set_capturer': (args) => ({ capturer: args[0] }),
     'get_window_at_point': (args) => ({ x: args[0], y: args[1] }),
     'get_projects': (args) => ({ page: args[0] }),
+    'extract_audio_buffer': (args) => ({ source: args[0] }),
 };
 
 // Store of event listeners for cleanup
