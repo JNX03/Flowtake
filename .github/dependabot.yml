@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # glib 0.18.x is a Linux-only transitive dependency (via wry -> gtk).
+      # Fix requires 0.20.0 which is incompatible with gtk 0.18.x.
+      # Not compiled on Windows (primary target platform).
+      - dependency-name: "glib"
+        versions: ["< 0.20.0"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
