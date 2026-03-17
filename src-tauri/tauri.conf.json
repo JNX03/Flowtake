@@ -53,7 +53,10 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "nsis": {
+        "installerHooks": "nsis-hooks.nsh"
+      }
     },
     "macOS": {
       "frameworks": [],
@@ -63,10 +66,15 @@
     },
     "linux": {
       "deb": {
-        "depends": ["ffmpeg", "libx11-6", "libxcb1", "libxrandr2", "libpulse0"]
+        "depends": ["ffmpeg", "libx11-6", "libxcb1", "libxrandr2", "libpulse0", "xdotool", "wmctrl"],
+        "postInstallScript": "scripts/linux-postinstall.sh"
       },
       "rpm": {
-        "depends": ["ffmpeg", "libX11", "libxcb", "libXrandr", "pulseaudio-libs"]
+        "depends": ["ffmpeg", "libX11", "libxcb", "libXrandr", "pulseaudio-libs", "xdotool", "wmctrl"],
+        "postInstallScript": "scripts/linux-postinstall.sh"
+      },
+      "appimage": {
+        "bundleMediaFramework": true
       }
     },
     "externalBin": [
