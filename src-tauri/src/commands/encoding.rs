@@ -1,15 +1,11 @@
 use crate::error::{AppError, AppResult};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
-use tauri_plugin_shell::ShellExt;
 
 #[tauri::command]
 pub async fn get_encoders(app: AppHandle, _force: Option<bool>) -> AppResult<Value> {
     // Query FFmpeg for available encoders
-    let shell = app.shell();
-    let output = shell
-        .sidecar("ffmpeg")
-        .map_err(|e| AppError::General(e.to_string()))?
+    let output = super::ffmpeg_from_app(&app)?
         .args(["-encoders", "-hide_banner"])
         .output()
         .await
@@ -208,10 +204,7 @@ pub async fn extract_audio_buffer(app: AppHandle, source: String) -> AppResult<V
     }
 
     // Use FFmpeg to extract audio as WAV (PCM s16le, mono, 16kHz - optimal for Whisper)
-    let shell = app.shell();
-    let output = shell
-        .sidecar("ffmpeg")
-        .map_err(|e| AppError::General(e.to_string()))?
+    let output = super::ffmpeg_from_app(&app)?
         .args([
             "-i",
             source_file.to_str().unwrap_or_default(),

@@ -35,14 +35,88 @@ pub async fn get_is_sentry_enabled() -> AppResult<bool> {
 
 #[tauri::command]
 pub async fn check_permissions() -> AppResult<Value> {
-    // On Windows, screen capture permissions are generally available
-    // On macOS, we'd need to check screen recording permission
     // Returns array format expected by PermissionsModal.jsx
-    Ok(serde_json::json!([
-        { "hasPermission": true, "label": "Screen Capture", "permission": "screenCapture", "path": "" },
-        { "hasPermission": true, "label": "Camera", "permission": "camera", "path": "" },
-        { "hasPermission": true, "label": "Microphone", "permission": "microphone", "path": "" }
-    ]))
+
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, screen capture permissions are generally available
+        Ok(serde_json::json!([
+            { "hasPermission": true, "label": "Screen Capture", "permission": "screenCapture", "path": "" },
+            { "hasPermission": true, "label": "Camera", "permission": "camera", "path": "" },
+            { "hasPermission": true, "label": "Microphone", "permission": "microphone", "path": "" }
+        ]))
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS, check screen recording permission by attempting a 1-pixel capture
+        let screen_capture_ok = std::process::Command::new("osascript")
+            .args(["-e", r#"tell application "System Events" to return true"#])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        Ok(serde_json::json!([
+            {
+                "hasPermission": screen_capture_ok,
+                "label": "Screen Capture",
+                "permission": "screenCapture",
+                "path": "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+            },
+            {
+                "hasPermission": true,
+                "label": "Camera",
+                "permission": "camera",
+                "path": "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"
+            },
+            {
+                "hasPermission": true,
+                "label": "Microphone",
+                "permission": "microphone",
+                "path": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+            }
+        ]))
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux, check if X11 or Wayland session and required tools
+        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "x11".to_string());
+        let is_wayland = session_type == "wayland";
+
+        // Check for required screen capture tools
+        let has_capture_tool = if is_wayland {
+            // Wayland needs pipewire for screen capture
+            std::process::Command::new("pw-cli")
+                .arg("info")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        } else {
+            // X11: check if DISPLAY is set (x11grab works with any X server)
+            std::env::var("DISPLAY").is_ok()
+        };
+
+        Ok(serde_json::json!([
+            {
+                "hasPermission": has_capture_tool,
+                "label": if is_wayland { "Screen Capture (PipeWire required)" } else { "Screen Capture" },
+                "permission": "screenCapture",
+                "path": ""
+            },
+            { "hasPermission": true, "label": "Camera", "permission": "camera", "path": "" },
+            { "hasPermission": true, "label": "Microphone", "permission": "microphone", "path": "" }
+        ]))
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Ok(serde_json::json!([
+            { "hasPermission": true, "label": "Screen Capture", "permission": "screenCapture", "path": "" },
+            { "hasPermission": true, "label": "Camera", "permission": "camera", "path": "" },
+            { "hasPermission": true, "label": "Microphone", "permission": "microphone", "path": "" }
+        ]))
+    }
 }
 
 #[tauri::command]

@@ -38,13 +38,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": ["nsis", "msi", "dmg", "app", "deb", "appimage", "rpm"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.png",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "resources": [
       "binaries/*"
@@ -54,13 +55,65 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": ""
     },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null,
+      "entitlements": "Entitlements.plist"
+    },
+    "linux": {
+      "deb": {
+        "depends": ["ffmpeg", "libx11-6", "libxcb1", "libxrandr2", "libpulse0"]
+      },
+      "rpm": {
+        "depends": ["ffmpeg", "libX11", "libxcb", "libXrandr", "pulseaudio-libs"]
+      }
+    },
     "externalBin": [
       "binaries/ffmpeg"
     ]
   },
   "plugins": {
     "shell": {
-      "open": true
+      "open": true,
+      "scope": [
+        {
+          "name": "ffmpeg-sidecar",
+          "sidecar": true,
+          "cmd": "binaries/ffmpeg",
+          "args": true
+        },
+        {
+          "name": "ffmpeg-system",
+          "cmd": "ffmpeg",
+          "args": true
+        },
+        {
+          "name": "osascript",
+          "cmd": "osascript",
+          "args": true
+        },
+        {
+          "name": "wmctrl",
+          "cmd": "wmctrl",
+          "args": true
+        },
+        {
+          "name": "xdotool",
+          "cmd": "xdotool",
+          "args": true
+        },
+        {
+          "name": "pw-cli",
+          "cmd": "pw-cli",
+          "args": true
+        },
+        {
+          "name": "which",
+          "cmd": "which",
+          "args": true
+        }
+      ]
     },
     "fs": {}
   }
