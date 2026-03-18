@@ -56,7 +56,7 @@ import Toasts from "./components/toasts/Toasts"
 
 // Lazy-load heavy components not needed at startup
 const Editor = lazy(() => import("./components/Editor"))
-const Settings = lazy(() => import("./components/settings/settings"))
+const Settings = lazy(() => import("./components/settings/Settings"))
 const CloseModal = lazy(() => import("./components/CloseModal"))
 const PermissionsModal = lazy(() => import("./components/PermissionsModal"))
 const ClickMenu = lazy(() => import("./components/contextMenus/ClickMenu"))
