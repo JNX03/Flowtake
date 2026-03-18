@@ -30,7 +30,7 @@ thiserror = "2"
 dirs = "6"
 zip = "8"
 glob = "0.3"
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.13", features = ["json", "stream"] }
 sha2 = "0.10"
 open = "5"
 log = "0.4"
@@ -42,7 +42,7 @@ base64 = "0.22"
 chrono = "0.4"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = [
+windows = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
     "Win32_UI_Input_KeyboardAndMouse",
@@ -50,3 +50,13 @@ windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi",
     "Win32_Storage_Xps",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.24"
+core-foundation = "0.10"
+objc = "0.2"
+cocoa = "0.26"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11 = { version = "2.21", features = ["xlib", "xrandr", "xrecord", "xinput"] }
+libpulse-binding = "2.28"
