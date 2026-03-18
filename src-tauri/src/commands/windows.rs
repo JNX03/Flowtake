@@ -71,8 +71,6 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
 
 /// Capture a desktop screenshot and save it to temp dir for the window/area picker background
 async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
-    use tauri_plugin_shell::ShellExt;
-
     let state = app.state::<std::sync::Mutex<AppState>>();
     let temp_dir = {
         let s = state.lock().unwrap();
@@ -82,14 +80,31 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
     let screenshot_path = temp_dir.join("picker_bg.png");
     let screenshot_str = screenshot_path.to_string_lossy().to_string();
 
-    let shell = app.shell();
-    let output = shell
-        .sidecar("ffmpeg")
-        .map_err(|e| AppError::General(format!("FFmpeg sidecar error: {}", e)))?
-        .args([
-            "-y", "-f", "gdigrab", "-framerate", "1", "-draw_mouse", "0",
-            "-i", "desktop", "-frames:v", "1", "-update", "true", &screenshot_str,
-        ])
+    // Platform-specific FFmpeg screen capture args
+    #[cfg(target_os = "windows")]
+    let args = vec![
+        "-y", "-f", "gdigrab", "-framerate", "1", "-draw_mouse", "0",
+        "-i", "desktop", "-frames:v", "1", "-update", "true", &screenshot_str,
+    ];
+
+    #[cfg(target_os = "macos")]
+    let args = vec![
+        "-y", "-f", "avfoundation", "-framerate", "1", "-capture_cursor", "0",
+        "-i", "0:none", "-frames:v", "1", "-update", "true", &screenshot_str,
+    ];
+
+    #[cfg(target_os = "linux")]
+    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+    #[cfg(target_os = "linux")]
+    let display_input = format!("{}+0,0", display);
+    #[cfg(target_os = "linux")]
+    let args = vec![
+        "-y", "-f", "x11grab", "-framerate", "1", "-draw_mouse", "0",
+        "-i", &display_input, "-frames:v", "1", "-update", "true", &screenshot_str,
+    ];
+
+    let output = super::ffmpeg_from_app(app)?
+        .args(&args)
         .output()
         .await
         .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
@@ -165,151 +180,9 @@ pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
     // Get our own process ID to filter out our windows
     let our_pid = std::process::id();
 
-    // Use PowerShell to enumerate visible windows with their position and size
+    // Platform-specific window enumeration
     let output = tauri::async_runtime::spawn(async move {
-        // Build script with PID injected at the top as a PowerShell variable
-        let pid_line = format!("$appPid = [uint32]{}", our_pid);
-        let ps_script = format!("{}\n{}", pid_line, r#"
-# Collect entire process tree (flowtake.exe + WebView2 child processes)
-$allPids = New-Object 'System.Collections.Generic.HashSet[uint32]'
-[void]$allPids.Add($appPid)
-$procs = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId 2>$null
-if ($procs) {
-    # Find children recursively (up to 3 levels for WebView2)
-    for ($i = 0; $i -lt 3; $i++) {
-        $newPids = @()
-        foreach ($p in $procs) {
-            if ($allPids.Contains([uint32]$p.ParentProcessId) -and -not $allPids.Contains([uint32]$p.ProcessId)) {
-                $newPids += [uint32]$p.ProcessId
-            }
-        }
-        if ($newPids.Count -eq 0) { break }
-        foreach ($np in $newPids) { [void]$allPids.Add($np) }
-    }
-}
-$pidArray = [uint32[]]@($allPids)
-
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-using System.Collections.Generic;
-using System.Text;
-
-public class WinEnum {
-    [DllImport("user32.dll")]
-    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    public static extern bool IsWindowVisible(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    public static extern int GetWindowTextLength(IntPtr hWnd);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-    [DllImport("user32.dll")]
-    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("dwmapi.dll")]
-    public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
-
-    [DllImport("user32.dll")]
-    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-
-    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RECT {
-        public int Left, Top, Right, Bottom;
-    }
-
-    public static List<Dictionary<string, object>> GetVisibleWindows(uint[] excludePids) {
-        // NOTE: No SetProcessDpiAwareness - coordinates stay in logical/virtualized pixels
-        // matching FFmpeg gdigrab which is also DPI-unaware
-        var pidSet = new HashSet<uint>(excludePids);
-        var result = new List<Dictionary<string, object>>();
-        EnumWindows((hWnd, lParam) => {
-            if (!IsWindowVisible(hWnd)) return true;
-            int len = GetWindowTextLength(hWnd);
-            if (len == 0) return true;
-
-            // Skip cloaked windows
-            int cloaked = 0;
-            DwmGetWindowAttribute(hWnd, 14, out cloaked, sizeof(int));
-            if (cloaked != 0) return true;
-
-            // Skip any window belonging to Flowtake process tree
-            uint pid = 0;
-            GetWindowThreadProcessId(hWnd, out pid);
-            if (pidSet.Contains(pid)) return true;
-
-            StringBuilder sb = new StringBuilder(len + 1);
-            GetWindowText(hWnd, sb, sb.Capacity);
-            string title = sb.ToString();
-
-            if (string.IsNullOrEmpty(title)) return true;
-
-            // Skip known system windows
-            if (title == "Program Manager") return true;
-
-            RECT rect;
-            GetWindowRect(hWnd, out rect);
-            int w = rect.Right - rect.Left;
-            int h = rect.Bottom - rect.Top;
-            if (w <= 0 || h <= 0) return true;
-
-            var dict = new Dictionary<string, object>();
-            dict["name"] = title;
-            dict["id"] = hWnd.ToInt64().ToString();
-            dict["type"] = "window";
-            dict["x"] = rect.Left;
-            dict["y"] = rect.Top;
-            dict["width"] = w;
-            dict["height"] = h;
-            result.Add(dict);
-            return true;
-        }, IntPtr.Zero);
-        return result;
-    }
-}
-"@
-
-$windows = [WinEnum]::GetVisibleWindows($pidArray)
-if ($windows -eq $null) { $windows = @() }
-ConvertTo-Json -InputObject @($windows) -Depth 3
-"#);
-
-        #[cfg(target_os = "windows")]
-        let output = {
-            use std::os::windows::process::CommandExt;
-            std::process::Command::new("powershell")
-                .args(["-NoProfile", "-Command", &ps_script])
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .output()
-        };
-        #[cfg(not(target_os = "windows"))]
-        let output = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-Command", &ps_script])
-            .output();
-
-        match output {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                log::info!("[get_windows] PowerShell stdout length: {}", stdout.len());
-                if stdout.trim().is_empty() {
-                    return Value::Array(vec![]);
-                }
-                serde_json::from_str::<Value>(&stdout).unwrap_or_else(|e| {
-                    log::error!("[get_windows] JSON parse error: {}", e);
-                    Value::Array(vec![])
-                })
-            }
-            Err(e) => {
-                log::error!("[get_windows] PowerShell execution error: {}", e);
-                Value::Array(vec![])
-            }
-        }
+        enumerate_windows_platform(our_pid)
     })
     .await
     .unwrap_or(Value::Array(vec![]));
@@ -615,9 +488,391 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
         Ok(found.unwrap_or(Value::Null))
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        let _ = (app, x, y);
+        let _ = (_app, x, y);
+        // On macOS, use the window list from enumerate_windows and find by point
+        let windows = enumerate_windows_platform(std::process::id());
+        if let Value::Array(wins) = windows {
+            for w in wins {
+                let wx = w.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let wy = w.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let ww = w.get("width").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let wh = w.get("height").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                if x >= wx && x < wx + ww && y >= wy && y < wy + wh {
+                    return Ok(w);
+                }
+            }
+        }
         Ok(Value::Null)
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (_app, x, y);
+        // On Linux, use the window list from enumerate_windows and find by point
+        let windows = enumerate_windows_platform(std::process::id());
+        if let Value::Array(wins) = windows {
+            for w in wins {
+                let wx = w.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let wy = w.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let ww = w.get("width").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                let wh = w.get("height").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                if x >= wx && x < wx + ww && y >= wy && y < wy + wh {
+                    return Ok(w);
+                }
+            }
+        }
+        Ok(Value::Null)
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = (_app, x, y);
+        Ok(Value::Null)
+    }
+}
+
+/// Platform-specific window enumeration
+fn enumerate_windows_platform(our_pid: u32) -> Value {
+    #[cfg(target_os = "windows")]
+    {
+        enumerate_windows_windows(our_pid)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        enumerate_windows_macos(our_pid)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        enumerate_windows_linux(our_pid)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = our_pid;
+        Value::Array(vec![])
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn enumerate_windows_windows(our_pid: u32) -> Value {
+    let pid_line = format!("$appPid = [uint32]{}", our_pid);
+    let ps_script = format!("{}\n{}", pid_line, r#"
+$allPids = New-Object 'System.Collections.Generic.HashSet[uint32]'
+[void]$allPids.Add($appPid)
+$procs = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId 2>$null
+if ($procs) {
+    for ($i = 0; $i -lt 3; $i++) {
+        $newPids = @()
+        foreach ($p in $procs) {
+            if ($allPids.Contains([uint32]$p.ParentProcessId) -and -not $allPids.Contains([uint32]$p.ProcessId)) {
+                $newPids += [uint32]$p.ProcessId
+            }
+        }
+        if ($newPids.Count -eq 0) { break }
+        foreach ($np in $newPids) { [void]$allPids.Add($np) }
+    }
+}
+$pidArray = [uint32[]]@($allPids)
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.Text;
+
+public class WinEnum {
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
+    public static List<Dictionary<string, object>> GetVisibleWindows(uint[] excludePids) {
+        var pidSet = new HashSet<uint>(excludePids);
+        var result = new List<Dictionary<string, object>>();
+        EnumWindows((hWnd, lParam) => {
+            if (!IsWindowVisible(hWnd)) return true;
+            int len = GetWindowTextLength(hWnd);
+            if (len == 0) return true;
+            int cloaked = 0;
+            DwmGetWindowAttribute(hWnd, 14, out cloaked, sizeof(int));
+            if (cloaked != 0) return true;
+            uint pid = 0;
+            GetWindowThreadProcessId(hWnd, out pid);
+            if (pidSet.Contains(pid)) return true;
+            StringBuilder sb = new StringBuilder(len + 1);
+            GetWindowText(hWnd, sb, sb.Capacity);
+            string title = sb.ToString();
+            if (string.IsNullOrEmpty(title)) return true;
+            if (title == "Program Manager") return true;
+            RECT rect;
+            GetWindowRect(hWnd, out rect);
+            int w = rect.Right - rect.Left;
+            int h = rect.Bottom - rect.Top;
+            if (w <= 0 || h <= 0) return true;
+            var dict = new Dictionary<string, object>();
+            dict["name"] = title;
+            dict["id"] = hWnd.ToInt64().ToString();
+            dict["type"] = "window";
+            dict["x"] = rect.Left;
+            dict["y"] = rect.Top;
+            dict["width"] = w;
+            dict["height"] = h;
+            result.Add(dict);
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+}
+"@
+
+$windows = [WinEnum]::GetVisibleWindows($pidArray)
+if ($windows -eq $null) { $windows = @() }
+ConvertTo-Json -InputObject @($windows) -Depth 3
+"#);
+
+    use std::os::windows::process::CommandExt;
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-Command", &ps_script])
+        .creation_flags(0x08000000)
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+            log::info!("[get_windows] PowerShell stdout length: {}", stdout.len());
+            if stdout.trim().is_empty() {
+                return Value::Array(vec![]);
+            }
+            serde_json::from_str::<Value>(&stdout).unwrap_or_else(|e| {
+                log::error!("[get_windows] JSON parse error: {}", e);
+                Value::Array(vec![])
+            })
+        }
+        Err(e) => {
+            log::error!("[get_windows] PowerShell execution error: {}", e);
+            Value::Array(vec![])
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn enumerate_windows_macos(our_pid: u32) -> Value {
+    // Use AppleScript/CGWindowListCopyWindowInfo via osascript for window enumeration
+    let script = format!(
+        r#"tell application "System Events"
+    set windowList to {{}}
+    repeat with proc in (every process whose background only is false)
+        try
+            if unix id of proc is not {} then
+                repeat with w in (every window of proc)
+                    try
+                        set winName to name of w
+                        set winPos to position of w
+                        set winSize to size of w
+                        set end of windowList to "{{\"name\":\"" & winName & "\",\"id\":\"" & (id of w as string) & "\",\"type\":\"window\",\"x\":" & (item 1 of winPos as string) & ",\"y\":" & (item 2 of winPos as string) & ",\"width\":" & (item 1 of winSize as string) & ",\"height\":" & (item 2 of winSize as string) & "}}"
+                    end try
+                end repeat
+            end if
+        end try
+    end repeat
+    return "[" & my joinList(windowList, ",") & "]"
+end tell
+
+on joinList(theList, delimiter)
+    set oldDelimiters to AppleScript's text item delimiters
+    set AppleScript's text item delimiters to delimiter
+    set theString to theList as string
+    set AppleScript's text item delimiters to oldDelimiters
+    return theString
+end joinList"#,
+        our_pid
+    );
+
+    let output = std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if stdout.is_empty() {
+                return Value::Array(vec![]);
+            }
+            serde_json::from_str::<Value>(&stdout).unwrap_or_else(|e| {
+                log::error!("[get_windows] AppleScript JSON parse error: {}", e);
+                Value::Array(vec![])
+            })
+        }
+        Err(e) => {
+            log::error!("[get_windows] AppleScript execution error: {}", e);
+            Value::Array(vec![])
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn enumerate_windows_linux(our_pid: u32) -> Value {
+    // Use wmctrl -lGp for window enumeration (widely available on X11)
+    // Format: <wid> <desktop> <pid> <x> <y> <w> <h> <hostname> <title>
+    let output = std::process::Command::new("wmctrl")
+        .args(["-lGp"])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+            let mut windows = Vec::new();
+
+            for line in stdout.lines() {
+                let parts: Vec<&str> = line.splitn(9, char::is_whitespace).collect();
+                let parts: Vec<&str> = parts.into_iter().filter(|s| !s.is_empty()).collect();
+                if parts.len() < 8 {
+                    continue;
+                }
+
+                let wid = parts[0];
+                let pid: u32 = parts[2].parse().unwrap_or(0);
+                if pid == our_pid {
+                    continue;
+                }
+
+                let x: i64 = parts[3].parse().unwrap_or(0);
+                let y: i64 = parts[4].parse().unwrap_or(0);
+                let w: i64 = parts[5].parse().unwrap_or(0);
+                let h: i64 = parts[6].parse().unwrap_or(0);
+                // Title is everything after hostname (parts[7..])
+                let title = if parts.len() >= 9 {
+                    parts[8..].join(" ")
+                } else {
+                    parts[7].to_string()
+                };
+
+                if w <= 0 || h <= 0 || title.is_empty() {
+                    continue;
+                }
+
+                windows.push(serde_json::json!({
+                    "name": title,
+                    "id": wid,
+                    "type": "window",
+                    "x": x,
+                    "y": y,
+                    "width": w,
+                    "height": h
+                }));
+            }
+
+            Value::Array(windows)
+        }
+        Err(e) => {
+            log::warn!("[get_windows] wmctrl not available: {}. Trying xdotool...", e);
+            // Fallback: try xdotool
+            enumerate_windows_linux_xdotool(our_pid)
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn enumerate_windows_linux_xdotool(our_pid: u32) -> Value {
+    let output = std::process::Command::new("xdotool")
+        .args(["search", "--onlyvisible", "--name", ""])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+            let mut windows = Vec::new();
+
+            for wid_str in stdout.lines() {
+                let wid_str = wid_str.trim();
+                if wid_str.is_empty() {
+                    continue;
+                }
+
+                // Get window PID
+                let pid_output = std::process::Command::new("xdotool")
+                    .args(["getwindowpid", wid_str])
+                    .output();
+                if let Ok(pid_out) = pid_output {
+                    let pid: u32 = String::from_utf8_lossy(&pid_out.stdout)
+                        .trim()
+                        .parse()
+                        .unwrap_or(0);
+                    if pid == our_pid {
+                        continue;
+                    }
+                }
+
+                // Get window name
+                let name_output = std::process::Command::new("xdotool")
+                    .args(["getwindowname", wid_str])
+                    .output();
+                let title = if let Ok(name_out) = name_output {
+                    String::from_utf8_lossy(&name_out.stdout).trim().to_string()
+                } else {
+                    continue;
+                };
+
+                if title.is_empty() {
+                    continue;
+                }
+
+                // Get window geometry
+                let geom_output = std::process::Command::new("xdotool")
+                    .args(["getwindowgeometry", "--shell", wid_str])
+                    .output();
+
+                if let Ok(geom_out) = geom_output {
+                    let geom_str = String::from_utf8_lossy(&geom_out.stdout).to_string();
+                    let mut x: i64 = 0;
+                    let mut y: i64 = 0;
+                    let mut w: i64 = 0;
+                    let mut h: i64 = 0;
+
+                    for line in geom_str.lines() {
+                        if let Some(val) = line.strip_prefix("X=") {
+                            x = val.parse().unwrap_or(0);
+                        } else if let Some(val) = line.strip_prefix("Y=") {
+                            y = val.parse().unwrap_or(0);
+                        } else if let Some(val) = line.strip_prefix("WIDTH=") {
+                            w = val.parse().unwrap_or(0);
+                        } else if let Some(val) = line.strip_prefix("HEIGHT=") {
+                            h = val.parse().unwrap_or(0);
+                        }
+                    }
+
+                    if w > 0 && h > 0 {
+                        windows.push(serde_json::json!({
+                            "name": title,
+                            "id": wid_str,
+                            "type": "window",
+                            "x": x,
+                            "y": y,
+                            "width": w,
+                            "height": h
+                        }));
+                    }
+                }
+            }
+
+            Value::Array(windows)
+        }
+        Err(e) => {
+            log::error!("[get_windows] xdotool also not available: {}", e);
+            Value::Array(vec![])
+        }
     }
 }

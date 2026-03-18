@@ -63,6 +63,14 @@ impl MouseTracker {
             {
                 Self::run_hook_loop(events, is_running, offset_x, offset_y);
             }
+            #[cfg(target_os = "macos")]
+            {
+                Self::run_macos_loop(events, is_running, offset_x, offset_y);
+            }
+            #[cfg(target_os = "linux")]
+            {
+                Self::run_linux_loop(events, is_running, offset_x, offset_y);
+            }
         }));
     }
 
@@ -412,5 +420,180 @@ impl MouseTracker {
         }
 
         unsafe { CallNextHookEx(None, n_code, w_param, l_param) }
+    }
+}
+
+// macOS mouse tracking implementation using polling (CGEvent-based)
+#[cfg(target_os = "macos")]
+impl MouseTracker {
+    fn run_macos_loop(
+        events: Arc<Mutex<Vec<MouseEvent>>>,
+        is_running: Arc<Mutex<bool>>,
+        offset_x: i32,
+        offset_y: i32,
+    ) {
+        use core_graphics::event::CGEvent;
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
+        log::info!(
+            "[MouseTracker] macOS mouse tracking started (offset: {}, {})",
+            offset_x, offset_y
+        );
+
+        let poll_interval = std::time::Duration::from_millis(50); // ~20Hz polling
+        let mut last_x: i32 = -1;
+        let mut last_y: i32 = -1;
+        let mut last_buttons: u32 = 0;
+
+        while *is_running.lock().unwrap() {
+            let start = std::time::Instant::now();
+
+            // Get mouse location from CGEvent
+            if let Ok(source) = CGEventSource::new(CGEventSourceStateID::CombinedSessionState) {
+                if let Ok(event) = CGEvent::new(source) {
+                    let location = event.location();
+                    let x = location.x as i32 - offset_x;
+                    let y = location.y as i32 - offset_y;
+                    let now = chrono::Utc::now().timestamp_millis();
+
+                    // Check button state via NSEvent
+                    let buttons = unsafe {
+                        // NSEvent.pressedMouseButtons
+                        let cls: *const objc::runtime::Object =
+                            objc::runtime::Class::get("NSEvent")
+                                .map(|c| c as *const _ as *const objc::runtime::Object)
+                                .unwrap_or(std::ptr::null());
+                        if !cls.is_null() {
+                            let result: u64 = objc::msg_send![cls, pressedMouseButtons];
+                            result as u32
+                        } else {
+                            0u32
+                        }
+                    };
+
+                    // Detect button press/release changes
+                    let left_now = buttons & 1 != 0;
+                    let left_was = last_buttons & 1 != 0;
+                    let right_now = buttons & 2 != 0;
+                    let right_was = last_buttons & 2 != 0;
+
+                    if left_now && !left_was {
+                        events.lock().unwrap().push(MouseEvent {
+                            x, y, timestamp: now,
+                            event_type: "mousedown".to_string(),
+                            button: "left".to_string(),
+                            cursor: "default".to_string(),
+                        });
+                    } else if !left_now && left_was {
+                        events.lock().unwrap().push(MouseEvent {
+                            x, y, timestamp: now,
+                            event_type: "mouseup".to_string(),
+                            button: "left".to_string(),
+                            cursor: "default".to_string(),
+                        });
+                    }
+                    if right_now && !right_was {
+                        events.lock().unwrap().push(MouseEvent {
+                            x, y, timestamp: now,
+                            event_type: "mousedown".to_string(),
+                            button: "right".to_string(),
+                            cursor: "default".to_string(),
+                        });
+                    } else if !right_now && right_was {
+                        events.lock().unwrap().push(MouseEvent {
+                            x, y, timestamp: now,
+                            event_type: "mouseup".to_string(),
+                            button: "right".to_string(),
+                            cursor: "default".to_string(),
+                        });
+                    }
+
+                    // Track movement
+                    if x != last_x || y != last_y {
+                        events.lock().unwrap().push(MouseEvent {
+                            x, y, timestamp: now,
+                            event_type: "mousemove".to_string(),
+                            button: "".to_string(),
+                            cursor: "default".to_string(),
+                        });
+                        last_x = x;
+                        last_y = y;
+                    }
+
+                    last_buttons = buttons;
+                }
+            }
+
+            let elapsed = start.elapsed();
+            if elapsed < poll_interval {
+                std::thread::sleep(poll_interval - elapsed);
+            }
+        }
+
+        log::info!("[MouseTracker] macOS mouse tracking stopped");
+    }
+}
+
+// Linux mouse tracking implementation using polling /dev/input or xdotool
+#[cfg(target_os = "linux")]
+impl MouseTracker {
+    fn run_linux_loop(
+        events: Arc<Mutex<Vec<MouseEvent>>>,
+        is_running: Arc<Mutex<bool>>,
+        offset_x: i32,
+        offset_y: i32,
+    ) {
+        log::info!(
+            "[MouseTracker] Linux mouse tracking started (offset: {}, {})",
+            offset_x, offset_y
+        );
+
+        let poll_interval = std::time::Duration::from_millis(50); // ~20Hz polling
+        let mut last_x: i32 = -1;
+        let mut last_y: i32 = -1;
+
+        while *is_running.lock().unwrap() {
+            let start = std::time::Instant::now();
+
+            // Get mouse location via xdotool getmouselocation
+            if let Ok(output) = std::process::Command::new("xdotool")
+                .args(["getmouselocation", "--shell"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let mut x: i32 = 0;
+                let mut y: i32 = 0;
+
+                for line in stdout.lines() {
+                    if let Some(val) = line.strip_prefix("X=") {
+                        x = val.parse().unwrap_or(0) - offset_x;
+                    } else if let Some(val) = line.strip_prefix("Y=") {
+                        y = val.parse().unwrap_or(0) - offset_y;
+                    }
+                }
+
+                let now = chrono::Utc::now().timestamp_millis();
+
+                if x != last_x || y != last_y {
+                    events.lock().unwrap().push(MouseEvent {
+                        x,
+                        y,
+                        timestamp: now,
+                        event_type: "mousemove".to_string(),
+                        button: "".to_string(),
+                        cursor: "default".to_string(),
+                    });
+                    last_x = x;
+                    last_y = y;
+                }
+            }
+
+            let elapsed = start.elapsed();
+            if elapsed < poll_interval {
+                std::thread::sleep(poll_interval - elapsed);
+            }
+        }
+
+        log::info!("[MouseTracker] Linux mouse tracking stopped");
     }
 }
