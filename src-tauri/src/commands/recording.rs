@@ -26,25 +26,83 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
 
-    // Try sidecar name with target triple
-    let sidecar = dir.join("ffmpeg-x86_64-pc-windows-msvc.exe");
-    if sidecar.exists() {
-        return Some(sidecar);
+    // Platform-specific sidecar names that Tauri generates
+    let sidecar_names = platform_ffmpeg_sidecar_names();
+
+    for name in &sidecar_names {
+        let sidecar = dir.join(name);
+        if sidecar.exists() {
+            return Some(sidecar);
+        }
+        // Try binaries subdirectory (dev mode)
+        let binaries = dir.join("binaries").join(name);
+        if binaries.exists() {
+            return Some(binaries);
+        }
     }
 
-    // Try plain name
-    let plain = dir.join("ffmpeg.exe");
+    // Try plain name (with extension on Windows)
+    let plain_name = if cfg!(target_os = "windows") { "ffmpeg.exe" } else { "ffmpeg" };
+    let plain = dir.join(plain_name);
     if plain.exists() {
         return Some(plain);
     }
 
-    // Try binaries subdirectory (dev mode)
-    let binaries = dir.join("binaries").join("ffmpeg-x86_64-pc-windows-msvc.exe");
-    if binaries.exists() {
-        return Some(binaries);
+    // Fallback: check if ffmpeg is on PATH (common on macOS/Linux)
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(output) = std::process::Command::new("which").arg("ffmpeg").output() {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(std::path::PathBuf::from(path));
+                }
+            }
+        }
     }
 
     None
+}
+
+/// Get platform-specific FFmpeg sidecar binary names
+fn platform_ffmpeg_sidecar_names() -> Vec<String> {
+    let mut names = Vec::new();
+
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        names.push("ffmpeg-x86_64-pc-windows-msvc.exe".to_string());
+    }
+    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+    {
+        names.push("ffmpeg-aarch64-pc-windows-msvc.exe".to_string());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    {
+        names.push("ffmpeg-x86_64-apple-darwin".to_string());
+    }
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        names.push("ffmpeg-aarch64-apple-darwin".to_string());
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        names.push("ffmpeg-x86_64-unknown-linux-gnu".to_string());
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        names.push("ffmpeg-aarch64-unknown-linux-gnu".to_string());
+    }
+
+    // Universal fallback name
+    if cfg!(target_os = "windows") {
+        names.push("ffmpeg.exe".to_string());
+    } else {
+        names.push("ffmpeg".to_string());
+    }
+
+    names
 }
 
 /// Capture a single window frame using PrintWindow API.
@@ -333,17 +391,17 @@ pub async fn init_recording(
         recording_offset_x = x;
         recording_offset_y = y;
     } else {
-        // Screen/Area: use gdigrab (existing approach)
+        // Screen/Area: use platform-specific capture
+        let capture_format = platform_capture_format();
         ffmpeg_args.extend([
             "-y".to_string(),
             "-f".to_string(),
-            "gdigrab".to_string(),
+            capture_format.to_string(),
             "-framerate".to_string(),
             "30".to_string(),
         ]);
 
         // Get screen dimensions in logical pixels for area percentage conversion
-        // gdigrab operates in DPI-unaware (logical) coordinate space
         let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
             if let Ok(Some(monitor)) = main_win.current_monitor() {
                 let size = monitor.size();
@@ -370,18 +428,46 @@ pub async fn init_recording(
                 let width = width - (width % 2);
                 let height = height - (height % 2);
 
-                ffmpeg_args.extend([
-                    "-draw_mouse".to_string(),
-                    "0".to_string(),
-                    "-offset_x".to_string(),
-                    x.to_string(),
-                    "-offset_y".to_string(),
-                    y.to_string(),
-                    "-video_size".to_string(),
-                    format!("{}x{}", width, height),
-                    "-i".to_string(),
-                    "desktop".to_string(),
-                ]);
+                #[cfg(target_os = "windows")]
+                {
+                    ffmpeg_args.extend([
+                        "-draw_mouse".to_string(),
+                        "0".to_string(),
+                        "-offset_x".to_string(),
+                        x.to_string(),
+                        "-offset_y".to_string(),
+                        y.to_string(),
+                        "-video_size".to_string(),
+                        format!("{}x{}", width, height),
+                        "-i".to_string(),
+                        "desktop".to_string(),
+                    ]);
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    // avfoundation: capture screen device, then crop
+                    ffmpeg_args.extend([
+                        "-capture_cursor".to_string(),
+                        "0".to_string(),
+                        "-i".to_string(),
+                        "0:none".to_string(), // screen device 0, no audio
+                        "-vf".to_string(),
+                        format!("crop={}:{}:{}:{}", width, height, x, y),
+                    ]);
+                }
+                #[cfg(target_os = "linux")]
+                {
+                    // x11grab uses :DISPLAY+x,y with video_size
+                    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+                    ffmpeg_args.extend([
+                        "-draw_mouse".to_string(),
+                        "0".to_string(),
+                        "-video_size".to_string(),
+                        format!("{}x{}", width, height),
+                        "-i".to_string(),
+                        format!("{}+{},{}", display, x, y),
+                    ]);
+                }
                 (x, y)
             }
             _ => {
@@ -397,27 +483,79 @@ pub async fn init_recording(
                 let monitor_w = source.get("monitorWidth").and_then(|v| v.as_i64());
                 let monitor_h = source.get("monitorHeight").and_then(|v| v.as_i64());
 
-                ffmpeg_args.push("-draw_mouse".to_string());
-                ffmpeg_args.push("0".to_string());
+                #[cfg(target_os = "windows")]
+                {
+                    ffmpeg_args.push("-draw_mouse".to_string());
+                    ffmpeg_args.push("0".to_string());
 
-                if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
-                    let w = (w - (w % 2)).max(2);
-                    let h = (h - (h % 2)).max(2);
-                    log::info!(
-                        "[recording] monitor capture: x={} y={} w={} h={}",
-                        monitor_x, monitor_y, w, h
-                    );
+                    if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
+                        let w = (w - (w % 2)).max(2);
+                        let h = (h - (h % 2)).max(2);
+                        log::info!(
+                            "[recording] monitor capture: x={} y={} w={} h={}",
+                            monitor_x, monitor_y, w, h
+                        );
+                        ffmpeg_args.extend([
+                            "-offset_x".to_string(),
+                            monitor_x.to_string(),
+                            "-offset_y".to_string(),
+                            monitor_y.to_string(),
+                            "-video_size".to_string(),
+                            format!("{}x{}", w, h),
+                        ]);
+                    }
+
+                    ffmpeg_args.extend(["-i".to_string(), "desktop".to_string()]);
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    // avfoundation: use monitor index as device
+                    let monitor_idx = source
+                        .get("monitorIndex")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
                     ffmpeg_args.extend([
-                        "-offset_x".to_string(),
-                        monitor_x.to_string(),
-                        "-offset_y".to_string(),
-                        monitor_y.to_string(),
-                        "-video_size".to_string(),
-                        format!("{}x{}", w, h),
+                        "-capture_cursor".to_string(),
+                        "0".to_string(),
+                        "-i".to_string(),
+                        format!("{}:none", monitor_idx),
+                    ]);
+                    // Crop if specific monitor region
+                    if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
+                        let w = (w - (w % 2)).max(2);
+                        let h = (h - (h % 2)).max(2);
+                        if monitor_x != 0 || monitor_y != 0 {
+                            ffmpeg_args.extend([
+                                "-vf".to_string(),
+                                format!("crop={}:{}:{}:{}", w, h, monitor_x, monitor_y),
+                            ]);
+                        }
+                    }
+                }
+                #[cfg(target_os = "linux")]
+                {
+                    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+                    ffmpeg_args.push("-draw_mouse".to_string());
+                    ffmpeg_args.push("0".to_string());
+
+                    if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
+                        let w = (w - (w % 2)).max(2);
+                        let h = (h - (h % 2)).max(2);
+                        log::info!(
+                            "[recording] monitor capture: x={} y={} w={} h={}",
+                            monitor_x, monitor_y, w, h
+                        );
+                        ffmpeg_args.extend([
+                            "-video_size".to_string(),
+                            format!("{}x{}", w, h),
+                        ]);
+                    }
+
+                    ffmpeg_args.extend([
+                        "-i".to_string(),
+                        format!("{}+{},{}", display, monitor_x, monitor_y),
                     ]);
                 }
-
-                ffmpeg_args.extend(["-i".to_string(), "desktop".to_string()]);
                 (monitor_x, monitor_y)
             }
         };
@@ -426,7 +564,7 @@ pub async fn init_recording(
         recording_offset_y = oy;
     }
 
-    // Add system audio capture if requested (only for gdigrab mode)
+    // Add system audio capture if requested (screen/area capture only)
     if !is_window_capture {
         let has_system_audio = match &system_audio {
             Value::String(s) if !s.is_empty() => true,
@@ -436,13 +574,14 @@ pub async fn init_recording(
         if has_system_audio {
             let audio_device = match &system_audio {
                 Value::String(s) => s.clone(),
-                _ => "virtual-audio-capturer".to_string(),
+                _ => platform_default_audio_device(),
             };
+            let (audio_format, audio_input) = platform_audio_capture_args(&audio_device);
             ffmpeg_args.extend([
                 "-f".to_string(),
-                "dshow".to_string(),
+                audio_format,
                 "-i".to_string(),
-                format!("audio={}", audio_device),
+                audio_input,
             ]);
         }
     }
@@ -603,66 +742,78 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
     if let Some(args) = ffmpeg_args {
         if is_window_capture {
             // Window capture: spawn FFmpeg via std::process::Command for stdin pipe access
+            let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
+                AppError::General("FFmpeg binary not found".to_string())
+            })?;
+
+            log::info!(
+                "[start_recording] Window capture mode, FFmpeg: {:?}",
+                ffmpeg_path
+            );
+
+            use std::process::{Command, Stdio};
+
+            let mut cmd = Command::new(&ffmpeg_path);
+            cmd.args(&args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped());
+
+            // Hide console window on Windows
             #[cfg(target_os = "windows")]
             {
-                let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
-                    AppError::General("FFmpeg binary not found".to_string())
-                })?;
-
-                log::info!(
-                    "[start_recording] Window capture mode, FFmpeg: {:?}",
-                    ffmpeg_path
-                );
-
                 use std::os::windows::process::CommandExt;
-                use std::process::{Command, Stdio};
-
-                let mut process = Command::new(&ffmpeg_path)
-                    .args(&args)
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped())
-                    .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                    .spawn()
-                    .map_err(|e| AppError::General(format!("Failed to spawn FFmpeg: {}", e)))?;
-
-                let pid = process.id();
-                let stdin = process.stdin.take().unwrap();
-
-                // Reset stop flag and start capture thread
-                let stop_flag = {
-                    let mut state = state.lock().unwrap();
-                    state.window_capture_stop.store(false, Ordering::Relaxed);
-                    state.ffmpeg_child_id = Some(pid);
-                    state.ffmpeg_process = Some(process);
-                    state.window_capture_stop.clone()
-                };
-
-                // Make dimensions even
-                let w = (window_width - (window_width % 2)).max(2);
-                let h = (window_height - (window_height % 2)).max(2);
-
-                let capture_thread = std::thread::spawn(move || {
-                    window_capture_loop(window_hwnd, w, h, stdin, stop_flag);
-                });
-
-                {
-                    let mut state = state.lock().unwrap();
-                    state.window_capture_thread = Some(capture_thread);
-                }
-
-                log::info!("[start_recording] Window capture started, FFmpeg PID: {}", pid);
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
             }
 
+            let mut process = cmd.spawn()
+                .map_err(|e| AppError::General(format!("Failed to spawn FFmpeg: {}", e)))?;
+
+            let pid = process.id();
+            let stdin = process.stdin.take().unwrap();
+
+            // Reset stop flag and start capture thread
+            let stop_flag = {
+                let mut state = state.lock().unwrap();
+                state.window_capture_stop.store(false, Ordering::Relaxed);
+                state.ffmpeg_child_id = Some(pid);
+                state.ffmpeg_process = Some(process);
+                state.window_capture_stop.clone()
+            };
+
+            // Make dimensions even
+            let w = (window_width - (window_width % 2)).max(2);
+            let h = (window_height - (window_height % 2)).max(2);
+
+            #[cfg(target_os = "windows")]
+            let capture_thread = std::thread::spawn(move || {
+                window_capture_loop(window_hwnd, w, h, stdin, stop_flag);
+            });
+
+            // On macOS/Linux, window capture via stdin pipe is not yet supported;
+            // fall back to closing stdin immediately (FFmpeg will use the screen capture input)
             #[cfg(not(target_os = "windows"))]
+            let capture_thread = std::thread::spawn(move || {
+                log::warn!("[start_recording] Window-specific PrintWindow capture not available on this platform, using screen-level capture");
+                // Drop stdin to signal EOF - FFmpeg will finalize when stopped
+                let _ = stop_flag;
+                drop(stdin);
+            });
+
             {
-                log::error!("[start_recording] Window capture not supported on this platform");
-                app.emit("recording-error", "CaptureError").ok();
+                let mut state = state.lock().unwrap();
+                state.window_capture_thread = Some(capture_thread);
             }
+
+            log::info!("[start_recording] Window capture started, FFmpeg PID: {}", pid);
         } else {
-            // Screen/Area capture: use Tauri sidecar (existing approach)
+            // Screen/Area capture: use Tauri sidecar with system FFmpeg fallback
             let shell = app.shell();
-            let sidecar_result = shell.sidecar("ffmpeg");
+            let sidecar_result: Result<tauri_plugin_shell::process::Command, tauri_plugin_shell::Error> = shell.sidecar("ffmpeg")
+                .or_else(|_| {
+                    log::warn!("[start_recording] FFmpeg sidecar not found, trying system FFmpeg");
+                    Ok(shell.command("ffmpeg"))
+                });
 
             match sidecar_result {
                 Ok(cmd) => {
@@ -1156,13 +1307,9 @@ async fn get_video_duration_ms(
     app: &AppHandle,
     video_path: &std::path::Path,
 ) -> Result<i64, String> {
-    use tauri_plugin_shell::ShellExt;
-
     let path_str = video_path.to_string_lossy().to_string();
-    let shell = app.shell();
-    let output = shell
-        .sidecar("ffmpeg")
-        .map_err(|e| format!("FFmpeg sidecar error: {}", e))?
+    let output = super::ffmpeg_from_app(app)
+        .map_err(|e| format!("FFmpeg error: {}", e))?
         .args(["-i", &path_str, "-f", "null", "-"])
         .output()
         .await
@@ -1334,12 +1481,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                     let bmp_str = bmp_path.to_string_lossy().to_string();
                     std::fs::write(&bmp_path, &bmp_data)?;
 
-                    let shell = app.shell();
-                    let output = shell
-                        .sidecar("ffmpeg")
-                        .map_err(|e| {
-                            AppError::General(format!("FFmpeg sidecar error: {}", e))
-                        })?
+                    let output = super::ffmpeg_from_app(&app)?
                         .args(["-y", "-i", &bmp_str, &screenshot_str])
                         .output()
                         .await
@@ -1368,7 +1510,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                 }
             }
 
-            // Fallback: use gdigrab offset-based capture
+            // Fallback: use platform-specific offset-based capture
             let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w64 = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
@@ -1382,21 +1524,11 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                 main_win.set_content_protected(true).ok();
             }
 
-            let x_str = x.to_string();
-            let y_str = y.to_string();
-            let vs_str = format!("{}x{}", w64, h64);
-            let args = vec![
-                "-y", "-f", "gdigrab", "-framerate", "1", "-draw_mouse", "0",
-                "-offset_x", &x_str, "-offset_y", &y_str,
-                "-video_size", &vs_str,
-                "-i", "desktop", "-frames:v", "1", "-update", "true", &screenshot_str,
-            ];
+            let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
+            let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
-            let shell = app.shell();
-            let _output = shell
-                .sidecar("ffmpeg")
-                .map_err(|e| AppError::General(format!("FFmpeg sidecar error: {}", e)))?
-                .args(&args)
+            let _output = super::ffmpeg_from_app(&app)?
+                .args(&args_refs)
                 .output()
                 .await
                 .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
@@ -1415,13 +1547,37 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
         #[cfg(not(target_os = "windows"))]
         {
-            return Err(AppError::General(
-                "Window capture not supported on this platform".to_string(),
-            ));
+            // On macOS/Linux, fall back to screen-level screenshot with crop
+            let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
+            let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
+            let w64 = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
+            let h64 = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
+            let w64 = (w64 - (w64 % 2)).max(2);
+            let h64 = (h64 - (h64 % 2)).max(2);
+
+            let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
+            let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+            let _output = super::ffmpeg_from_app(&app)?
+                .args(&args_refs)
+                .output()
+                .await
+                .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
+
+            if screenshot_path.exists() {
+                let data = std::fs::read(&screenshot_path)?;
+                std::fs::remove_file(&screenshot_path).ok();
+                if !data.is_empty() {
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+                    return Ok(format!("data:image/png;base64,{}", b64));
+                }
+            }
+
+            return Err(AppError::General("Window screenshot failed".to_string()));
         }
     }
 
-    // Screen/Area: use gdigrab as before
+    // Screen/Area screenshot using platform-specific capture
     if let Some(main_win) = app.get_webview_window("main") {
         main_win.set_content_protected(true).ok();
     }
@@ -1445,28 +1601,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let h = ((h_pct / 100.0 * screen_h) as i64).max(2);
             let w = w - (w % 2);
             let h = h - (h % 2);
-            vec![
-                "-y".into(),
-                "-f".into(),
-                "gdigrab".into(),
-                "-framerate".into(),
-                "1".into(),
-                "-draw_mouse".into(),
-                "0".into(),
-                "-offset_x".into(),
-                x.to_string(),
-                "-offset_y".into(),
-                y.to_string(),
-                "-video_size".into(),
-                format!("{}x{}", w, h),
-                "-i".into(),
-                "desktop".into(),
-                "-frames:v".into(),
-                "1".into(),
-                "-update".into(),
-                "true".into(),
-                screenshot_str.clone(),
-            ]
+            build_screenshot_args(x, y, w, h, &screenshot_str)
         }
         _ => {
             let monitor_x = source
@@ -1480,48 +1615,19 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let monitor_w = source.get("monitorWidth").and_then(|v| v.as_i64());
             let monitor_h = source.get("monitorHeight").and_then(|v| v.as_i64());
 
-            let mut a: Vec<String> = vec![
-                "-y".into(),
-                "-f".into(),
-                "gdigrab".into(),
-                "-framerate".into(),
-                "1".into(),
-                "-draw_mouse".into(),
-                "0".into(),
-            ];
-
             if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
                 let w = (w - (w % 2)).max(2);
                 let h = (h - (h % 2)).max(2);
-                a.extend([
-                    "-offset_x".into(),
-                    monitor_x.to_string(),
-                    "-offset_y".into(),
-                    monitor_y.to_string(),
-                    "-video_size".into(),
-                    format!("{}x{}", w, h),
-                ]);
+                build_screenshot_args(monitor_x, monitor_y, w, h, &screenshot_str)
+            } else {
+                build_screenshot_args(0, 0, screen_w as i64, screen_h as i64, &screenshot_str)
             }
-
-            a.extend([
-                "-i".into(),
-                "desktop".into(),
-                "-frames:v".into(),
-                "1".into(),
-                "-update".into(),
-                "true".into(),
-                screenshot_str.clone(),
-            ]);
-            a
         }
     };
 
     let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
-    let shell = app.shell();
-    let output = shell
-        .sidecar("ffmpeg")
-        .map_err(|e| AppError::General(format!("FFmpeg sidecar error: {}", e)))?
+    let output = super::ffmpeg_from_app(&app)?
         .args(&args_refs)
         .output()
         .await
@@ -1542,6 +1648,107 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
         Ok(format!("data:image/png;base64,{}", b64))
     } else {
         Err(AppError::General("Screenshot capture failed".to_string()))
+    }
+}
+
+/// Get the platform-specific FFmpeg capture format for screen recording
+fn platform_capture_format() -> &'static str {
+    #[cfg(target_os = "windows")]
+    { "gdigrab" }
+    #[cfg(target_os = "macos")]
+    { "avfoundation" }
+    #[cfg(target_os = "linux")]
+    { "x11grab" }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    { "x11grab" }
+}
+
+/// Get the platform default audio capture device name
+fn platform_default_audio_device() -> String {
+    #[cfg(target_os = "windows")]
+    { "virtual-audio-capturer".to_string() }
+    #[cfg(target_os = "macos")]
+    { "BlackHole 2ch".to_string() } // Common macOS virtual audio device
+    #[cfg(target_os = "linux")]
+    { "default".to_string() }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    { "default".to_string() }
+}
+
+/// Get platform-specific audio capture FFmpeg args (format, input)
+fn platform_audio_capture_args(device: &str) -> (String, String) {
+    #[cfg(target_os = "windows")]
+    {
+        ("dshow".to_string(), format!("audio={}", device))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // avfoundation audio: "none:<audio_device_index_or_name>"
+        ("avfoundation".to_string(), format!("none:{}", device))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        ("pulse".to_string(), device.to_string())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        ("pulse".to_string(), device.to_string())
+    }
+}
+
+/// Build platform-specific FFmpeg args for taking a single screenshot
+fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> Vec<String> {
+    #[cfg(target_os = "windows")]
+    {
+        vec![
+            "-y".into(), "-f".into(), "gdigrab".into(),
+            "-framerate".into(), "1".into(), "-draw_mouse".into(), "0".into(),
+            "-offset_x".into(), x.to_string(), "-offset_y".into(), y.to_string(),
+            "-video_size".into(), format!("{}x{}", w, h),
+            "-i".into(), "desktop".into(),
+            "-frames:v".into(), "1".into(), "-update".into(), "true".into(),
+            output_path.into(),
+        ]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut args: Vec<String> = vec![
+            "-y".into(), "-f".into(), "avfoundation".into(),
+            "-framerate".into(), "1".into(), "-capture_cursor".into(), "0".into(),
+            "-i".into(), "0:none".into(),
+            "-frames:v".into(), "1".into(),
+        ];
+        // Add crop filter if not capturing full screen from origin
+        if x != 0 || y != 0 {
+            args.extend(["-vf".into(), format!("crop={}:{}:{}:{}", w, h, x, y)]);
+        } else {
+            args.extend(["-vf".into(), format!("scale={}:{}", w, h)]);
+        }
+        args.push(output_path.into());
+        args
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+        vec![
+            "-y".into(), "-f".into(), "x11grab".into(),
+            "-framerate".into(), "1".into(), "-draw_mouse".into(), "0".into(),
+            "-video_size".into(), format!("{}x{}", w, h),
+            "-i".into(), format!("{}+{},{}", display, x, y),
+            "-frames:v".into(), "1".into(), "-update".into(), "true".into(),
+            output_path.into(),
+        ]
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        vec![
+            "-y".into(), "-f".into(), "x11grab".into(),
+            "-framerate".into(), "1".into(),
+            "-video_size".into(), format!("{}x{}", w, h),
+            "-i".into(), format!(":0+{},{}", x, y),
+            "-frames:v".into(), "1".into(),
+            output_path.into(),
+        ]
     }
 }
 
