@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   build-windows:
+    name: Build (Windows x64)
     runs-on: windows-latest
 
     steps:
@@ -66,9 +67,155 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Get version
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+
+  build-linux:
+    name: Build (Linux x64)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libgtk-3-dev \
+            libx11-dev \
+            libxcb1-dev \
+            libxrandr-dev \
+            libpulse-dev \
+            rpm \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Download FFmpeg (static Linux x64)
+        run: |
+          echo "Downloading FFmpeg static build for Linux x64..."
+          curl -L "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" \
+            -o ffmpeg.tar.xz
+          tar -xf ffmpeg.tar.xz
+          FFMPEG_BIN=$(find . -maxdepth 3 -name "ffmpeg" -type f | head -1)
+          if [ -z "$FFMPEG_BIN" ]; then
+            echo "ERROR: ffmpeg binary not found in archive"
+            exit 1
+          fi
+          mkdir -p src-tauri/binaries
+          cp "$FFMPEG_BIN" src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+          echo "FFmpeg placed at src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu"
+
+      - name: Build Tauri app
+        run: npm run build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/rpm/*.rpm
+
+  build-macos:
+    name: Build (macOS Universal)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Download FFmpeg (macOS Apple Silicon)
+        run: |
+          echo "Downloading FFmpeg for macOS arm64..."
+          mkdir -p src-tauri/binaries
+          curl -L "https://evermeet.cx/ffmpeg/getrelease/zip" -o ffmpeg-arm64.zip
+          unzip -o ffmpeg-arm64.zip -d ffmpeg-arm64
+          mv ffmpeg-arm64/ffmpeg src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          echo "FFmpeg arm64 placed at src-tauri/binaries/ffmpeg-aarch64-apple-darwin"
+
+      - name: Download FFmpeg (macOS Intel)
+        run: |
+          echo "Downloading FFmpeg for macOS x86_64..."
+          # Use the arm64 binary as fallback — works via Rosetta 2 on Intel Macs
+          cp src-tauri/binaries/ffmpeg-aarch64-apple-darwin \
+             src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+          echo "FFmpeg x86_64 placed at src-tauri/binaries/ffmpeg-x86_64-apple-darwin"
+
+      - name: Build Tauri app (universal macOS)
+        run: npm run build -- --target universal-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+
+  release:
+    name: Create Release
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get version tag
         id: version
-        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
@@ -76,14 +223,102 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installers
+          path: artifacts/windows
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-installers
+          path: artifacts/linux
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-installers
+          path: artifacts/macos
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Flowtake ${{ steps.version.outputs.tag }}
+          name: "Flowtake ${{ steps.version.outputs.tag }}"
           draft: false
           prerelease: false
           generate_release_notes: true
+          body: |
+            ## Flowtake ${{ steps.version.outputs.tag }}
+
+            **Screen recorder with automatic zoom animations** — available for Windows, macOS, and Linux.
+
+            ---
+
+            ### Download
+
+            | Platform | Installer | Notes |
+            |----------|-----------|-------|
+            | **Windows** (x64) | `.exe` | Recommended — guided setup with NSIS |
+            | **Windows** (x64) | `.msi` | Silent / enterprise installs |
+            | **macOS** (Universal) | `.dmg` | Runs natively on Apple Silicon & Intel via Rosetta 2 |
+            | **Linux** (x64) | `.deb` | Debian, Ubuntu, and derivatives |
+            | **Linux** (x64) | `.AppImage` | Portable — works on any Linux distro |
+            | **Linux** (x64) | `.rpm` | Fedora, RHEL, openSUSE, and derivatives |
+
+            ---
+
+            ### Installation Instructions
+
+            #### Windows
+            1. Download the `.exe` installer
+            2. Run it and follow the on-screen prompts
+            3. FFmpeg is bundled — no extra dependencies needed
+
+            #### macOS
+            1. Download the `.dmg` file
+            2. Open the disk image and drag **Flowtake** into your Applications folder
+            3. On first launch, right-click the app → **Open** if macOS shows an unverified developer warning
+            4. FFmpeg is bundled — no extra dependencies needed
+
+            #### Linux
+            - **Debian/Ubuntu** (`.deb`):
+              ```bash
+              sudo dpkg -i flowtake_*.deb
+              sudo apt-get install -f   # resolve any missing dependencies
+              ```
+            - **AppImage** (universal):
+              ```bash
+              chmod +x Flowtake_*.AppImage
+              ./Flowtake_*.AppImage
+              ```
+            - **Fedora/RHEL** (`.rpm`):
+              ```bash
+              sudo rpm -i flowtake-*.rpm
+              ```
+
+            > **Linux note:** The `.deb` and `.rpm` packages declare `ffmpeg`, `xdotool`, and `wmctrl` as dependencies — your package manager will install them automatically.
+
+            ---
+
+            ### System Requirements
+
+            | Platform | Minimum |
+            |----------|---------|
+            | Windows  | Windows 10 (64-bit) or newer |
+            | macOS    | macOS 10.15 Catalina or newer |
+            | Linux    | Ubuntu 22.04 / Fedora 38 or equivalent (x86_64) |
+
+            ---
+
+            ### What's Changed
+
           files: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+            artifacts/windows/*.exe
+            artifacts/windows/*.msi
+            artifacts/macos/*.dmg
+            artifacts/macos/*.app.tar.gz
+            artifacts/linux/*.deb
+            artifacts/linux/*.AppImage
+            artifacts/linux/*.rpm
