@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit'
-import { SOURCE_TYPE_SCREEN } from "../../../helpers"
+import { SOURCE_TYPE_SCREEN } from "../constants"
 
 const initialState = {
     source: { name: "Screen", type: SOURCE_TYPE_SCREEN, id: "screen" },

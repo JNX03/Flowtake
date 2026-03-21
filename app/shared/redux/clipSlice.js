@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit'
-import { MODE_CAMERA_OVERLAY } from "../../../helpers"
+import { MODE_CAMERA_OVERLAY } from "../constants"
 import {
     animsAdapter,
     applyAnimProperties,
