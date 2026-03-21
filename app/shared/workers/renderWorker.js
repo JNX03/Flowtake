@@ -4,7 +4,7 @@ import {
     RENDER_CAMERA_VIDEO,
     RENDER_OUTPUT_VIDEO,
     RENDER_SCREEN_VIDEO
-} from "../../../helpers"
+} from "../constants"
 import {
     RENDER_CANCELED,
     RENDER_COMPLETED,

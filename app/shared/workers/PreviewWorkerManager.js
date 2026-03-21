@@ -3,7 +3,7 @@ import {
     PROJECT_CAMERA_VIDEO,
     PROJECT_SCREEN_VIDEO,
     SCREEN_VIDEO
-} from "../../../helpers"
+} from "../constants"
 import store from "../redux/store"
 import RendererInputReader from "../RendererInputReader"
 import { getWebWorkerIntegration } from "../sentryHelpers"

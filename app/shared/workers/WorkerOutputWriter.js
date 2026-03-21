@@ -7,7 +7,7 @@ import {
     VideoSample,
     VideoSampleSource
 } from 'mediabunny'
-import OutputWriter from "../../../OutputWriter"
+import OutputWriter from "../OutputWriter"
 import { toS } from "../helpers"
 import { postIpc } from "./helpers"
 
