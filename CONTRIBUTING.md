@@ -63,23 +63,25 @@ This launches both the Vite dev server (frontend hot-reload) and the Tauri devel
 
 ```
 Flowtake/
+├── app/                      # React frontend
+│   ├── shared/               # Shared code (redux, scene, workers)
+│   ├── components/           # Shared UI components
+│   └── windows/              # Per-window entry points
 ├── src-tauri/                # Rust backend
 │   └── src/commands/         # IPC command handlers
-├── src/renderer/             # React frontend
-│   ├── src/redux/            # Redux state management
-│   ├── src/scene/            # Pixi.js rendering
-│   └── main/src/components/  # UI components
 ├── resources/                # Bundled binaries
 └── vite.config.mjs           # Build configuration
 ```
 
+For detailed architecture docs, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ### Key Concepts
 
 - **Tauri Commands** — Backend functions exposed to the frontend via IPC. Located in `src-tauri/src/commands/`.
-- **Redux Slices** — Each feature (zooms, pans, clicks, clips, masks, etc.) has its own Redux slice in `src/renderer/src/redux/`.
-- **Scene Modules** — Pixi.js rendering logic for each animation type lives in `src/renderer/src/scene/`.
-- **Tauri Bridge** — `src/renderer/src/tauriBridge.js` maps IPC calls between the frontend and Rust backend.
-- **Multi-Window** — The app uses separate windows (main, recorder, exporter, pickers) that share the same React codebase.
+- **Redux Slices** — Each feature (zooms, pans, clicks, clips, masks, etc.) has its own Redux slice in `app/shared/redux/`.
+- **Scene Modules** — Pixi.js rendering logic for each animation type lives in `app/shared/scene/`.
+- **Tauri Bridge** — `app/shared/tauriBridge.js` maps IPC calls between the frontend and Rust backend.
+- **Multi-Window** — The app uses separate windows (main, recorder, exporter, pickers) that share code via `app/shared/`.
 
 ## How to Contribute
 
