@@ -176,34 +176,39 @@ npm run dev
 
 ```
 Flowtake/
+├── app/                     # React frontend
+│   ├── shared/              # Code shared across all windows
+│   │   ├── redux/           # Redux Toolkit store and slices
+│   │   ├── scene/           # Pixi.js animation/rendering engine
+│   │   ├── workers/         # Web Workers for preview and render
+│   │   ├── tauriBridge.js   # IPC compatibility layer
+│   │   ├── helpers.js       # Shared utility functions
+│   │   └── constants.js     # App-wide constants
+│   ├── components/          # Shared React UI components
+│   └── windows/             # Per-window entry points
+│       ├── main/            # Main editor window (100+ components)
+│       ├── exporter/        # Export/render queue
+│       ├── recorder/        # Recording overlay
+│       ├── windowPicker/    # Window selection
+│       ├── areaPicker/      # Area selection
+│       └── note/            # Annotation window
+│
 ├── src-tauri/               # Rust backend (Tauri v2)
 │   ├── src/
-│   │   ├── commands/        # IPC command handlers (recording, export, etc.)
+│   │   ├── commands/        # IPC command handlers
 │   │   ├── lib.rs           # App setup & video:// protocol
 │   │   ├── state.rs         # Global application state
 │   │   └── mouse_tracker.rs # System-wide mouse tracking
 │   ├── Cargo.toml           # Rust dependencies
 │   └── tauri.conf.json      # Tauri window & plugin config
 │
-├── src/renderer/            # React frontend
-│   ├── src/
-│   │   ├── redux/           # Redux slices (28+ state modules)
-│   │   ├── scene/           # Pixi.js scene rendering
-│   │   ├── workers/         # Web workers
-│   │   ├── tauriBridge.js   # IPC compatibility layer
-│   │   └── helpers.js       # Shared utilities & constants
-│   ├── main/                # Main window (launcher + editor)
-│   │   └── src/components/  # 100+ React components
-│   ├── exporter/            # Export window
-│   ├── recorder/            # Recording overlay
-│   ├── windowPicker/        # Window selection
-│   ├── areaPicker/          # Area selection
-│   └── note/                # Annotation window
-│
 ├── resources/               # Bundled binaries (FFmpeg, AHK scripts)
+├── docs/                    # Architecture and development docs
 ├── vite.config.mjs          # Vite build configuration
 └── package.json             # NPM dependencies & scripts
 ```
+
+For detailed architecture documentation, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Contributing
 
