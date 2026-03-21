@@ -6,6 +6,7 @@ pub mod files;
 pub mod presets;
 pub mod projects;
 pub mod recording;
+pub mod social_upload;
 pub mod store;
 pub mod windows;
 

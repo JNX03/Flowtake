@@ -314,6 +314,12 @@ pub fn run() {
             commands::encoding::get_camera_video_buffer,
             commands::encoding::get_screen_video_buffer,
             commands::encoding::extract_audio_buffer,
+            // Social Upload
+            commands::social_upload::youtube_set_credentials,
+            commands::social_upload::youtube_auth_start,
+            commands::social_upload::youtube_auth_status,
+            commands::social_upload::youtube_auth_disconnect,
+            commands::social_upload::youtube_upload_video,
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
