@@ -7,7 +7,7 @@ import {
     useState
 } from "react"
 import { useSelector } from "react-redux"
-import { selectId } from "../src/redux/projectSlice"
+import { selectId } from "../shared/redux/projectSlice"
 
 const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, className, param, onReady, onError }, ref) => {
 

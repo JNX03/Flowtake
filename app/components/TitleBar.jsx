@@ -1,7 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import PropTypes from 'prop-types'
 import { useCallback } from 'react'
-import icon from "../src/assets/logo.svg"
+import icon from "../shared/assets/logo.svg"
 
 function WindowControls() {
     const minimize = useCallback(async () => {
