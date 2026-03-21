@@ -34,7 +34,7 @@ pub async fn get_projects(app: AppHandle, page: Option<usize>) -> AppResult<Valu
     let total_pages = if entries.is_empty() {
         0
     } else {
-        (entries.len() + items_per_page - 1) / items_per_page
+        entries.len().div_ceil(items_per_page)
     };
     let clamped_page = page.min(total_pages.saturating_sub(1));
     let start = clamped_page * items_per_page;
@@ -84,7 +84,7 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     let zip_path = match zip_path {
         Some(p) => p,
         None => {
-            store.delete(&format!("projects.{}", id));
+            store.delete(format!("projects.{}", id));
             let mut state = state.lock().unwrap();
             state.project_id = None;
             return Ok(Value::Null);
@@ -102,7 +102,7 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     match unzip_project(&zip_path, &temp_dir) {
         Ok(_) => {}
         Err(_) => {
-            store.delete(&format!("projects.{}", id));
+            store.delete(format!("projects.{}", id));
             let mut state = state.lock().unwrap();
             state.project_id = None;
             return Ok(Value::Null);
@@ -175,7 +175,7 @@ pub async fn delete_project(app: AppHandle, project_id: String) -> AppResult<()>
     let store = app
         .store("store.json")
         .map_err(|e| AppError::General(e.to_string()))?;
-    store.delete(&format!("projects.{}", project_id));
+    store.delete(format!("projects.{}", project_id));
     store
         .save()
         .map_err(|e| AppError::General(e.to_string()))?;

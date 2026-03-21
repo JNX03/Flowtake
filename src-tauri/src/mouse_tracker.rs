@@ -149,6 +149,7 @@ impl MouseTracker {
 // Windows LL hooks have a ~300ms timeout; exceeding it causes the hook to be silently removed.
 
 #[cfg(target_os = "windows")]
+#[allow(clippy::type_complexity)]
 static HOOK_EVENTS: std::sync::LazyLock<Mutex<Option<Arc<Mutex<Vec<MouseEvent>>>>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 

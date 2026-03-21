@@ -179,23 +179,33 @@ jobs:
         run: |
           mkdir -p src-tauri/binaries
 
-          # Download FFmpeg for macOS arm64 from BtbN builds
+          # Download FFmpeg for macOS arm64
           echo "Downloading FFmpeg for macOS arm64..."
           curl -L "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-arm64.gz" \
             -o ffmpeg-arm64.gz
           gunzip -f ffmpeg-arm64.gz
-          mv ffmpeg-arm64 src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          chmod +x ffmpeg-arm64
 
           # Download FFmpeg for macOS x86_64
           echo "Downloading FFmpeg for macOS x86_64..."
           curl -L "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-x64.gz" \
             -o ffmpeg-x64.gz
           gunzip -f ffmpeg-x64.gz
-          mv ffmpeg-x64 src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+          chmod +x ffmpeg-x64
+
+          # Create universal fat binary with lipo (required for --target universal-apple-darwin)
+          echo "Creating universal FFmpeg binary with lipo..."
+          lipo -create -output src-tauri/binaries/ffmpeg-universal-apple-darwin \
+            ffmpeg-arm64 ffmpeg-x64
+          chmod +x src-tauri/binaries/ffmpeg-universal-apple-darwin
+
+          # Also place per-arch copies (needed for per-arch compilation steps)
+          cp ffmpeg-arm64 src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          cp ffmpeg-x64 src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
           chmod +x src-tauri/binaries/ffmpeg-x86_64-apple-darwin
 
-          echo "FFmpeg binaries placed for both architectures"
+          echo "FFmpeg binaries ready (universal + per-arch)"
 
       - name: Build Tauri app (universal macOS)
         run: npm run build -- --target universal-apple-darwin

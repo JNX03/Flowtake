@@ -16,7 +16,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[tauri::command]
 pub async fn close_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("main") {
-        window.close().map_err(|e| AppError::Tauri(e))?;
+        window.close().map_err(AppError::Tauri)?;
     }
     Ok(())
 }
@@ -24,7 +24,7 @@ pub async fn close_window(app: AppHandle) -> AppResult<()> {
 #[tauri::command]
 pub async fn destroy_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("main") {
-        window.destroy().map_err(|e| AppError::Tauri(e))?;
+        window.destroy().map_err(AppError::Tauri)?;
     }
     Ok(())
 }
@@ -33,7 +33,7 @@ pub async fn destroy_window(app: AppHandle) -> AppResult<()> {
 pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     // Hide main window first
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.hide().map_err(|e| AppError::Tauri(e))?;
+        main_win.hide().map_err(AppError::Tauri)?;
     }
 
     // Get primary monitor dimensions
@@ -65,7 +65,7 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .skip_taskbar(true)
     .content_protected(true)
     .build()
-    .map_err(|e| AppError::Tauri(e))?;
+    .map_err(AppError::Tauri)?;
 
     Ok(())
 }
@@ -140,10 +140,10 @@ pub async fn get_picker_screenshot(app: AppHandle) -> AppResult<String> {
 #[tauri::command]
 pub async fn close_window_picker_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("windowPicker") {
-        window.close().map_err(|e| AppError::Tauri(e))?;
+        window.close().map_err(AppError::Tauri)?;
     }
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.show().map_err(|e| AppError::Tauri(e))?;
+        main_win.show().map_err(AppError::Tauri)?;
         main_win.set_focus().ok();
     }
     Ok(())
@@ -152,10 +152,10 @@ pub async fn close_window_picker_window(app: AppHandle) -> AppResult<()> {
 #[tauri::command]
 pub async fn select_window(app: AppHandle, window: Value) -> AppResult<()> {
     if let Some(picker) = app.get_webview_window("windowPicker") {
-        picker.close().map_err(|e| AppError::Tauri(e))?;
+        picker.close().map_err(AppError::Tauri)?;
     }
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.show().map_err(|e| AppError::Tauri(e))?;
+        main_win.show().map_err(AppError::Tauri)?;
         main_win.set_focus().ok();
     }
     app.emit_to("main", "window-selected", &window).ok();
@@ -250,7 +250,7 @@ pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
 #[tauri::command]
 pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.hide().map_err(|e| AppError::Tauri(e))?;
+        main_win.hide().map_err(AppError::Tauri)?;
     }
 
     // Small delay then capture screenshot of desktop without main window
@@ -281,7 +281,7 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
     .always_on_top(true)
     .skip_taskbar(true)
     .build()
-    .map_err(|e| AppError::Tauri(e))?;
+    .map_err(AppError::Tauri)?;
 
     Ok(())
 }
@@ -289,10 +289,10 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
 #[tauri::command]
 pub async fn close_area_picker_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("areaPicker") {
-        window.close().map_err(|e| AppError::Tauri(e))?;
+        window.close().map_err(AppError::Tauri)?;
     }
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.show().map_err(|e| AppError::Tauri(e))?;
+        main_win.show().map_err(AppError::Tauri)?;
         main_win.set_focus().ok();
     }
     Ok(())
@@ -301,10 +301,10 @@ pub async fn close_area_picker_window(app: AppHandle) -> AppResult<()> {
 #[tauri::command]
 pub async fn select_area(app: AppHandle, selected_area: Value) -> AppResult<()> {
     if let Some(picker) = app.get_webview_window("areaPicker") {
-        picker.close().map_err(|e| AppError::Tauri(e))?;
+        picker.close().map_err(AppError::Tauri)?;
     }
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.show().map_err(|e| AppError::Tauri(e))?;
+        main_win.show().map_err(AppError::Tauri)?;
         main_win.set_focus().ok();
     }
     app.emit_to("main", "area-selected", &selected_area).ok();
@@ -327,14 +327,14 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     .always_on_top(true)
     .content_protected(true)
     .build()
-    .map_err(|e| AppError::Tauri(e))?;
+    .map_err(AppError::Tauri)?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
-    let monitors = app.available_monitors().map_err(|e| AppError::Tauri(e))?;
+    let monitors = app.available_monitors().map_err(AppError::Tauri)?;
     let primary = app.primary_monitor().ok().flatten();
 
     let mut result = Vec::new();

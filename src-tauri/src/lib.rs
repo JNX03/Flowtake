@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 #[cfg(target_os = "macos")]
 #[macro_use]
 extern crate objc;
@@ -63,9 +65,9 @@ pub fn run() {
             let video_type = if path_part.contains("localhost") {
                 // http://video.localhost/screen or http://video.localhost/camera
                 path_part.rsplit('/').next().unwrap_or("screen")
-            } else if path_part.starts_with("video://") {
+            } else if let Some(stripped) = path_part.strip_prefix("video://") {
                 // video://screen or video://camera
-                &path_part[8..]
+                stripped
             } else {
                 path_part.rsplit('/').next().unwrap_or("screen")
             };
@@ -135,8 +137,7 @@ pub fn run() {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
 
-            let (start, end) = if range_header.starts_with("bytes=") {
-                let range_str = &range_header[6..];
+            let (start, end) = if let Some(range_str) = range_header.strip_prefix("bytes=") {
                 let parts: Vec<&str> = range_str.split('-').collect();
                 let start: u64 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
                 let end: u64 = parts

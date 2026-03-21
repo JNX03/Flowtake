@@ -141,7 +141,7 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<
                 biHeight: -height, // negative = top-down
                 biPlanes: 1,
                 biBitCount: 32,
-                biCompression: BI_RGB.0 as u32,
+                biCompression: BI_RGB.0,
                 biSizeImage: 0,
                 biXPelsPerMeter: 0,
                 biYPelsPerMeter: 0,
@@ -250,7 +250,7 @@ fn screenshot_window_printwindow(hwnd_raw: isize, width: i32, height: i32) -> Op
                 biHeight: -height,
                 biPlanes: 1,
                 biBitCount: 32,
-                biCompression: BI_RGB.0 as u32,
+                biCompression: BI_RGB.0,
                 biSizeImage: 0,
                 biXPelsPerMeter: 0,
                 biYPelsPerMeter: 0,
@@ -291,8 +291,8 @@ fn screenshot_window_printwindow(hwnd_raw: isize, width: i32, height: i32) -> Op
 
         // DIB header (40 bytes)
         bmp.extend_from_slice(&40u32.to_le_bytes()); // header size
-        bmp.extend_from_slice(&(width as i32).to_le_bytes());
-        bmp.extend_from_slice(&(-(height as i32)).to_le_bytes()); // top-down
+        bmp.extend_from_slice(&width.to_le_bytes());
+        bmp.extend_from_slice(&(-height).to_le_bytes()); // top-down
         bmp.extend_from_slice(&1u16.to_le_bytes()); // planes
         bmp.extend_from_slice(&32u16.to_le_bytes()); // bits per pixel
         bmp.extend_from_slice(&0u32.to_le_bytes()); // compression (BI_RGB)

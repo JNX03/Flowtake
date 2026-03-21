@@ -20,7 +20,7 @@ pub async fn open_export_window(
 
     // Close existing exporter window if any
     if let Some(existing) = app.get_webview_window("exporter") {
-        existing.close().map_err(|e| AppError::Tauri(e))?;
+        existing.close().map_err(AppError::Tauri)?;
     }
 
     let _window = WebviewWindowBuilder::new(
@@ -35,7 +35,7 @@ pub async fn open_export_window(
     .min_inner_size(400.0, 400.0)
     .decorations(false)
     .build()
-    .map_err(|e| AppError::Tauri(e))?;
+    .map_err(AppError::Tauri)?;
 
     // Also emit events for already-open windows that have listeners registered
     if let Some(state_data) = state_data {
@@ -51,7 +51,7 @@ pub async fn open_export_window(
 #[tauri::command]
 pub async fn close_export_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("exporter") {
-        window.close().map_err(|e| AppError::Tauri(e))?;
+        window.close().map_err(AppError::Tauri)?;
     }
     Ok(())
 }
@@ -59,7 +59,7 @@ pub async fn close_export_window(app: AppHandle) -> AppResult<()> {
 #[tauri::command]
 pub async fn close_exporter_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("exporter") {
-        window.close().map_err(|e| AppError::Tauri(e))?;
+        window.close().map_err(AppError::Tauri)?;
     }
     Ok(())
 }
@@ -95,7 +95,7 @@ pub async fn get_project_state(app: AppHandle) -> AppResult<Value> {
 pub async fn get_open_section(app: AppHandle) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
     let state = state.lock().unwrap();
-    Ok(state.export_section.clone().map(|s| Value::String(s)).unwrap_or(Value::Null))
+    Ok(state.export_section.clone().map(Value::String).unwrap_or(Value::Null))
 }
 
 #[tauri::command]

@@ -62,7 +62,7 @@ pub async fn store_get_paginated(
     let total_pages = if items.is_empty() {
         0
     } else {
-        (items.len() + items_per_page - 1) / items_per_page
+        items.len().div_ceil(items_per_page)
     };
     let page = requested_page.min(total_pages.saturating_sub(1));
     let start = page * items_per_page;

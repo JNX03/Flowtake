@@ -54,7 +54,7 @@ pub async fn get_presets(app: AppHandle, page: Option<usize>) -> AppResult<Value
     let total_pages = if entries.is_empty() {
         0
     } else {
-        (entries.len() + items_per_page - 1) / items_per_page
+        entries.len().div_ceil(items_per_page)
     };
     let clamped_page = page.min(total_pages.saturating_sub(1));
     let start = clamped_page * items_per_page;
@@ -73,7 +73,7 @@ pub async fn delete_preset(app: AppHandle, id: String) -> AppResult<()> {
     let store = app
         .store("store.json")
         .map_err(|e| AppError::General(e.to_string()))?;
-    store.delete(&format!("presets.{}", id));
+    store.delete(format!("presets.{}", id));
     store
         .save()
         .map_err(|e| AppError::General(e.to_string()))?;

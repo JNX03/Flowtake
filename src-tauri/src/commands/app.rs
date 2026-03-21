@@ -175,12 +175,7 @@ pub async fn check_dependencies(app: AppHandle) -> AppResult<Value> {
     // Check FFmpeg: try sidecar first, then system
     let has_ffmpeg = {
         let shell = app.shell();
-        let sidecar_ok = shell.sidecar("ffmpeg")
-            .and_then(|cmd| {
-                // Just check if the sidecar binary exists by trying to get version
-                Ok(cmd)
-            })
-            .is_ok();
+        let sidecar_ok = shell.sidecar("ffmpeg").is_ok();
         sidecar_ok || command_exists("ffmpeg")
     };
 
@@ -294,7 +289,7 @@ fn get_install_command(deps: &[Value]) -> String {
 
     #[cfg(target_os = "windows")]
     {
-        return String::new(); // Windows bundles everything
+        String::new() // Windows bundles everything
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -388,10 +383,10 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
 
     #[cfg(target_os = "windows")]
     {
-        return Ok(serde_json::json!({
+        Ok(serde_json::json!({
             "success": true,
             "message": "All dependencies are bundled on Windows"
-        }));
+        }))
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
