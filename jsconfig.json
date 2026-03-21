@@ -6,7 +6,10 @@
         "jsx": "react",
         "allowImportingTsExtensions": true,
         "strictNullChecks": true,
-        "strictFunctionTypes": true
+        "strictFunctionTypes": true,
+        "paths": {
+            "@shared/*": ["./app/shared/*"]
+        }
     },
     "exclude": [
         "node_modules",
