@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{HWND, LPARAM};
+#[cfg(target_os = "windows")]
 use windows::core::BOOL;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{

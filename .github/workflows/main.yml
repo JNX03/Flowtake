@@ -3,12 +3,11 @@ name: Release
 on:
   push:
     tags:
-      # Matches major releases only: v1.0.0, v2.0.0, v10.0.0, ...
-      - 'v[0-9]*.0.0'
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g. v2.0.0)'
+        description: 'Tag to release (e.g. v1.23.1)'
         required: true
 
 permissions:
@@ -124,7 +123,7 @@ jobs:
           curl -L "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" \
             -o ffmpeg.tar.xz
           tar -xf ffmpeg.tar.xz
-          FFMPEG_BIN=$(find . -maxdepth 3 -name "ffmpeg" -type f | head -1)
+          FFMPEG_BIN=$(find . -maxdepth 3 -name "ffmpeg" -type f -not -name "*.tar.xz" | head -1)
           if [ -z "$FFMPEG_BIN" ]; then
             echo "ERROR: ffmpeg binary not found in archive"
             exit 1
@@ -176,23 +175,27 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Download FFmpeg (macOS Apple Silicon)
+      - name: Download FFmpeg (macOS)
         run: |
-          echo "Downloading FFmpeg for macOS arm64..."
           mkdir -p src-tauri/binaries
-          curl -L "https://evermeet.cx/ffmpeg/getrelease/zip" -o ffmpeg-arm64.zip
-          unzip -o ffmpeg-arm64.zip -d ffmpeg-arm64
-          mv ffmpeg-arm64/ffmpeg src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          echo "FFmpeg arm64 placed at src-tauri/binaries/ffmpeg-aarch64-apple-darwin"
 
-      - name: Download FFmpeg (macOS Intel)
-        run: |
+          # Download FFmpeg for macOS arm64 from BtbN builds
+          echo "Downloading FFmpeg for macOS arm64..."
+          curl -L "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-arm64.gz" \
+            -o ffmpeg-arm64.gz
+          gunzip -f ffmpeg-arm64.gz
+          mv ffmpeg-arm64 src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+
+          # Download FFmpeg for macOS x86_64
           echo "Downloading FFmpeg for macOS x86_64..."
-          # Use the arm64 binary as fallback — works via Rosetta 2 on Intel Macs
-          cp src-tauri/binaries/ffmpeg-aarch64-apple-darwin \
-             src-tauri/binaries/ffmpeg-x86_64-apple-darwin
-          echo "FFmpeg x86_64 placed at src-tauri/binaries/ffmpeg-x86_64-apple-darwin"
+          curl -L "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-x64.gz" \
+            -o ffmpeg-x64.gz
+          gunzip -f ffmpeg-x64.gz
+          mv ffmpeg-x64 src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+          chmod +x src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+
+          echo "FFmpeg binaries placed for both architectures"
 
       - name: Build Tauri app (universal macOS)
         run: npm run build -- --target universal-apple-darwin
