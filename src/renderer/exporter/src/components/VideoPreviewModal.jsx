@@ -1,5 +1,6 @@
 import {
     ArrowTopRightOnSquareIcon,
+    CloudArrowUpIcon,
     ClipboardDocumentIcon,
     ShareIcon,
     XMarkIcon
@@ -13,6 +14,7 @@ import {
     useRef,
     useState
 } from "react"
+import SocialUploadModal from "./SocialUploadModal"
 
 const SOCIAL_PLATFORMS = [
     {
@@ -85,6 +87,7 @@ export default function VideoPreviewModal({ renderId, videoName, isOpen, onClose
     const [error, setError] = useState(null)
     const [showShareMenu, setShowShareMenu] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [showUploadModal, setShowUploadModal] = useState(false)
 
     const loadVideo = useCallback(async () => {
         if (!renderId || !isOpen) return
@@ -184,8 +187,26 @@ export default function VideoPreviewModal({ renderId, videoName, isOpen, onClose
                 {/* Share Panel */}
                 {showShareMenu && (
                     <div className="p-4">
-                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-30 mb-3 block">
-                            Share to
+                        {/* Direct Upload */}
+                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-30 mb-2 block">
+                            Direct Upload
+                        </span>
+                        <button
+                            className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg bg-red-600/10 hover:bg-red-600/20 transition-all group mb-4"
+                            onClick={() => setShowUploadModal(true)}
+                        >
+                            <span className="text-red-500">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="size-4">
+                                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                                </svg>
+                            </span>
+                            <span className="text-[11px] font-medium opacity-80 group-hover:opacity-100">Upload to YouTube</span>
+                            <CloudArrowUpIcon className="size-3.5 ml-auto opacity-0 group-hover:opacity-50 transition-opacity" />
+                        </button>
+
+                        {/* Open in Browser */}
+                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-30 mb-2 block">
+                            Open in Browser
                         </span>
                         <div className="grid grid-cols-3 gap-1.5">
                             {SOCIAL_PLATFORMS.map(platform => (
@@ -211,11 +232,16 @@ export default function VideoPreviewModal({ renderId, videoName, isOpen, onClose
                                 {copied ? "Copied!" : "Copy file path"}
                             </span>
                         </button>
-                        <p className="text-[10px] opacity-20 mt-2 text-center">
-                            Upload your video from the Videos/Flowtake folder.
-                        </p>
                     </div>
                 )}
+
+                {/* YouTube Upload Modal */}
+                <SocialUploadModal
+                    renderId={renderId}
+                    videoName={videoName}
+                    isOpen={showUploadModal}
+                    onClose={() => setShowUploadModal(false)}
+                />
             </div>
             <form method="dialog" className="modal-backdrop">
                 <button onClick={onClose}>close</button>

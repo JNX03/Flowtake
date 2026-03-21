@@ -1,4 +1,5 @@
 import {
+    ArrowUpTrayIcon,
     CheckCircleIcon,
     EyeIcon,
     FolderOpenIcon,
@@ -41,7 +42,7 @@ import RenderWorkerManager from "../../../../src/workers/RenderWorkerManager"
 import CopyButton from "../CopyButton"
 import UploadStatus from "./UploadStatus"
 
-export default function Row({ id, onProcessed, onPreview }) {
+export default function Row({ id, onProcessed, onPreview, onUpload }) {
     const dispatch = useDispatch()
 
     const render = useSelector(state => selectRenderById(state, id))
@@ -211,6 +212,13 @@ export default function Row({ id, onProcessed, onPreview }) {
                         </button>
                         <span className="opacity-20 mx-1">&middot;</span>
                         <button
+                            onClick={() => onUpload(id, render.state.undoableState.present.project.name)}
+                            className="text-[11px] opacity-40 hover:opacity-70 flex items-center gap-1 transition-all"
+                        >
+                            <ArrowUpTrayIcon className="size-3.5" /> Upload
+                        </button>
+                        <span className="opacity-20 mx-1">&middot;</span>
+                        <button
                             onClick={revealInExplorer}
                             className="text-[11px] opacity-40 hover:opacity-70 flex items-center gap-1 transition-all"
                         >
@@ -234,4 +242,5 @@ Row.propTypes = {
     id: PropTypes.string.isRequired,
     onProcessed: PropTypes.func.isRequired,
     onPreview: PropTypes.func.isRequired,
+    onUpload: PropTypes.func.isRequired,
 }

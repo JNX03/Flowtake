@@ -23,7 +23,7 @@ import {
 } from "../../../../src/redux/renderSlice"
 import Row from "./Row"
 
-export default function Queue({ isVisible, onPreview }) {
+export default function Queue({ isVisible, onPreview, onUpload }) {
 
     const dispatch = useDispatch()
 
@@ -95,7 +95,7 @@ export default function Queue({ isVisible, onPreview }) {
                 {renders.length > 0 && (
                     <div className="flex flex-col gap-2">
                         {renders.map((item, i) => (
-                            <Row key={i} id={item.id} onProcessed={startNext} onPreview={onPreview} />
+                            <Row key={i} id={item.id} onProcessed={startNext} onPreview={onPreview} onUpload={onUpload} />
                         ))}
                     </div>
                 )}
@@ -106,5 +106,6 @@ export default function Queue({ isVisible, onPreview }) {
 
 Queue.propTypes = {
     isVisible: PropTypes.bool.isRequired,
-    onPreview: PropTypes.func.isRequired
+    onPreview: PropTypes.func.isRequired,
+    onUpload: PropTypes.func.isRequired,
 }
