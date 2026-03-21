@@ -79,8 +79,8 @@ export default function RecordButton({ isRecordingSystemAudio }) {
   }, [dispatch, isRecording, isProjectClosing])
 
   const start = useCallback(() => {
-    const video = cameras.find(({ id }) => id === camera) ?? null
-    const audio = microphones.find(({ id }) => id === microphone) ?? null
+    const video = (cameras ?? []).find(({ id }) => id === camera) ?? null
+    const audio = (microphones ?? []).find(({ id }) => id === microphone) ?? null
 
     const mediaSourceConfig = {
       videoTrack: video?.track.label,

@@ -46,14 +46,16 @@ export default function CameraPreview() {
       let video = false
       let videoSource = null
       if (camera) {
-        videoSource = cameras.find(({ id }) => id === camera)
+        videoSource = (cameras ?? []).find(({ id }) => id === camera)
+        if (!videoSource) return null
         video = { ...CONSTRAINTS_VIDEO, deviceId: videoSource.deviceId }
       }
 
       let audio = false
       let audioSource = null
       if (microphone) {
-        audioSource = microphones.find(({ id }) => id === microphone)
+        audioSource = (microphones ?? []).find(({ id }) => id === microphone)
+        if (!audioSource) return null
         audio = { ...CONSTRAINTS_AUDIO, deviceId: audioSource.deviceId }
       }
 

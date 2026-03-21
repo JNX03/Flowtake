@@ -80,6 +80,7 @@ export default function NewRecording({ isOpen }) {
         monitorY: primary.y,
         monitorWidth: primary.width,
         monitorHeight: primary.height,
+        monitorIndex: primary.index ?? 0,
       }))
     }
   }, [monitors]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,6 +113,7 @@ export default function NewRecording({ isOpen }) {
         monitorY: m.y,
         monitorWidth: m.width,
         monitorHeight: m.height,
+        monitorIndex: m.index ?? 0,
       }))
     } else {
       // Fallback: select screen without monitor info (captures entire desktop)
@@ -128,6 +130,7 @@ export default function NewRecording({ isOpen }) {
       monitorY: m.y,
       monitorWidth: m.width,
       monitorHeight: m.height,
+      monitorIndex: m.index ?? 0,
     }))
     setShowMonitorPicker(false)
   }

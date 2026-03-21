@@ -355,38 +355,89 @@ pub async fn init_recording(
     let (recording_offset_x, recording_offset_y): (i64, i64);
 
     if is_window_capture {
-        // Window capture: build rawvideo FFmpeg args (stdin pipe input)
         let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
         let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
         let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
         let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
         let w = (w - (w % 2)).max(2);
         let h = (h - (h % 2)).max(2);
-        let hwnd_str = source
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("0")
-            .to_string();
 
-        log::info!(
-            "[recording] window PrintWindow capture: hwnd={} x={} y={} w={} h={}",
-            hwnd_str, x, y, w, h
-        );
+        #[cfg(target_os = "windows")]
+        {
+            let hwnd_str = source
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("0")
+                .to_string();
 
-        // FFmpeg reads raw BGRA frames from stdin pipe
-        ffmpeg_args = vec![
-            "-y".to_string(),
-            "-f".to_string(),
-            "rawvideo".to_string(),
-            "-pixel_format".to_string(),
-            "bgra".to_string(),
-            "-video_size".to_string(),
-            format!("{}x{}", w, h),
-            "-framerate".to_string(),
-            "30".to_string(),
-            "-i".to_string(),
-            "pipe:0".to_string(),
-        ];
+            log::info!(
+                "[recording] window PrintWindow capture: hwnd={} x={} y={} w={} h={}",
+                hwnd_str, x, y, w, h
+            );
+
+            // FFmpeg reads raw BGRA frames from stdin pipe (Windows PrintWindow API)
+            ffmpeg_args = vec![
+                "-y".to_string(),
+                "-f".to_string(),
+                "rawvideo".to_string(),
+                "-pixel_format".to_string(),
+                "bgra".to_string(),
+                "-video_size".to_string(),
+                format!("{}x{}", w, h),
+                "-framerate".to_string(),
+                "30".to_string(),
+                "-i".to_string(),
+                "pipe:0".to_string(),
+            ];
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            log::info!(
+                "[recording] window capture via avfoundation+crop: x={} y={} w={} h={}",
+                x, y, w, h
+            );
+
+            // Use avfoundation screen capture + crop to window region
+            ffmpeg_args = vec![
+                "-y".to_string(),
+                "-f".to_string(),
+                "avfoundation".to_string(),
+                "-framerate".to_string(),
+                "30".to_string(),
+                "-capture_cursor".to_string(),
+                "0".to_string(),
+                "-i".to_string(),
+                "0:none".to_string(),
+                "-vf".to_string(),
+                format!("crop={}:{}:{}:{}", w, h, x, y),
+            ];
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+
+            log::info!(
+                "[recording] window capture via x11grab: x={} y={} w={} h={}",
+                x, y, w, h
+            );
+
+            // Use x11grab with offset+video_size to capture window region
+            ffmpeg_args = vec![
+                "-y".to_string(),
+                "-f".to_string(),
+                "x11grab".to_string(),
+                "-framerate".to_string(),
+                "30".to_string(),
+                "-draw_mouse".to_string(),
+                "0".to_string(),
+                "-video_size".to_string(),
+                format!("{}x{}", w, h),
+                "-i".to_string(),
+                format!("{}+{},{}", display, x, y),
+            ];
+        }
 
         recording_offset_x = x;
         recording_offset_y = y;
@@ -740,7 +791,14 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
     };
 
     if let Some(args) = ffmpeg_args {
-        if is_window_capture {
+        // Only use stdin pipe capture on Windows (PrintWindow API);
+        // macOS/Linux window capture uses screen capture with crop via sidecar path
+        #[cfg(target_os = "windows")]
+        let use_stdin_pipe = is_window_capture;
+        #[cfg(not(target_os = "windows"))]
+        let use_stdin_pipe = false;
+
+        if use_stdin_pipe {
             // Window capture: spawn FFmpeg via std::process::Command for stdin pipe access
             let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
                 AppError::General("FFmpeg binary not found".to_string())

@@ -24,7 +24,7 @@ export default function CameraMicrophoneSelect() {
   const [permissionDenied, setPermissionDenied] = useState({ video: false, audio: false })
 
   const detect = useCallback(async (type, mediaDevices) => {
-    const devices = mediaDevices.filter(({ kind }) => kind === `${type}input`)
+    const devices = (mediaDevices || []).filter(({ kind }) => kind === `${type}input`)
 
     const configs = []
 
@@ -201,6 +201,7 @@ export default function CameraMicrophoneSelect() {
       !isPendingCameras &&
       !isPendingDetectCameras &&
       !permissionDenied.video &&
+      mediaDevices &&
       !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "videoinput"), cameras))
       detectCameras()
   }, [mediaDevices, detectCameras, isPendingDetectCameras, isPendingMediaDevices, cameras, isPendingCameras, areDevicesEqual, permissionDenied.video])
@@ -210,6 +211,7 @@ export default function CameraMicrophoneSelect() {
       !isPendingMicrophones &&
       !isPendingDetectMicrophones &&
       !permissionDenied.audio &&
+      mediaDevices &&
       !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "audioinput"), microphones))
       detectMicrophones()
   }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual, permissionDenied.audio])
@@ -221,9 +223,9 @@ export default function CameraMicrophoneSelect() {
     return options
   }
 
-  const onSelectCamera = e => setCamera(cameras.find(({ id }) => id === e.target.value)?.id ?? null)
+  const onSelectCamera = e => setCamera((cameras ?? []).find(({ id }) => id === e.target.value)?.id ?? null)
 
-  const onSelectMicrophone = e => setMicrophone(microphones.find(({ id }) => id === e.target.value)?.id ?? null)
+  const onSelectMicrophone = e => setMicrophone((microphones ?? []).find(({ id }) => id === e.target.value)?.id ?? null)
 
   const isPending = isPendingMediaDevices || isPendingCameras || isPendingDetectCameras || isPendingMicrophones ||
     isPendingDetectMicrophones || isPendingCamera || isPendingMicrophone || isPendingSetCamera ||
