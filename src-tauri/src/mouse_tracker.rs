@@ -85,13 +85,14 @@ impl MouseTracker {
         {
             // Post a quit message to the hook thread's message loop
             unsafe {
+                use windows::Win32::Foundation::{WPARAM, LPARAM};
                 use windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW;
                 use windows::Win32::UI::WindowsAndMessaging::WM_QUIT;
 
                 if let Some(ref _handle) = self.hook_thread {
                     let tid = HOOK_THREAD_ID.load(std::sync::atomic::Ordering::Relaxed);
                     if tid != 0 {
-                        let _ = PostThreadMessageW(tid, WM_QUIT, None, None);
+                        let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
                     }
                 }
             }

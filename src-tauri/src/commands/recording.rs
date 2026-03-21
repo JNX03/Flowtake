@@ -116,21 +116,21 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<
 
     unsafe {
         let hwnd = HWND(hwnd_raw as *mut _);
-        let hdc_window = GetDC(hwnd);
+        let hdc_window = GetDC(Some(hwnd));
         if hdc_window.is_invalid() {
             return None;
         }
 
-        let hdc_mem = CreateCompatibleDC(hdc_window);
+        let hdc_mem = CreateCompatibleDC(Some(hdc_window));
         let hbmp = CreateCompatibleBitmap(hdc_window, width, height);
-        let old_obj = SelectObject(hdc_mem, hbmp);
+        let old_obj = SelectObject(hdc_mem, hbmp.into());
 
         // PW_RENDERFULLCONTENT = 2 - captures full content including DirectX/Aero effects
         let success = PrintWindow(hwnd, hdc_mem, PRINT_WINDOW_FLAGS(2));
 
         if !success.as_bool() {
             // Fallback to BitBlt from window DC (works for most GDI windows)
-            let _ = BitBlt(hdc_mem, 0, 0, width, height, hdc_window, 0, 0, SRCCOPY);
+            let _ = BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_window), 0, 0, SRCCOPY);
         }
 
         // Extract bitmap data as BGRA (top-down)
@@ -165,9 +165,9 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<
 
         // Cleanup
         SelectObject(hdc_mem, old_obj);
-        let _ = DeleteObject(hbmp);
+        let _ = DeleteObject(hbmp.into());
         let _ = DeleteDC(hdc_mem);
-        ReleaseDC(hwnd, hdc_window);
+        ReleaseDC(Some(hwnd), hdc_window);
 
         Some(buffer)
     }
@@ -228,18 +228,18 @@ fn screenshot_window_printwindow(hwnd_raw: isize, width: i32, height: i32) -> Op
 
     unsafe {
         let hwnd = HWND(hwnd_raw as *mut _);
-        let hdc_window = GetDC(hwnd);
+        let hdc_window = GetDC(Some(hwnd));
         if hdc_window.is_invalid() {
             return None;
         }
 
-        let hdc_mem = CreateCompatibleDC(hdc_window);
+        let hdc_mem = CreateCompatibleDC(Some(hdc_window));
         let hbmp = CreateCompatibleBitmap(hdc_window, width, height);
-        let old_obj = SelectObject(hdc_mem, hbmp);
+        let old_obj = SelectObject(hdc_mem, hbmp.into());
 
         let success = PrintWindow(hwnd, hdc_mem, PRINT_WINDOW_FLAGS(2));
         if !success.as_bool() {
-            let _ = BitBlt(hdc_mem, 0, 0, width, height, hdc_window, 0, 0, SRCCOPY);
+            let _ = BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_window), 0, 0, SRCCOPY);
         }
 
         // Extract as BMP-style BGRA data (top-down)
@@ -273,9 +273,9 @@ fn screenshot_window_printwindow(hwnd_raw: isize, width: i32, height: i32) -> Op
         );
 
         SelectObject(hdc_mem, old_obj);
-        let _ = DeleteObject(hbmp);
+        let _ = DeleteObject(hbmp.into());
         let _ = DeleteDC(hdc_mem);
-        ReleaseDC(hwnd, hdc_window);
+        ReleaseDC(Some(hwnd), hdc_window);
 
         // Convert BGRA to BMP file format for encoding
         // Build a simple BMP file in memory

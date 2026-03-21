@@ -4,7 +4,8 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[cfg(target_os = "windows")]
-use windows::Win32::Foundation::{HWND, BOOL, LPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM};
+use windows::core::BOOL;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextW, GetWindowTextLengthW,
