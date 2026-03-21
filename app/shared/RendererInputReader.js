@@ -1,4 +1,4 @@
-import InputReader from "../../InputReader"
+import InputReader from "./InputReader"
 
 // Helper to decode base64 string to Uint8Array
 function base64ToUint8Array(base64) {

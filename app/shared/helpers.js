@@ -1,6 +1,6 @@
 import { easeExpOut } from "d3-ease"
 import { shallowEqual } from "react-redux"
-import { PROJECT_SCREEN_VIDEO } from "../../helpers"
+import { PROJECT_SCREEN_VIDEO } from "./constants"
 import {
     getGroup,
     withGroup
