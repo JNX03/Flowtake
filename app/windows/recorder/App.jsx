@@ -19,7 +19,7 @@ import {
     useRef,
     useState
 } from "react"
-import DeviceRecorder from "../../main/src/DeviceRecorder"
+import DeviceRecorder from "../main/DeviceRecorder"
 
 const StyleTag = () => (
     <style>{`
