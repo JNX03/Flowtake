@@ -108,6 +108,12 @@ const COMMAND_MAP = {
     'get-camera-video-buffer': 'get_camera_video_buffer',
     'get-screen-video-buffer': 'get_screen_video_buffer',
     'extract-audio-buffer': 'extract_audio_buffer',
+    // Social Upload
+    'youtube-set-credentials': 'youtube_set_credentials',
+    'youtube-auth-start': 'youtube_auth_start',
+    'youtube-auth-status': 'youtube_auth_status',
+    'youtube-auth-disconnect': 'youtube_auth_disconnect',
+    'youtube-upload-video': 'youtube_upload_video',
 };
 
 // Map IPC arguments from positional to named for Tauri invoke
@@ -172,6 +178,9 @@ const ARGS_MAP = {
     'get_window_at_point': (args) => ({ x: args[0], y: args[1] }),
     'get_projects': (args) => ({ page: args[0] }),
     'extract_audio_buffer': (args) => ({ source: args[0] }),
+    // Social Upload
+    'youtube_set_credentials': (args) => ({ clientId: args[0], clientSecret: args[1] }),
+    'youtube_upload_video': (args) => ({ renderId: args[0], title: args[1], description: args[2], privacy: args[3] }),
 };
 
 // Store of event listeners for cleanup

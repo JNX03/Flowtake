@@ -26,6 +26,7 @@ import {
 } from "../../src/redux/renderSlice"
 import Form from "./components/form/NewRenderForm"
 import Queue from "./components/queue/Queue"
+import SocialUploadModal from "./components/SocialUploadModal"
 import Toasts from "./components/Toasts"
 import VideoPreviewModal from "./components/VideoPreviewModal"
 
@@ -38,6 +39,7 @@ export default function App() {
     const projectState = useSelector(selectProjectState)
 
     const [previewState, setPreviewState] = useState({ isOpen: false, renderId: null, videoName: null })
+    const [uploadState, setUploadState] = useState({ isOpen: false, renderId: null, videoName: null })
 
     const onPreview = useCallback((renderId, videoName) => {
         setPreviewState({ isOpen: true, renderId, videoName })
@@ -45,6 +47,14 @@ export default function App() {
 
     const closePreview = useCallback(() => {
         setPreviewState({ isOpen: false, renderId: null, videoName: null })
+    }, [])
+
+    const onUpload = useCallback((renderId, videoName) => {
+        setUploadState({ isOpen: true, renderId, videoName })
+    }, [])
+
+    const closeUpload = useCallback(() => {
+        setUploadState({ isOpen: false, renderId: null, videoName: null })
     }, [])
 
     const rendersRef = useRef(renders)
@@ -139,7 +149,7 @@ export default function App() {
                 {!isPending && <div className="h-full overflow-y-auto">
                     <Form onAdd={onAdd} onCancel={onCancelNewRender}
                         isVisible={openSection === EXPORTER_SECTION_NEW_RENDER} />
-                    <Queue isVisible={openSection === EXPORTER_SECTION_QUEUE} onPreview={onPreview} />
+                    <Queue isVisible={openSection === EXPORTER_SECTION_QUEUE} onPreview={onPreview} onUpload={onUpload} />
                 </div>}
                 {isPending && <div className="flex items-center justify-center h-full">
                     <span className="loading loading-spinner loading-sm opacity-40" />
@@ -152,6 +162,12 @@ export default function App() {
                 videoName={previewState.videoName}
                 isOpen={previewState.isOpen}
                 onClose={closePreview}
+            />
+            <SocialUploadModal
+                renderId={uploadState.renderId}
+                videoName={uploadState.videoName}
+                isOpen={uploadState.isOpen}
+                onClose={closeUpload}
             />
         </div>
     )
