@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Teleprompter - Flowtake</title>
-  <link rel="icon" type="image/png" href="../src/assets/favicon.png" />
+  <link rel="icon" type="image/png" href="../../shared/assets/favicon.png" />
   <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://asset.localhost asset:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://asset.localhost asset:; media-src 'self' blob: data: https://asset.localhost asset: stream:; connect-src 'self' https: http: ws: wss: ipc: https://asset.localhost asset:; font-src 'self' data:;" />
 </head>
@@ -24,7 +24,7 @@
       if ((e.ctrlKey || e.metaKey) && (e.key === 'U' || e.key === 'u')) { e.preventDefault(); }
     });
   </script>
-  <script type="module" src="./src/note.jsx"></script>
+  <script type="module" src="./note.jsx"></script>
 </body>
 
 </html>
