@@ -66,13 +66,29 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: Collect Windows installers and portable binary
+        shell: bash
+        run: |
+          mkdir -p installers
+
+          # Installers
+          cp src-tauri/target/release/bundle/nsis/*.exe installers/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/msi/*.msi installers/ 2>/dev/null || true
+
+          # Portable standalone binary (zip with ffmpeg sidecar)
+          mkdir -p _portable/Flowtake
+          cp src-tauri/target/release/flowtake.exe _portable/Flowtake/Flowtake.exe
+          cp src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe _portable/Flowtake/ffmpeg.exe 2>/dev/null || true
+          cd _portable && 7z a -tzip ../installers/Flowtake-windows-x64-portable.zip Flowtake/ && cd ..
+
+          echo "=== Collected files ==="
+          ls -la installers/
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-installers
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+          path: installers/*
 
   build-linux:
     name: Build (Linux x64)
@@ -139,14 +155,31 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: Collect Linux installers and portable binary
+        run: |
+          mkdir -p installers
+
+          # Installers
+          cp src-tauri/target/release/bundle/deb/*.deb installers/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/appimage/*.AppImage installers/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/rpm/*.rpm installers/ 2>/dev/null || true
+
+          # Portable standalone binary (tar.gz with ffmpeg sidecar)
+          mkdir -p _portable/Flowtake
+          cp src-tauri/target/release/flowtake _portable/Flowtake/flowtake
+          chmod +x _portable/Flowtake/flowtake
+          cp src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu _portable/Flowtake/ffmpeg 2>/dev/null || true
+          chmod +x _portable/Flowtake/ffmpeg 2>/dev/null || true
+          tar -czf installers/Flowtake-linux-x64-portable.tar.gz -C _portable Flowtake
+
+          echo "=== Collected files ==="
+          ls -la installers/
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-installers
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/rpm/*.rpm
+          path: installers/*
 
   build-macos:
     name: Build (macOS Universal)
@@ -213,13 +246,32 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: Collect macOS installers and portable app
+        run: |
+          mkdir -p installers
+
+          # Installers
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg installers/ 2>/dev/null || true
+
+          # Portable .app bundle (zip it for direct download)
+          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/Flowtake.app"
+          if [ -d "$APP_PATH" ]; then
+            cd src-tauri/target/universal-apple-darwin/release/bundle/macos
+            zip -r -y ../../../../../../installers/Flowtake-macos-universal.zip Flowtake.app
+            cd ../../../../../../
+          fi
+
+          # Also grab the .app.tar.gz if Tauri generated it
+          cp src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz installers/ 2>/dev/null || true
+
+          echo "=== Collected files ==="
+          ls -la installers/
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-installers
-          path: |
-            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+          path: installers/*
 
   release:
     name: Create Release
@@ -236,23 +288,13 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download Windows artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: windows-installers
-          path: artifacts/windows
+          path: artifacts
 
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-installers
-          path: artifacts/linux
-
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-installers
-          path: artifacts/macos
+      - name: List all artifacts
+        run: find artifacts -type f | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -271,14 +313,17 @@ jobs:
 
             ### Download
 
-            | Platform | Installer | Notes |
-            |----------|-----------|-------|
-            | **Windows** (x64) | `.exe` | Recommended — guided setup with NSIS |
-            | **Windows** (x64) | `.msi` | Silent / enterprise installs |
-            | **macOS** (Universal) | `.dmg` | Runs natively on Apple Silicon & Intel via Rosetta 2 |
-            | **Linux** (x64) | `.deb` | Debian, Ubuntu, and derivatives |
+            | Platform | File | Notes |
+            |----------|------|-------|
+            | **Windows** (x64) | `.exe` installer | Recommended — guided setup with NSIS |
+            | **Windows** (x64) | `.msi` installer | Silent / enterprise installs |
+            | **Windows** (x64) | `-portable.zip` | No install needed — extract and run |
+            | **macOS** (Universal) | `.dmg` | Runs natively on Apple Silicon & Intel |
+            | **macOS** (Universal) | `.zip` | Portable — extract Flowtake.app directly |
             | **Linux** (x64) | `.AppImage` | Portable — works on any Linux distro |
+            | **Linux** (x64) | `.deb` | Debian, Ubuntu, and derivatives |
             | **Linux** (x64) | `.rpm` | Fedora, RHEL, openSUSE, and derivatives |
+            | **Linux** (x64) | `-portable.tar.gz` | No install needed — extract and run |
 
             ---
 
@@ -328,10 +373,12 @@ jobs:
             ### What's Changed
 
           files: |
-            artifacts/windows/*.exe
-            artifacts/windows/*.msi
-            artifacts/macos/*.dmg
-            artifacts/macos/*.app.tar.gz
-            artifacts/linux/*.deb
-            artifacts/linux/*.AppImage
-            artifacts/linux/*.rpm
+            artifacts/**/*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.dmg
+            artifacts/**/*.zip
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.AppImage
+            artifacts/**/*.rpm
