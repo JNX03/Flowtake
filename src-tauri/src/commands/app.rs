@@ -184,7 +184,8 @@ pub async fn check_dependencies(app: AppHandle) -> AppResult<Value> {
         sidecar_ok || command_exists("ffmpeg")
     };
 
-    let deps = vec![
+    #[allow(unused_mut)]
+    let mut deps = vec![
         serde_json::json!({
             "name": "FFmpeg",
             "command": "ffmpeg",

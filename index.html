@@ -233,6 +233,24 @@
       _showErrorOverlay('<pre style="color:red;padding:20px;font-size:14px;">PROMISE ERROR: ' + e.reason + '\n' + (e.reason && e.reason.stack ? e.reason.stack : '') + '</pre>');
     });
   </script>
+  <script>
+    // Disable right-click inspect/context menu in production builds
+    if (!window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label?.includes('dev')) {
+      document.addEventListener('contextmenu', function(e) {
+        // Allow right-click on inputs, textareas, and contenteditable elements
+        var t = e.target;
+        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+        e.preventDefault();
+      });
+      // Disable common devtools shortcuts
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12') { e.preventDefault(); }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i')) { e.preventDefault(); }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'j')) { e.preventDefault(); }
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'U' || e.key === 'u')) { e.preventDefault(); }
+      });
+    }
+  </script>
   <script type="module" src="./src/renderer/main/src/main.jsx"></script>
 </body>
 

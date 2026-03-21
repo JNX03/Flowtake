@@ -34,7 +34,6 @@ pub async fn open_export_window(
     .resizable(true)
     .min_inner_size(400.0, 400.0)
     .decorations(false)
-    .transparent(true)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 

@@ -1,3 +1,7 @@
+#[cfg(target_os = "macos")]
+#[macro_use]
+extern crate objc;
+
 mod commands;
 mod state;
 mod error;

@@ -11,6 +11,19 @@
 
 <body class="hyphens-auto h-full max-h-full" style="background: transparent;">
   <div id="root" class="h-full max-h-full m-0"></div>
+  <script>
+    document.addEventListener('contextmenu', function(e) {
+      var t = e.target;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+      e.preventDefault();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'F12') { e.preventDefault(); }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i')) { e.preventDefault(); }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'J' || e.key === 'j')) { e.preventDefault(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'U' || e.key === 'u')) { e.preventDefault(); }
+    });
+  </script>
   <script type="module" src="./src/recorder.jsx"></script>
 </body>
 

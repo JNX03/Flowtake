@@ -61,7 +61,6 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .position(0.0, 0.0)
     .resizable(false)
     .decorations(false)
-    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .content_protected(true)
@@ -327,7 +326,6 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     .decorations(false)
     .always_on_top(true)
     .content_protected(true)
-    .transparent(false)
     .build()
     .map_err(|e| AppError::Tauri(e))?;
 

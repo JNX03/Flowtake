@@ -675,7 +675,6 @@ pub async fn init_recording(
     .maximizable(false)
     .closable(false)
     .decorations(false)
-    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .content_protected(true)
@@ -708,6 +707,7 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
 
     // Get config from stored state
+    #[allow(unused_variables)]
     let (ffmpeg_args, is_window_capture, window_hwnd, window_width, window_height) = {
         let state = state.lock().unwrap();
         let config = state.camera_mic_config.as_ref();
@@ -782,7 +782,9 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
             };
 
             // Make dimensions even
+            #[allow(unused_variables)]
             let w = (window_width - (window_width % 2)).max(2);
+            #[allow(unused_variables)]
             let h = (window_height - (window_height % 2)).max(2);
 
             #[cfg(target_os = "windows")]
