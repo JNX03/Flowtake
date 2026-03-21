@@ -23,7 +23,7 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      '@renderer': resolve('src/renderer/src')
+      '@shared': resolve('app/shared')
     }
   },
 
@@ -62,11 +62,11 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        areaPicker: resolve(__dirname, 'src/renderer/areaPicker/index.html'),
-        note: resolve(__dirname, 'src/renderer/note/index.html'),
-        recorder: resolve(__dirname, 'src/renderer/recorder/index.html'),
-        windowPicker: resolve(__dirname, 'src/renderer/windowPicker/index.html'),
-        exporter: resolve(__dirname, 'src/renderer/exporter/index.html'),
+        areaPicker: resolve(__dirname, 'app/windows/areaPicker/index.html'),
+        note: resolve(__dirname, 'app/windows/note/index.html'),
+        recorder: resolve(__dirname, 'app/windows/recorder/index.html'),
+        windowPicker: resolve(__dirname, 'app/windows/windowPicker/index.html'),
+        exporter: resolve(__dirname, 'app/windows/exporter/index.html'),
       }
     }
   },
