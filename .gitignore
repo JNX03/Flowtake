@@ -91,10 +91,6 @@ typings/
 #Claude
 .claude/
 
-# Vite config temp files
-electron.vite.config.*.mjs
-
-# Electron-Forge (legacy)
 out/
 
 dist/
@@ -107,6 +103,3 @@ src-tauri/gen/
 
 # Sentry Config File
 .env.sentry-build-plugin
-
-sentry.properties
-electronoriginalcode
