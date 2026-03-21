@@ -26,14 +26,14 @@ import {
     getRenderQualityLabel,
     RENDER_PENDING,
     TOAST_ERROR
-} from "../../../../src/helpers"
+} from "@shared/helpers"
 import {
     addRender,
     addToast,
     selectProjectState,
     setProjectState
-} from "../../../../src/redux/renderSlice"
-import { captureException } from "../../../../src/sentryHelpers"
+} from "@shared/redux/renderSlice"
+import { captureException } from "@shared/sentryHelpers"
 import ShareableUrl from "./ShareableUrl"
 
 const ASPECT_ICONS = {

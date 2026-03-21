@@ -31,14 +31,14 @@ import {
     RENDER_RENDERING,
     RENDER_STARTING,
     RENDER_UPLOADING
-} from "../../../../src/helpers"
+} from "@shared/helpers"
 import {
     removeRender,
     selectProgress,
     selectRenderById,
     updateRender
-} from "../../../../src/redux/renderSlice"
-import RenderWorkerManager from "../../../../src/workers/RenderWorkerManager"
+} from "@shared/redux/renderSlice"
+import RenderWorkerManager from "@shared/workers/RenderWorkerManager"
 import CopyButton from "../CopyButton"
 import UploadStatus from "./UploadStatus"
 

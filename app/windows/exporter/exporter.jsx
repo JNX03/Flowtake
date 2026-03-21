@@ -1,4 +1,4 @@
-import { initTauriBridge } from '../../src/tauriBridge'
+import { initTauriBridge } from '@shared/tauriBridge'
 initTauriBridge()
 
 import {
@@ -8,8 +8,8 @@ import {
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from "react-redux"
-import '../../src/assets/index.css'
-import renderStore from "../../src/redux/renderStore"
+import '@shared/assets/index.css'
+import renderStore from "@shared/redux/renderStore"
 import App from "./App"
 
 const queryClient = new QueryClient()

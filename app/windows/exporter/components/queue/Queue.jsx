@@ -16,11 +16,11 @@ import {
     RENDER_COMPLETED,
     RENDER_PENDING,
     RENDER_STARTING
-} from "../../../../src/helpers"
+} from "@shared/helpers"
 import {
     selectAllRenders,
     updateRender
-} from "../../../../src/redux/renderSlice"
+} from "@shared/redux/renderSlice"
 import Row from "./Row"
 
 export default function Queue({ isVisible, onPreview, onUpload }) {

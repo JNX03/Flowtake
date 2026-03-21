@@ -1,7 +1,7 @@
 import PropTypes from "prop-types"
 import { useSelector } from "react-redux"
-import { RENDER_UPLOADING } from "../../../../src/helpers"
-import { selectRenderById } from "../../../../src/redux/renderSlice"
+import { RENDER_UPLOADING } from "@shared/helpers"
+import { selectRenderById } from "@shared/redux/renderSlice"
 
 export default function UploadStatus({ id, uploadProgress }) {
     const render = useSelector(state => selectRenderById(state, id))

@@ -16,14 +16,14 @@ import {
     isRenderRendering,
     RENDER_CANCELING,
     RENDER_COMPLETED
-} from "../../src/helpers"
+} from "@shared/helpers"
 import {
     removeRenders,
     selectAllRenders,
     selectProjectState,
     selectTotalRenders,
     updateRender
-} from "../../src/redux/renderSlice"
+} from "@shared/redux/renderSlice"
 import Form from "./components/form/NewRenderForm"
 import Queue from "./components/queue/Queue"
 import SocialUploadModal from "./components/SocialUploadModal"

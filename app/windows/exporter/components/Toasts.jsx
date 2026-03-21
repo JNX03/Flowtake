@@ -9,11 +9,11 @@ import {
     TOAST_ERROR,
     TOAST_SUCCESS,
     TOAST_WARNING
-} from "../../../src/helpers"
+} from "@shared/helpers"
 import {
     dismissToast,
     selectToasts
-} from "../../../src/redux/renderSlice"
+} from "@shared/redux/renderSlice"
 import { useCallback } from "react"
 
 export default function Toasts() {
