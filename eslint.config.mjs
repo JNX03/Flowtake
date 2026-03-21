@@ -1,4 +1,4 @@
-import eslint from "@electron-toolkit/eslint-config"
+import eslintJs from "@eslint/js"
 import reactQuery from "@tanstack/eslint-plugin-query"
 import reactPlugin from "eslint-plugin-react"
 import reactHooks from "eslint-plugin-react-hooks"
@@ -21,12 +21,8 @@ export default [
     ]
   },
   {
-    files: ["**/*.{js,ts}"],
-    ...eslint,
-  },
-  {
-    files: ["**/*.jsx"],
-    ...eslint,
+    files: ["**/*.{js,jsx}"],
+    ...eslintJs.configs.recommended,
   },
   {
     files: ["**/*.jsx"],
