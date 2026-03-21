@@ -16,7 +16,7 @@ import {
 import {
     CAMERA_VIDEO,
     SCREEN_VIDEO
-} from "../../../helpers"
+} from "../constants"
 import Roboto from "../assets/fonts/Roboto-Regular.ttf"
 import {
     CREATE_CURSORS,

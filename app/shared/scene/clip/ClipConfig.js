@@ -1,7 +1,7 @@
 import {
     MODE_CAMERA_OVERLAY,
     MODE_SIDE_BY_SIDE
-} from "../../../../helpers"
+} from "../../constants"
 import {
     CAMERA_OVERLAY_DEFAULT_CONFIG,
     SIDE_BY_SIDE_DEFAULT_CONFIG

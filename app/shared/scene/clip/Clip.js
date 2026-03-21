@@ -3,7 +3,7 @@ import {
     MODE_CAMERA_OVERLAY,
     MODE_SCREEN_FULLSCREEN,
     MODE_SIDE_BY_SIDE
-} from "../../../../helpers"
+} from "../../constants"
 import {
     cropToCenteredRect,
     interpolate,
