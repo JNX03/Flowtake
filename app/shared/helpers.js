@@ -576,42 +576,81 @@ export const EASING_OPTIONS = [
 
 export const getEasingFunction = (name) => EASING_MAP[name] || easeExpOut
 
-export const applyInertia = (coords, duration, inertia = 1000) => {
+export const applyInertia = (coords, duration, inertia = 400) => {
 
     const coordsWithInertia = []
+    const frameDuration = 1000 / INERTIA_FPS
+    const MAX_SPEED = 800 // px/s — speed at which smoothing is minimized
 
     if (coords.length > 0) {
         let to = coords[0]
         let from = coords[0]
         let position = { x: coords[0].x, y: coords[0].y }
+        let prevPosition = { x: coords[0].x, y: coords[0].y }
         let ms = 0
         let c = [...coords]
         let current = c.shift()
+        let prevVx = 0
+        let prevVy = 0
 
-        for (let timestamp = 0; timestamp <= duration / (1000 / INERTIA_FPS); timestamp += 1) {
+        for (let timestamp = 0; timestamp <= duration / frameDuration; timestamp += 1) {
 
-            while (c.length > 0 && c[0].timestamp <= timestamp * (1000 / INERTIA_FPS)) { current = c.shift() }
+            while (c.length > 0 && c[0].timestamp <= timestamp * frameDuration) { current = c.shift() }
 
             if (to.x !== current.x || to.y !== current.y) {
-                // has a new event to animate towards
+                // New event to animate towards
                 from = { x: position.x, y: position.y }
                 to = current
-                ms = timestamp * (1000 / INERTIA_FPS) - current.timestamp
+                ms = timestamp * frameDuration - current.timestamp
             }
 
-            ms += 1000 / INERTIA_FPS
+            ms += frameDuration
 
-            const interpolator = Math.min(ms / inertia, 1)
+            // Compute instantaneous speed from previous frame
+            const dx = to.x - from.x
+            const dy = to.y - from.y
+            const dist = Math.sqrt(dx * dx + dy * dy)
+            const timeSec = inertia / 1000
+            const speed = timeSec > 0 ? dist / timeSec : 0
 
-            position = interpolateCoords(from, to, interpolator)
-            position.timestamp = timestamp * 1000 / INERTIA_FPS
+            // Adaptive smoothing: fast motion = shorter inertia window
+            const velocityFactor = Math.max(1.0 - (speed / MAX_SPEED) * 0.85, 0.15)
+            const effectiveInertia = inertia * velocityFactor
+
+            const interpolator = Math.min(ms / effectiveInertia, 1)
+
+            // Use easeCubicInOut for symmetric acceleration/deceleration (no rubber-band)
+            position = interpolateCoords(from, to, interpolator, easeCubicInOut)
+
+            // Velocity prediction: when motion is consistent, blend in a 1-frame lookahead
+            const vx = (position.x - prevPosition.x) / frameDuration * 1000
+            const vy = (position.y - prevPosition.y) / frameDuration * 1000
+            const currentSpeed = Math.sqrt(vx * vx + vy * vy)
+
+            if (currentSpeed > 50 && interpolator < 1) {
+                // Check direction consistency (dot product of current and previous velocity)
+                const dot = vx * prevVx + vy * prevVy
+                const directionConsistent = dot > 0
+
+                if (directionConsistent) {
+                    const predictionWeight = 0.3
+                    position.x += vx * (frameDuration / 1000) * predictionWeight
+                    position.y += vy * (frameDuration / 1000) * predictionWeight
+                }
+            }
+
+            prevVx = vx
+            prevVy = vy
+            prevPosition = { x: position.x, y: position.y }
+
+            position.timestamp = timestamp * frameDuration
             position.t = timestamp
 
             coordsWithInertia.push(position)
         }
     } else {
-        for (let timestamp = 0; timestamp <= duration / (1000 / INERTIA_FPS); timestamp += 1) {
-            coordsWithInertia.push({ x: 0, y: 0, timestamp: timestamp * 1000 / INERTIA_FPS, t: timestamp })
+        for (let timestamp = 0; timestamp <= duration / frameDuration; timestamp += 1) {
+            coordsWithInertia.push({ x: 0, y: 0, timestamp: timestamp * frameDuration, t: timestamp })
         }
     }
 
