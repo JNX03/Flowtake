@@ -110,8 +110,8 @@ export default function Action({
 
     return (
         <div ref={action} onClick={click} onContextMenu={contextMenu}
-            className={`${getColorClasses()} ${getRingClasses()} ${isSelected ? "shadow-xl z-20" : "hover:z-10"} ` +
-                "h-full absolute select-none flex transition-shadow rounded-xl overflow-hidden ring-offset-base-100 " +
+            className={`${getColorClasses()} ${getRingClasses()} ${isSelected ? "shadow-xl z-20 brightness-110" : "hover:z-10 hover:brightness-105"} ` +
+                "h-full absolute select-none flex transition-all duration-150 rounded-xl overflow-hidden ring-offset-base-100 " +
                 `${isMinimized ? "" : "cursor-pointer"} @container`}
             style={{ left: `${leftPosition}px`, width: `${width}px` }} >
             {children}

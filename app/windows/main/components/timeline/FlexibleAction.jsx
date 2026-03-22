@@ -236,7 +236,10 @@ export default function FlexibleAction({
             Math.abs(current - value) < Math.abs(closest - value) ? current : closest) ?? null, [lines])
 
     const isWithinSnappingThreshold = useCallback(
-        (value, closestLine) => msToPx(getDiff(value, closestLine), pxPerMs) < SNAP_THRESHOLD_PX,
+        (value, closestLine) => {
+            const scaledThreshold = Math.max(SNAP_THRESHOLD_PX / Math.sqrt(pxPerMs / 0.1), 5)
+            return msToPx(getDiff(value, closestLine), pxPerMs) < scaledThreshold
+        },
         [pxPerMs]
     )
 
@@ -458,12 +461,16 @@ export default function FlexibleAction({
             onContextMenu={onContextMenu} isRowSelected={isRowSelected} isClickEnabled={!isDragging} color={color}
             isMinimized={isMinimized}>
             <div ref={leftResizeHandle}
-                className={`w-2.5 ${isMinimized ? "" : "hover:bg-base-content/60 transition-colors cursor-ew-resize"} shrink-0`} />
+                className={`w-3.5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
+                {!isMinimized && <div className="w-0.5 h-3 rounded-full bg-base-content/20" />}
+            </div>
             <div ref={moveHandle} className={`flex-1 flex flex-col justify-evenly min-w-0 ${isMinimized ? "" : "cursor-grab"}`}>
                 {children}
             </div>
             <div ref={rightResizeHandle}
-                className={`w-2.5 ${isMinimized ? "" : "hover:bg-base-content/60 transition-colors cursor-ew-resize"} shrink-0`} />
+                className={`w-3.5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
+                {!isMinimized && <div className="w-0.5 h-3 rounded-full bg-base-content/20" />}
+            </div>
         </Action>
     )
 }
