@@ -81,6 +81,11 @@ export default function NewRecording({ isOpen }) {
         monitorWidth: primary.width,
         monitorHeight: primary.height,
         monitorIndex: primary.index ?? 0,
+        physicalX: primary.physicalX ?? primary.x,
+        physicalY: primary.physicalY ?? primary.y,
+        physicalWidth: primary.physicalWidth ?? primary.width,
+        physicalHeight: primary.physicalHeight ?? primary.height,
+        scaleFactor: primary.scaleFactor ?? 1,
       }))
     }
   }, [monitors]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -114,6 +119,11 @@ export default function NewRecording({ isOpen }) {
         monitorWidth: m.width,
         monitorHeight: m.height,
         monitorIndex: m.index ?? 0,
+        physicalX: m.physicalX ?? m.x,
+        physicalY: m.physicalY ?? m.y,
+        physicalWidth: m.physicalWidth ?? m.width,
+        physicalHeight: m.physicalHeight ?? m.height,
+        scaleFactor: m.scaleFactor ?? 1,
       }))
     } else {
       // Fallback: select screen without monitor info (captures entire desktop)
@@ -131,6 +141,11 @@ export default function NewRecording({ isOpen }) {
       monitorWidth: m.width,
       monitorHeight: m.height,
       monitorIndex: m.index ?? 0,
+      physicalX: m.physicalX ?? m.x,
+      physicalY: m.physicalY ?? m.y,
+      physicalWidth: m.physicalWidth ?? m.width,
+      physicalHeight: m.physicalHeight ?? m.height,
+      scaleFactor: m.scaleFactor ?? 1,
     }))
     setShowMonitorPicker(false)
   }
