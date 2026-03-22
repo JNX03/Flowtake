@@ -106,7 +106,7 @@ export default class Scene {
 
         this.clipAnimator = new ClipAnimator(this.camera?.outerContainer, this.camera?.dims, hasCameraVideo)
 
-        this.clickAnimator = new ClickAnimator(this.cursorImageContainer)
+        this.clickAnimator = new ClickAnimator(this.cursorImageContainer, this.cursorContainer)
 
         this.cursorAnimator = new CursorAnimator(this.cursorContainer, this.motionBlur, mouseEvents, this.screen.dims, duration)
 

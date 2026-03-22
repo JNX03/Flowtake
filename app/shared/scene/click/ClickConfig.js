@@ -5,6 +5,11 @@ export default class ClickConfig extends AnimConfig {
     constructor(args) {
         super(args, "click")
         this.isActive = args.isActive ?? true
+        this.ringEnabled = args.ringEnabled ?? true
+        this.ringColor = args.ringColor ?? "#FFCC00"
+        this.ringSize = args.ringSize ?? 40
+        this.ringOpacity = args.ringOpacity ?? 0.6
+        this.scaleAmount = args.scaleAmount ?? 0.75
     }
 
     static createBulk(mouseEvents) {

@@ -1,17 +1,36 @@
+import { Graphics } from "pixi.js"
 import Animator from "../Animator"
 import Click from "./Click"
 
 export default class ClickAnimator extends Animator {
-    constructor(cursor) {
+    constructor(cursor, cursorContainer) {
         super()
 
         this.cursorScale = null
         this.cursor = cursor
+        this.ringGraphic = new Graphics()
+        this.ringGraphic.visible = false
+        if (cursorContainer) cursorContainer.addChild(this.ringGraphic)
     }
 
     update(timestamp) {
         const frame = this.computeFrame(timestamp)
         this.cursor.scale.set(frame.scale)
+
+        // Render click ring
+        if (frame.ringProgress > 0 && frame.ringConfig?.enabled) {
+            const { color, size, opacity } = frame.ringConfig
+            const progress = frame.ringProgress
+            const radius = size * progress
+            const alpha = opacity * (1 - progress * 0.5)
+
+            this.ringGraphic.clear()
+            this.ringGraphic.circle(0, 0, radius)
+            this.ringGraphic.stroke({ color, width: 3, alpha })
+            this.ringGraphic.visible = true
+        } else {
+            this.ringGraphic.visible = false
+        }
     }
 
     setState({ cursorScale, configs }) {
