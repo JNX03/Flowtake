@@ -27,6 +27,7 @@ import {
     RENDER_PENDING,
     TOAST_ERROR
 } from "@shared/helpers"
+import { EXPORT_PRESETS } from "@shared/exportPresets"
 import {
     addRender,
     addToast,
@@ -209,6 +210,33 @@ export default function Form({ onAdd, onCancel, isVisible }) {
         <div className={`flex flex-col h-full ${isVisible ? "" : "hidden"}`}>
             <div className="flex-1 overflow-y-auto px-5 py-4">
                 <div className="flex flex-col gap-5">
+
+                    {/* Quick Presets */}
+                    <div>
+                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-40 mb-2 block">
+                            Quick Presets
+                        </span>
+                        <div className="grid grid-cols-3 gap-1.5">
+                            {EXPORT_PRESETS.map(preset => (
+                                <button
+                                    key={preset.id}
+                                    onClick={() => {
+                                        setAspectRatio(preset.aspectRatio)
+                                        setResolutionString(preset.resolution)
+                                        setFps(preset.fps)
+                                        setQuality(preset.quality)
+                                    }}
+                                    className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-[10px] font-medium transition-all bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
+                                >
+                                    {preset.icon === "yt" && <ComputerDesktopIcon className="size-3.5" />}
+                                    {preset.icon === "mobile" && <DevicePhoneMobileIcon className="size-3.5" />}
+                                    {preset.icon === "square" && <Square2StackIcon className="size-3.5" />}
+                                    {preset.icon === "desktop" && <ComputerDesktopIcon className="size-3.5" />}
+                                    <span className="truncate w-full text-center">{preset.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* Aspect Ratio */}
                     <div>
