@@ -1,4 +1,5 @@
 import {
+    useCallback,
     useEffect,
     useState
 } from "react"
@@ -40,6 +41,7 @@ export default function Editor() {
     const isInitialized = useSelector(selectIsInitialized)
     const name = useSelector(selectName)
     const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(true)
+    const [isFileDragOver, setIsFileDragOver] = useState(false)
 
     useEffect(() => {
         if (hasProject) dispatch(ActionCreators.clearHistory())
@@ -48,6 +50,54 @@ export default function Editor() {
     useEffect(() => {
         dispatch(setLoaderMessage(isInitialized ? null : "Opening editor..."))
     }, [isInitialized, dispatch])
+
+    const handleDragOver = useCallback(e => {
+        if (e.dataTransfer?.types?.includes("Files")) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = "copy"
+            setIsFileDragOver(true)
+        }
+    }, [])
+
+    const handleDragLeave = useCallback(e => {
+        if (e.currentTarget.contains(e.relatedTarget)) return
+        setIsFileDragOver(false)
+    }, [])
+
+    const handleDrop = useCallback(e => {
+        e.preventDefault()
+        setIsFileDragOver(false)
+
+        const files = Array.from(e.dataTransfer?.files || [])
+        if (files.length === 0) return
+
+        files.forEach(file => {
+            const ext = file.name.split(".").pop()?.toLowerCase()
+            const audioExts = ["mp3", "wav", "ogg", "flac", "aac", "m4a", "wma"]
+            const imageExts = ["png", "jpg", "jpeg", "gif", "svg", "webp", "bmp"]
+            const videoExts = ["mp4", "webm", "mov", "avi", "mkv"]
+
+            let type = "unknown"
+            if (audioExts.includes(ext)) type = "audio"
+            else if (imageExts.includes(ext)) type = "image"
+            else if (videoExts.includes(ext)) type = "video"
+
+            if (type !== "unknown") {
+                // Dispatch custom drop event that Timeline already listens for
+                window.dispatchEvent(new CustomEvent("flowtake-drop", {
+                    detail: {
+                        data: {
+                            type,
+                            name: file.name,
+                            src: URL.createObjectURL(file),
+                            category: type,
+                        },
+                        target: { zone: "timeline" }
+                    }
+                }))
+            }
+        })
+    }, [])
 
     return (<>
         <TitleBar overlayButtons={3} subtitle={name} >
@@ -63,7 +113,10 @@ export default function Editor() {
             <SettingsButton />
             <UpgradeButton />
         </TitleBar>
-        <div className="bg-base-300 flex flex-col h-full relative overflow-hidden">
+        <div className="bg-base-300 flex flex-col h-full relative overflow-hidden"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}>
             {/* Top section: Assets | Preview | Properties */}
             <div className="pt-1 px-1.5 flex gap-1.5 flex-1 overflow-hidden min-h-0">
                 <AssetPanel
@@ -76,6 +129,16 @@ export default function Editor() {
             {/* Bottom section: Timeline */}
             <Timeline />
             <DragOverlay />
+
+            {/* File drag-and-drop overlay */}
+            {isFileDragOver && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-base-300/80 backdrop-blur-sm pointer-events-none">
+                    <div className="border-2 border-dashed border-primary/60 rounded-2xl p-12 bg-primary/5">
+                        <p className="text-lg font-semibold text-primary">Drop media files here</p>
+                        <p className="text-sm opacity-50 mt-1">Audio, images, and video files supported</p>
+                    </div>
+                </div>
+            )}
         </div>
     </>)
 }
