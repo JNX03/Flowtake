@@ -13,6 +13,7 @@ import {
 import { useResizeDetector } from "react-resize-detector"
 import {
     AUDIO_TRACKS,
+    clamp,
     CLIPS,
     getGridBackgroundImage,
     msToPx,
@@ -70,6 +71,7 @@ import {
     selectSelectedIds,
     selectSelectedRow,
     setOffset,
+    setPxPerMs,
     setScrollLeft,
     setSelectedIds,
     setWidth
@@ -128,10 +130,16 @@ export default function Timeline() {
 
     const timelineWidth = useMemo(() => msToPx(duration, pxPerMs), [duration, pxPerMs])
     const gridSpacing = useMemo(() => {
-        let ms = null
-        if (pxPerMs < .05) ms = 300000
-        else if (pxPerMs < .1) ms = 2000
-        else ms = 1000
+        let ms
+        if (pxPerMs < 0.01) ms = 600000
+        else if (pxPerMs < 0.02) ms = 300000
+        else if (pxPerMs < 0.04) ms = 60000
+        else if (pxPerMs < 0.06) ms = 30000
+        else if (pxPerMs < 0.08) ms = 10000
+        else if (pxPerMs < 0.1) ms = 5000
+        else if (pxPerMs < 0.15) ms = 2000
+        else if (pxPerMs < 0.2) ms = 1000
+        else ms = 500
         return msToPx(ms, pxPerMs)
     }, [pxPerMs])
 
@@ -179,6 +187,40 @@ export default function Timeline() {
         return () => el.removeEventListener("scroll", onScroll)
     }, [dispatch, pxPerMs, isClipMenuOpen, isClickMenuOpen, isZoomMenuOpen, isSubtitleMenuOpen, isNewClipMenuOpen,
         isNewZoomMenuOpen, isNewSubtitleMenuOpen, isMaskMenuOpen, isNewMaskMenuOpen])
+
+    // Zoom steps for mousewheel zoom (same formula as Controls.jsx)
+    const zoomSteps = useMemo(() => {
+        const MIN_SCALE = 0.025, MAX_SCALE = 0.35, STEP = 0.025
+        const result = [containerWidth ? containerWidth / duration : MIN_SCALE]
+        for (let i = MIN_SCALE; i <= MAX_SCALE; i += STEP) result.push(i)
+        result.sort()
+        return result
+    }, [duration, containerWidth])
+
+    // Ctrl+Mousewheel zoom centered on mouse position
+    useEffect(() => {
+        const el = container.current
+        if (!el || !duration) return
+        const onWheel = (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault()
+                const rect = el.getBoundingClientRect()
+                const mouseXMs = pxToMs(e.clientX - rect.left + el.scrollLeft, pxPerMs)
+                const delta = e.deltaY > 0 ? -1 : 1
+                const currentIndex = zoomSteps.findIndex(step => step >= pxPerMs)
+                const nextIndex = clamp(currentIndex + delta, 0, zoomSteps.length - 1)
+                const newPxPerMs = zoomSteps[nextIndex]
+                if (newPxPerMs !== pxPerMs) {
+                    dispatch(setPxPerMs(newPxPerMs))
+                    requestAnimationFrame(() => {
+                        if (el) el.scrollLeft = msToPx(mouseXMs, newPxPerMs) - (e.clientX - rect.left)
+                    })
+                }
+            }
+        }
+        el.addEventListener('wheel', onWheel, { passive: false })
+        return () => el.removeEventListener('wheel', onWheel)
+    }, [dispatch, pxPerMs, zoomSteps, duration])
 
     // Unselect deleted entities
     useEffect(() => {
