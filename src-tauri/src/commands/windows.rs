@@ -54,7 +54,7 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     let _window = WebviewWindowBuilder::new(
         &app,
         "windowPicker",
-        WebviewUrl::App("src/renderer/windowPicker/index.html".into()),
+        WebviewUrl::App("app/windows/windowPicker/index.html".into()),
     )
     .title("Select Window - Flowtake")
     .inner_size(mon_w, mon_h)
@@ -272,7 +272,7 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
     let _window = WebviewWindowBuilder::new(
         &app,
         "areaPicker",
-        WebviewUrl::App("src/renderer/areaPicker/index.html".into()),
+        WebviewUrl::App("app/windows/areaPicker/index.html".into()),
     )
     .title("Select Area")
     .inner_size(mon_w, mon_h)
@@ -317,7 +317,7 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     let _window = WebviewWindowBuilder::new(
         &app,
         &note_id,
-        WebviewUrl::App("src/renderer/note/index.html".into()),
+        WebviewUrl::App("app/windows/note/index.html".into()),
     )
     .title("Teleprompter")
     .inner_size(460.0, 580.0)
@@ -350,8 +350,7 @@ pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
         let fallback_name = format!("Monitor {}", i + 1);
         let name = monitor.name().unwrap_or(&fallback_name);
 
-        // Convert physical pixels to logical pixels for FFmpeg gdigrab compatibility
-        // gdigrab operates in DPI-unaware (logical) coordinate space
+        // Logical pixels for UI layout, physical pixels for FFmpeg capture
         let logical_x = (pos.x as f64 / scale) as i32;
         let logical_y = (pos.y as f64 / scale) as i32;
         let logical_w = (size.width as f64 / scale) as u32;
@@ -365,6 +364,10 @@ pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
             "y": logical_y,
             "width": logical_w,
             "height": logical_h,
+            "physicalX": pos.x,
+            "physicalY": pos.y,
+            "physicalWidth": size.width,
+            "physicalHeight": size.height,
             "scaleFactor": scale,
             "isPrimary": is_primary,
         }));

@@ -26,7 +26,7 @@ pub async fn open_export_window(
     let _window = WebviewWindowBuilder::new(
         &app,
         "exporter",
-        WebviewUrl::App("src/renderer/exporter/index.html".into()),
+        WebviewUrl::App("app/windows/exporter/index.html".into()),
     )
     .title("Export - Flowtake")
     .inner_size(520.0, 580.0)

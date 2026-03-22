@@ -452,12 +452,20 @@ pub async fn init_recording(
             "30".to_string(),
         ]);
 
-        // Get screen dimensions in logical pixels for area percentage conversion
+        // Get screen dimensions for area percentage conversion
+        // On Windows, gdigrab operates in physical pixel space
         let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
             if let Ok(Some(monitor)) = main_win.current_monitor() {
                 let size = monitor.size();
-                let scale = monitor.scale_factor();
-                (size.width as f64 / scale, size.height as f64 / scale)
+                #[cfg(target_os = "windows")]
+                {
+                    (size.width as f64, size.height as f64)
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let scale = monitor.scale_factor();
+                    (size.width as f64 / scale, size.height as f64 / scale)
+                }
             } else {
                 (1920.0, 1080.0)
             }
@@ -523,16 +531,27 @@ pub async fn init_recording(
             }
             _ => {
                 // Screen capture - supports specific monitor selection
-                let monitor_x = source
-                    .get("monitorX")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
-                let monitor_y = source
-                    .get("monitorY")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(0);
-                let monitor_w = source.get("monitorWidth").and_then(|v| v.as_i64());
-                let monitor_h = source.get("monitorHeight").and_then(|v| v.as_i64());
+                // On Windows, use physical pixels for gdigrab; on other platforms use logical
+                #[cfg(target_os = "windows")]
+                let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+                    let mx = source.get("physicalX").or_else(|| source.get("monitorX"))
+                        .and_then(|v| v.as_i64()).unwrap_or(0);
+                    let my = source.get("physicalY").or_else(|| source.get("monitorY"))
+                        .and_then(|v| v.as_i64()).unwrap_or(0);
+                    let mw = source.get("physicalWidth").or_else(|| source.get("monitorWidth"))
+                        .and_then(|v| v.as_i64());
+                    let mh = source.get("physicalHeight").or_else(|| source.get("monitorHeight"))
+                        .and_then(|v| v.as_i64());
+                    (mx, my, mw, mh)
+                };
+                #[cfg(not(target_os = "windows"))]
+                let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+                    let mx = source.get("monitorX").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let my = source.get("monitorY").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let mw = source.get("monitorWidth").and_then(|v| v.as_i64());
+                    let mh = source.get("monitorHeight").and_then(|v| v.as_i64());
+                    (mx, my, mw, mh)
+                };
 
                 #[cfg(target_os = "windows")]
                 {
@@ -715,7 +734,7 @@ pub async fn init_recording(
     let recorder_window = WebviewWindowBuilder::new(
         &app,
         "recorder",
-        WebviewUrl::App("src/renderer/recorder/index.html".into()),
+        WebviewUrl::App("app/windows/recorder/index.html".into()),
     )
     .title("Recording - Flowtake")
     .inner_size(overlay_w, overlay_h)
@@ -1504,12 +1523,19 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
     let screenshot_path = temp_dir.join("preview_screenshot.png");
     let screenshot_str = screenshot_path.to_string_lossy().to_string();
 
-    // Use logical pixels for gdigrab compatibility (DPI-unaware coordinate space)
+    // On Windows, gdigrab operates in physical pixel space
     let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
         if let Ok(Some(monitor)) = main_win.current_monitor() {
             let size = monitor.size();
-            let scale = monitor.scale_factor();
-            (size.width as f64 / scale, size.height as f64 / scale)
+            #[cfg(target_os = "windows")]
+            {
+                (size.width as f64, size.height as f64)
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let scale = monitor.scale_factor();
+                (size.width as f64 / scale, size.height as f64 / scale)
+            }
         } else {
             (1920.0, 1080.0)
         }
@@ -1664,16 +1690,27 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             build_screenshot_args(x, y, w, h, &screenshot_str)
         }
         _ => {
-            let monitor_x = source
-                .get("monitorX")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            let monitor_y = source
-                .get("monitorY")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
-            let monitor_w = source.get("monitorWidth").and_then(|v| v.as_i64());
-            let monitor_h = source.get("monitorHeight").and_then(|v| v.as_i64());
+            // On Windows, use physical pixels for gdigrab
+            #[cfg(target_os = "windows")]
+            let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+                let mx = source.get("physicalX").or_else(|| source.get("monitorX"))
+                    .and_then(|v| v.as_i64()).unwrap_or(0);
+                let my = source.get("physicalY").or_else(|| source.get("monitorY"))
+                    .and_then(|v| v.as_i64()).unwrap_or(0);
+                let mw = source.get("physicalWidth").or_else(|| source.get("monitorWidth"))
+                    .and_then(|v| v.as_i64());
+                let mh = source.get("physicalHeight").or_else(|| source.get("monitorHeight"))
+                    .and_then(|v| v.as_i64());
+                (mx, my, mw, mh)
+            };
+            #[cfg(not(target_os = "windows"))]
+            let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+                let mx = source.get("monitorX").and_then(|v| v.as_i64()).unwrap_or(0);
+                let my = source.get("monitorY").and_then(|v| v.as_i64()).unwrap_or(0);
+                let mw = source.get("monitorWidth").and_then(|v| v.as_i64());
+                let mh = source.get("monitorHeight").and_then(|v| v.as_i64());
+                (mx, my, mw, mh)
+            };
 
             if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
                 let w = (w - (w % 2)).max(2);
