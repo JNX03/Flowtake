@@ -14,6 +14,7 @@ import {
 } from "react-redux"
 import Button from "../../../../components/Button"
 import {
+    EASING_OPTIONS,
     formatFixed,
     formatMs,
     formatX,
@@ -184,7 +185,38 @@ export default function ZoomSection() {
         dispatch(addToast({ type: TOAST_SUCCESS, text: "Defaults updated" }))
     }, [dispatch, isIndeterminateIntro, isIndeterminateOutro, isIndeterminateTargetScale, isIndeterminateBlurStrength, isIndeterminateCameraTargetScale, selectedZooms, selectedCameraZooms])
 
+    const applyPreset = useCallback((preset) => {
+        const group = getGroup("zoom-preset")
+        dispatch(withGroup(updateZooms(selectedZooms.map(({ id }) => ({ id, changes: { targetScale: preset.targetScale, intro: preset.intro, outro: preset.outro, easing: preset.easing, blurStrength: preset.blurStrength } }))), group))
+        dispatch(withGroup(updatePans(selectedPans.map(({ id }) => ({ id, changes: { targetScale: preset.targetScale, intro: preset.intro, outro: preset.outro, easing: preset.easing } }))), group))
+        dispatch(withGroup(updateCameraZooms(selectedCameraZooms.map(({ id }) => ({ id, changes: { intro: preset.intro, outro: preset.outro } }))), group))
+    }, [dispatch, selectedZooms, selectedPans, selectedCameraZooms])
+
+    const onChangeEasing = useCallback((easing) => {
+        const group = getGroup("zoom-easing")
+        dispatch(withGroup(updateZooms(selectedZooms.map(({ id }) => ({ id, changes: { easing } }))), group))
+        dispatch(withGroup(updatePans(selectedPans.map(({ id }) => ({ id, changes: { easing } }))), group))
+    }, [dispatch, selectedZooms, selectedPans])
+
+    const ZOOM_PRESETS = [
+        { name: "Gentle", targetScale: 1.5, intro: 1500, outro: 1500, easing: "smooth", blurStrength: 0.3 },
+        { name: "Standard", targetScale: 2, intro: 800, outro: 800, easing: "expOut", blurStrength: 0.5 },
+        { name: "Dramatic", targetScale: 3, intro: 500, outro: 500, easing: "snap", blurStrength: 0.8 },
+        { name: "Quick", targetScale: 2.5, intro: 200, outro: 200, easing: "snap", blurStrength: 0.2 },
+    ]
+
     return <Card icon={<ArrowsPointingOutIcon className="w-6 h-6" />} title="Zoom" showClose={true}>
+        <Fieldset legend="Zoom Presets">
+            <div className="grid grid-cols-4 gap-1">
+                {ZOOM_PRESETS.map(preset => (
+                    <button key={preset.name} onClick={() => applyPreset(preset)} disabled={isDisabled}
+                        className="px-1.5 py-1.5 rounded text-[10px] font-medium transition-colors bg-base-200 text-base-content/60 hover:text-base-content hover:bg-base-200/80 disabled:opacity-30">
+                        {preset.name}
+                    </button>
+                ))}
+            </div>
+        </Fieldset>
+
         <Fieldset legend="Zoom Level">
             <Slider min={1} max={6} value={selectedZooms[0]?.targetScale ?? defaultTargetScale}
                 isIndeterminate={isIndeterminateTargetScale} onChange={onChangeTargetScale} label="Zoom"
@@ -227,6 +259,17 @@ export default function ZoomSection() {
                 onChange={onChangeIntro} label={"Intro Duration"} format={formatMs} disabled={isDisabled} />
             <Slider max={2000} value={selectedPans[0]?.outro ?? defaultOutro} isIndeterminate={isIndeterminateOutro}
                 onChange={onChangeOutro} label={"Outro Duration"} format={formatMs} disabled={isDisabled} />
+
+            <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] opacity-50 w-16">Easing</span>
+                <select value={selectedZooms[0]?.easing ?? "expOut"} disabled={isDisabled}
+                    onChange={e => onChangeEasing(e.target.value)}
+                    className="select select-xs flex-1 bg-base-200 border-0 text-xs rounded">
+                    {EASING_OPTIONS.map(opt => (
+                        <option key={opt.id} value={opt.id}>{opt.name}</option>
+                    ))}
+                </select>
+            </div>
         </Fieldset>
 
         <div className="mt-4 flex justify-center">

@@ -1,4 +1,4 @@
-import { interpolate } from "../../helpers"
+import { getEasingFunction, interpolate } from "../../helpers"
 import Animation from "../Animation"
 
 export default class Zoom extends Animation {
@@ -8,9 +8,9 @@ export default class Zoom extends Animation {
     }
 
     onIntro(interpolator, _timestamp, prevInterpolator, idleScale) {
-        const scale = interpolate(this.startScale, this.targetScale, interpolator)
+        const scale = interpolate(this.startScale, this.targetScale, interpolator, this.easingFn)
 
-        const prevScale = interpolate(this.startScale, this.targetScale, prevInterpolator)
+        const prevScale = interpolate(this.startScale, this.targetScale, prevInterpolator, this.easingFn)
         const blurStrength = Math.abs(scale - prevScale) * this.blurStrength
 
         return { scale: scale * idleScale, blurStrength }
@@ -22,9 +22,9 @@ export default class Zoom extends Animation {
     }
 
     onOutro(interpolator, _timestamp, prevInterpolator, idleScale) {
-        const scale = interpolate(this.targetScale, 1, interpolator)
+        const scale = interpolate(this.targetScale, 1, interpolator, this.easingFn)
 
-        const prevScale = interpolate(this.targetScale, 1, prevInterpolator)
+        const prevScale = interpolate(this.targetScale, 1, prevInterpolator, this.easingFn)
         const blurStrength = Math.abs(prevScale - scale) * this.blurStrength
 
         return { scale: scale * idleScale, blurStrength }
@@ -51,6 +51,7 @@ export default class Zoom extends Animation {
         this.startScale = config.start === this.deps.prevConfig?.end ? this.deps.prevConfig.targetScale : 1
         this.targetScale = config.targetScale
         this.blurStrength = config.blurStrength
+        this.easingFn = getEasingFunction(config.easing)
         this.scale = this.startScale
     }
 }

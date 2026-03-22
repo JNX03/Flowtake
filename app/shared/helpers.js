@@ -1,4 +1,11 @@
-import { easeExpOut } from "d3-ease"
+import {
+    easeBackOut,
+    easeBounceOut,
+    easeCubicInOut,
+    easeElasticOut,
+    easeExpOut,
+    easeLinear
+} from "d3-ease"
 import { shallowEqual } from "react-redux"
 import { PROJECT_SCREEN_VIDEO } from "./constants"
 import {
@@ -548,6 +555,26 @@ export const interpolateRect = (from, to, interpolator, easingFunction = easeExp
     if (from.radius != null && to.radius != null) rect.radius = interpolate(from.radius, to.radius, interpolator, easingFunction)
     return rect
 }
+
+const EASING_MAP = {
+    linear: easeLinear,
+    smooth: easeCubicInOut,
+    expOut: easeExpOut,
+    snap: easeBackOut,
+    bounce: easeBounceOut,
+    elastic: easeElasticOut,
+}
+
+export const EASING_OPTIONS = [
+    { id: "linear", name: "Linear" },
+    { id: "smooth", name: "Smooth" },
+    { id: "expOut", name: "Exponential" },
+    { id: "snap", name: "Snap" },
+    { id: "bounce", name: "Bounce" },
+    { id: "elastic", name: "Elastic" },
+]
+
+export const getEasingFunction = (name) => EASING_MAP[name] || easeExpOut
 
 export const applyInertia = (coords, duration, inertia = 1000) => {
 

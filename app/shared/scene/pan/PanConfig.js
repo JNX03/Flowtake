@@ -5,5 +5,6 @@ export default class PanConfig extends MouseEventAnimConfig {
         super(args, defaultIntro, defaultOutro, defaultTargetScale, "pan")
         this.isManual = args.isManual ?? false
         this.focus = args.focus ?? { x: 0.5, y: 0.5 }
+        this.easing = args.easing ?? "expOut"
     }
 }
