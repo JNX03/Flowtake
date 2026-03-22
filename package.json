@@ -1,7 +1,7 @@
 {
   "name": "flowtake",
   "productName": "Flowtake",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Screen recorder with automatic zoom animations",
   "type": "module",
   "author": {
@@ -38,7 +38,7 @@
     "vite-plugin-static-copy": "^3.1.4"
   },
   "dependencies": {
-    "@bmunozg/react-image-area": "^1.2.0",
+    "@bmunozg/react-image-area": "^1.2.1",
     "@heroicons/react": "^2.2.0",
     "@huggingface/transformers": "^3.8.0",
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
