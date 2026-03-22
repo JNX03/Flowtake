@@ -1,10 +1,10 @@
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState = {
-    inertia: 1000,
+    inertia: 400,
     cutOff: 0,
     isLoop: false,
-    blurStrength: .5
+    blurStrength: .3
 }
 
 export const cursorCoordsSlice = createSlice({
