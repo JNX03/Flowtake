@@ -1,6 +1,6 @@
 [package]
 name = "flowtake"
-version = "1.23.1"
+version = "1.2.0"
 description = "Screen recorder with automatic zoom animations"
 authors = ["Jnx03 <jn03official@gmail.com>"]
 edition = "2021"
