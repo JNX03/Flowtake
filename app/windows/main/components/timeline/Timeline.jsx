@@ -64,6 +64,7 @@ import {
     selectTotalSubtitles
 } from "@shared/redux/subtitleSlice"
 import {
+    selectActiveSnapLine,
     selectIsMaskingModeEnabled,
     selectPxPerMs,
     selectSelectedIds,
@@ -82,6 +83,7 @@ import Clips from "./Clips"
 import Controls from "./Controls"
 import Cursor from "./Cursor"
 import Masks from "./Masks"
+import Minimap from "./Minimap"
 import OverlayTracks from "./OverlayTracks"
 import Subtitles from "./Subtitles"
 import TimelineToolbar from "./TimelineToolbar"
@@ -112,6 +114,7 @@ export default function Timeline() {
     const overlayTracks = useSelector(selectOverlayTracks)
     const nextOverlayTrackId = useSelector(selectNextOverlayTrackId)
     const allOverlaysForDrop = useSelector(selectAllOverlaysForDrop)
+    const activeSnapLine = useSelector(selectActiveSnapLine)
 
     const isClipMenuOpen = useSelector(selectIsClipMenuOpen)
     const isClickMenuOpen = useSelector(selectIsClickMenuOpen)
@@ -291,6 +294,7 @@ export default function Timeline() {
 
                 {/* Toolbar */}
                 <TimelineToolbar />
+                <Minimap containerRef={container} />
 
                 <div className="flex flex-1 min-h-0">
                     {/* Zoom/snap controls */}
@@ -379,6 +383,14 @@ export default function Timeline() {
                             {/* Audio & Overlay tracks - rendered inline */}
                             <AudioTracks />
                             <OverlayTracks />
+
+                            {/* Snap line indicator */}
+                            {activeSnapLine !== null && (
+                                <div className="absolute top-0 bottom-0 w-px bg-warning/70 z-50 pointer-events-none"
+                                    style={{ left: `${msToPx(activeSnapLine, pxPerMs)}px` }}>
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-warning" />
+                                </div>
+                            )}
                         </div>}
 
                         {/* Drop zone indicator */}

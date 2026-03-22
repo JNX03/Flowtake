@@ -37,12 +37,14 @@ import {
     selectAllSubtitles
 } from "@shared/redux/subtitleSlice"
 import {
+    selectEditingMode,
     selectIsMaskingModeEnabled,
     selectIsSnappingEnabled,
     selectPxPerMs,
     selectScrollLeft,
     selectTime,
     selectWidth,
+    setEditingMode,
     setIsMaskingModeEnabled,
     setIsSnappingEnabled,
     setPxPerMs,
@@ -69,6 +71,7 @@ export default function Controls({ onScrollToStart }) {
     const pxPerMs = useSelector(selectPxPerMs)
     const scrollLeft = useSelector(selectScrollLeft)
     const isMaskingModeEnabled = useSelector(selectIsMaskingModeEnabled)
+    const editingMode = useSelector(selectEditingMode)
     const width = useSelector(selectWidth)
     const duration = useSelector(selectDuration)
 
@@ -107,6 +110,10 @@ export default function Controls({ onScrollToStart }) {
         dispatch(setIsMaskingModeEnabled(!isMaskingModeEnabled))
         dispatch(setSelectedRow(null))
     }, [dispatch, isMaskingModeEnabled])
+
+    const onToggleRippleMode = useCallback(() => {
+        dispatch(setEditingMode(editingMode === "normal" ? "ripple" : "normal"))
+    }, [dispatch, editingMode])
 
     useHotkeys('ctrl+minus', () => onClickZoomOut(),
         { enabled: areHotkeysEnabled },
@@ -155,6 +162,13 @@ export default function Controls({ onScrollToStart }) {
                     data-tip={isMaskingModeEnabled ? "Disable masking mode" : "Enable masking mode"}
                     onClick={onClickEnableMaskingMode} >
                     <Bars4Icon className="size-4" />
+                </button>
+                <button className={`btn btn-xs ${editingMode === "ripple" ? "btn-warning" : ""} tooltip tooltip-left z-10`}
+                    data-tip={editingMode === "ripple" ? "Ripple editing (on)" : "Ripple editing (off)"}
+                    onClick={onToggleRippleMode} disabled={isPlaying}>
+                    <svg className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M2 8h3l2-4 2 8 2-4h3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                 </button>
             </div>
         </div>

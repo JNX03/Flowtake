@@ -7,6 +7,7 @@ import {
     useState
 } from "react"
 import {
+    useDispatch,
     useSelector
 } from "react-redux"
 import {
@@ -21,7 +22,8 @@ import {
     selectPxPerMs,
     selectScrollLeft,
     selectSelectedIds,
-    selectSnappingLines
+    selectSnappingLines,
+    setActiveSnapLine
 } from "@shared/redux/timelineSlice"
 import Action from "./Action"
 
@@ -115,10 +117,13 @@ export default function FlexibleAction({
     const SNAP_THRESHOLD_PX = 10
     const DRAG_THRESHOLD_PX = 3
 
+    const dispatch = useDispatch()
+
     const [userDuration, setUserDuration] = useState(null)
     const [userStart, setUserStart] = useState(null)
 
     const [isDragging, setIsDragging] = useState(false)
+    const [snappedLine, setSnappedLine] = useState(null)
 
     // Derive start and duration - use user values while dragging, otherwise use anim props
     const start = useMemo(() => {
@@ -220,9 +225,11 @@ export default function FlexibleAction({
         targetTrackRef.current = null
         setUserStart(null)
         setUserDuration(null)
+        setSnappedLine(null)
+        dispatch(setActiveSnapLine(null))
 
         moveHandle.current?.classList.remove("cursor-grabbing")
-    }, [onChange, crossTrackEnabled, currentTrackId, onTrackChange, getTrackAnims, anim, clearTrackHighlight])
+    }, [onChange, crossTrackEnabled, currentTrackId, onTrackChange, getTrackAnims, anim, clearTrackHighlight, dispatch])
 
     const getClosestLine = useCallback(value =>
         lines?.reduce((closest, current) =>
@@ -282,13 +289,17 @@ export default function FlexibleAction({
             const canSnapToStart = isWithinSnappingThreshold(newStart, closestLineToStart)
             const canSnapToEnd = isWithinSnappingThreshold(newEnd, closestLineToEnd)
 
+            let activeSnap = null
             if (canSnapToStart && canSnapToEnd) {
                 const startDiff = getDiff(newStart, closestLineToStart)
                 const endDiff = getDiff(newEnd, closestLineToEnd)
-                if (startDiff < endDiff) newStart = closestLineToStart
-                else newStart = closestLineToEnd - initialDuration.current
-            } else if (canSnapToStart) newStart = closestLineToStart
-            else if (canSnapToEnd) newStart = closestLineToEnd - initialDuration.current
+                if (startDiff < endDiff) { newStart = closestLineToStart; activeSnap = closestLineToStart }
+                else { newStart = closestLineToEnd - initialDuration.current; activeSnap = closestLineToEnd }
+            } else if (canSnapToStart) { newStart = closestLineToStart; activeSnap = closestLineToStart }
+            else if (canSnapToEnd) { newStart = closestLineToEnd - initialDuration.current; activeSnap = closestLineToEnd }
+
+            setSnappedLine(activeSnap)
+            dispatch(setActiveSnapLine(activeSnap))
 
             // Cross-track detection
             let effectiveMinStart = minStart
@@ -361,7 +372,10 @@ export default function FlexibleAction({
             const delta = getDelta(e)
             let newStart = initialStart.current + delta
             const closestLine = getClosestLine(newStart)
-            if (isWithinSnappingThreshold(newStart, closestLine)) newStart = closestLine
+            let activeSnap = null
+            if (isWithinSnappingThreshold(newStart, closestLine)) { newStart = closestLine; activeSnap = closestLine }
+            setSnappedLine(activeSnap)
+            dispatch(setActiveSnapLine(activeSnap))
 
             setUserStart(clamp(
                 newStart,
@@ -390,7 +404,7 @@ export default function FlexibleAction({
             window.removeEventListener("mousemove", onMouseMove)
             window.removeEventListener("mouseup", onMouseUp)
         }
-    }, [minStart, maxEnd, lines, selectedIds, isMinimized, getClosestLine, isWithinSnappingThreshold, handleMouseUp, handleMouseDown, getDelta])
+    }, [minStart, maxEnd, lines, selectedIds, isMinimized, getClosestLine, isWithinSnappingThreshold, handleMouseUp, handleMouseDown, getDelta, dispatch])
 
     // Handle mouse events for resizing the action from the right
     useEffect(() => {
@@ -405,7 +419,10 @@ export default function FlexibleAction({
             const delta = getDelta(e)
             let newEnd = initialStart.current + initialDuration.current + delta
             const closestLine = getClosestLine(newEnd)
-            if (isWithinSnappingThreshold(newEnd, closestLine)) newEnd = closestLine
+            let activeSnap = null
+            if (isWithinSnappingThreshold(newEnd, closestLine)) { newEnd = closestLine; activeSnap = closestLine }
+            setSnappedLine(activeSnap)
+            dispatch(setActiveSnapLine(activeSnap))
 
             setUserDuration(clamp(
                 newEnd - initialStart.current,
@@ -429,7 +446,7 @@ export default function FlexibleAction({
             window.removeEventListener("mousemove", onMouseMove)
             window.removeEventListener("mouseup", onMouseUp)
         }
-    }, [minStart, maxEnd, lines, selectedIds, pxPerMs, getClosestLine, isWithinSnappingThreshold, handleMouseUp, handleMouseDown, getDelta])
+    }, [minStart, maxEnd, lines, selectedIds, pxPerMs, getClosestLine, isWithinSnappingThreshold, handleMouseUp, handleMouseDown, getDelta, dispatch])
 
     const onSelectAction = useCallback(() => {
         if (isDragging) setIsDragging(false)

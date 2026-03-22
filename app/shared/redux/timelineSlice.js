@@ -14,6 +14,8 @@ const initialState = {
     openSection: "screen-recording",
     time: 0,
     isMaskingModeEnabled: false,
+    editingMode: "normal", // "normal" or "ripple"
+    activeSnapLine: null, // ms position of currently active snap line (for visual indicator)
 }
 
 export const timelineSlice = createSlice({
@@ -59,6 +61,12 @@ export const timelineSlice = createSlice({
         },
         setIsMaskingModeEnabled: (state, action) => {
             state.isMaskingModeEnabled = action.payload
+        },
+        setEditingMode: (state, action) => {
+            state.editingMode = action.payload
+        },
+        setActiveSnapLine: (state, action) => {
+            state.activeSnapLine = action.payload
         }
     },
 })
@@ -78,7 +86,9 @@ export const {
     setSelectedIds,
     setOpenSection,
     setTime,
-    setIsMaskingModeEnabled
+    setIsMaskingModeEnabled,
+    setEditingMode,
+    setActiveSnapLine
 } = timelineSlice.actions
 
 export const selectIsSnappingEnabled = state => state.timeline.isSnappingEnabled
@@ -94,5 +104,7 @@ export const selectSelectedIds = state => state.timeline.selectedIds
 export const selectOpenSection = state => state.timeline.openSection
 export const selectTime = state => state.timeline.time
 export const selectIsMaskingModeEnabled = state => state.timeline.isMaskingModeEnabled
+export const selectEditingMode = state => state.timeline.editingMode
+export const selectActiveSnapLine = state => state.timeline.activeSnapLine
 
 export default timelineSlice.reducer
