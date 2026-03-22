@@ -37,6 +37,7 @@ import {
     selectAllClips,
     updateClip
 } from "@shared/redux/clipSlice"
+import { selectAllFilters } from "@shared/redux/filterSlice"
 import { selectAllOverlays } from "@shared/redux/overlaySlice"
 import {
     selectBlurStrength as selectCursorBlurStrength,
@@ -212,6 +213,7 @@ export default function Preview() {
 
     const maskAnims = useSelector(selectAllMasks)
     const overlayAnims = useSelector(selectAllOverlays)
+    const filterAnims = useSelector(selectAllFilters)
 
     const [manager, setManager] = useState(null)
 
@@ -305,6 +307,9 @@ export default function Preview() {
                     break
                 case "1x1":
                     dims = getDims(1, 1, 720, 720)
+                    break
+                default:
+                    dims = getDims(16, 9, 1280, 720)
                     break
             }
             canvasRef.current.style.width = `${dims.css.x}px`
@@ -545,6 +550,10 @@ export default function Preview() {
     useEffect(() => {
         manager?.postUpdate({ type: 'overlayAnims', payload: overlayAnims })
     }, [manager, overlayAnims])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'filterAnims', payload: filterAnims })
+    }, [manager, filterAnims])
 
     useEffect(() => {
         manager?.postUpdate({ type: 'cursorCoords.inertia', payload: inertia })

@@ -172,6 +172,9 @@ export default class PreviewScene extends Scene {
             case 'filterAnims.saturation':
             case 'filterAnims.gamma':
             case 'filterAnims.blur':
+            case 'filterAnims.hue':
+            case 'filterAnims.temperature':
+            case 'filterAnims.vignette':
                 this.filterAnimator?.setState({ filterConfig: payload })
                 break
             case 'isCleaningUpScene':

@@ -69,7 +69,7 @@ export default function FilterSection() {
     const handleReset = useCallback(() => dispatch(resetFilters()), [dispatch])
 
     return (
-        <Card icon={AdjustmentsHorizontalIcon} title="Filters">
+        <Card icon={<AdjustmentsHorizontalIcon className="w-6 h-6" />} title="Filters">
             {/* Presets */}
             <Fieldset legend="Presets">
                 <div className="grid grid-cols-4 gap-1">
