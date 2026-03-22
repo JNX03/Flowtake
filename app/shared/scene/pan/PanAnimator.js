@@ -30,6 +30,9 @@ export default class PanAnimator extends Animator {
 
         const focus = this.getWeightedFocus(frame.focus)
 
+        // Store focus for velocity computation in next frame
+        this.prevFocus = frame.focus
+
         const pivot = this.getPivot(focus)
         const position = this.getPosition(focus, clipFrame)
 
@@ -64,9 +67,18 @@ export default class PanAnimator extends Animator {
 
         const videoCenter = this.getVideoCenter()
 
+        // Velocity-based camera leading: lookahead increases with speed
+        let lookahead = 0.2
+        if (this.prevFocus) {
+            const vx = (focus.x - this.prevFocus.x) * 60 // per-second velocity (normalized coords)
+            const vy = (focus.y - this.prevFocus.y) * 60
+            const speed = Math.sqrt(vx * vx + vy * vy)
+            lookahead = Math.min(0.2 + speed * 0.8, 0.6)
+        }
+
         return {
-            x: (cursor.x + (cursor.x - videoCenter.x) * .2) / videoDims.x,
-            y: (cursor.y + (cursor.y - videoCenter.y) * .2) / videoDims.y
+            x: (cursor.x + (cursor.x - videoCenter.x) * lookahead) / videoDims.x,
+            y: (cursor.y + (cursor.y - videoCenter.y) * lookahead) / videoDims.y
         }
     }
 
