@@ -13,8 +13,8 @@
 
 <p align="center">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.23.1-green.svg">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-lightgrey.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.2.1-green.svg">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-stable-orange?logo=rust&logoColor=white">
@@ -25,9 +25,10 @@
 
 Flowtake is a desktop screen recording application that automatically generates polished zoom and pan animations from your recordings. Record your screen, edit with a powerful timeline, add effects, overlays, captions, and export production-ready videos — all from one app.
 
-<!-- Screenshot placeholder: Replace with actual app screenshots -->
+<!-- Add screenshots to docs/screenshots/ and uncomment below -->
 <!-- <p align="center">
   <img src="docs/screenshots/editor.png" alt="Flowtake Editor" width="800">
+  <img src="docs/screenshots/timeline.png" alt="Flowtake Timeline" width="800">
 </p> -->
 
 ## Features
@@ -40,7 +41,10 @@ Flowtake is a desktop screen recording application that automatically generates 
 
 ### Editing
 - **Auto-Zoom Animations** — Intelligent zoom effects that follow your cursor and focus areas
-- **Pan Animations** — Smooth camera panning with easing curves
+- **Pan Animations** — Smooth camera panning with velocity-based camera leading for natural follow
+- **Cursor Inertia & Motion Blur** — Adaptive velocity-based cursor smoothing with motion blur scaled by speed
+- **Timeline Zoom** — Ctrl+mousewheel zoom with granular grid spacing and fine-grained zoom steps
+- **Smooth Playhead** — Refined playhead with larger drag handles and improved clip feedback
 - **Click Indicators** — Animated visual feedback for mouse clicks
 - **Custom Cursors** — Replace or style cursor appearance in recordings
 - **Clips & Cuts** — Trim, split, and arrange video segments
@@ -137,7 +141,7 @@ Download the latest installer from the [Releases](https://github.com/Jnx03/Flowt
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+
+- [Node.js](https://nodejs.org/) 20+
 - [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
 - [Tauri v2 CLI](https://v2.tauri.app/start/prerequisites/)
 - [FFmpeg](https://ffmpeg.org/) binary in `resources/`
@@ -202,7 +206,11 @@ Flowtake/
 └── package.json             # NPM dependencies & scripts
 ```
 
-For detailed architecture documentation, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+For detailed documentation, see the [docs](docs/) directory or browse by topic:
+- [Getting Started](docs/getting-started/installation.md)
+- [Features Guide](docs/features/README.md)
+- [Architecture](docs/architecture/README.md)
+- [Development Setup](docs/getting-started/development.md)
 
 ## Contributing
 
@@ -223,13 +231,13 @@ If you discover a security vulnerability, please follow our [Security Policy](SE
 
 ## Roadmap
 
-- [ ] Linux support
-- [ ] macOS support
+- [x] Linux support
+- [x] macOS support
 - [ ] Plugin/extension system
 - [ ] Cloud project storage
 - [ ] Collaborative editing
 - [ ] AI-powered auto-editing suggestions
-- [ ] Direct upload to YouTube/social platforms
+- [x] Direct upload to YouTube/social platforms
 
 ## License
 
