@@ -61,6 +61,7 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .position(0.0, 0.0)
     .resizable(false)
     .decorations(false)
+    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .content_protected(true)
