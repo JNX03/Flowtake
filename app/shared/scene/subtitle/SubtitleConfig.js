@@ -8,6 +8,8 @@ export default class SubtitleConfig extends AnimConfig {
         super(args, "subtitle")
         const { text } = args
         this.text = text
+        this.entranceEffect = args.entranceEffect ?? { type: "none", duration: 300 }
+        this.exitEffect = args.exitEffect ?? { type: "none", duration: 300 }
     }
 
     static createBulk(transcript) {
