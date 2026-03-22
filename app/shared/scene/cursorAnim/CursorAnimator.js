@@ -48,11 +48,14 @@ export default class CursorAnimator extends Animator {
 
         this.cursor.position.set(coords.x, coords.y)
 
-        this.motionBlur.velocity.set(
-            (prevCoords.x - coords.x) * this.blurStrength,
-            (prevCoords.y - coords.y) * this.blurStrength
-        )
-        this.motionBlur.kernelSize = 15
+        // Adaptive motion blur: scale with velocity
+        const dx = prevCoords.x - coords.x
+        const dy = prevCoords.y - coords.y
+        const speed = Math.sqrt(dx * dx + dy * dy)
+        const blurScale = Math.min(speed * 0.005, 1.0) * this.blurStrength
+
+        this.motionBlur.velocity.set(dx * blurScale, dy * blurScale)
+        this.motionBlur.kernelSize = Math.min(Math.max(Math.round(speed * 0.3), 3), 25)
 
         if (this.rotationStrength > 0) {
             let rotation = Math.min(this.calculateAveragedStrength(timestamp, coords, MOTION_ROTATION_FRAMES) * MOTION_ROTATION_FACTOR, MOTION_ROTATION_MAX_STRENGTH)
