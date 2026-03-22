@@ -123,7 +123,7 @@ export default function ZoomSection() {
         [selectedZooms, selectedPans, selectedCameraZooms])
 
     const manualPanFocus = useMemo(
-        () => selectedPans.every(({ isManual }) => isManual === selectedPans[0].isManual) && selectedPans[0]?.focus
+        () => selectedPans.length > 0 && selectedPans.every(({ isManual }) => isManual === selectedPans[0]?.isManual) && selectedPans[0]?.focus
             ? selectedPans[0]?.focus
             : null,
         [selectedPans])

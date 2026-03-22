@@ -82,9 +82,12 @@ export default function App() {
         window.electron.ipcRenderer.on('clear-pending-renders', () => dispatch(removeRenders(
             rendersRef.current.filter(render => !isRenderRendering(render)).map(({ id }) => id)
         )))
-        window.electron.ipcRenderer.on('cancel-running-render', () => dispatch(updateRender(
-            { id: rendersRef.current.find(isRenderRendering).id, changes: { status: RENDER_CANCELING } }
-        )))
+        window.electron.ipcRenderer.on('cancel-running-render', () => {
+            const renderingRender = rendersRef.current.find(isRenderRendering)
+            if (renderingRender) dispatch(updateRender(
+                { id: renderingRender.id, changes: { status: RENDER_CANCELING } }
+            ))
+        })
     }, [dispatch])
 
     useEffect(() => {

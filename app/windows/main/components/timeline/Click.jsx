@@ -48,6 +48,8 @@ export default function Click({ id }) {
         dispatch(setIsClickMenuOpen(true))
     }
 
+    if (!anim) return null
+
     return (<Action anim={anim} anims={anims} start={start} duration={duration}
         isRowSelected={selectedRow === CLICKS} isActive={anim.isActive} onSelect={onSelect}
         onContextMenu={onContextMenu} color="accent" isMinimized={isMinimized} />)
