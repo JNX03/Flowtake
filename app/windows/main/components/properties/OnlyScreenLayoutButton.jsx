@@ -16,6 +16,7 @@ export default function OnlyScreenLayoutButton({ onClick, isActive, disabled = f
             case "16x9": return "aspect-video"
             case "9x16": return "aspect-9/16"
             case "1x1": return "aspect-square"
+            default: return "aspect-video"
         }
     }
 
@@ -24,6 +25,7 @@ export default function OnlyScreenLayoutButton({ onClick, isActive, disabled = f
             case "16x9": return "p-1"
             case "9x16": return "py-1 px-8"
             case "1x1": return "py-1 px-5"
+            default: return "p-1"
         }
     }
 

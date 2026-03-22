@@ -19,6 +19,7 @@ export default function SideBySideLayoutButton({ onClick, isActive, cameraPositi
         else if (cameraPosition === "right") return "flex flex-row-reverse"
         else if (cameraPosition === "top") return "flex flex-col"
         else if (cameraPosition === "bottom") return "flex flex-col-reverse"
+        return "flex"
     }
 
     const aspectRatioClasses = () => {
@@ -26,6 +27,7 @@ export default function SideBySideLayoutButton({ onClick, isActive, cameraPositi
             case "16x9": return "aspect-video"
             case "9x16": return "aspect-9/16"
             case "1x1": return "aspect-square"
+            default: return "aspect-video"
         }
     }
 
@@ -34,6 +36,7 @@ export default function SideBySideLayoutButton({ onClick, isActive, cameraPositi
             case "16x9": return "p-1"
             case "9x16": return "py-1 px-8"
             case "1x1": return "py-1 px-5"
+            default: return "p-1"
         }
     }
 

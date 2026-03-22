@@ -26,6 +26,7 @@ export default function CameraOverlayLayoutButton({ onClick, isActive, cameraPos
         else if (shallowEqual(cameraPosition, POS_TOP_RIGHT)) return "right-1 top-1"
         else if (shallowEqual(cameraPosition, POS_BOTTOM_LEFT)) return "left-1 bottom-1"
         else if (shallowEqual(cameraPosition, POS_BOTTOM_RIGHT)) return "right-1 bottom-1"
+        return "right-1 bottom-1"
     }
 
     const aspectRatioClasses = () => {
@@ -33,6 +34,7 @@ export default function CameraOverlayLayoutButton({ onClick, isActive, cameraPos
             case "16x9": return "aspect-video"
             case "9x16": return "aspect-9/16"
             case "1x1": return "aspect-square"
+            default: return "aspect-video"
         }
     }
 
@@ -41,6 +43,7 @@ export default function CameraOverlayLayoutButton({ onClick, isActive, cameraPos
             case "16x9": return "p-1"
             case "9x16": return "py-1 px-8"
             case "1x1": return "py-1 px-5"
+            default: return "p-1"
         }
     }
 
