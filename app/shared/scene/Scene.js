@@ -29,11 +29,13 @@ import ClickAnimator from "./click/ClickAnimator"
 import ClipAnimator from "./clip/ClipAnimator"
 import CursorAnimator from "./cursorAnim/CursorAnimator"
 import CursorTypeAnimator from "./cursorType/CursorTypeAnimator"
+import FilterAnimator from "./filter/FilterAnimator"
 import MaskAnimator from "./mask/MaskAnimator"
 import OverlayAnimator from "./overlay/OverlayAnimator"
 import PanAnimator from "./pan/PanAnimator"
 import Screen from "./Screen"
 import SubtitleAnimator from "./subtitle/SubtitleAnimator"
+import TransitionAnimator from "./transition/TransitionAnimator"
 import ZoomAnimator from "./zoom/ZoomAnimator"
 
 export default class Scene {
@@ -122,7 +124,11 @@ export default class Scene {
 
         this.maskAnimator = new MaskAnimator(this.screen.maskContainer, this.screen.dims, this.screen.container)
 
+        this.filterAnimator = new FilterAnimator(this.screen.container)
+
         this.overlayAnimator = new OverlayAnimator(this.app.stage)
+
+        this.transitionAnimator = new TransitionAnimator(this.container)
 
         this.cursorFill = cursorFill
         this.cursorStroke = cursorStroke
@@ -218,6 +224,7 @@ export default class Scene {
         this.cameraZoomAnimator?.update(this.time, clipFrame)
         this.maskAnimator?.update(this.time)
         this.overlayAnimator?.update(this.time)
+        this.transitionAnimator?.update(this.time)
 
         this.camera?.update()
     }
@@ -247,6 +254,8 @@ export default class Scene {
         this.maskAnimator.setState({ rendererDims: this.rendererDims })
 
         this.overlayAnimator?.setState({ rendererDims: this.rendererDims })
+
+        this.transitionAnimator?.setState({ rendererDims: this.rendererDims })
 
         this.update()
         this.app?.render()

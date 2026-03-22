@@ -158,12 +158,21 @@ export default class PreviewScene extends Scene {
                 break
             case 'clipAnims':
                 this.clipAnimator.setState({ configs: payload })
+                this.transitionAnimator?.setState({ configs: payload })
                 break
             case 'maskAnims':
                 this.maskAnimator.setState({ configs: payload })
                 break
             case 'overlayAnims':
                 this.overlayAnimator?.setState({ configs: payload })
+                break
+            case 'filterAnims':
+            case 'filterAnims.brightness':
+            case 'filterAnims.contrast':
+            case 'filterAnims.saturation':
+            case 'filterAnims.gamma':
+            case 'filterAnims.blur':
+                this.filterAnimator?.setState({ filterConfig: payload })
                 break
             case 'isCleaningUpScene':
                 this.destroy()

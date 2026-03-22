@@ -59,6 +59,8 @@ import OnlyCameraLayoutButton from "./OnlyCameraLayoutButton"
 import OnlyScreenLayoutButton from "./OnlyScreenLayoutButton"
 import SideBySideLayoutButton from "./SideBySideLayoutButton"
 import Slider from "./Slider"
+import SpeedSection from "./SpeedSection"
+import TransitionPicker from "./TransitionPicker"
 
 const PLAYBACK_RATE_MIN = 1
 const PLAYBACK_RATE_MAX = 16
@@ -363,6 +365,18 @@ export default function ClipSection() {
                         label={"System Audio Volume"} format={formatPercent} />}
 
                 </Fieldset>}
+
+            {configs.length === 1 && (
+                <Fieldset legend="Speed">
+                    <SpeedSection />
+                </Fieldset>
+            )}
+
+            {configs.length === 1 && (
+                <Fieldset legend="Transitions">
+                    <TransitionPicker />
+                </Fieldset>
+            )}
 
             <div className="mt-4 flex justify-center">
                 <Button icon={AdjustmentsHorizontalIcon} onClick={setAsDefault} disabled={configs.length === 0}>

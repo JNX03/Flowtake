@@ -37,6 +37,9 @@ export default class ClipConfig extends AnimConfig {
         this.systemAudioVolume = args.systemAudioVolume !== undefined
             ? args.systemAudioVolume
             : defaultSystemAudioVolume
+
+        this.transitionIn = args.transitionIn ?? { type: "none", duration: 500 }
+        this.transitionOut = args.transitionOut ?? { type: "none", duration: 500 }
     }
 
     static createBulk(clips, defaultPlaybackRate, defaultLayout, defaultMicrophoneAudioVolume, defaultSystemAudioVolume,
