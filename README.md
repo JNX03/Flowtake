@@ -1,11 +1,5 @@
 <p align="center">
-  <img src="resources/banner.png" alt="Flowtake Logo" width="120" height="120">
-</p>
-
-<h1 align="center">Flowtake</h1>
-
-<p align="center">
-  <strong>Professional screen recorder with automatic zoom animations</strong>
+  <img src="resources/banner.png" alt="Flowtake Logo">
 </p>
 
 <p align="center">
