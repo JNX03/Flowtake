@@ -39,6 +39,11 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi", "dmg", "app", "deb", "appimage", "rpm"],
+    "publisher": "Jnx03",
+    "copyright": "Copyright (c) 2025-present Jnx03",
+    "shortDescription": "Screen recorder with automatic zoom animations",
+    "longDescription": "Flowtake is a professional screen recording application that automatically adds zoom and pan animations to your recordings. Record your screen, edit with auto-zoom effects, and export production-ready videos in minutes.",
+    "licenseFile": "../LICENSE",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -55,14 +60,34 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": "",
       "nsis": {
-        "installerHooks": "nsis-hooks.nsh"
+        "headerImage": "installer/nsis-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
+        "installerIcon": "../resources/setup.ico",
+        "installerHooks": "nsis-hooks.nsh",
+        "installMode": "both",
+        "displayLanguageSelector": false
       }
     },
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "10.15",
       "signingIdentity": null,
-      "entitlements": "Entitlements.plist"
+      "entitlements": "Entitlements.plist",
+      "dmg": {
+        "background": "installer/dmg-background.png",
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
     },
     "linux": {
       "deb": {

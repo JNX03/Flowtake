@@ -1,10 +1,11 @@
 ; Flowtake NSIS Installer Hooks
-; These hooks run during the NSIS installer on Windows.
+; Branded installer experience for Flowtake.
 
 !macro NSIS_HOOK_PREINSTALL
-  ; Check if WebView2 Runtime is available (Tauri handles this automatically,
-  ; but we log a message for debugging)
   DetailPrint "Checking system requirements..."
+  DetailPrint "Installing Flowtake - Screen recorder with automatic zoom animations"
+  DetailPrint "Publisher: Jnx03"
+  DetailPrint "Website: https://getflowtake.com"
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -17,7 +18,7 @@
     IfFileExists "$INSTDIR\ffmpeg.exe" FFmpegFound FFmpegMissing
 
   FFmpegFound:
-    DetailPrint "FFmpeg sidecar verified."
+    DetailPrint "FFmpeg sidecar verified successfully."
     Goto FFmpegDone
 
   FFmpegMissing:
@@ -26,5 +27,15 @@
     MessageBox MB_OK|MB_ICONINFORMATION "FFmpeg was not found in the installation.$\n$\nScreen recording requires FFmpeg. If recording doesn't work, please download FFmpeg from https://ffmpeg.org and place ffmpeg.exe in:$\n$INSTDIR"
 
   FFmpegDone:
-    DetailPrint "Flowtake installation complete."
+    DetailPrint "Flowtake installation complete!"
+    DetailPrint "Visit https://getflowtake.com for help and documentation."
+!macroend
+
+!macro NSIS_HOOK_PREUNINSTALL
+  DetailPrint "Preparing to uninstall Flowtake..."
+!macroend
+
+!macro NSIS_HOOK_POSTUNINSTALL
+  DetailPrint "Flowtake has been uninstalled."
+  DetailPrint "Thank you for using Flowtake!"
 !macroend
