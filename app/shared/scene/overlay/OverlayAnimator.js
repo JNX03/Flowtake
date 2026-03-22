@@ -1,4 +1,12 @@
 import {
+    easeBackOut,
+    easeBounceOut,
+    easeCubicInOut,
+    easeElasticOut,
+    easeExpOut,
+    easeLinear
+} from "d3-ease"
+import {
     Container,
     Graphics,
     Sprite,
@@ -6,6 +14,15 @@ import {
     TextStyle,
     Texture
 } from "pixi.js"
+
+const OVERLAY_EASING_MAP = {
+    linear: easeLinear,
+    smooth: easeCubicInOut,
+    expOut: easeExpOut,
+    snap: easeBackOut,
+    bounce: easeBounceOut,
+    elastic: easeElasticOut,
+}
 
 /**
  * Renders overlay elements (text, shapes, images) onto the pixi.js scene.
@@ -166,7 +183,11 @@ function lerpKeyframes(overlay, time) {
     }
     if (before === after || before.time === after.time) return { ...overlay, ...before }
 
-    const t = (relTime - before.time) / (after.time - before.time)
+    const rawT = (relTime - before.time) / (after.time - before.time)
+    // Apply easing from the target keyframe (per-segment control)
+    const easingName = after.easing || "linear"
+    const easingFn = OVERLAY_EASING_MAP[easingName] || OVERLAY_EASING_MAP.linear
+    const t = easingFn(rawT)
     const lerp = (a, b) => a != null && b != null ? a + (b - a) * t : (b ?? a)
 
     return {
