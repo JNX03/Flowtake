@@ -3,6 +3,8 @@ import {
     ArrowsPointingOutIcon,
     Bars4Icon,
     ChatBubbleOvalLeftEllipsisIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
     ComputerDesktopIcon,
     CursorArrowRippleIcon,
     FilmIcon,
@@ -11,6 +13,7 @@ import {
     Square2StackIcon,
     VideoCameraIcon
 } from "@heroicons/react/24/outline"
+import PropTypes from "prop-types"
 import {
     useDispatch,
     useSelector
@@ -60,7 +63,7 @@ import SubtitleSection from "./SubtitleSection"
 import TranscriptSection from "./TranscriptSection"
 import ZoomSection from "./ZoomSection"
 
-export default function Properties() {
+export default function Properties({ isCollapsed = false, onToggle }) {
 
     const dispatch = useDispatch()
 
@@ -111,7 +114,7 @@ export default function Properties() {
     }
 
     return (
-        <div className="w-80 shrink-0 relative">
+        <div className={`${isCollapsed ? "w-12" : "w-80"} shrink-0 relative transition-all duration-200`}>
             <div className="absolute left-0 top-0 right-0 bottom-0">
                 <div className="flex flex-row gap-1.5 h-full">
                     <ul className="menu bg-base-100 rounded-lg overflow-y-auto no-scrollbar shrink-0">
@@ -193,8 +196,20 @@ export default function Properties() {
                                 <Square2StackIcon className="w-6 h-6" />
                             </button>
                         </li>
+                        {onToggle && <>
+                            <div className="divider my-0" />
+                            <li>
+                                <button onClick={onToggle}
+                                    className="tooltip tooltip-left"
+                                    data-tip={isCollapsed ? "Expand panel" : "Collapse panel"}>
+                                    {isCollapsed
+                                        ? <ChevronLeftIcon className="w-5 h-5" />
+                                        : <ChevronRightIcon className="w-5 h-5" />}
+                                </button>
+                            </li>
+                        </>}
                     </ul>
-                    <div className="flex-1 h-full">
+                    {!isCollapsed && <div className="flex-1 h-full">
                         {openSection === SCREEN_RECORDING && <ScreenRecordingSection />}
                         {openSection === CAMERA_RECORDING && hasCameraVideo && <CameraSection />}
                         {openSection === BACKGROUND && <BackgroundSection />}
@@ -208,9 +223,14 @@ export default function Properties() {
                         {openSection === "filters" && <FilterSection />}
                         {openSection === AUDIO_TRACKS && <AudioTrackSection />}
                         {openSection === OVERLAY_TRACKS && <OverlaySection />}
-                    </div>
+                    </div>}
                 </div>
             </div>
         </div>
     )
+}
+
+Properties.propTypes = {
+    isCollapsed: PropTypes.bool,
+    onToggle: PropTypes.func
 }

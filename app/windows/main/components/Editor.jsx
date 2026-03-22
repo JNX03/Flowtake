@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useRef,
     useState
 } from "react"
 import {
@@ -41,7 +42,26 @@ export default function Editor() {
     const isInitialized = useSelector(selectIsInitialized)
     const name = useSelector(selectName)
     const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(true)
+    const [isPropertiesCollapsed, setIsPropertiesCollapsed] = useState(false)
     const [isFileDragOver, setIsFileDragOver] = useState(false)
+    const autoCollapseRef = useRef(false)
+
+    // Auto-collapse/expand Properties panel based on window width
+    useEffect(() => {
+        const handleResize = () => {
+            const w = window.innerWidth
+            if (w < 1024 && !autoCollapseRef.current) {
+                autoCollapseRef.current = true
+                setIsPropertiesCollapsed(true)
+            } else if (w >= 1280 && autoCollapseRef.current) {
+                autoCollapseRef.current = false
+                setIsPropertiesCollapsed(false)
+            }
+        }
+        handleResize()
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
 
     useEffect(() => {
         if (hasProject) dispatch(ActionCreators.clearHistory())
@@ -124,7 +144,10 @@ export default function Editor() {
                     onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
                 />
                 <Preview />
-                <Properties />
+                <Properties
+                    isCollapsed={isPropertiesCollapsed}
+                    onToggle={() => { autoCollapseRef.current = false; setIsPropertiesCollapsed(!isPropertiesCollapsed) }}
+                />
             </div>
             {/* Bottom section: Timeline */}
             <Timeline />
