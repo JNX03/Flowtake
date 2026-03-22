@@ -1,4 +1,5 @@
 import {
+    AdjustmentsHorizontalIcon,
     ArrowsPointingOutIcon,
     Bars4Icon,
     ChatBubbleOvalLeftEllipsisIcon,
@@ -51,6 +52,7 @@ import CameraSection from "./CameraSection"
 import ClickSection from "./ClickSection"
 import ClipSection from "./ClipSection"
 import CursorSection from "./CursorSection"
+import FilterSection from "./FilterSection"
 import MaskSection from "./MaskSection"
 import OverlaySection from "./OverlaySection"
 import ScreenRecordingSection from "./ScreenRecordingSection"
@@ -169,6 +171,13 @@ export default function Properties() {
                                 <Bars4Icon className="w-6 h-6" />
                             </button>
                         </li>
+                        <li>
+                            <button onClick={() => open("filters")}
+                                className={`tooltip tooltip-left ${openSection === "filters" ? "menu-active" : ""}`}
+                                data-tip="Filters">
+                                <AdjustmentsHorizontalIcon className="w-6 h-6" />
+                            </button>
+                        </li>
                         <div className="divider my-0" />
                         <li>
                             <button onClick={() => open(AUDIO_TRACKS)}
@@ -196,6 +205,7 @@ export default function Properties() {
                         {openSection === ZOOMS && <ZoomSection />}
                         {openSection === SUBTITLES && <SubtitleSection />}
                         {openSection === MASKS && <MaskSection />}
+                        {openSection === "filters" && <FilterSection />}
                         {openSection === AUDIO_TRACKS && <AudioTrackSection />}
                         {openSection === OVERLAY_TRACKS && <OverlaySection />}
                     </div>

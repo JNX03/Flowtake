@@ -72,6 +72,10 @@ import subtitleAnimsReducer, {
     subtitleSlice
 } from './subtitleSlice'
 import timelineReducer, { reset as resetTimeline } from './timelineSlice'
+import filterAnimsReducer, {
+    filterSlice,
+    reset as resetFilterAnims
+} from './filterSlice'
 import zoomAnimsReducer, {
     reset as resetZoomAnims,
     zoomSlice
@@ -94,7 +98,8 @@ const filterSlices = isAnyOf(
     ...Object.values(cursorCoordsSlice.actions),
     ...Object.values(maskSlice.actions),
     ...Object.values(audioTrackSlice.actions),
-    ...Object.values(overlaySlice.actions)
+    ...Object.values(overlaySlice.actions),
+    ...Object.values(filterSlice.actions)
 )
 
 // Set of excluded action types for O(1) lookup
@@ -166,6 +171,7 @@ closeListenerMiddleware.startListening({
         dispatch(resetMaskAnims())
         dispatch(resetAudioTrackAnims())
         dispatch(resetOverlayAnims())
+        dispatch(resetFilterAnims())
         dispatch(resetAssets())
         dispatch(setLoaderMessage("Saving project..."))
         await window.electron.ipcRenderer.invoke("close-project")
@@ -198,6 +204,7 @@ export default configureStore({
                 maskAnims: maskAnimsReducer,
                 audioTrackAnims: audioTrackAnimsReducer,
                 overlayAnims: overlayAnimsReducer,
+                filterAnims: filterAnimsReducer,
             }),
             {
                 filter: combineFilters(filterSlices, filterActions, filterPreventUndo),
@@ -225,7 +232,8 @@ const save = debounce(async (dispatch, getState) => {
         cursorCoords,
         maskAnims,
         audioTrackAnims,
-        overlayAnims
+        overlayAnims,
+        filterAnims
     } = getState().undoableState.present
 
     // Only save if a project is currently opened
@@ -243,6 +251,7 @@ const save = debounce(async (dispatch, getState) => {
             maskAnims: serializeEntitySlice(maskAnims),
             audioTrackAnims: serializeEntitySlice(audioTrackAnims),
             overlayAnims: serializeEntitySlice(overlayAnims),
+            filterAnims: { ...filterAnims },
         }
 
         await window.electron.ipcRenderer.invoke("save-json", slices)
