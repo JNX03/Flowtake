@@ -8,7 +8,10 @@ import {
     formatPercent,
     formatPx
 } from "@shared/helpers"
-import { withGroup } from "@shared/redux/actionEnhancers"
+import {
+    getGroup,
+    withGroup
+} from "@shared/redux/actionEnhancers"
 import {
     selectBorderRadius,
     selectPadding,
@@ -46,7 +49,34 @@ export default function ScreenRecordingSection() {
         `${Math.round((1 - value) * 100)}%`,
         [])
 
+    const PADDING_PRESETS = [
+        { name: "Full Screen", padding: 1.0, borderRadius: 0, shadowAlpha: 0 },
+        { name: "Tight", padding: 0.95, borderRadius: 8, shadowAlpha: 0.3 },
+        { name: "Balanced", padding: 0.88, borderRadius: 12, shadowAlpha: 0.5 },
+        { name: "Breathe", padding: 0.80, borderRadius: 16, shadowAlpha: 0.5 },
+        { name: "Cinematic", padding: 0.70, borderRadius: 20, shadowAlpha: 0.7 },
+        { name: "Presentation", padding: 0.60, borderRadius: 24, shadowAlpha: 0.6 },
+    ]
+
+    const applyPreset = useCallback((preset) => {
+        const group = getGroup("padding-preset")
+        dispatch(withGroup(setPadding(preset.padding), group))
+        dispatch(withGroup(setBorderRadius(preset.borderRadius), group))
+        dispatch(withGroup(setShadowAlpha(preset.shadowAlpha), group))
+    }, [dispatch])
+
     return (<Card icon={<ComputerDesktopIcon className="w-6 h-6" />} title="Screen Recording">
+        <Fieldset legend="Quick Presets">
+            <div className="grid grid-cols-3 gap-1">
+                {PADDING_PRESETS.map(preset => (
+                    <button key={preset.name} onClick={() => applyPreset(preset)}
+                        className="px-1.5 py-1.5 rounded text-[10px] font-medium transition-colors bg-base-200 text-base-content/60 hover:text-base-content hover:bg-base-200/80">
+                        {preset.name}
+                    </button>
+                ))}
+            </div>
+        </Fieldset>
+
         <Fieldset legend="Shape and Scale">
             <Slider min={.5} value={padding} onChange={onChangePadding} label={"Padding"} format={formatPaddingValue} />
 
