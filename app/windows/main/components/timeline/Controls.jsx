@@ -58,9 +58,9 @@ import {
 
 export default function Controls({ onScrollToStart }) {
 
-    const MIN_SCALE = .05
-    const MAX_SCALE = .3
-    const STEP = .05
+    const MIN_SCALE = .025
+    const MAX_SCALE = .35
+    const STEP = .025
 
     const dispatch = useDispatch()
 

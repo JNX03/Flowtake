@@ -36,9 +36,15 @@ export default function TimeScale() {
     const videoDetails = useSelector(selectVideoDetails, shallowEqual)
 
     const gridSpacing = useMemo(() => {
-        let ms = null
-        if (pxPerMs < .05) ms = 60000
-        else if (pxPerMs < .1) ms = 500
+        let ms
+        if (pxPerMs < 0.01) ms = 300000
+        else if (pxPerMs < 0.02) ms = 120000
+        else if (pxPerMs < 0.04) ms = 30000
+        else if (pxPerMs < 0.06) ms = 10000
+        else if (pxPerMs < 0.08) ms = 5000
+        else if (pxPerMs < 0.1) ms = 1000
+        else if (pxPerMs < 0.15) ms = 500
+        else if (pxPerMs < 0.2) ms = 200
         else ms = 100
         return msToPx(ms, pxPerMs)
     }, [pxPerMs])
