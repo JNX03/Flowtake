@@ -276,6 +276,7 @@ jobs:
   release:
     name: Create Release
     needs: [build-windows, build-linux, build-macos]
+    if: always() && (needs.build-windows.result == 'success' || needs.build-linux.result == 'success' || needs.build-macos.result == 'success')
     runs-on: ubuntu-latest
 
     steps:
