@@ -1,4 +1,4 @@
-import { FolderOpenIcon } from "@heroicons/react/24/outline"
+import { FolderOpenIcon, ChatBubbleLeftRightIcon, LightBulbIcon } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
 import Button from "../../../../components/Button"
 import Fieldset from "../properties/Fieldset"
@@ -41,7 +41,7 @@ export default function GeneralSettings() {
 
     const { data: autoSaveInterval, isPending: isAutoSavePending, refetch: refetchAutoSave } = useQuery({
         queryKey: ['autoSaveInterval'],
-        queryFn: () => window.electron.ipcRenderer.invoke("store-set", "autoSaveInterval"),
+        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "autoSaveInterval"),
         staleTime: Infinity
     })
 
@@ -122,5 +122,22 @@ export default function GeneralSettings() {
         </Fieldset>
 
         <Button icon={FolderOpenIcon} onClick={openLogsDirectory}>Open logs folder</Button>
+
+        <Fieldset legend="Help & Feedback">
+            <div className="flex flex-wrap gap-2">
+                <a className="btn btn-sm btn-ghost gap-2"
+                    href="https://github.com/JNX03/Flowtake/issues"
+                    target="_blank" rel="noopener noreferrer">
+                    <ChatBubbleLeftRightIcon className="size-4" />
+                    Send Feedback
+                </a>
+                <a className="btn btn-sm btn-ghost gap-2"
+                    href="https://github.com/JNX03/Flowtake/issues"
+                    target="_blank" rel="noopener noreferrer">
+                    <LightBulbIcon className="size-4" />
+                    Request a Feature
+                </a>
+            </div>
+        </Fieldset>
     </div>)
 }
