@@ -43,6 +43,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .manage(Mutex::new(app_state))
         // Register video:// protocol for streaming video files to the editor
         .register_uri_scheme_protocol("video", |ctx, request| {
@@ -298,6 +299,8 @@ pub fn run() {
             commands::app::choose_export_directory,
             commands::app::check_dependencies,
             commands::app::install_dependencies,
+            commands::app::get_autostart,
+            commands::app::set_autostart,
             // Background
             commands::background::update_background,
             commands::background::get_wallpapers,
