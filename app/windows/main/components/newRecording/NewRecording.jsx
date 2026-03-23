@@ -29,6 +29,7 @@ import Toggle from "../properties/Toggle"
 import { SETTINGS_RECORDER } from "../settings/constants"
 import CameraMicrophoneSelect from "./CameraMicrophoneSelect"
 import CameraPreview from "./CameraPreview"
+import AppAudioControl from "./AppAudioControl"
 import RecordButton from "./RecordButton"
 
 export default function NewRecording({ isOpen }) {
@@ -36,6 +37,7 @@ export default function NewRecording({ isOpen }) {
   const dispatch = useDispatch()
   const source = useSelector(selectSource)
   const [isRecordingSystemAudio, setIsRecordingSystemAudio] = useState(false)
+  const [excludedAudioPids, setExcludedAudioPids] = useState([])
   const [showMonitorPicker, setShowMonitorPicker] = useState(false)
   const monitorPickerRef = useRef(null)
 
@@ -340,6 +342,9 @@ export default function NewRecording({ isOpen }) {
                 <Toggle rightLabel={<span className="text-xs text-base-content/70">System audio</span>} justifyBetween={false} value={isRecordingSystemAudio}
                   onChange={onEnableSystemAudio} disabled={isPending} />
               </div>
+              {isRecordingSystemAudio && (
+                <AppAudioControl onExcludedAppsChange={setExcludedAudioPids} />
+              )}
             </div>
           </div>
 
@@ -347,7 +352,7 @@ export default function NewRecording({ isOpen }) {
 
           {/* Actions */}
           <div className="flex flex-col gap-2">
-            <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} />
+            <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} excludedAudioPids={excludedAudioPids} />
             <button onClick={addNote} className="btn btn-sm btn-ghost text-base-content/40 w-full gap-1.5 hover:text-base-content/60">
               <DocumentIcon className="size-3.5" />
               <span className="text-xs">Teleprompter Notes</span>

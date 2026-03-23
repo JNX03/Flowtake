@@ -31,7 +31,7 @@ import {
 } from "@shared/redux/recorderSlice"
 import RecordModal from "./RecordModal"
 
-export default function RecordButton({ isRecordingSystemAudio }) {
+export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids = [] }) {
 
   const dispatch = useDispatch()
 
@@ -97,8 +97,13 @@ export default function RecordButton({ isRecordingSystemAudio }) {
 
     window.electron.ipcRenderer.invoke("init-recording", source, mediaSourceConfig, isRecordingSystemAudio ? systemAudio : null)
 
+    // Mute excluded apps when recording with system audio
+    if (isRecordingSystemAudio && excludedAudioPids.length > 0) {
+      window.electron.ipcRenderer.invoke("mute-audio-sessions", excludedAudioPids)
+    }
+
     dispatch(setIsRecording(true))
-  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone])
+  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids])
 
   const onClick = useCallback(() => {
     if (renderQueueProgress === -1) start()
@@ -135,4 +140,5 @@ export default function RecordButton({ isRecordingSystemAudio }) {
 
 RecordButton.propTypes = {
   isRecordingSystemAudio: PropTypes.bool.isRequired,
+  excludedAudioPids: PropTypes.arrayOf(PropTypes.number),
 }
