@@ -751,8 +751,12 @@ pub async fn init_recording(
     .build();
 
     match recorder_window {
-        Ok(_) => {
-            log::info!("Recorder window created successfully");
+        Ok(ref win) => {
+            // Explicitly set always-on-top after creation to ensure it sticks on Windows
+            if let Err(e) = win.set_always_on_top(true) {
+                log::warn!("Failed to set recorder always-on-top: {}", e);
+            }
+            log::info!("Recorder window created successfully (always-on-top)");
         }
         Err(e) => {
             log::error!("Failed to create recorder window: {}", e);
