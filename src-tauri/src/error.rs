@@ -33,6 +33,10 @@ pub enum AppError {
 
     #[error("Tauri error: {0}")]
     Tauri(#[from] tauri::Error),
+
+    #[cfg(target_os = "windows")]
+    #[error("Windows API error: {0}")]
+    Windows(#[from] windows::core::Error),
 }
 
 impl Serialize for AppError {

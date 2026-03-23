@@ -33,6 +33,8 @@ pub struct AppState {
     pub window_capture_thread: Option<std::thread::JoinHandle<()>>,
     /// FFmpeg process spawned via std::process::Command (for window capture pipeline)
     pub ffmpeg_process: Option<std::process::Child>,
+    /// PIDs of audio sessions muted during recording (restored on stop)
+    pub muted_audio_pids: Vec<u32>,
 }
 
 pub struct RenderState {
@@ -68,6 +70,7 @@ impl AppState {
             window_capture_stop: Arc::new(AtomicBool::new(false)),
             window_capture_thread: None,
             ffmpeg_process: None,
+            muted_audio_pids: Vec::new(),
         }
     }
 
