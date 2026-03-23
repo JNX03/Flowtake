@@ -262,6 +262,57 @@
     --color-error: "#bf616a";
 }
 
+/* === Rose Pine Dawn === */
+@plugin "daisyui/theme" {
+    name: "rose-pine-dawn";
+    preferslight: true;
+    --color-primary: "#907aa9";
+    --color-accent: "#56949f";
+    --color-secondary: "#d7827e";
+    --color-base-100: "#faf4ed";
+    --color-base-200: "#f2e9e1";
+    --color-base-300: "#e4dfda";
+    --color-base-content: "#575279";
+    --color-info: "#286983";
+    --color-success: "#56949f";
+    --color-warning: "#ea9d34";
+    --color-error: "#b4637a";
+}
+
+/* === GitHub Light === */
+@plugin "daisyui/theme" {
+    name: "github-light";
+    preferslight: true;
+    --color-primary: "#0969da";
+    --color-accent: "#1a7f37";
+    --color-secondary: "#8250df";
+    --color-base-100: "#ffffff";
+    --color-base-200: "#f6f8fa";
+    --color-base-300: "#d0d7de";
+    --color-base-content: "#1f2328";
+    --color-info: "#0969da";
+    --color-success: "#1a7f37";
+    --color-warning: "#9a6700";
+    --color-error: "#cf222e";
+}
+
+/* === Gruvbox Light === */
+@plugin "daisyui/theme" {
+    name: "gruvbox-light";
+    preferslight: true;
+    --color-primary: "#d65d0e";
+    --color-accent: "#79740e";
+    --color-secondary: "#b16286";
+    --color-base-100: "#fbf1c7";
+    --color-base-200: "#f2e5bc";
+    --color-base-300: "#ebdbb2";
+    --color-base-content: "#3c3836";
+    --color-info: "#458588";
+    --color-success: "#79740e";
+    --color-warning: "#d79921";
+    --color-error: "#cc241d";
+}
+
 @theme {
     --font-brand: Poppins, sans-serif;
     --font-subtitles: Roboto, sans-serif;
