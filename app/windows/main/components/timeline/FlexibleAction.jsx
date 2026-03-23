@@ -21,7 +21,6 @@ import {
     selectOffset,
     selectPxPerMs,
     selectScrollLeft,
-    selectSelectedIds,
     selectSnappingLines,
     setActiveSnapLine
 } from "@shared/redux/timelineSlice"
@@ -130,7 +129,7 @@ export default function FlexibleAction({
     const offset = useSelector(selectOffset)
     const snappingLines = useSelector(selectSnappingLines)
     const pxPerMs = useSelector(selectPxPerMs)
-    const selectedIds = useSelector(selectSelectedIds)
+
 
     // DOM refs for handles
     const moveHandle = useRef(null)
@@ -492,7 +491,6 @@ export default function FlexibleAction({
     // Handle mouse events for resizing the action from the right
     useEffect(() => {
         const onMouseMove = e => {
-            // Drag threshold for resize too
             if (!dragThresholdMet.current) {
                 const dx = e.clientX - initialMouseX.current
                 if (Math.abs(dx) < DRAG_THRESHOLD_PX) return
@@ -504,42 +502,77 @@ export default function FlexibleAction({
             const closestLine = getClosestLine(newEnd)
             let activeSnap = null
             if (isWithinSnappingThreshold(newEnd, closestLine)) { newEnd = closestLine; activeSnap = closestLine }
-            setSnappedLine(activeSnap)
-            dispatch(setActiveSnapLine(activeSnap))
+            dispatchSnapLine(activeSnap)
 
-            setUserDuration(clamp(
+            dragDurationRef.current = clamp(
                 newEnd - initialStart.current,
                 MIN_DURATION,
-                maxEnd - startRef.current
-            ))
-            setIsDragging(true)
+                maxEndRef.current - dragStartRef.current
+            )
+            scheduleDomUpdate()
+
+            if (!isDraggingRef.current) {
+                isDraggingRef.current = true
+                setIsDragging(true)
+            }
         }
 
-        const onMouseUp = () => handleMouseUp(onMouseMove, onMouseUp)
+        const onMouseUp = () => {
+            window.removeEventListener("mousemove", onMouseMove)
+            window.removeEventListener("mouseup", onMouseUp)
+            cancelAnimationFrame(rafIdRef.current)
+            pendingUpdateRef.current = false
 
-        const onMouseDown = e => handleMouseDown(e, onMouseMove, onMouseUp)
+            if (isDraggingRef.current) {
+                const s = dragStartRef.current
+                const d = dragDurationRef.current
+                onChangeRef.current(s, s + d, d)
+            }
+
+            isDraggingRef.current = false
+            setIsDragging(false)
+            lastSnapLineRef.current = null
+            dispatch(setActiveSnapLine(null))
+        }
+
+        const onMouseDown = e => {
+            if (e.button === 0) {
+                internalOffset.current = e.clientX - leftResizeHandle.current.getBoundingClientRect().left
+                initialDuration.current = dragDurationRef.current
+                initialStart.current = dragStartRef.current
+                initialMouseX.current = e.clientX
+                initialMouseY.current = e.clientY
+                dragThresholdMet.current = false
+                lastSnapLineRef.current = null
+                window.addEventListener("mousemove", onMouseMove)
+                window.addEventListener("mouseup", onMouseUp)
+            }
+        }
 
         const handle = rightResizeHandle.current
 
-        if (maxEnd !== null) handle?.addEventListener("mousedown", onMouseDown)
+        if (maxEndRef.current !== null) handle?.addEventListener("mousedown", onMouseDown)
 
-        // Cleanup function to remove event listeners
         return () => {
             handle?.removeEventListener("mousedown", onMouseDown)
             window.removeEventListener("mousemove", onMouseMove)
             window.removeEventListener("mouseup", onMouseUp)
         }
-    }, [minStart, maxEnd, lines, selectedIds, pxPerMs, getClosestLine, isWithinSnappingThreshold, handleMouseUp, handleMouseDown, getDelta, dispatch])
+    }, [isMinimized, dispatch])
 
     const onSelectAction = useCallback(() => {
         if (isDragging) setIsDragging(false)
         else onSelect?.()
     }, [isDragging, onSelect])
 
+    const setActionRef = useCallback(el => {
+        actionElementRef.current = el
+    }, [])
+
     return (
         <Action anim={anim} anims={anims} start={start} duration={duration} onSelect={onSelectAction}
             onContextMenu={onContextMenu} isRowSelected={isRowSelected} isClickEnabled={!isDragging} color={color}
-            isMinimized={isMinimized}>
+            isMinimized={isMinimized} isDragging={isDragging} actionRef={setActionRef}>
             <div ref={leftResizeHandle}
                 className={`w-3.5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
                 {!isMinimized && <div className="w-0.5 h-3 rounded-full bg-base-content/20" />}
