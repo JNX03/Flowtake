@@ -1059,6 +1059,9 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
     }
 
+    // Restore any muted audio sessions
+    crate::commands::audio::unmute_all_sessions(&app);
+
     let (project_id, recording_id, mouse_events, recording_start_ts) = {
         let mut state = state.lock().unwrap();
         state.is_recording = false;

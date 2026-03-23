@@ -323,6 +323,10 @@ pub fn run() {
             commands::encoding::get_camera_video_buffer,
             commands::encoding::get_screen_video_buffer,
             commands::encoding::extract_audio_buffer,
+            // Audio
+            commands::audio::get_audio_sessions,
+            commands::audio::mute_audio_sessions,
+            commands::audio::unmute_audio_sessions,
             // Social Upload
             commands::social_upload::youtube_set_credentials,
             commands::social_upload::youtube_auth_start,
