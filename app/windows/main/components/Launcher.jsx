@@ -59,12 +59,12 @@ export default function Launcher() {
         <SidebarItem
           icon={GitHubIcon}
           label="GitHub"
-          onClick={() => window.open("https://github.com/JNX03/Flowtake", "_blank")}
+          onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
         />
         <SidebarItem
           icon={CodeBracketSquareIcon}
           label="Feedback"
-          onClick={() => window.open("https://github.com/JNX03/Flowtake/issues", "_blank")}
+          onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake/issues")}
         />
         <SidebarItem
           icon={Cog6ToothIcon}
@@ -89,15 +89,13 @@ export default function Launcher() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <a
-                href="https://github.com/JNX03/Flowtake"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
                 className="badge badge-sm bg-base-200/60 border-base-content/10 text-base-content/50 gap-1.5 hover:text-base-content/80 hover:bg-base-200 transition-colors cursor-pointer"
               >
                 <GitHubIcon className="size-3" />
                 Open Source
-              </a>
+              </button>
             </div>
           </div>
 
