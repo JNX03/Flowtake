@@ -418,7 +418,6 @@ export default function FlexibleAction({
     // Handle mouse events for resizing the action from the left
     useEffect(() => {
         const onMouseMove = e => {
-            // Drag threshold for resize too
             if (!dragThresholdMet.current) {
                 const dx = e.clientX - initialMouseX.current
                 if (Math.abs(dx) < DRAG_THRESHOLD_PX) return
@@ -430,37 +429,65 @@ export default function FlexibleAction({
             const closestLine = getClosestLine(newStart)
             let activeSnap = null
             if (isWithinSnappingThreshold(newStart, closestLine)) { newStart = closestLine; activeSnap = closestLine }
-            setSnappedLine(activeSnap)
-            dispatch(setActiveSnapLine(activeSnap))
+            dispatchSnapLine(activeSnap)
 
-            setUserStart(clamp(
-                newStart,
-                minStart,
-                startRef.current + durationRef.current - MIN_DURATION
-            ))
-            setUserDuration(clamp(
+            const currentEnd = dragStartRef.current + dragDurationRef.current
+            dragStartRef.current = clamp(newStart, minStartRef.current, currentEnd - MIN_DURATION)
+            dragDurationRef.current = clamp(
                 initialDuration.current + initialStart.current - newStart,
                 MIN_DURATION,
-                startRef.current + durationRef.current - minStart
-            ))
-            setIsDragging(true)
+                currentEnd - minStartRef.current
+            )
+            scheduleDomUpdate()
+
+            if (!isDraggingRef.current) {
+                isDraggingRef.current = true
+                setIsDragging(true)
+            }
         }
 
-        const onMouseUp = () => handleMouseUp(onMouseMove, onMouseUp)
+        const onMouseUp = () => {
+            window.removeEventListener("mousemove", onMouseMove)
+            window.removeEventListener("mouseup", onMouseUp)
+            cancelAnimationFrame(rafIdRef.current)
+            pendingUpdateRef.current = false
 
-        const onMouseDown = e => handleMouseDown(e, onMouseMove, onMouseUp)
+            if (isDraggingRef.current) {
+                const s = dragStartRef.current
+                const d = dragDurationRef.current
+                onChangeRef.current(s, s + d, d)
+            }
+
+            isDraggingRef.current = false
+            setIsDragging(false)
+            lastSnapLineRef.current = null
+            dispatch(setActiveSnapLine(null))
+        }
+
+        const onMouseDown = e => {
+            if (e.button === 0) {
+                internalOffset.current = e.clientX - leftResizeHandle.current.getBoundingClientRect().left
+                initialDuration.current = dragDurationRef.current
+                initialStart.current = dragStartRef.current
+                initialMouseX.current = e.clientX
+                initialMouseY.current = e.clientY
+                dragThresholdMet.current = false
+                lastSnapLineRef.current = null
+                window.addEventListener("mousemove", onMouseMove)
+                window.addEventListener("mouseup", onMouseUp)
+            }
+        }
 
         const handle = leftResizeHandle.current
 
-        if (maxEnd !== null && !isMinimized) handle?.addEventListener("mousedown", onMouseDown)
+        if (maxEndRef.current !== null && !isMinimized) handle?.addEventListener("mousedown", onMouseDown)
 
-        // Cleanup function to remove event listeners
         return () => {
             handle?.removeEventListener("mousedown", onMouseDown)
             window.removeEventListener("mousemove", onMouseMove)
             window.removeEventListener("mouseup", onMouseUp)
         }
-    }, [minStart, maxEnd, lines, selectedIds, isMinimized, getClosestLine, isWithinSnappingThreshold, handleMouseUp, handleMouseDown, getDelta, dispatch])
+    }, [isMinimized, dispatch])
 
     // Handle mouse events for resizing the action from the right
     useEffect(() => {
