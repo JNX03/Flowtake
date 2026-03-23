@@ -32,7 +32,9 @@ export default function Action({
     isActive = true,
     color,
     children,
-    isMinimized = false
+    isMinimized = false,
+    isDragging = false,
+    actionRef
 }) {
 
     const dispatch = useDispatch()
@@ -50,6 +52,11 @@ export default function Action({
     const width = useMemo(() => msToPx(duration, pxPerMs), [duration, pxPerMs])
 
     const action = useRef(null)
+    const setRef = useCallback(el => {
+        action.current = el
+        if (typeof actionRef === "function") actionRef(el)
+        else if (actionRef) actionRef.current = el
+    }, [actionRef])
 
     const getAnimsInRange = useCallback((anim1, anim2) =>
         anims.filter(({ start }) => start >= anim2.start && start <= anim1.start).map(({ id }) => id),
@@ -109,9 +116,9 @@ export default function Action({
     }
 
     return (
-        <div ref={action} onClick={click} onContextMenu={contextMenu}
+        <div ref={setRef} onClick={click} onContextMenu={contextMenu}
             className={`${getColorClasses()} ${getRingClasses()} ${isSelected ? "shadow-xl z-20 brightness-110" : "hover:z-10 hover:brightness-105"} ` +
-                "h-full absolute select-none flex transition-all duration-150 rounded-xl overflow-hidden ring-offset-base-100 " +
+                `h-full absolute select-none flex ${isDragging ? "" : "transition-all duration-150 "}rounded-xl overflow-hidden ring-offset-base-100 ` +
                 `${isMinimized ? "" : "cursor-pointer"} @container`}
             style={{ left: `${leftPosition}px`, width: `${width}px` }} >
             {children}
@@ -142,5 +149,7 @@ Action.propTypes = {
     isActive: PropTypes.bool,
     color: PropTypes.oneOf(["primary", "secondary", "tertiary", "accent", "neutral"]),
     children: PropTypes.node,
-    isMinimized: PropTypes.bool
+    isMinimized: PropTypes.bool,
+    isDragging: PropTypes.bool,
+    actionRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object])
 }
