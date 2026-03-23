@@ -87,6 +87,8 @@ const COMMAND_MAP = {
     'check-for-updates': 'check_for_updates',
     'install-update': 'install_update',
     'choose-export-directory': 'choose_export_directory',
+    'get-autostart': 'get_autostart',
+    'set-autostart': 'set_autostart',
     // Background
     'update-background': 'update_background',
     'get-wallpapers': 'get_wallpapers',
@@ -151,6 +153,7 @@ const ARGS_MAP = {
     'upload': (args) => ({ renderId: args[0] }),
     'get_render_video_path': (args) => ({ renderId: args[0] }),
     'open_url_in_browser': (args) => ({ url: args[0] }),
+    'set_autostart': (args) => ({ enabled: args[0] }),
     'open_file': (args) => ({ type: args[0], flag: args[1], args: args[2] }),
     'read_file': (args) => ({ fhId: args[0], start: args[1], end: args[2] }),
     'write_file': (args) => {
