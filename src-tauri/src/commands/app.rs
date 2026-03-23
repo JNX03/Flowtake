@@ -1,10 +1,28 @@
 use crate::error::AppResult;
 #[cfg(not(target_os = "windows"))]
 use crate::error::AppError;
+use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_autostart::ManagerExt;
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdateInfo {
+    pub has_update: bool,
+    pub latest_version: String,
+    pub download_url: String,
+    pub release_notes: String,
+    pub published_at: String,
+    pub current_version: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChangelogEntry {
+    pub version: String,
+    pub release_notes: String,
+    pub published_at: String,
+}
 
 #[tauri::command]
 pub async fn get_version(app: AppHandle) -> AppResult<String> {
@@ -122,17 +140,150 @@ pub async fn check_permissions() -> AppResult<Value> {
     }
 }
 
+/// Compare two semver version strings (e.g. "1.2.3" > "1.2.1")
+fn is_newer_version(latest: &str, current: &str) -> bool {
+    let parse = |v: &str| -> Vec<u64> {
+        v.trim_start_matches('v')
+            .split('.')
+            .filter_map(|s| s.parse().ok())
+            .collect()
+    };
+    let l = parse(latest);
+    let c = parse(current);
+    for i in 0..l.len().max(c.len()) {
+        let lv = l.get(i).copied().unwrap_or(0);
+        let cv = c.get(i).copied().unwrap_or(0);
+        if lv > cv { return true; }
+        if lv < cv { return false; }
+    }
+    false
+}
+
+/// Get the platform-specific asset file extension patterns
+fn platform_asset_patterns() -> Vec<&'static str> {
+    match std::env::consts::OS {
+        "windows" => vec![".exe", ".msi"],
+        "macos" => vec![".dmg"],
+        "linux" => vec![".AppImage", ".deb"],
+        _ => vec![],
+    }
+}
+
 #[tauri::command]
-pub async fn check_for_updates(_app: AppHandle) -> AppResult<()> {
-    // Tauri updater plugin handles this
-    // For now, no-op - can be integrated with tauri-plugin-updater
+pub async fn check_for_updates(app: AppHandle) -> AppResult<Value> {
+    let current_version = app.config().version.clone().unwrap_or_else(|| "0.0.0".to_string());
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://api.github.com/repos/JNX03/Flowtake/releases/latest")
+        .header("User-Agent", "Flowtake")
+        .send()
+        .await;
+
+    let response = match response {
+        Ok(r) => r,
+        Err(_) => {
+            return Ok(serde_json::to_value(UpdateInfo {
+                has_update: false,
+                latest_version: current_version.clone(),
+                download_url: String::new(),
+                release_notes: String::new(),
+                published_at: String::new(),
+                current_version,
+            })?);
+        }
+    };
+
+    let json: Value = match response.json().await {
+        Ok(j) => j,
+        Err(_) => {
+            return Ok(serde_json::to_value(UpdateInfo {
+                has_update: false,
+                latest_version: current_version.clone(),
+                download_url: String::new(),
+                release_notes: String::new(),
+                published_at: String::new(),
+                current_version,
+            })?);
+        }
+    };
+
+    let tag = json.get("tag_name").and_then(|v| v.as_str()).unwrap_or("0.0.0");
+    let latest_version = tag.trim_start_matches('v').to_string();
+    let release_notes = json.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let published_at = json.get("published_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let html_url = json.get("html_url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+    // Find platform-specific download asset
+    let patterns = platform_asset_patterns();
+    let download_url = json.get("assets")
+        .and_then(|a| a.as_array())
+        .and_then(|assets| {
+            assets.iter().find_map(|asset| {
+                let name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                let name_lower = name.to_lowercase();
+                if patterns.iter().any(|p| name_lower.ends_with(&p.to_lowercase())) {
+                    asset.get("browser_download_url").and_then(|u| u.as_str()).map(|s| s.to_string())
+                } else {
+                    None
+                }
+            })
+        })
+        .unwrap_or(html_url);
+
+    let has_update = is_newer_version(&latest_version, &current_version);
+
+    Ok(serde_json::to_value(UpdateInfo {
+        has_update,
+        latest_version,
+        download_url,
+        release_notes,
+        published_at,
+        current_version,
+    })?)
+}
+
+#[tauri::command]
+pub async fn install_update(download_url: String) -> AppResult<()> {
+    open::that(&download_url).map_err(|e| {
+        log::error!("[install_update] Failed to open URL: {}", e);
+        crate::error::AppError::General(format!("Failed to open download URL: {}", e))
+    })?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn install_update(_app: AppHandle) -> AppResult<()> {
-    // Tauri updater plugin handles this
-    Ok(())
+pub async fn get_changelog() -> AppResult<Value> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://api.github.com/repos/JNX03/Flowtake/releases?per_page=20")
+        .header("User-Agent", "Flowtake")
+        .send()
+        .await;
+
+    let response = match response {
+        Ok(r) => r,
+        Err(_) => return Ok(serde_json::json!([])),
+    };
+
+    let json: Value = match response.json().await {
+        Ok(j) => j,
+        Err(_) => return Ok(serde_json::json!([])),
+    };
+
+    let entries: Vec<ChangelogEntry> = json.as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .map(|release| {
+            ChangelogEntry {
+                version: release.get("tag_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                release_notes: release.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                published_at: release.get("published_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            }
+        })
+        .collect();
+
+    Ok(serde_json::to_value(entries)?)
 }
 
 #[tauri::command]

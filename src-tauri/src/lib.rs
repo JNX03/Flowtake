@@ -296,6 +296,7 @@ pub fn run() {
             commands::app::check_permissions,
             commands::app::check_for_updates,
             commands::app::install_update,
+            commands::app::get_changelog,
             commands::app::choose_export_directory,
             commands::app::check_dependencies,
             commands::app::install_dependencies,
