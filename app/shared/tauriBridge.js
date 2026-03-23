@@ -111,6 +111,10 @@ const COMMAND_MAP = {
     'get-camera-video-buffer': 'get_camera_video_buffer',
     'get-screen-video-buffer': 'get_screen_video_buffer',
     'extract-audio-buffer': 'extract_audio_buffer',
+    // Audio
+    'get-audio-sessions': 'get_audio_sessions',
+    'mute-audio-sessions': 'mute_audio_sessions',
+    'unmute-audio-sessions': 'unmute_audio_sessions',
     // Social Upload
     'youtube-set-credentials': 'youtube_set_credentials',
     'youtube-auth-start': 'youtube_auth_start',
@@ -183,6 +187,8 @@ const ARGS_MAP = {
     'get_window_at_point': (args) => ({ x: args[0], y: args[1] }),
     'get_projects': (args) => ({ page: args[0] }),
     'extract_audio_buffer': (args) => ({ source: args[0] }),
+    // Audio
+    'mute_audio_sessions': (args) => ({ pids: args[0] }),
     // Social Upload
     'youtube_set_credentials': (args) => ({ clientId: args[0], clientSecret: args[1] }),
     'youtube_upload_video': (args) => ({ renderId: args[0], title: args[1], description: args[2], privacy: args[3] }),
