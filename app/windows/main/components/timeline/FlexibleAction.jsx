@@ -270,7 +270,6 @@ export default function FlexibleAction({
     // Handle mouse events for moving the action
     useEffect(() => {
         const onMouseMove = e => {
-            // Drag threshold - require minimum movement before starting drag
             if (!dragThresholdMet.current) {
                 const dx = e.clientX - initialMouseX.current
                 const dy = e.clientY - initialMouseY.current
@@ -298,66 +297,123 @@ export default function FlexibleAction({
             } else if (canSnapToStart) { newStart = closestLineToStart; activeSnap = closestLineToStart }
             else if (canSnapToEnd) { newStart = closestLineToEnd - initialDuration.current; activeSnap = closestLineToEnd }
 
-            setSnappedLine(activeSnap)
-            dispatch(setActiveSnapLine(activeSnap))
+            dispatchSnapLine(activeSnap)
 
-            // Cross-track detection
-            let effectiveMinStart = minStart
-            let effectiveMaxEnd = maxEnd
-            if (crossTrackEnabled && trackDropZone && getTrackAnims) {
-                const track = findTrackUnderMouse(e.clientX, e.clientY, trackDropZone)
-                const hoveredTrackId = track?.trackId ?? null
+            // Cross-track detection (throttled by Y movement)
+            let effectiveMinStart = minStartRef.current
+            let effectiveMaxEnd = maxEndRef.current
+            if (crossTrackEnabledRef.current && trackDropZoneRef.current && getTrackAnimsRef.current) {
+                const yDelta = Math.abs(e.clientY - lastCrossTrackYRef.current)
+                if (yDelta > CROSS_TRACK_THROTTLE_PX) {
+                    lastCrossTrackYRef.current = e.clientY
+                    const track = findTrackUnderMouse(e.clientX, e.clientY, trackDropZoneRef.current)
+                    const hoveredTrackId = track?.trackId ?? null
 
-                if (hoveredTrackId !== null && hoveredTrackId !== currentTrackId) {
-                    targetTrackRef.current = hoveredTrackId
-                    // Recompute constraints for target track
-                    const targetAnims = getTrackAnims(hoveredTrackId).filter(a => a.id !== anim.id)
+                    if (hoveredTrackId !== null && hoveredTrackId !== currentTrackIdRef.current) {
+                        targetTrackRef.current = hoveredTrackId
+                        const targetAnims = getTrackAnimsRef.current(hoveredTrackId).filter(a => a.id !== animRef.current.id)
+                        const constraints = computeConstraints(
+                            { start: newStart, end: newStart + initialDuration.current },
+                            targetAnims, videoDurationRef.current
+                        )
+                        effectiveMinStart = constraints.minStart
+                        effectiveMaxEnd = constraints.maxEnd ?? maxEndRef.current
+
+                        if (highlightedEl.current !== track.element) {
+                            clearTrackHighlight()
+                            track.element.style.outline = `2px solid color-mix(in oklab, var(--color-${colorRef.current || "primary"}) 50%, transparent)`
+                            track.element.style.outlineOffset = "-2px"
+                            track.element.style.borderRadius = "6px"
+                            highlightedEl.current = track.element
+                        }
+                    } else {
+                        targetTrackRef.current = null
+                        clearTrackHighlight()
+                    }
+                } else if (targetTrackRef.current !== null && getTrackAnimsRef.current) {
+                    // Reuse last cross-track constraints without DOM query
+                    const targetAnims = getTrackAnimsRef.current(targetTrackRef.current).filter(a => a.id !== animRef.current.id)
                     const constraints = computeConstraints(
                         { start: newStart, end: newStart + initialDuration.current },
-                        targetAnims, videoDuration
+                        targetAnims, videoDurationRef.current
                     )
                     effectiveMinStart = constraints.minStart
-                    effectiveMaxEnd = constraints.maxEnd ?? maxEnd
-
-                    // Highlight target track
-                    if (highlightedEl.current !== track.element) {
-                        clearTrackHighlight()
-                        track.element.style.outline = `2px solid color-mix(in oklab, var(--color-${color || "primary"}) 50%, transparent)`
-                        track.element.style.outlineOffset = "-2px"
-                        track.element.style.borderRadius = "6px"
-                        highlightedEl.current = track.element
-                    }
-                } else {
-                    targetTrackRef.current = null
-                    clearTrackHighlight()
-                    effectiveMinStart = minStart
-                    effectiveMaxEnd = maxEnd
+                    effectiveMaxEnd = constraints.maxEnd ?? maxEndRef.current
                 }
             }
 
-            setUserStart(clamp(newStart, effectiveMinStart, effectiveMaxEnd - durationRef.current))
-            setIsDragging(true)
+            dragStartRef.current = clamp(newStart, effectiveMinStart, effectiveMaxEnd - dragDurationRef.current)
+            scheduleDomUpdate()
+
+            if (!isDraggingRef.current) {
+                isDraggingRef.current = true
+                setIsDragging(true)
+            }
 
             moveHandle.current?.classList.add("cursor-grabbing")
         }
 
-        const onMouseUp = () => handleMouseUp(onMouseMove, onMouseUp)
+        const onMouseUp = () => {
+            window.removeEventListener("mousemove", onMouseMove)
+            window.removeEventListener("mouseup", onMouseUp)
+            cancelAnimationFrame(rafIdRef.current)
+            pendingUpdateRef.current = false
+            clearTrackHighlight()
 
-        const onMouseDown = e => handleMouseDown(e, onMouseMove, onMouseUp)
+            if (isDraggingRef.current) {
+                const s = dragStartRef.current
+                const d = dragDurationRef.current
+                const end = s + d
+                const target = targetTrackRef.current
+
+                if (crossTrackEnabledRef.current && target !== null && target !== currentTrackIdRef.current
+                    && onTrackChangeRef.current && getTrackAnimsRef.current) {
+                    const targetAnims = getTrackAnimsRef.current(target).filter(a => a.id !== animRef.current.id)
+                    const validStart = findNonOverlappingPosition(s, d, targetAnims, end + 10000)
+                    if (validStart !== null) {
+                        onTrackChangeRef.current(validStart, validStart + d, target)
+                    } else {
+                        onChangeRef.current(animRef.current.start, animRef.current.end, animRef.current.end - animRef.current.start)
+                    }
+                } else {
+                    onChangeRef.current(s, end, d)
+                }
+            }
+
+            targetTrackRef.current = null
+            isDraggingRef.current = false
+            setIsDragging(false)
+            lastSnapLineRef.current = null
+            dispatch(setActiveSnapLine(null))
+            moveHandle.current?.classList.remove("cursor-grabbing")
+        }
+
+        const onMouseDown = e => {
+            if (e.button === 0) {
+                internalOffset.current = e.clientX - leftResizeHandle.current.getBoundingClientRect().left
+                initialDuration.current = dragDurationRef.current
+                initialStart.current = dragStartRef.current
+                initialMouseX.current = e.clientX
+                initialMouseY.current = e.clientY
+                lastCrossTrackYRef.current = e.clientY
+                dragThresholdMet.current = false
+                targetTrackRef.current = null
+                lastSnapLineRef.current = null
+                window.addEventListener("mousemove", onMouseMove)
+                window.addEventListener("mouseup", onMouseUp)
+            }
+        }
 
         const handle = moveHandle.current
 
-        if (maxEnd !== null && !isMinimized) handle?.addEventListener("mousedown", onMouseDown)
+        if (maxEndRef.current !== null && !isMinimized) handle?.addEventListener("mousedown", onMouseDown)
 
-        // Cleanup function to remove event listeners
         return () => {
             handle?.removeEventListener("mousedown", onMouseDown)
             window.removeEventListener("mousemove", onMouseMove)
             window.removeEventListener("mouseup", onMouseUp)
         }
-    }, [minStart, maxEnd, lines, selectedIds, pxPerMs, isMinimized, getClosestLine, isWithinSnappingThreshold,
-        handleMouseUp, handleMouseDown, getDelta, crossTrackEnabled, trackDropZone, getTrackAnims, currentTrackId,
-        anim, videoDuration, color, clearTrackHighlight])
+    }, [isMinimized, dispatch])
 
     // Handle mouse events for resizing the action from the left
     useEffect(() => {
