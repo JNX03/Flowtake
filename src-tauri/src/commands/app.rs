@@ -4,6 +4,7 @@ use crate::error::AppError;
 use serde_json::Value;
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_autostart::ManagerExt;
 
 #[tauri::command]
 pub async fn get_version(app: AppHandle) -> AppResult<String> {
@@ -142,6 +143,23 @@ pub async fn choose_export_directory(app: AppHandle) -> AppResult<Value> {
         Some(path) => Ok(Value::String(path.to_string())),
         None => Ok(Value::Null),
     }
+}
+
+#[tauri::command]
+pub async fn get_autostart(app: AppHandle) -> AppResult<bool> {
+    let autostart = app.autolaunch();
+    Ok(autostart.is_enabled().unwrap_or(false))
+}
+
+#[tauri::command]
+pub async fn set_autostart(app: AppHandle, enabled: bool) -> AppResult<bool> {
+    let autostart = app.autolaunch();
+    if enabled {
+        autostart.enable().ok();
+    } else {
+        autostart.disable().ok();
+    }
+    Ok(autostart.is_enabled().unwrap_or(false))
 }
 
 /// Check if a command exists on the system
