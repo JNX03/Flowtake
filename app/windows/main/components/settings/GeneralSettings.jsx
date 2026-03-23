@@ -125,18 +125,16 @@ export default function GeneralSettings() {
 
         <Fieldset legend="Help & Feedback">
             <div className="flex flex-wrap gap-2">
-                <a className="btn btn-sm btn-ghost gap-2"
-                    href="https://github.com/JNX03/Flowtake/issues"
-                    target="_blank" rel="noopener noreferrer">
+                <button className="btn btn-sm btn-ghost gap-2"
+                    onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake/issues")}>
                     <ChatBubbleLeftRightIcon className="size-4" />
                     Send Feedback
-                </a>
-                <a className="btn btn-sm btn-ghost gap-2"
-                    href="https://github.com/JNX03/Flowtake/issues"
-                    target="_blank" rel="noopener noreferrer">
+                </button>
+                <button className="btn btn-sm btn-ghost gap-2"
+                    onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake/issues")}>
                     <LightBulbIcon className="size-4" />
                     Request a Feature
-                </a>
+                </button>
             </div>
         </Fieldset>
     </div>)

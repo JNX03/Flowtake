@@ -8,10 +8,10 @@ export default function UpgradeButton() {
 
     return (<>
         {!isReceivingUpdates && <div className="tooltip tooltip-bottom" data-tip="Upgrade to use the latest features">
-            <a className="mt-1 btn btn-xs btn-square btn-primary" href="https://getflowtake.com/account/licenses"
-                target="_blank" rel="noreferrer">
+            <button className="mt-1 btn btn-xs btn-square btn-primary"
+                onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://getflowtake.com/account/licenses")}>
                 <ArrowUpCircleIcon className="size-4" />
-            </a>
+            </button>
         </div>}
     </>)
 }

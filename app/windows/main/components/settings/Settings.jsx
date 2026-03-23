@@ -1,4 +1,5 @@
 import {
+    ArrowPathIcon,
     BoltIcon,
     Cog6ToothIcon,
     ComputerDesktopIcon,
@@ -24,9 +25,10 @@ import ExporterSettings from "./ExporterSettings"
 import GeneralSettings from "./GeneralSettings"
 import HotkeysSettings from "./HotkeysSettings"
 import RecorderSettings from "./RecorderSettings"
+import UpdatesSettings from "./UpdatesSettings"
 
-import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS } from "./constants"
-export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS }
+import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS, SETTINGS_UPDATES } from "./constants"
+export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS, SETTINGS_UPDATES }
 
 export default function Settings() {
     const dispatch = useDispatch()
@@ -69,6 +71,9 @@ export default function Settings() {
                         onClick={() => dispatch(setOpenSettings(SETTINGS_HOTKEYS))}
                         badge={<span className="ml-auto"><kbd className="kbd kbd-xs mr-0.5">ctrl</kbd><kbd className="kbd kbd-xs">/</kbd></span>}
                     />
+                    <NavItem icon={ArrowPathIcon} label="Updates"
+                        active={openSettings === SETTINGS_UPDATES}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_UPDATES))} />
                 </div>
 
                 {/* Footer */}
@@ -80,15 +85,13 @@ export default function Settings() {
                             {!isPending && !isError && <span className="text-base-content/40 ml-1">{version}</span>}
                         </span>
                     </div>
-                    <a
-                        href="https://github.com/JNX03/Flowtake"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <button
+                        onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
                         className="flex items-center gap-1.5 px-2 mt-2 text-[11px] text-base-content/25 hover:text-base-content/50 transition-colors"
                     >
                         <GitHubIcon className="size-3" />
                         Open Source
-                    </a>
+                    </button>
                 </div>
             </nav>
 
@@ -100,6 +103,7 @@ export default function Settings() {
                     {openSettings === SETTINGS_RECORDER && <RecorderSettings />}
                     {openSettings === SETTINGS_EXPORTER && <ExporterSettings />}
                     {openSettings === SETTINGS_HOTKEYS && <HotkeysSettings />}
+                    {openSettings === SETTINGS_UPDATES && <UpdatesSettings />}
                 </div>
             </div>
         </div>
