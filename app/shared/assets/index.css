@@ -192,6 +192,76 @@
     --color-error: "#ff5370";
 }
 
+/* ============ LIGHT THEMES ============ */
+
+/* === Flowtake Light === */
+@plugin "daisyui/theme" {
+    name: "flowtake-light";
+    preferslight: true;
+    --color-primary: "#6C5CE7";
+    --color-accent: "#00CEC9";
+    --color-secondary: "#E84393";
+    --color-base-100: "#ffffff";
+    --color-base-200: "#f3f4f6";
+    --color-base-300: "#e5e7eb";
+    --color-base-content: "#1f2937";
+    --color-info: "#3b82f6";
+    --color-success: "#10b981";
+    --color-warning: "#f59e0b";
+    --color-error: "#ef4444";
+}
+
+/* === Catppuccin Latte === */
+@plugin "daisyui/theme" {
+    name: "catppuccin-latte";
+    preferslight: true;
+    --color-primary: "#8839ef";
+    --color-accent: "#40a02b";
+    --color-secondary: "#ea76cb";
+    --color-base-100: "#eff1f5";
+    --color-base-200: "#e6e9ef";
+    --color-base-300: "#dce0e8";
+    --color-base-content: "#4c4f69";
+    --color-info: "#1e66f5";
+    --color-success: "#40a02b";
+    --color-warning: "#df8e1d";
+    --color-error: "#d20f39";
+}
+
+/* === Solarized Light === */
+@plugin "daisyui/theme" {
+    name: "solarized-light";
+    preferslight: true;
+    --color-primary: "#268bd2";
+    --color-accent: "#2aa198";
+    --color-secondary: "#d33682";
+    --color-base-100: "#fdf6e3";
+    --color-base-200: "#eee8d5";
+    --color-base-300: "#ddd6c1";
+    --color-base-content: "#586e75";
+    --color-info: "#268bd2";
+    --color-success: "#859900";
+    --color-warning: "#b58900";
+    --color-error: "#dc322f";
+}
+
+/* === Nord Light === */
+@plugin "daisyui/theme" {
+    name: "nord-light";
+    preferslight: true;
+    --color-primary: "#5e81ac";
+    --color-accent: "#a3be8c";
+    --color-secondary: "#b48ead";
+    --color-base-100: "#eceff4";
+    --color-base-200: "#e5e9f0";
+    --color-base-300: "#d8dee9";
+    --color-base-content: "#2e3440";
+    --color-info: "#81a1c1";
+    --color-success: "#a3be8c";
+    --color-warning: "#ebcb8b";
+    --color-error: "#bf616a";
+}
+
 @theme {
     --font-brand: Poppins, sans-serif;
     --font-subtitles: Roboto, sans-serif;
