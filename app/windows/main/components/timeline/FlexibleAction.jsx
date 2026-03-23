@@ -95,6 +95,8 @@ function computeConstraints(anim, trackAnims, videoDuration) {
     return { minStart, maxEnd }
 }
 
+const getDiff = (a, b) => b !== null ? Math.abs(b - a) : Infinity
+
 export default function FlexibleAction({
     anim,
     anims,
@@ -116,52 +118,65 @@ export default function FlexibleAction({
     const MIN_DURATION = 100
     const SNAP_THRESHOLD_PX = 10
     const DRAG_THRESHOLD_PX = 3
+    const CROSS_TRACK_THROTTLE_PX = 5
 
     const dispatch = useDispatch()
 
-    const [userDuration, setUserDuration] = useState(null)
-    const [userStart, setUserStart] = useState(null)
-
     const [isDragging, setIsDragging] = useState(false)
-    const [snappedLine, setSnappedLine] = useState(null)
-
-    // Derive start and duration - use user values while dragging, otherwise use anim props
-    const start = useMemo(() => {
-        if (userStart !== null) return userStart
-        return anim?.start || 0
-    }, [userStart, anim?.start])
-
-    const duration = useMemo(() => {
-        if (userDuration !== null) return userDuration
-        return anim ? (anim.end - anim.start) : 0
-    }, [userDuration, anim])
 
     const videoDuration = useSelector(selectDuration)
     const isSnappingEnabled = useSelector(selectIsSnappingEnabled)
-
     const scrollLeft = useSelector(selectScrollLeft)
     const offset = useSelector(selectOffset)
     const snappingLines = useSelector(selectSnappingLines)
     const pxPerMs = useSelector(selectPxPerMs)
     const selectedIds = useSelector(selectSelectedIds)
 
+    // DOM refs for handles
     const moveHandle = useRef(null)
     const leftResizeHandle = useRef(null)
     const rightResizeHandle = useRef(null)
+    const actionElementRef = useRef(null)
 
-    const startRef = useRef(0)
-    const durationRef = useRef(0)
+    // Drag operation refs
     const internalOffset = useRef(0)
     const initialDuration = useRef(0)
     const initialStart = useRef(0)
-    const scrollLeftRef = useRef(scrollLeft)
-    const offsetRef = useRef(offset)
     const isDraggingRef = useRef(false)
     const initialMouseX = useRef(0)
     const initialMouseY = useRef(0)
     const dragThresholdMet = useRef(false)
     const targetTrackRef = useRef(null)
     const highlightedEl = useRef(null)
+
+    // RAF refs for direct DOM updates
+    const rafIdRef = useRef(0)
+    const pendingUpdateRef = useRef(false)
+    const dragStartRef = useRef(0)
+    const dragDurationRef = useRef(0)
+    const lastSnapLineRef = useRef(null)
+    const lastCrossTrackYRef = useRef(0)
+
+    // Stable refs for values accessed in mousemove handlers (avoids useEffect re-registration)
+    const pxPerMsRef = useRef(pxPerMs)
+    const scrollLeftRef = useRef(scrollLeft)
+    const offsetRef = useRef(offset)
+    const minStartRef = useRef(0)
+    const maxEndRef = useRef(null)
+    const linesRef = useRef(null)
+    const videoDurationRef = useRef(videoDuration)
+    const animRef = useRef(anim)
+    const onChangeRef = useRef(onChange)
+    const onTrackChangeRef = useRef(onTrackChange)
+    const getTrackAnimsRef = useRef(getTrackAnims)
+    const crossTrackEnabledRef = useRef(crossTrackEnabled)
+    const currentTrackIdRef = useRef(currentTrackId)
+    const trackDropZoneRef = useRef(trackDropZone)
+    const colorRef = useRef(color)
+
+    // Derived values
+    const start = useMemo(() => anim?.start || 0, [anim?.start])
+    const duration = useMemo(() => anim ? (anim.end - anim.start) : 0, [anim])
 
     const minStart = useMemo(
         () => anims.reduce((closest, current) =>
@@ -181,94 +196,76 @@ export default function FlexibleAction({
         return filteredLines.length > 0 ? filteredLines : null
     }, [snappingLines, anim, isSnappingEnabled])
 
-    const getDelta = useCallback(e =>
-        pxToMs(e.clientX - offsetRef.current - internalOffset.current + scrollLeftRef.current, pxPerMs) - initialStart.current,
-        [pxPerMs]
-    )
+    // Synchronous ref updates (no useEffect delay)
+    pxPerMsRef.current = pxPerMs
+    scrollLeftRef.current = scrollLeft
+    offsetRef.current = offset
+    minStartRef.current = minStart
+    maxEndRef.current = maxEnd
+    linesRef.current = lines
+    videoDurationRef.current = videoDuration
+    animRef.current = anim
+    onChangeRef.current = onChange
+    onTrackChangeRef.current = onTrackChange
+    getTrackAnimsRef.current = getTrackAnims
+    crossTrackEnabledRef.current = crossTrackEnabled
+    currentTrackIdRef.current = currentTrackId
+    trackDropZoneRef.current = trackDropZone
+    colorRef.current = color
 
-    const getDiff = (a, b) => b !== null ? Math.abs(b - a) : Infinity
+    if (!isDraggingRef.current) {
+        dragStartRef.current = start
+        dragDurationRef.current = duration
+    }
 
-    const clearTrackHighlight = useCallback(() => {
+    // Helper functions that read from refs (stable, no deps)
+    const getDelta = (e) =>
+        pxToMs(e.clientX - offsetRef.current - internalOffset.current + scrollLeftRef.current, pxPerMsRef.current) - initialStart.current
+
+    const getClosestLine = (value) => {
+        const l = linesRef.current
+        return l?.reduce((closest, current) =>
+            Math.abs(current - value) < Math.abs(closest - value) ? current : closest) ?? null
+    }
+
+    const isWithinSnappingThreshold = (value, closestLine) => {
+        const p = pxPerMsRef.current
+        const scaledThreshold = Math.max(SNAP_THRESHOLD_PX / Math.sqrt(p / 0.1), 5)
+        return msToPx(getDiff(value, closestLine), p) < scaledThreshold
+    }
+
+    const clearTrackHighlight = () => {
         if (highlightedEl.current) {
             highlightedEl.current.style.outline = ""
             highlightedEl.current.style.outlineOffset = ""
             highlightedEl.current.style.borderRadius = ""
             highlightedEl.current = null
         }
-    }, [])
+    }
 
-    const handleMouseUp = useCallback((onMouseMove, onMouseUp) => {
-        window.removeEventListener("mousemove", onMouseMove)
-        window.removeEventListener("mouseup", onMouseUp)
-        clearTrackHighlight()
-
-        if (isDraggingRef.current) {
-            const start = startRef.current
-            const end = start + durationRef.current
-            const target = targetTrackRef.current
-
-            // Cross-track drop
-            if (crossTrackEnabled && target !== null && target !== currentTrackId && onTrackChange && getTrackAnims) {
-                const targetAnims = getTrackAnims(target).filter(a => a.id !== anim.id)
-                const validStart = findNonOverlappingPosition(start, durationRef.current, targetAnims, end + 10000)
-                if (validStart !== null) {
-                    onTrackChange(validStart, validStart + durationRef.current, target)
-                } else {
-                    // No room - revert
-                    onChange(anim.start, anim.end, anim.end - anim.start)
-                }
-            } else {
-                onChange(start, end, durationRef.current)
+    // Schedule a direct DOM update via requestAnimationFrame
+    const scheduleDomUpdate = () => {
+        if (pendingUpdateRef.current) return
+        pendingUpdateRef.current = true
+        rafIdRef.current = requestAnimationFrame(() => {
+            pendingUpdateRef.current = false
+            if (actionElementRef.current) {
+                const p = pxPerMsRef.current
+                const left = msToPx(dragStartRef.current, p)
+                const width = msToPx(dragDurationRef.current, p)
+                actionElementRef.current.style.left = `${left}px`
+                actionElementRef.current.style.width = `${width}px`
             }
+        })
+    }
+
+    const dispatchSnapLine = (activeSnap) => {
+        if (activeSnap !== lastSnapLineRef.current) {
+            lastSnapLineRef.current = activeSnap
+            dispatch(setActiveSnapLine(activeSnap))
         }
+    }
 
-        targetTrackRef.current = null
-        setUserStart(null)
-        setUserDuration(null)
-        setSnappedLine(null)
-        dispatch(setActiveSnapLine(null))
-
-        moveHandle.current?.classList.remove("cursor-grabbing")
-    }, [onChange, crossTrackEnabled, currentTrackId, onTrackChange, getTrackAnims, anim, clearTrackHighlight, dispatch])
-
-    const getClosestLine = useCallback(value =>
-        lines?.reduce((closest, current) =>
-            Math.abs(current - value) < Math.abs(closest - value) ? current : closest) ?? null, [lines])
-
-    const isWithinSnappingThreshold = useCallback(
-        (value, closestLine) => {
-            const scaledThreshold = Math.max(SNAP_THRESHOLD_PX / Math.sqrt(pxPerMs / 0.1), 5)
-            return msToPx(getDiff(value, closestLine), pxPerMs) < scaledThreshold
-        },
-        [pxPerMs]
-    )
-
-    const handleMouseDown = useCallback((e, onMouseMove, onMouseUp) => {
-        if (e.button === 0) {
-            internalOffset.current = e.clientX - leftResizeHandle.current.getBoundingClientRect().left
-            initialDuration.current = durationRef.current
-            initialStart.current = startRef.current
-            initialMouseX.current = e.clientX
-            initialMouseY.current = e.clientY
-            dragThresholdMet.current = false
-            targetTrackRef.current = null
-            setIsDragging(false)
-            window.addEventListener("mousemove", onMouseMove)
-            window.addEventListener("mouseup", onMouseUp)
-        }
-    }, [])
-
-    // Update refs when state changes
-
-    useEffect(() => { startRef.current = start }, [start])
-
-    useEffect(() => { durationRef.current = duration }, [duration])
-
-    useEffect(() => { scrollLeftRef.current = scrollLeft }, [scrollLeft])
-
-    useEffect(() => { offsetRef.current = offset }, [offset])
-
-    useEffect(() => { isDraggingRef.current = isDragging }, [isDragging])
 
     // Handle mouse events for moving the action
     useEffect(() => {
