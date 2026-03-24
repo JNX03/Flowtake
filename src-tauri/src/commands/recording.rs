@@ -4,8 +4,6 @@ use serde_json::Value;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_shell::ShellExt;
-use tauri_plugin_shell::process::CommandEvent;
 
 #[tauri::command]
 pub async fn get_camera_mic_config(app: AppHandle) -> AppResult<Value> {
@@ -48,7 +46,7 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
         return Some(plain);
     }
 
-    // Fallback: check if ffmpeg is on PATH (common on macOS/Linux)
+    // Fallback: check if ffmpeg is on PATH
     #[cfg(not(target_os = "windows"))]
     {
         if let Ok(output) = std::process::Command::new("which").arg("ffmpeg").output() {
@@ -56,6 +54,20 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !path.is_empty() {
                     return Some(std::path::PathBuf::from(path));
+                }
+            }
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(output) = std::process::Command::new("where").arg("ffmpeg").output() {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                // `where` may return multiple lines; take the first
+                if let Some(first) = path.lines().next() {
+                    if !first.is_empty() {
+                        return Some(std::path::PathBuf::from(first));
+                    }
                 }
             }
         }
@@ -350,6 +362,17 @@ pub async fn init_recording(
 
     // For window capture, we use a custom PrintWindow pipeline instead of gdigrab
     let is_window_capture = source_type == "window";
+
+    // Detect pure Wayland (no XWayland) on Linux — x11grab won't work
+    #[cfg(target_os = "linux")]
+    {
+        let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+        if session_type == "wayland" && std::env::var("DISPLAY").is_err() {
+            return Err(AppError::General(
+                "Screen recording requires X11 or XWayland. Pure Wayland is not yet supported.".into(),
+            ));
+        }
+    }
 
     let mut ffmpeg_args: Vec<String> = Vec::new();
     let (recording_offset_x, recording_offset_y): (i64, i64);
@@ -890,70 +913,70 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
 
             log::info!("[start_recording] Window capture started, FFmpeg PID: {}", pid);
         } else {
-            // Screen/Area capture: use Tauri sidecar with system FFmpeg fallback
-            let shell = app.shell();
-            let sidecar_result: Result<tauri_plugin_shell::process::Command, tauri_plugin_shell::Error> = shell.sidecar("ffmpeg")
-                .or_else(|_| {
-                    log::warn!("[start_recording] FFmpeg sidecar not found, trying system FFmpeg");
-                    Ok(shell.command("ffmpeg"))
-                });
+            // Screen/Area capture: use std::process::Command for proper stdin control
+            // (Tauri CommandChild drops kill the process before FFmpeg can finalize the file)
+            let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
+                AppError::General("FFmpeg binary not found. Please install FFmpeg.".to_string())
+            })?;
 
-            match sidecar_result {
-                Ok(cmd) => {
-                    let cmd = cmd.args(&args);
-                    match cmd.spawn() {
-                        Ok((mut rx, child)) => {
-                            let pid = child.pid();
-                            {
-                                let mut state = state.lock().unwrap();
-                                state.ffmpeg_child_id = Some(pid);
-                                state.ffmpeg_child = Some(child);
-                            }
+            log::info!(
+                "[start_recording] Screen/area capture, FFmpeg: {:?}, args: {:?}",
+                ffmpeg_path, args
+            );
 
-                            let app_clone = app.clone();
-                            tauri::async_runtime::spawn(async move {
-                                while let Some(event) = rx.recv().await {
-                                    match event {
-                                        CommandEvent::Stderr(line) => {
-                                            log::info!(
-                                                "[FFmpeg] {}",
-                                                String::from_utf8_lossy(&line)
-                                            );
+            use std::process::{Command, Stdio};
+
+            let mut cmd = Command::new(&ffmpeg_path);
+            cmd.args(&args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped());
+
+            // Hide console window on Windows
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+
+            match cmd.spawn() {
+                Ok(mut process) => {
+                    let pid = process.id();
+
+                    // Spawn a thread to read stderr for logging and error detection
+                    let stderr = process.stderr.take();
+                    let app_clone = app.clone();
+                    if let Some(stderr) = stderr {
+                        std::thread::spawn(move || {
+                            use std::io::BufRead;
+                            let reader = std::io::BufReader::new(stderr);
+                            for line in reader.lines() {
+                                match line {
+                                    Ok(msg) => {
+                                        log::info!("[FFmpeg] {}", msg);
+                                        if msg.contains("Could not find video device")
+                                            || msg.contains("Permission denied")
+                                            || msg.contains("not granted")
+                                        {
+                                            app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
                                         }
-                                        CommandEvent::Stdout(line) => {
-                                            log::info!(
-                                                "[FFmpeg stdout] {}",
-                                                String::from_utf8_lossy(&line)
-                                            );
-                                        }
-                                        CommandEvent::Error(err) => {
-                                            log::error!("[FFmpeg error] {}", err);
-                                            app_clone
-                                                .emit("recording-error", "CaptureError")
-                                                .ok();
-                                        }
-                                        CommandEvent::Terminated(status) => {
-                                            log::info!(
-                                                "[FFmpeg] Terminated with: {:?}",
-                                                status
-                                            );
-                                            break;
-                                        }
-                                        _ => {}
                                     }
+                                    Err(_) => break,
                                 }
-                            });
-
-                            log::info!("FFmpeg started with PID: {}", pid);
-                        }
-                        Err(e) => {
-                            log::error!("Failed to spawn FFmpeg: {}", e);
-                            app.emit("recording-error", "CaptureError").ok();
-                        }
+                            }
+                        });
                     }
+
+                    {
+                        let mut state = state.lock().unwrap();
+                        state.ffmpeg_child_id = Some(pid);
+                        state.ffmpeg_process = Some(process);
+                    }
+
+                    log::info!("[start_recording] FFmpeg started with PID: {}", pid);
                 }
                 Err(e) => {
-                    log::error!("Failed to create FFmpeg sidecar: {}", e);
+                    log::error!("Failed to spawn FFmpeg: {}", e);
                     app.emit("recording-error", "CaptureError").ok();
                 }
             }
@@ -1002,62 +1025,12 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 
     let stop_timestamp = chrono::Utc::now().timestamp_millis();
 
-    // Check if this is a window capture
-    let is_window_capture = {
-        let s = state.lock().unwrap();
-        s.camera_mic_config
-            .as_ref()
-            .and_then(|c| c.get("isWindowCapture"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
-    };
-
-    if is_window_capture {
-        // Window capture: signal stop, join thread, wait for FFmpeg
-        log::info!("[stop_recording] Stopping window capture pipeline");
-
-        // Signal capture thread to stop
-        {
-            let s = state.lock().unwrap();
-            s.window_capture_stop.store(true, Ordering::Relaxed);
-        }
-
-        // Join capture thread (this drops stdin → FFmpeg gets EOF → finalizes)
-        let thread = {
-            let mut s = state.lock().unwrap();
-            s.window_capture_thread.take()
-        };
-        if let Some(thread) = thread {
-            thread.join().ok();
-            log::info!("[stop_recording] Capture thread joined");
-        }
-
-        // Wait for FFmpeg process to finish (it should finalize after EOF)
-        let process = {
-            let mut s = state.lock().unwrap();
-            s.ffmpeg_process.take()
-        };
-        if let Some(mut process) = process {
-            // Give FFmpeg up to 10 seconds to finalize
-            match tokio::time::timeout(
-                std::time::Duration::from_secs(10),
-                tokio::task::spawn_blocking(move || process.wait()),
-            )
-            .await
-            {
-                Ok(Ok(Ok(status))) => {
-                    log::info!("[stop_recording] FFmpeg exited with: {:?}", status);
-                }
-                _ => {
-                    log::warn!("[stop_recording] FFmpeg finalization timed out or failed");
-                }
-            }
-        }
-    } else {
-        // Screen/Area capture: graceful gdigrab shutdown
-        kill_ffmpeg(&app);
-        tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
-    }
+    // Gracefully stop FFmpeg (handles both window capture and screen/area capture)
+    log::info!("[stop_recording] Stopping FFmpeg");
+    tokio::task::spawn_blocking({
+        let app = app.clone();
+        move || kill_ffmpeg(&app)
+    }).await.ok();
 
     // Restore any muted audio sessions
     crate::commands::audio::unmute_all_sessions(&app);
@@ -1316,7 +1289,10 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
-    kill_ffmpeg(&app);
+    tokio::task::spawn_blocking({
+        let app = app.clone();
+        move || kill_ffmpeg(&app)
+    }).await.ok();
 
     let state = app.state::<Mutex<AppState>>();
     let recording_id = {
@@ -1345,7 +1321,10 @@ pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
 pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
 
-    kill_ffmpeg(&app);
+    tokio::task::spawn_blocking({
+        let app = app.clone();
+        move || kill_ffmpeg(&app)
+    }).await.ok();
 
     let recording_id = {
         let mut state = state.lock().unwrap();
@@ -1390,14 +1369,11 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
 
 /// Get video duration in milliseconds using FFmpeg
 async fn get_video_duration_ms(
-    app: &AppHandle,
+    _app: &AppHandle,
     video_path: &std::path::Path,
 ) -> Result<i64, String> {
     let path_str = video_path.to_string_lossy().to_string();
-    let output = super::ffmpeg_from_app(app)
-        .map_err(|e| format!("FFmpeg error: {}", e))?
-        .args(["-i", &path_str, "-f", "null", "-"])
-        .output()
+    let output = run_ffmpeg(&["-i", &path_str, "-f", "null", "-"])
         .await
         .map_err(|e| format!("FFmpeg error: {}", e))?;
 
@@ -1423,76 +1399,92 @@ async fn get_video_duration_ms(
     Err("Could not parse duration".to_string())
 }
 
-/// Stop the FFmpeg process gracefully.
-/// For sidecar (gdigrab): writes "q\n" to stdin.
+/// Stop the FFmpeg process gracefully by writing "q" to stdin and waiting for exit.
 /// For window capture: signals capture thread to stop (which drops stdin → EOF).
+/// For screen/area capture: writes "q\n" to stdin of std::process::Child.
 fn kill_ffmpeg(app: &AppHandle) {
+    use std::io::Write;
+
     let state = app.state::<Mutex<AppState>>();
 
-    // Handle window capture pipeline
-    {
+    let is_window_capture = {
         let s = state.lock().unwrap();
-        let is_window_capture = s
-            .camera_mic_config
+        s.camera_mic_config
             .as_ref()
             .and_then(|c| c.get("isWindowCapture"))
             .and_then(|v| v.as_bool())
-            .unwrap_or(false);
+            .unwrap_or(false)
+    };
 
-        if is_window_capture {
-            // Signal the capture thread to stop
+    if is_window_capture {
+        // Signal the capture thread to stop
+        {
+            let s = state.lock().unwrap();
             s.window_capture_stop.store(true, Ordering::Relaxed);
-            drop(s);
+        }
 
-            // Join the capture thread (drops stdin → FFmpeg gets EOF)
-            let thread = {
-                let mut s = state.lock().unwrap();
-                s.window_capture_thread.take()
-            };
-            if let Some(thread) = thread {
-                thread.join().ok();
-            }
-
-            // Wait briefly for FFmpeg to finalize, then force kill if needed
-            let process = {
-                let mut s = state.lock().unwrap();
-                s.ffmpeg_process.take()
-            };
-            if let Some(mut process) = process {
-                // Give it 5 seconds to finish
-                std::thread::sleep(std::time::Duration::from_secs(3));
-                process.kill().ok();
-                process.wait().ok();
-            }
-
-            return;
+        // Join the capture thread (drops stdin → FFmpeg gets EOF)
+        let thread = {
+            let mut s = state.lock().unwrap();
+            s.window_capture_thread.take()
+        };
+        if let Some(thread) = thread {
+            thread.join().ok();
+            log::info!("[kill_ffmpeg] Window capture thread joined");
         }
     }
 
-    // Handle Tauri sidecar (gdigrab) pipeline
-    let (pid, child) = {
-        let mut state = state.lock().unwrap();
-        (state.ffmpeg_child_id, state.ffmpeg_child.take())
+    // Take the FFmpeg process (used by both window and screen/area capture now)
+    let (pid, mut process) = {
+        let mut s = state.lock().unwrap();
+        (s.ffmpeg_child_id.take(), s.ffmpeg_process.take())
     };
 
-    if let Some(mut child) = child {
-        let pid = pid.unwrap_or(0);
-        log::info!("[kill_ffmpeg] Sending 'q' to FFmpeg PID: {}", pid);
+    if let Some(ref mut process) = process {
+        let pid_val = pid.unwrap_or(0);
 
-        match child.write(b"q\n") {
-            Ok(_) => {
-                log::info!("[kill_ffmpeg] Sent 'q' command to FFmpeg stdin");
+        if !is_window_capture {
+            // Screen/area capture: send "q\n" to FFmpeg stdin for graceful shutdown
+            if let Some(ref mut stdin) = process.stdin.take() {
+                match stdin.write_all(b"q\n").and_then(|_| stdin.flush()) {
+                    Ok(_) => {
+                        log::info!("[kill_ffmpeg] Sent 'q' to FFmpeg PID: {}", pid_val);
+                    }
+                    Err(e) => {
+                        log::warn!("[kill_ffmpeg] Failed to write to stdin: {}", e);
+                    }
+                }
             }
-            Err(e) => {
-                log::warn!(
-                    "[kill_ffmpeg] Failed to write to stdin: {}, using force kill",
-                    e
-                );
-                force_kill_ffmpeg(pid);
+            // Drop stdin to signal EOF
+        }
+
+        // Wait for FFmpeg to finalize (up to 8 seconds)
+        let start = std::time::Instant::now();
+        let timeout = std::time::Duration::from_secs(8);
+        loop {
+            match process.try_wait() {
+                Ok(Some(status)) => {
+                    log::info!("[kill_ffmpeg] FFmpeg exited with: {:?}", status);
+                    return;
+                }
+                Ok(None) => {
+                    if start.elapsed() > timeout {
+                        log::warn!("[kill_ffmpeg] FFmpeg didn't exit in time, force killing");
+                        process.kill().ok();
+                        process.wait().ok();
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(e) => {
+                    log::error!("[kill_ffmpeg] Error waiting for FFmpeg: {}", e);
+                    process.kill().ok();
+                    return;
+                }
             }
         }
     } else if let Some(pid) = pid {
-        log::warn!("[kill_ffmpeg] No child handle, force killing PID: {}", pid);
+        log::warn!("[kill_ffmpeg] No process handle, force killing PID: {}", pid);
         force_kill_ffmpeg(pid);
     }
 }
@@ -1574,13 +1566,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                     let bmp_str = bmp_path.to_string_lossy().to_string();
                     std::fs::write(&bmp_path, &bmp_data)?;
 
-                    let output = super::ffmpeg_from_app(&app)?
-                        .args(["-y", "-i", &bmp_str, &screenshot_str])
-                        .output()
-                        .await
-                        .map_err(|e| {
-                            AppError::General(format!("FFmpeg error: {}", e))
-                        })?;
+                    let output = run_ffmpeg(&["-y", "-i", &bmp_str, &screenshot_str]).await?;
 
                     std::fs::remove_file(&bmp_path).ok();
 
@@ -1620,11 +1606,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
             let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
-            let _output = super::ffmpeg_from_app(&app)?
-                .args(&args_refs)
-                .output()
-                .await
-                .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
+            let _output = run_ffmpeg(&args_refs).await?;
 
             if screenshot_path.exists() {
                 let data = std::fs::read(&screenshot_path)?;
@@ -1651,11 +1633,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
             let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
-            let _output = super::ffmpeg_from_app(&app)?
-                .args(&args_refs)
-                .output()
-                .await
-                .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
+            let _output = run_ffmpeg(&args_refs).await?;
 
             if screenshot_path.exists() {
                 let data = std::fs::read(&screenshot_path)?;
@@ -1731,11 +1709,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
     let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
-    let output = super::ffmpeg_from_app(&app)?
-        .args(&args_refs)
-        .output()
-        .await
-        .map_err(|e| AppError::General(format!("FFmpeg execution error: {}", e)))?;
+    let output = run_ffmpeg(&args_refs).await?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1800,6 +1774,31 @@ fn platform_audio_capture_args(device: &str) -> (String, String) {
     }
 }
 
+/// Run FFmpeg with the given arguments and return the output.
+/// Uses std::process::Command for consistent cross-platform behavior.
+async fn run_ffmpeg(args: &[&str]) -> AppResult<std::process::Output> {
+    let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
+        AppError::General("FFmpeg binary not found. Please install FFmpeg.".to_string())
+    })?;
+    let path = ffmpeg_path.clone();
+    let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    tokio::task::spawn_blocking(move || {
+        let mut cmd = std::process::Command::new(&path);
+        cmd.args(&args_owned)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        cmd.output().map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))
+    })
+    .await
+    .map_err(|e| AppError::General(format!("FFmpeg task error: {}", e)))?
+}
+
 /// Build platform-specific FFmpeg args for taking a single screenshot
 fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> Vec<String> {
     #[cfg(target_os = "windows")]
@@ -1822,12 +1821,8 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
             "-i".into(), "0:none".into(),
             "-frames:v".into(), "1".into(),
         ];
-        // Add crop filter if not capturing full screen from origin
-        if x != 0 || y != 0 {
-            args.extend(["-vf".into(), format!("crop={}:{}:{}:{}", w, h, x, y)]);
-        } else {
-            args.extend(["-vf".into(), format!("scale={}:{}", w, h)]);
-        }
+        // Crop to the requested region (works for all cases including x=0,y=0)
+        args.extend(["-vf".into(), format!("crop={}:{}:{}:{}", w, h, x, y)]);
         args.push(output_path.into());
         args
     }
