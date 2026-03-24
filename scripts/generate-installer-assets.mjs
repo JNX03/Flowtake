@@ -194,12 +194,19 @@ function createPNG(width, height, pixels) {
   }
   const compressed = zlib.deflateSync(rawData);
 
+  // pHYs chunk - 144 DPI (5669 pixels/meter) for Retina @2x
+  const phys = Buffer.alloc(9);
+  phys.writeUInt32BE(5669, 0); // pixels per unit X
+  phys.writeUInt32BE(5669, 4); // pixels per unit Y
+  phys[8] = 1; // unit = meter
+
   // IEND
   const iend = Buffer.alloc(0);
 
   return Buffer.concat([
     signature,
     pngChunk('IHDR', ihdr),
+    pngChunk('pHYs', phys),
     pngChunk('IDAT', compressed),
     pngChunk('IEND', iend),
   ]);
@@ -374,7 +381,7 @@ function generateSidebar() {
 
   // Version text at bottom
   const verScale = 1;
-  const verText = 'V1.2.1';
+  const verText = 'V1.3.0';
   const verW = textWidth(verText, verScale);
   drawText(pixels, W, H, verText, Math.round((W - verW) / 2), 285, verScale, GRAY);
 
@@ -422,10 +429,13 @@ function generateHeader() {
   return createBMP(W, H, pixels);
 }
 
-// ─── Generate DMG Background (660x400) ──────────────────────────────
+// ─── Generate DMG Background (1320x800 @2x for Retina) ──────────────
+// macOS Retina displays require 2x resolution for DMG backgrounds.
+// Window size is 660x400, so the image must be 1320x800.
 
 function generateDMGBackground() {
-  const W = 660, H = 400;
+  const S = 2; // Retina scale factor
+  const W = 660 * S, H = 400 * S;
   const pixels = Buffer.alloc(W * H * 3);
 
   // Gradient background
@@ -449,42 +459,42 @@ function generateDMGBackground() {
   }
 
   // "FLOWTAKE" title centered at top
-  const titleScale = 3;
+  const titleScale = 3 * S;
   const titleW = textWidth('FLOWTAKE', titleScale);
-  drawText(pixels, W, H, 'FLOWTAKE', Math.round((W - titleW) / 2), 40, titleScale, WHITE);
+  drawText(pixels, W, H, 'FLOWTAKE', Math.round((W - titleW) / 2), 40 * S, titleScale, WHITE);
 
   // Tagline
-  const tagScale = 2;
+  const tagScale = 2 * S;
   const tagText = 'SCREEN RECORDER';
   const tagW = textWidth(tagText, tagScale);
-  drawText(pixels, W, H, tagText, Math.round((W - tagW) / 2), 75, tagScale, GRAY);
+  drawText(pixels, W, H, tagText, Math.round((W - tagW) / 2), 75 * S, tagScale, GRAY);
 
   // Teal separator line
-  fillRect(pixels, W, H, W / 2 - 80, 105, 160, 2, ...TEAL);
+  fillRect(pixels, W, H, W / 2 - 80 * S, 105 * S, 160 * S, 2 * S, ...TEAL);
 
-  // Arrow from app position (180,170) to Applications (480,170)
-  // Draw a stylized arrow in the middle area
-  const arrowY = 200;
-  drawArrow(pixels, W, H, 230, arrowY, 430, TEAL, 3);
+  // Arrow from app position to Applications folder
+  const arrowY = 200 * S;
+  drawArrow(pixels, W, H, 230 * S, arrowY, 430 * S, TEAL, 3 * S);
 
   // "DRAG TO INSTALL" text below arrow
-  const dragScale = 1;
+  const dragScale = 1 * S;
   const dragText = 'DRAG TO INSTALL';
   const dragW = textWidth(dragText, dragScale);
-  drawText(pixels, W, H, dragText, Math.round((W - dragW) / 2), 225, dragScale, GRAY);
+  drawText(pixels, W, H, dragText, Math.round((W - dragW) / 2), 225 * S, dragScale, GRAY);
 
   // Small teal bars + triangle (logo) centered below
-  const logoX = W / 2 - 25;
-  const logoY = 310;
+  const logoX = W / 2 - 25 * S;
+  const logoY = 310 * S;
   for (let i = 0; i < 3; i++) {
-    const w = 14 - i * 3;
-    fillRect(pixels, W, H, Math.round(logoX), logoY + i * 8, w, 4, ...TEAL);
+    const w = (14 - i * 3) * S;
+    fillRect(pixels, W, H, Math.round(logoX), logoY + i * 8 * S, w, 4 * S, ...TEAL);
   }
   // Mini play triangle
-  const tX = Math.round(logoX) + 25;
-  const tY = logoY + 12;
-  for (let dy = -10; dy <= 10; dy++) {
-    const rowW = Math.round(10 * (1 - Math.abs(dy) / 10));
+  const tX = Math.round(logoX) + 25 * S;
+  const tY = logoY + 12 * S;
+  const triSize = 10 * S;
+  for (let dy = -triSize; dy <= triSize; dy++) {
+    const rowW = Math.round(triSize * (1 - Math.abs(dy) / triSize));
     for (let dx = 0; dx < rowW; dx++) {
       const px = tX + dx;
       const py = tY + dy;
@@ -495,9 +505,10 @@ function generateDMGBackground() {
   }
 
   // Version at bottom
-  const verText = 'V1.2.1';
-  const verW = textWidth(verText, 1);
-  drawText(pixels, W, H, verText, Math.round((W - verW) / 2), 370, 1, GRAY);
+  const verText = 'V1.3.0';
+  const verScale = 1 * S;
+  const verW = textWidth(verText, verScale);
+  drawText(pixels, W, H, verText, Math.round((W - verW) / 2), 370 * S, verScale, GRAY);
 
   return createPNG(W, H, pixels);
 }
@@ -549,7 +560,7 @@ function main() {
   writeFileSync(join(INSTALLER_DIR, 'nsis-header.bmp'), header);
   console.log(`  -> nsis-header.bmp (${header.length} bytes)`);
 
-  console.log('Generating DMG background image (660x400)...');
+  console.log('Generating DMG background image (1320x800 @2x Retina)...');
   const dmgBg = generateDMGBackground();
   writeFileSync(join(INSTALLER_DIR, 'dmg-background.png'), dmgBg);
   console.log(`  -> dmg-background.png (${dmgBg.length} bytes)`);
