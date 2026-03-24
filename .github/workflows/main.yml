@@ -294,20 +294,26 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Fetch all tags
+        run: git fetch --tags --force
+
       - name: Generate changelog from commits
         id: changelog
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          # Find the previous tag
-          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | grep -v "^${TAG}$" | head -1)
-          echo "Previous tag: $PREV_TAG"
           echo "Current tag: $TAG"
 
-          if [ -z "$PREV_TAG" ]; then
-            echo "No previous tag found, listing all commits"
-            CHANGELOG=$(git log --pretty=format:"- %h %s (%an)" --reverse)
+          # Find the previous tag (exclude current tag)
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1)
+          echo "Previous tag: ${PREV_TAG:-none}"
+
+          # Use HEAD as the endpoint (the checkout IS the tagged commit)
+          # Fall back gracefully if git log fails
+          if [ -n "$PREV_TAG" ] && git rev-parse "${PREV_TAG}" >/dev/null 2>&1; then
+            CHANGELOG=$(git log --pretty=format:"- %h %s (%an)" --reverse "${PREV_TAG}..HEAD" 2>/dev/null || echo "- See full commit history on GitHub")
           else
-            CHANGELOG=$(git log --pretty=format:"- %h %s (%an)" --reverse "${PREV_TAG}..${TAG}")
+            echo "No valid previous tag, listing recent commits"
+            CHANGELOG=$(git log --pretty=format:"- %h %s (%an)" --reverse -50 HEAD 2>/dev/null || echo "- See full commit history on GitHub")
           fi
 
           # Write to file to preserve formatting
