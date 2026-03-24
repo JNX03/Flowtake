@@ -23,7 +23,7 @@ pub fn ffmpeg_from_app(app: &tauri::AppHandle) -> Result<tauri_plugin_shell::pro
         Ok(cmd) => Ok(cmd),
         Err(_) => {
             log::info!("[ffmpeg] Sidecar not found, using system FFmpeg");
-            Ok(shell.command("ffmpeg"))
+            Ok(shell.command("ffmpeg-system"))
         }
     }
 }

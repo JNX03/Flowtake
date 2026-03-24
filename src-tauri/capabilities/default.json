@@ -39,6 +39,12 @@
           "sidecar": true
         },
         {
+          "name": "ffmpeg-system",
+          "cmd": "ffmpeg",
+          "args": true,
+          "sidecar": false
+        },
+        {
           "name": "autohotkey",
           "cmd": "AutoHotkey",
           "args": true,
@@ -54,6 +60,12 @@
           "cmd": "binaries/ffmpeg",
           "args": true,
           "sidecar": true
+        },
+        {
+          "name": "ffmpeg-system",
+          "cmd": "ffmpeg",
+          "args": true,
+          "sidecar": false
         }
       ]
     },
