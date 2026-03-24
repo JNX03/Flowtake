@@ -108,8 +108,8 @@ export default function CameraMicrophoneSelect() {
         .filter(({ deviceId }) => deviceId !== "default" && deviceId !== "communications")
         .filter(({ label }) => label !== systemAudio)
     },
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 5000,
+    gcTime: 10000,
     enabled: !isPendingSystemAudio
   })
 
@@ -196,15 +196,21 @@ export default function CameraMicrophoneSelect() {
     queryClient.invalidateQueries({ queryKey: ['devices'] })
   }
 
+  // Only auto-detect devices if permission was already granted (devices have labels).
+  // This prevents macOS from showing camera/mic permission prompts on every app launch.
+  // Users can click "Refresh" to explicitly grant permission.
+  const hasDeviceLabels = mediaDevices?.some(d => d.label && d.label.length > 0)
+
   useEffect(() => {
     if (!isPendingMediaDevices &&
       !isPendingCameras &&
       !isPendingDetectCameras &&
       !permissionDenied.video &&
       mediaDevices &&
+      hasDeviceLabels &&
       !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "videoinput"), cameras))
       detectCameras()
-  }, [mediaDevices, detectCameras, isPendingDetectCameras, isPendingMediaDevices, cameras, isPendingCameras, areDevicesEqual, permissionDenied.video])
+  }, [mediaDevices, detectCameras, isPendingDetectCameras, isPendingMediaDevices, cameras, isPendingCameras, areDevicesEqual, permissionDenied.video, hasDeviceLabels])
 
   useEffect(() => {
     if (!isPendingMediaDevices &&
@@ -212,9 +218,10 @@ export default function CameraMicrophoneSelect() {
       !isPendingDetectMicrophones &&
       !permissionDenied.audio &&
       mediaDevices &&
+      hasDeviceLabels &&
       !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "audioinput"), microphones))
       detectMicrophones()
-  }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual, permissionDenied.audio])
+  }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual, permissionDenied.audio, hasDeviceLabels])
 
   const options = (sources, defaultValue) => {
     const options = [<option value="-1" key={0}>{defaultValue}</option>]
