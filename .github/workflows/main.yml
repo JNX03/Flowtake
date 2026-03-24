@@ -280,6 +280,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Get version tag
         id: version
         run: |
@@ -289,6 +294,26 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          # Find the previous tag
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | grep -v "^${TAG}$" | head -1)
+          echo "Previous tag: $PREV_TAG"
+          echo "Current tag: $TAG"
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, listing all commits"
+            CHANGELOG=$(git log --pretty=format:"- %h %s (%an)" --reverse)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %h %s (%an)" --reverse "${PREV_TAG}..${TAG}")
+          fi
+
+          # Write to file to preserve formatting
+          echo "$CHANGELOG" > /tmp/changelog.txt
+          echo "Generated changelog with $(wc -l < /tmp/changelog.txt) entries"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -297,6 +322,84 @@ jobs:
       - name: List all artifacts
         run: find artifacts -type f | sort
 
+      - name: Build release body
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          CHANGELOG=$(cat /tmp/changelog.txt)
+          cat > /tmp/release_body.md << EOF
+          ## Flowtake ${TAG}
+
+          **Screen recorder with automatic zoom animations** — available for Windows, macOS, and Linux.
+
+          ---
+
+          ### Download
+
+          | Platform | File | Notes |
+          |----------|------|-------|
+          | **Windows** (x64) | \`.exe\` installer | Recommended — guided setup with NSIS |
+          | **Windows** (x64) | \`.msi\` installer | Silent / enterprise installs |
+          | **Windows** (x64) | \`-portable.zip\` | No install needed — extract and run |
+          | **macOS** (Universal) | \`.dmg\` | Runs natively on Apple Silicon & Intel |
+          | **macOS** (Universal) | \`.zip\` | Portable — extract Flowtake.app directly |
+          | **Linux** (x64) | \`.AppImage\` | Portable — works on any Linux distro |
+          | **Linux** (x64) | \`.deb\` | Debian, Ubuntu, and derivatives |
+          | **Linux** (x64) | \`.rpm\` | Fedora, RHEL, openSUSE, and derivatives |
+          | **Linux** (x64) | \`-portable.tar.gz\` | No install needed — extract and run |
+
+          ---
+
+          ### Installation Instructions
+
+          #### Windows
+          1. Download the \`.exe\` installer
+          2. Run it and follow the on-screen prompts
+          3. FFmpeg is bundled — no extra dependencies needed
+
+          #### macOS
+          1. Download the \`.dmg\` file
+          2. Open the disk image and drag **Flowtake** into your Applications folder
+          3. On first launch, right-click the app → **Open** if macOS shows an unverified developer warning
+          4. FFmpeg is bundled — no extra dependencies needed
+
+          #### Linux
+          - **Debian/Ubuntu** (\`.deb\`):
+            \`\`\`bash
+            sudo dpkg -i flowtake_*.deb
+            sudo apt-get install -f   # resolve any missing dependencies
+            \`\`\`
+          - **AppImage** (universal):
+            \`\`\`bash
+            chmod +x Flowtake_*.AppImage
+            ./Flowtake_*.AppImage
+            \`\`\`
+          - **Fedora/RHEL** (\`.rpm\`):
+            \`\`\`bash
+            sudo rpm -i flowtake-*.rpm
+            \`\`\`
+
+          > **Linux note:** The \`.deb\` and \`.rpm\` packages declare ffmpeg, xdotool, and wmctrl as dependencies — your package manager will install them automatically.
+
+          ---
+
+          ### System Requirements
+
+          | Platform | Minimum |
+          |----------|---------|
+          | Windows  | Windows 10 (64-bit) or newer |
+          | macOS    | macOS 10.15 Catalina or newer |
+          | Linux    | Ubuntu 22.04 / Fedora 38 or equivalent (x86_64) |
+
+          ---
+
+          ### All Changes (Commits)
+
+          ${CHANGELOG}
+          EOF
+
+          # Remove leading whitespace from heredoc indentation
+          sed -i 's/^          //' /tmp/release_body.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -304,75 +407,8 @@ jobs:
           name: "Flowtake ${{ steps.version.outputs.tag }}"
           draft: false
           prerelease: false
-          generate_release_notes: true
-          body: |
-            ## Flowtake ${{ steps.version.outputs.tag }}
-
-            **Screen recorder with automatic zoom animations** — available for Windows, macOS, and Linux.
-
-            ---
-
-            ### Download
-
-            | Platform | File | Notes |
-            |----------|------|-------|
-            | **Windows** (x64) | `.exe` installer | Recommended — guided setup with NSIS |
-            | **Windows** (x64) | `.msi` installer | Silent / enterprise installs |
-            | **Windows** (x64) | `-portable.zip` | No install needed — extract and run |
-            | **macOS** (Universal) | `.dmg` | Runs natively on Apple Silicon & Intel |
-            | **macOS** (Universal) | `.zip` | Portable — extract Flowtake.app directly |
-            | **Linux** (x64) | `.AppImage` | Portable — works on any Linux distro |
-            | **Linux** (x64) | `.deb` | Debian, Ubuntu, and derivatives |
-            | **Linux** (x64) | `.rpm` | Fedora, RHEL, openSUSE, and derivatives |
-            | **Linux** (x64) | `-portable.tar.gz` | No install needed — extract and run |
-
-            ---
-
-            ### Installation Instructions
-
-            #### Windows
-            1. Download the `.exe` installer
-            2. Run it and follow the on-screen prompts
-            3. FFmpeg is bundled — no extra dependencies needed
-
-            #### macOS
-            1. Download the `.dmg` file
-            2. Open the disk image and drag **Flowtake** into your Applications folder
-            3. On first launch, right-click the app → **Open** if macOS shows an unverified developer warning
-            4. FFmpeg is bundled — no extra dependencies needed
-
-            #### Linux
-            - **Debian/Ubuntu** (`.deb`):
-              ```bash
-              sudo dpkg -i flowtake_*.deb
-              sudo apt-get install -f   # resolve any missing dependencies
-              ```
-            - **AppImage** (universal):
-              ```bash
-              chmod +x Flowtake_*.AppImage
-              ./Flowtake_*.AppImage
-              ```
-            - **Fedora/RHEL** (`.rpm`):
-              ```bash
-              sudo rpm -i flowtake-*.rpm
-              ```
-
-            > **Linux note:** The `.deb` and `.rpm` packages declare `ffmpeg`, `xdotool`, and `wmctrl` as dependencies — your package manager will install them automatically.
-
-            ---
-
-            ### System Requirements
-
-            | Platform | Minimum |
-            |----------|---------|
-            | Windows  | Windows 10 (64-bit) or newer |
-            | macOS    | macOS 10.15 Catalina or newer |
-            | Linux    | Ubuntu 22.04 / Fedora 38 or equivalent (x86_64) |
-
-            ---
-
-            ### What's Changed
-
+          generate_release_notes: false
+          body_path: /tmp/release_body.md
           files: |
             artifacts/**/*.exe
             artifacts/**/*.msi

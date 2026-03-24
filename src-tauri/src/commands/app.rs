@@ -70,12 +70,22 @@ pub async fn check_permissions() -> AppResult<Value> {
 
     #[cfg(target_os = "macos")]
     {
-        // On macOS, check screen recording permission by attempting a 1-pixel capture
-        let screen_capture_ok = std::process::Command::new("osascript")
-            .args(["-e", r#"tell application "System Events" to return true"#])
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
+        // On macOS, check screen recording permission using CGWindowListCreateImage
+        // Returns None when screen recording permission is denied
+        let screen_capture_ok = {
+            use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
+            use core_graphics::window::{
+                kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
+            };
+            let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
+            let image = CGDisplay::screenshot(
+                rect,
+                kCGWindowListOptionOnScreenOnly,
+                kCGNullWindowID,
+                kCGWindowImageDefault,
+            );
+            image.is_some()
+        };
 
         Ok(serde_json::json!([
             {

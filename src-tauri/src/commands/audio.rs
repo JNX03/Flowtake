@@ -382,8 +382,7 @@ pub fn unmute_all_sessions(app: &AppHandle) {
     let pids = {
         let state = app.state::<Mutex<AppState>>();
         let mut state = state.lock().unwrap();
-        let pids = std::mem::take(&mut state.muted_audio_pids);
-        pids
+        std::mem::take(&mut state.muted_audio_pids)
     };
 
     if pids.is_empty() {

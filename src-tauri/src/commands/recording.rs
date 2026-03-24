@@ -89,6 +89,11 @@ fn platform_ffmpeg_sidecar_names() -> Vec<String> {
         names.push("ffmpeg-aarch64-pc-windows-msvc.exe".to_string());
     }
 
+    // macOS universal binary (produced by CI via lipo) must be checked first
+    #[cfg(target_os = "macos")]
+    {
+        names.push("ffmpeg-universal-apple-darwin".to_string());
+    }
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     {
         names.push("ffmpeg-x86_64-apple-darwin".to_string());
@@ -1746,7 +1751,28 @@ fn platform_default_audio_device() -> String {
     #[cfg(target_os = "windows")]
     { "virtual-audio-capturer".to_string() }
     #[cfg(target_os = "macos")]
-    { "BlackHole 2ch".to_string() } // Common macOS virtual audio device
+    {
+        // Try to detect available virtual audio devices via FFmpeg
+        // Common options: BlackHole 2ch, Soundflower (2ch), Background Music
+        if let Some(ffmpeg) = find_ffmpeg_path() {
+            if let Ok(output) = std::process::Command::new(&ffmpeg)
+                .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
+                .stderr(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::null())
+                .output()
+            {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                for name in ["BlackHole 2ch", "BlackHole 16ch", "Soundflower (2ch)", "Background Music"] {
+                    if stderr.contains(name) {
+                        log::info!("[audio] Found macOS virtual audio device: {}", name);
+                        return name.to_string();
+                    }
+                }
+            }
+        }
+        log::warn!("[audio] No virtual audio device found on macOS. System audio recording requires BlackHole or similar.");
+        "BlackHole 2ch".to_string()
+    }
     #[cfg(target_os = "linux")]
     { "default".to_string() }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
