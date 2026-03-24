@@ -16,9 +16,9 @@ pub struct AudioSession {
 mod platform {
     use super::*;
     use windows::Win32::Media::Audio::{
-        eMultimedia, eRender, IAudioSessionControl2, IAudioSessionEnumerator,
-        IAudioSessionManager2, IMMDeviceEnumerator, ISimpleAudioVolume,
-        MMDeviceEnumerator,
+        eMultimedia, eRender, IAudioSessionControl, IAudioSessionControl2,
+        IAudioSessionEnumerator, IAudioSessionManager2, IMMDeviceEnumerator,
+        ISimpleAudioVolume, MMDeviceEnumerator,
     };
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
@@ -53,7 +53,7 @@ mod platform {
 
                 let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
 
-                let session_manager: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;
+                let session_manager: IAudioSessionManager2 = device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)?;
 
                 let session_enum: IAudioSessionEnumerator =
                     session_manager.GetSessionEnumerator()?;
@@ -63,7 +63,7 @@ mod platform {
                 let mut result = Vec::new();
 
                 for i in 0..count {
-                    let control = match session_enum.GetSession(i) {
+                    let control: IAudioSessionControl = match session_enum.GetSession(i) {
                         Ok(c) => c,
                         Err(_) => continue,
                     };
@@ -109,7 +109,7 @@ mod platform {
 
                 let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
 
-                let session_manager: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;
+                let session_manager: IAudioSessionManager2 = device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)?;
 
                 let session_enum: IAudioSessionEnumerator =
                     session_manager.GetSessionEnumerator()?;
@@ -118,7 +118,7 @@ mod platform {
                 let mut actually_muted = Vec::new();
 
                 for i in 0..count {
-                    let control = match session_enum.GetSession(i) {
+                    let control: IAudioSessionControl = match session_enum.GetSession(i) {
                         Ok(c) => c,
                         Err(_) => continue,
                     };
@@ -300,7 +300,7 @@ mod platform {
         let done_clone = done.clone();
 
         let introspect = context.introspect();
-        let introspect2 = context.introspect();
+        let mut introspect2 = context.introspect();
         let _op = introspect.get_sink_input_info_list(move |list| {
             use libpulse_binding::callbacks::ListResult;
             match list {
