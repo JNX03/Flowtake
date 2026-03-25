@@ -1716,18 +1716,33 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
         #[cfg(not(target_os = "windows"))]
         {
-            // On macOS/Linux, fall back to screen-level screenshot with crop
+            // On macOS, use screencapture with region for window screenshots
             let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w64 = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
             let h64 = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
-            let w64 = (w64 - (w64 % 2)).max(2);
-            let h64 = (h64 - (h64 % 2)).max(2);
 
-            let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
-            let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-
-            let _output = run_ffmpeg(&args_refs).await?;
+            #[cfg(target_os = "macos")]
+            {
+                let region = format!("{},{},{},{}", x, y, w64, h64);
+                let screenshot_str_clone = screenshot_str.clone();
+                let _output = tokio::task::spawn_blocking(move || {
+                    std::process::Command::new("screencapture")
+                        .args(["-x", "-R", &region, &screenshot_str_clone])
+                        .output()
+                })
+                .await
+                .map_err(|e| AppError::General(format!("Screenshot task error: {}", e)))?
+                .map_err(|e| AppError::General(format!("Screenshot error: {}", e)))?;
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let w64 = (w64 - (w64 % 2)).max(2);
+                let h64 = (h64 - (h64 % 2)).max(2);
+                let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
+                let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                let _output = run_ffmpeg(&args_refs).await?;
+            }
 
             if screenshot_path.exists() {
                 let data = std::fs::read(&screenshot_path)?;
@@ -1747,79 +1762,129 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
         main_win.set_content_protected(true).ok();
     }
 
-    let args: Vec<String> = match source_type {
-        "area" => {
-            let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let w_pct = source
-                .get("width")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(100.0);
-            let h_pct = source
-                .get("height")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(100.0);
-
-            let x = (x_pct / 100.0 * screen_w) as i64;
-            let y = (y_pct / 100.0 * screen_h) as i64;
-            let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
-            let h = ((h_pct / 100.0 * screen_h) as i64).max(2);
-            let w = w - (w % 2);
-            let h = h - (h % 2);
-            build_screenshot_args(x, y, w, h, &screenshot_str)
-        }
-        _ => {
-            // On Windows, use physical pixels for gdigrab
-            #[cfg(target_os = "windows")]
-            let (monitor_x, monitor_y, monitor_w, monitor_h) = {
-                let mx = source.get("physicalX").or_else(|| source.get("monitorX"))
-                    .and_then(|v| v.as_i64()).unwrap_or(0);
-                let my = source.get("physicalY").or_else(|| source.get("monitorY"))
-                    .and_then(|v| v.as_i64()).unwrap_or(0);
-                let mw = source.get("physicalWidth").or_else(|| source.get("monitorWidth"))
-                    .and_then(|v| v.as_i64());
-                let mh = source.get("physicalHeight").or_else(|| source.get("monitorHeight"))
-                    .and_then(|v| v.as_i64());
-                (mx, my, mw, mh)
-            };
-            #[cfg(not(target_os = "windows"))]
-            let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+    // On macOS, use native `screencapture` command which has system-level entitlements
+    // and doesn't require the calling app to have screen recording permission
+    #[cfg(target_os = "macos")]
+    {
+        let (x, y, w, h) = match source_type {
+            "area" => {
+                let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let x = (x_pct / 100.0 * screen_w) as i64;
+                let y = (y_pct / 100.0 * screen_h) as i64;
+                let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
+                let h = ((h_pct / 100.0 * screen_h) as i64).max(2);
+                (x, y, w, h)
+            }
+            _ => {
                 let mx = source.get("monitorX").and_then(|v| v.as_i64()).unwrap_or(0);
                 let my = source.get("monitorY").and_then(|v| v.as_i64()).unwrap_or(0);
                 let mw = source.get("monitorWidth").and_then(|v| v.as_i64());
                 let mh = source.get("monitorHeight").and_then(|v| v.as_i64());
-                (mx, my, mw, mh)
-            };
+                if let (Some(w), Some(h)) = (mw, mh) {
+                    (mx, my, w, h)
+                } else {
+                    (0, 0, screen_w as i64, screen_h as i64)
+                }
+            }
+        };
 
-            if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
-                let w = (w - (w % 2)).max(2);
-                let h = (h - (h % 2)).max(2);
-                build_screenshot_args(monitor_x, monitor_y, w, h, &screenshot_str)
-            } else {
-                build_screenshot_args(0, 0, screen_w as i64, screen_h as i64, &screenshot_str)
+        let region = format!("{},{},{},{}", x, y, w, h);
+        let screenshot_str_clone = screenshot_str.clone();
+        let output = tokio::task::spawn_blocking(move || {
+            std::process::Command::new("screencapture")
+                .args(["-x", "-R", &region, &screenshot_str_clone])
+                .output()
+        })
+        .await
+        .map_err(|e| AppError::General(format!("Screenshot task error: {}", e)))?
+        .map_err(|e| AppError::General(format!("Screenshot error: {}", e)))?;
+
+        if !output.status.success() {
+            log::warn!("[screenshot] screencapture stderr: {}", String::from_utf8_lossy(&output.stderr));
+        }
+
+        if screenshot_path.exists() {
+            let data = std::fs::read(&screenshot_path)?;
+            std::fs::remove_file(&screenshot_path).ok();
+            if !data.is_empty() {
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+                return Ok(format!("data:image/png;base64,{}", b64));
             }
         }
-    };
-
-    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-
-    let output = run_ffmpeg(&args_refs).await?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log::warn!("[FFmpeg screenshot] stderr: {}", stderr);
+        return Err(AppError::General("Screenshot capture failed".to_string()));
     }
 
-    if screenshot_path.exists() {
-        let data = std::fs::read(&screenshot_path)?;
-        std::fs::remove_file(&screenshot_path).ok();
-        if data.is_empty() {
-            return Err(AppError::General("Screenshot file is empty".to_string()));
+    // Windows/Linux: use FFmpeg for screenshots
+    #[cfg(not(target_os = "macos"))]
+    {
+        let args: Vec<String> = match source_type {
+            "area" => {
+                let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let x = (x_pct / 100.0 * screen_w) as i64;
+                let y = (y_pct / 100.0 * screen_h) as i64;
+                let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
+                let h = ((h_pct / 100.0 * screen_h) as i64).max(2);
+                let w = w - (w % 2);
+                let h = h - (h % 2);
+                build_screenshot_args(x, y, w, h, &screenshot_str)
+            }
+            _ => {
+                #[cfg(target_os = "windows")]
+                let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+                    let mx = source.get("physicalX").or_else(|| source.get("monitorX"))
+                        .and_then(|v| v.as_i64()).unwrap_or(0);
+                    let my = source.get("physicalY").or_else(|| source.get("monitorY"))
+                        .and_then(|v| v.as_i64()).unwrap_or(0);
+                    let mw = source.get("physicalWidth").or_else(|| source.get("monitorWidth"))
+                        .and_then(|v| v.as_i64());
+                    let mh = source.get("physicalHeight").or_else(|| source.get("monitorHeight"))
+                        .and_then(|v| v.as_i64());
+                    (mx, my, mw, mh)
+                };
+                #[cfg(not(target_os = "windows"))]
+                let (monitor_x, monitor_y, monitor_w, monitor_h) = {
+                    let mx = source.get("monitorX").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let my = source.get("monitorY").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let mw = source.get("monitorWidth").and_then(|v| v.as_i64());
+                    let mh = source.get("monitorHeight").and_then(|v| v.as_i64());
+                    (mx, my, mw, mh)
+                };
+
+                if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
+                    let w = (w - (w % 2)).max(2);
+                    let h = (h - (h % 2)).max(2);
+                    build_screenshot_args(monitor_x, monitor_y, w, h, &screenshot_str)
+                } else {
+                    build_screenshot_args(0, 0, screen_w as i64, screen_h as i64, &screenshot_str)
+                }
+            }
+        };
+
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_ffmpeg(&args_refs).await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::warn!("[FFmpeg screenshot] stderr: {}", stderr);
         }
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-        Ok(format!("data:image/png;base64,{}", b64))
-    } else {
-        Err(AppError::General("Screenshot capture failed".to_string()))
+
+        if screenshot_path.exists() {
+            let data = std::fs::read(&screenshot_path)?;
+            std::fs::remove_file(&screenshot_path).ok();
+            if data.is_empty() {
+                return Err(AppError::General("Screenshot file is empty".to_string()));
+            }
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+            Ok(format!("data:image/png;base64,{}", b64))
+        } else {
+            Err(AppError::General("Screenshot capture failed".to_string()))
+        }
     }
 }
 
