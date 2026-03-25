@@ -1,7 +1,3 @@
-import {
-    FilesetResolver,
-    ImageSegmenter
-} from "@mediapipe/tasks-vision"
 import modelAssetPath from "../assets/selfie_segmenter_landscape.tflite"
 import crosshairCursorDarkSVG from "../assets/svgs/cursors/dark/crosshair.svg"
 import defaultCursorDarkSVG from "../assets/svgs/cursors/dark/default.svg"
@@ -162,6 +158,7 @@ export default class WorkerManager {
         // TODO: once ImageSegmenter works in web workers, do segmentation there.
         // https://github.com/google-ai-edge/mediapipe/issues/5257
         // https://github.com/google-ai-edge/mediapipe/issues/5479
+        const { FilesetResolver, ImageSegmenter } = await import("@mediapipe/tasks-vision")
         this.segmenter = await ImageSegmenter.createFromOptions(
             await FilesetResolver.forVisionTasks("../selfie_segmentation/wasm"),
             {

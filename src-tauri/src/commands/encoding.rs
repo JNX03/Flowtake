@@ -135,48 +135,6 @@ pub async fn set_capturer(app: AppHandle, capturer: String) -> AppResult<()> {
     Ok(())
 }
 
-#[tauri::command]
-pub async fn get_camera_video_buffer(app: AppHandle) -> AppResult<Vec<u8>> {
-    use crate::state::AppState;
-    use std::sync::Mutex;
-
-    let state = app.state::<Mutex<AppState>>();
-    let state = state.lock().unwrap();
-    let project_id = state
-        .project_id
-        .clone()
-        .ok_or(AppError::NoProjectOpen)?;
-    let camera_file = state.camera_video_file(&project_id);
-    drop(state);
-
-    if camera_file.exists() {
-        Ok(std::fs::read(&camera_file)?)
-    } else {
-        Ok(Vec::new())
-    }
-}
-
-#[tauri::command]
-pub async fn get_screen_video_buffer(app: AppHandle) -> AppResult<Vec<u8>> {
-    use crate::state::AppState;
-    use std::sync::Mutex;
-
-    let state = app.state::<Mutex<AppState>>();
-    let state = state.lock().unwrap();
-    let project_id = state
-        .project_id
-        .clone()
-        .ok_or(AppError::NoProjectOpen)?;
-    let screen_file = state.screen_video_file(&project_id);
-    drop(state);
-
-    if screen_file.exists() {
-        Ok(std::fs::read(&screen_file)?)
-    } else {
-        Ok(Vec::new())
-    }
-}
-
 /// Extract audio from a video file using FFmpeg sidecar and return as WAV buffer.
 /// This is more memory-efficient for large screen recordings since it only returns
 /// the audio track, not the full video.

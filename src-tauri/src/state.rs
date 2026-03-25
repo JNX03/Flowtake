@@ -18,7 +18,7 @@ pub struct AppState {
     pub is_recording: bool,
     #[allow(dead_code)]
     pub is_closing: bool,
-    pub camera_chunks: Vec<Vec<u8>>,
+    pub camera_file_handle: Option<File>,
     pub renders: HashMap<String, RenderState>,
     pub camera_mic_config: Option<Value>,
     pub ffmpeg_child_id: Option<u32>,
@@ -58,7 +58,7 @@ impl AppState {
             file_handles: HashMap::new(),
             is_recording: false,
             is_closing: false,
-            camera_chunks: Vec::new(),
+            camera_file_handle: None,
             renders: HashMap::new(),
             camera_mic_config: None,
             ffmpeg_child_id: None,

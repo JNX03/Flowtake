@@ -46,6 +46,34 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
         return Some(plain);
     }
 
+    // Fallback: check well-known install locations (needed for macOS .app bundles
+    // where PATH doesn't include Homebrew paths)
+    #[cfg(target_os = "macos")]
+    {
+        for path in [
+            "/opt/homebrew/bin/ffmpeg",    // Apple Silicon Homebrew
+            "/usr/local/bin/ffmpeg",       // Intel Homebrew
+        ] {
+            let p = std::path::PathBuf::from(path);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        for path in [
+            "/usr/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/snap/bin/ffmpeg",
+        ] {
+            let p = std::path::PathBuf::from(path);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+
     // Fallback: check if ffmpeg is on PATH
     #[cfg(not(target_os = "windows"))]
     {
@@ -120,6 +148,52 @@ fn platform_ffmpeg_sidecar_names() -> Vec<String> {
     }
 
     names
+}
+
+/// Detect the avfoundation device index for screen capture on macOS.
+/// Camera devices come first (e.g. [0] FaceTime HD Camera), then screens (e.g. [1] Capture screen 0).
+/// Returns the device index for the requested monitor, falling back to first screen device.
+#[cfg(target_os = "macos")]
+fn macos_screen_device_index(monitor_index: i64) -> i64 {
+    if let Some(ffmpeg) = find_ffmpeg_path() {
+        if let Ok(output) = std::process::Command::new(&ffmpeg)
+            .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
+            .stderr(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .output()
+        {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Find "Capture screen" devices
+            // Lines: [AVFoundation indev @ 0x...] [1] Capture screen 0
+            let mut screen_devices: Vec<i64> = Vec::new();
+            for line in stderr.lines() {
+                if line.contains("Capture screen") {
+                    // Extract device index: find "] [N] Capture" pattern
+                    if let Some(cap_pos) = line.find("] Capture screen") {
+                        // Look backwards for the opening bracket of the device index
+                        let before = &line[..cap_pos];
+                        if let Some(bracket_pos) = before.rfind('[') {
+                            let idx_str = &before[bracket_pos + 1..];
+                            if let Ok(idx) = idx_str.trim().parse::<i64>() {
+                                screen_devices.push(idx);
+                            }
+                        }
+                    }
+                }
+            }
+            if !screen_devices.is_empty() {
+                let idx = if (monitor_index as usize) < screen_devices.len() {
+                    screen_devices[monitor_index as usize]
+                } else {
+                    screen_devices[0]
+                };
+                log::info!("[avfoundation] Screen device index {} for monitor {} (found {} screens)", idx, monitor_index, screen_devices.len());
+                return idx;
+            }
+        }
+    }
+    log::warn!("[avfoundation] Could not detect screen device index, defaulting to 0");
+    0
 }
 
 /// Capture a single window frame using PrintWindow API.
@@ -427,6 +501,7 @@ pub async fn init_recording(
             );
 
             // Use avfoundation screen capture + crop to window region
+            let screen_dev = macos_screen_device_index(0);
             ffmpeg_args = vec![
                 "-y".to_string(),
                 "-f".to_string(),
@@ -436,7 +511,7 @@ pub async fn init_recording(
                 "-capture_cursor".to_string(),
                 "0".to_string(),
                 "-i".to_string(),
-                "0:none".to_string(),
+                format!("{}:none", screen_dev),
                 "-vf".to_string(),
                 format!("crop={}:{}:{}:{}", w, h, x, y),
             ];
@@ -533,11 +608,12 @@ pub async fn init_recording(
                 #[cfg(target_os = "macos")]
                 {
                     // avfoundation: capture screen device, then crop
+                    let screen_dev = macos_screen_device_index(0);
                     ffmpeg_args.extend([
                         "-capture_cursor".to_string(),
                         "0".to_string(),
                         "-i".to_string(),
-                        "0:none".to_string(), // screen device 0, no audio
+                        format!("{}:none", screen_dev),
                         "-vf".to_string(),
                         format!("crop={}:{}:{}:{}", width, height, x, y),
                     ]);
@@ -607,16 +683,18 @@ pub async fn init_recording(
                 }
                 #[cfg(target_os = "macos")]
                 {
-                    // avfoundation: use monitor index as device
+                    // avfoundation: map monitor index to actual device index
+                    // (cameras come before screens in the device list)
                     let monitor_idx = source
                         .get("monitorIndex")
                         .and_then(|v| v.as_i64())
                         .unwrap_or(0);
+                    let screen_dev = macos_screen_device_index(monitor_idx);
                     ffmpeg_args.extend([
                         "-capture_cursor".to_string(),
                         "0".to_string(),
                         "-i".to_string(),
-                        format!("{}:none", monitor_idx),
+                        format!("{}:none", screen_dev),
                     ]);
                     // Crop if specific monitor region
                     if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
@@ -962,6 +1040,9 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                                         if msg.contains("Could not find video device")
                                             || msg.contains("Permission denied")
                                             || msg.contains("not granted")
+                                            || msg.contains("No screens found")
+                                            || msg.contains("unable to open device")
+                                            || msg.contains("Input/output error")
                                         {
                                             app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
                                         }
@@ -983,6 +1064,14 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                 Err(e) => {
                     log::error!("Failed to spawn FFmpeg: {}", e);
                     app.emit("recording-error", "CaptureError").ok();
+                    // Close the recorder overlay window since recording failed
+                    if let Some(win) = app.get_webview_window("recorder") {
+                        win.close().ok();
+                    }
+                    if let Some(main_win) = app.get_webview_window("main") {
+                        main_win.unminimize().ok();
+                    }
+                    return Err(AppError::General(format!("Failed to start recording: {}", e)));
                 }
             }
         }
@@ -1841,10 +1930,11 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
     }
     #[cfg(target_os = "macos")]
     {
+        let screen_dev = macos_screen_device_index(0);
         let mut args: Vec<String> = vec![
             "-y".into(), "-f".into(), "avfoundation".into(),
-            "-framerate".into(), "1".into(), "-capture_cursor".into(), "0".into(),
-            "-i".into(), "0:none".into(),
+            "-framerate".into(), "30".into(), "-capture_cursor".into(), "0".into(),
+            "-i".into(), format!("{}:none", screen_dev),
             "-frames:v".into(), "1".into(),
         ];
         // Crop to the requested region (works for all cases including x=0,y=0)
@@ -1881,7 +1971,18 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
 pub async fn init_camera_file(app: AppHandle) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
     let mut state = state.lock().unwrap();
-    state.camera_chunks.clear();
+    // Open the camera file for writing so chunks can be streamed directly to disk
+    let recording_id = state
+        .recording_id
+        .clone()
+        .or_else(|| state.project_id.clone())
+        .ok_or(AppError::NoProjectOpen)?;
+    let path = state.camera_video_file(&recording_id);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let file = std::fs::File::create(&path)?;
+    state.camera_file_handle = Some(file);
     Ok(())
 }
 
@@ -1889,29 +1990,22 @@ pub async fn init_camera_file(app: AppHandle) -> AppResult<()> {
 pub async fn enqueue_camera_chunk(app: AppHandle, chunk: Vec<u8>) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
     let mut state = state.lock().unwrap();
-    state.camera_chunks.push(chunk);
+    // Write chunk directly to disk instead of accumulating in memory
+    if let Some(ref mut file) = state.camera_file_handle {
+        std::io::Write::write_all(file, &chunk)?;
+    } else {
+        return Err(AppError::General("Camera file not initialized".to_string()));
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn finalize_camera_file(app: AppHandle) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
-    let (chunks, camera_path) = {
-        let mut state = state.lock().unwrap();
-        let recording_id = state
-            .recording_id
-            .clone()
-            .or_else(|| state.project_id.clone())
-            .ok_or(AppError::NoProjectOpen)?;
-        let path = state.camera_video_file(&recording_id);
-        let chunks = std::mem::take(&mut state.camera_chunks);
-        (chunks, path)
-    };
-
-    let mut file = std::fs::File::create(&camera_path)?;
-    for chunk in chunks {
-        std::io::Write::write_all(&mut file, &chunk)?;
+    let mut state = state.lock().unwrap();
+    // Flush and close the file handle
+    if let Some(mut file) = state.camera_file_handle.take() {
+        std::io::Write::flush(&mut file)?;
     }
-
     Ok(())
 }

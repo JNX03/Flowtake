@@ -89,22 +89,32 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
 
     useEffect(() => {
         if (hasCameraVideo || hasMicrophoneAudio) {
-            const onTimeUpdate = () => {
-                if (Math.abs(screenVideoRef.current.currentTime - cameraVideoRef.current.currentTime) > 0.5)
-                    cameraVideoRef.current.currentTime = screenVideoRef.current.currentTime
-            }
-            const onPlay = async () => play(cameraVideoRef.current)
-            const onPause = () => cameraVideoRef.current.pause()
-            const onSeeked = () => cameraVideoRef.current.currentTime = screenVideoRef.current.currentTime
-            const onRateChange = () => cameraVideoRef.current.playbackRate = screenVideoRef.current.playbackRate
+            const screen = screenVideoRef.current
+            const camera = cameraVideoRef.current
+            const onTimeUpdate = throttle(() => {
+                if (Math.abs(screen.currentTime - camera.currentTime) > 0.5)
+                    camera.currentTime = screen.currentTime
+            }, 500)
+            const onPlay = async () => play(camera)
+            const onPause = () => camera.pause()
+            const onSeeked = () => camera.currentTime = screen.currentTime
+            const onRateChange = () => camera.playbackRate = screen.playbackRate
 
-            screenVideoRef.current.addEventListener('play', onPlay)
-            screenVideoRef.current.addEventListener('pause', onPause)
-            screenVideoRef.current.addEventListener('seeked', onSeeked)
-            screenVideoRef.current.addEventListener('timeupdate', throttle(onTimeUpdate, 500))
-            screenVideoRef.current.addEventListener('ratechange', onRateChange)
+            screen.addEventListener('play', onPlay)
+            screen.addEventListener('pause', onPause)
+            screen.addEventListener('seeked', onSeeked)
+            screen.addEventListener('timeupdate', onTimeUpdate)
+            screen.addEventListener('ratechange', onRateChange)
+
+            return () => {
+                screen.removeEventListener('play', onPlay)
+                screen.removeEventListener('pause', onPause)
+                screen.removeEventListener('seeked', onSeeked)
+                screen.removeEventListener('timeupdate', onTimeUpdate)
+                screen.removeEventListener('ratechange', onRateChange)
+            }
         }
-    }, [dispatch, hasCameraVideo, hasMicrophoneAudio, screenVideoRef, cameraVideoRef])
+    }, [hasCameraVideo, hasMicrophoneAudio, screenVideoRef, cameraVideoRef])
 
     useEffect(() => {
         if (isPlaying) play(screenVideoRef.current)

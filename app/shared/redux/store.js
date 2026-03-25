@@ -207,6 +207,7 @@ export default configureStore({
                 filterAnims: filterAnimsReducer,
             }),
             {
+                limit: 50,
                 filter: combineFilters(filterSlices, filterActions, filterPreventUndo),
                 groupBy: ({ meta }) => meta?.group ?? null
             }

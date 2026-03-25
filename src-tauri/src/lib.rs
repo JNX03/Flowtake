@@ -320,8 +320,6 @@ pub fn run() {
             commands::encoding::set_encoder,
             commands::encoding::get_capturers,
             commands::encoding::set_capturer,
-            commands::encoding::get_camera_video_buffer,
-            commands::encoding::get_screen_video_buffer,
             commands::encoding::extract_audio_buffer,
             // Audio
             commands::audio::get_audio_sessions,

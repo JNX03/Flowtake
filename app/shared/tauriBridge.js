@@ -108,8 +108,6 @@ const COMMAND_MAP = {
     'set-encoder': 'set_encoder',
     'get-capturers': 'get_capturers',
     'set-capturer': 'set_capturer',
-    'get-camera-video-buffer': 'get_camera_video_buffer',
-    'get-screen-video-buffer': 'get_screen_video_buffer',
     'extract-audio-buffer': 'extract_audio_buffer',
     // Audio
     'get-audio-sessions': 'get_audio_sessions',

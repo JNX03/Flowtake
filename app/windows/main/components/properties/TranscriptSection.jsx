@@ -105,31 +105,11 @@ export default function TranscriptSection() {
             // This extracts only the audio track as 16kHz mono WAV, avoiding loading
             // the full video file into memory
             let buffer
-            try {
-                const data = await window.electron.ipcRenderer.invoke("extract-audio-buffer", source)
-                if (!data || data.length === 0) {
-                    // Fallback: try loading the full video buffer
-                    if (source === AUDIO_SOURCE_MICROPHONE) {
-                        const result = await window.electron.ipcRenderer.invoke("get-camera-video-buffer")
-                        buffer = result?.buffer || result
-                    } else {
-                        const result = await window.electron.ipcRenderer.invoke("get-screen-video-buffer")
-                        buffer = result?.buffer || result
-                    }
-                } else {
-                    // Convert array to ArrayBuffer
-                    buffer = new Uint8Array(data).buffer
-                }
-            } catch {
-                // Fallback to original method
-                if (source === AUDIO_SOURCE_MICROPHONE) {
-                    const result = await window.electron.ipcRenderer.invoke("get-camera-video-buffer")
-                    buffer = result?.buffer || result
-                } else {
-                    const result = await window.electron.ipcRenderer.invoke("get-screen-video-buffer")
-                    buffer = result?.buffer || result
-                }
+            const data = await window.electron.ipcRenderer.invoke("extract-audio-buffer", source)
+            if (!data || data.length === 0) {
+                throw new Error("No audio found in the selected source. Make sure the recording has audio.")
             }
+            buffer = new Uint8Array(data).buffer
 
             if (!buffer || (buffer instanceof ArrayBuffer && buffer.byteLength === 0) ||
                 (Array.isArray(buffer) && buffer.length === 0)) {

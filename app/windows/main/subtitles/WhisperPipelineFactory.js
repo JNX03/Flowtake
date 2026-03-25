@@ -1,6 +1,3 @@
- 
-import { pipeline } from "@huggingface/transformers"
-
 const TASK = "automatic-speech-recognition"
 // const MODEL = "distil-whisper/distil-large-v3"
 // const MODEL = "Xenova/whisper-large"
@@ -17,8 +14,9 @@ export default class WhisperPipelineFactory {
         this.tokenizer = tokenizer
     }
 
-    static getInstance(progress_callback = null, model = this.model) {
+    static async getInstance(progress_callback = null, model = this.model) {
         if (this.instance === null) {
+            const { pipeline } = await import("@huggingface/transformers")
             this.instance = pipeline(this.task, model, {
                 quantized: this.quantized,
                 progress_callback,
