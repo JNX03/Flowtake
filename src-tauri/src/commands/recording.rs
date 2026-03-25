@@ -1363,6 +1363,16 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
             "[stop_recording] No video file found at: {:?}",
             recording_video_path
         );
+        // Emit specific error so the UI can show a helpful message
+        #[cfg(target_os = "macos")]
+        {
+            app.emit("recording-error", "ScreenPermissionDenied").ok();
+            log::error!("[stop_recording] No frames captured. Screen recording permission may not be granted. Go to System Settings > Privacy & Security > Screen Recording.");
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            app.emit("recording-error", "CaptureError").ok();
+        }
         app.emit_to("main", "recording-canceled", "").ok();
         app.emit_to("main", "load", serde_json::Value::Null).ok();
     }

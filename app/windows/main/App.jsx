@@ -218,6 +218,7 @@ export default function App() {
         const handleRecordingError = async (_e, error) => {
             const errorStr = typeof error === 'string' ? error : error?.message || String(error)
             if (errorStr === "TargetError") dispatch(addToast({ type: TOAST_ERROR, text: "The selected window couldn't be found. Make sure it isn't minimized and try again." }))
+            else if (errorStr === "ScreenPermissionDenied") dispatch(addToast({ type: TOAST_ERROR, text: "Screen recording permission denied. Go to System Settings → Privacy & Security → Screen Recording and enable this app." }))
             else if (errorStr === "CaptureError") dispatch(addToast({ type: TOAST_ERROR_CAPTURE }))
             else dispatch(addToast({ type: TOAST_ERROR, text: errorStr }))
 
