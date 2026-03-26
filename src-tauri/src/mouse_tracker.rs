@@ -442,7 +442,7 @@ impl MouseTracker {
             offset_x, offset_y
         );
 
-        let poll_interval = std::time::Duration::from_millis(50); // ~20Hz polling
+        let poll_interval = std::time::Duration::from_millis(16); // ~60Hz polling
         let mut last_x: i32 = -1;
         let mut last_y: i32 = -1;
         let mut last_buttons: u32 = 0;
