@@ -179,7 +179,7 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     }, [])
 
     // Added id to bust cache, otherwise chrome doesn't update video when closing / opening project
-    return (<div className="invisible absolute left-0 top-0 w-full grid grid-cols-2">
+    return (<div className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
         {screenVideo.src && <Media
             isVideo={true}
             ref={screenVideoRef}
