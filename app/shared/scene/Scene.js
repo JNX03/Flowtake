@@ -191,8 +191,11 @@ export default class Scene {
     processCursorSprites(sprites) {
         sprites.forEach(sprite => {
             switch (sprite.label) {
+                case "default":
+                    sprite.anchor.set(0.18, 0.04)
+                    break
                 case "pointer":
-                    sprite.anchor.set(0.4, 0)
+                    sprite.anchor.set(0.42, 0.04)
                     break
                 case "vertical-text":
                     sprite.anchor.set(0.5, 0.5)

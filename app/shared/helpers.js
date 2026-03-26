@@ -793,7 +793,7 @@ export const svgToBmp = async (svg, size = { x: 150, y: 150 }) => {
     })
 
     const canvas = new OffscreenCanvas(size.x, size.y)
-    canvas.getContext("2d").drawImage(img, 0, 0)
+    canvas.getContext("2d").drawImage(img, 0, 0, size.x, size.y)
 
     return createImageBitmap(canvas)
 }
