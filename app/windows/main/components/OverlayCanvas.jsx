@@ -354,7 +354,7 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
     return (
         <div
             ref={elRef}
-            className={`absolute cursor-move ${isDragging ? "z-20" : "z-10"}`}
+            className={`absolute ${isDragging ? "z-20" : "z-10"}`}
             style={{
                 left: `${cx}px`,
                 top: `${cy}px`,
