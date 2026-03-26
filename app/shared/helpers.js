@@ -580,72 +580,45 @@ export const applyInertia = (coords, duration, inertia = 400) => {
 
     const coordsWithInertia = []
     const frameDuration = 1000 / INERTIA_FPS
-    const MAX_SPEED = 800 // px/s — speed at which smoothing is minimized
 
     if (coords.length > 0) {
-        let to = coords[0]
-        let from = coords[0]
+        // Exponential moving average smoothing.
+        // tau controls the time constant: higher inertia = more smoothing.
+        // alpha = 1 - exp(-frameDuration / tau) gives framerate-independent decay.
+        const SMOOTHING_SCALE = 0.5
+        const tau = inertia * SMOOTHING_SCALE
+        const baseAlpha = 1 - Math.exp(-frameDuration / tau)
+
         let position = { x: coords[0].x, y: coords[0].y }
-        let prevPosition = { x: coords[0].x, y: coords[0].y }
-        let ms = 0
         let c = [...coords]
         let current = c.shift()
-        let prevVx = 0
-        let prevVy = 0
 
         for (let timestamp = 0; timestamp <= duration / frameDuration; timestamp += 1) {
-
+            // Advance to the latest mouse event at or before this frame
             while (c.length > 0 && c[0].timestamp <= timestamp * frameDuration) { current = c.shift() }
 
-            if (to.x !== current.x || to.y !== current.y) {
-                // New event to animate towards
-                from = { x: position.x, y: position.y }
-                to = current
-                ms = timestamp * frameDuration - current.timestamp
-            }
-
-            ms += frameDuration
-
-            // Compute instantaneous speed from previous frame
-            const dx = to.x - from.x
-            const dy = to.y - from.y
+            const dx = current.x - position.x
+            const dy = current.y - position.y
             const dist = Math.sqrt(dx * dx + dy * dy)
-            const timeSec = inertia / 1000
-            const speed = timeSec > 0 ? dist / timeSec : 0
 
-            // Adaptive smoothing: fast motion = shorter inertia window
-            const velocityFactor = Math.max(1.0 - (speed / MAX_SPEED) * 0.85, 0.15)
-            const effectiveInertia = inertia * velocityFactor
+            // Adaptive: increase alpha when far from target to prevent falling behind
+            const MAX_DIST = 200
+            const distFactor = Math.min(dist / MAX_DIST, 1.0)
+            const alpha = baseAlpha + (1 - baseAlpha) * distFactor * 0.5
 
-            const interpolator = Math.min(ms / effectiveInertia, 1)
-
-            // Use easeCubicInOut for symmetric acceleration/deceleration (no rubber-band)
-            position = interpolateCoords(from, to, interpolator, easeCubicInOut)
-
-            // Velocity prediction: when motion is consistent, blend in a 1-frame lookahead
-            const vx = (position.x - prevPosition.x) / frameDuration * 1000
-            const vy = (position.y - prevPosition.y) / frameDuration * 1000
-            const currentSpeed = Math.sqrt(vx * vx + vy * vy)
-
-            if (currentSpeed > 50 && interpolator < 1) {
-                // Check direction consistency (dot product of current and previous velocity)
-                const dot = vx * prevVx + vy * prevVy
-                const directionConsistent = dot > 0
-
-                if (directionConsistent) {
-                    const predictionWeight = 0.3
-                    position.x += vx * (frameDuration / 1000) * predictionWeight
-                    position.y += vy * (frameDuration / 1000) * predictionWeight
-                }
+            position = {
+                x: position.x + dx * alpha,
+                y: position.y + dy * alpha,
             }
 
-            prevVx = vx
-            prevVy = vy
-            prevPosition = { x: position.x, y: position.y }
+            // Snap when very close to avoid infinite asymptotic approach
+            if (dist < 0.5) {
+                position.x = current.x
+                position.y = current.y
+            }
 
             position.timestamp = timestamp * frameDuration
             position.t = timestamp
-
             coordsWithInertia.push(position)
         }
     } else {
