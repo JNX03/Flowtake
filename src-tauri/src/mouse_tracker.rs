@@ -21,6 +21,8 @@ pub struct MouseTracker {
     /// Recording area offset (top-left corner of the recorded region in screen coords)
     offset_x: i32,
     offset_y: i32,
+    /// Scale factor for Retina displays (macOS: CGEvent reports logical points, video is physical pixels)
+    scale_factor: f64,
 }
 
 impl MouseTracker {
@@ -31,6 +33,7 @@ impl MouseTracker {
             hook_thread: None,
             offset_x: 0,
             offset_y: 0,
+            scale_factor: 1.0,
         }
     }
 
@@ -38,6 +41,11 @@ impl MouseTracker {
     pub fn set_offset(&mut self, x: i32, y: i32) {
         self.offset_x = x;
         self.offset_y = y;
+    }
+
+    /// Set the display scale factor (for Retina displays)
+    pub fn set_scale_factor(&mut self, scale: f64) {
+        self.scale_factor = scale;
     }
 
     /// Start capturing mouse events
@@ -57,18 +65,21 @@ impl MouseTracker {
         let is_running = self.is_running.clone();
         let offset_x = self.offset_x;
         let offset_y = self.offset_y;
+        let scale_factor = self.scale_factor;
 
         self.hook_thread = Some(thread::spawn(move || {
             #[cfg(target_os = "windows")]
             {
+                let _ = scale_factor; // Windows uses physical coords already
                 Self::run_hook_loop(events, is_running, offset_x, offset_y);
             }
             #[cfg(target_os = "macos")]
             {
-                Self::run_macos_loop(events, is_running, offset_x, offset_y);
+                Self::run_macos_loop(events, is_running, offset_x, offset_y, scale_factor);
             }
             #[cfg(target_os = "linux")]
             {
+                let _ = scale_factor;
                 Self::run_linux_loop(events, is_running, offset_x, offset_y);
             }
         }));
@@ -425,6 +436,83 @@ impl MouseTracker {
     }
 }
 
+// macOS: hide/show system cursor during recording so screencapture doesn't bake it into the video
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn CGMainDisplayID() -> u32;
+    fn CGDisplayHideCursor(display: u32) -> i32;
+    fn CGDisplayShowCursor(display: u32) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+struct CursorHider {
+    hidden: bool,
+}
+
+#[cfg(target_os = "macos")]
+impl CursorHider {
+    fn hide() -> Self {
+        unsafe { CGDisplayHideCursor(CGMainDisplayID()); }
+        log::info!("[CursorHider] System cursor hidden");
+        Self { hidden: true }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Drop for CursorHider {
+    fn drop(&mut self) {
+        if self.hidden {
+            unsafe { CGDisplayShowCursor(CGMainDisplayID()); }
+            log::info!("[CursorHider] System cursor restored");
+        }
+    }
+}
+
+/// Restore the system cursor (defensive call for error paths)
+#[cfg(target_os = "macos")]
+pub fn restore_macos_cursor() {
+    unsafe { CGDisplayShowCursor(CGMainDisplayID()); }
+}
+
+/// Detect the current macOS cursor type via NSCursor
+#[cfg(target_os = "macos")]
+fn detect_macos_cursor_type() -> &'static str {
+    unsafe {
+        let cls = match objc::runtime::Class::get("NSCursor") {
+            Some(c) => c as *const _ as *const objc::runtime::Object,
+            None => return "default",
+        };
+
+        let current: *const objc::runtime::Object = objc::msg_send![cls, currentSystemCursor];
+        if current.is_null() {
+            return "default";
+        }
+
+        let ibeam: *const objc::runtime::Object = objc::msg_send![cls, IBeamCursor];
+        if current == ibeam { return "text"; }
+
+        let pointing: *const objc::runtime::Object = objc::msg_send![cls, pointingHandCursor];
+        if current == pointing { return "pointer"; }
+
+        let crosshair: *const objc::runtime::Object = objc::msg_send![cls, crosshairCursor];
+        if current == crosshair { return "crosshair"; }
+
+        let resize_lr: *const objc::runtime::Object = objc::msg_send![cls, resizeLeftRightCursor];
+        if current == resize_lr { return "ew-resize"; }
+
+        let resize_ud: *const objc::runtime::Object = objc::msg_send![cls, resizeUpDownCursor];
+        if current == resize_ud { return "ns-resize"; }
+
+        let open_hand: *const objc::runtime::Object = objc::msg_send![cls, openHandCursor];
+        if current == open_hand { return "move"; }
+
+        let not_allowed: *const objc::runtime::Object = objc::msg_send![cls, operationNotAllowedCursor];
+        if current == not_allowed { return "not-allowed"; }
+
+        "default"
+    }
+}
+
 // macOS mouse tracking implementation using polling (CGEvent-based)
 #[cfg(target_os = "macos")]
 impl MouseTracker {
@@ -433,14 +521,19 @@ impl MouseTracker {
         is_running: Arc<Mutex<bool>>,
         offset_x: i32,
         offset_y: i32,
+        scale_factor: f64,
     ) {
         use core_graphics::event::CGEvent;
         use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
         log::info!(
-            "[MouseTracker] macOS mouse tracking started (offset: {}, {})",
-            offset_x, offset_y
+            "[MouseTracker] macOS mouse tracking started (offset: {}, {}, scale: {})",
+            offset_x, offset_y, scale_factor
         );
+
+        // Hide system cursor so screencapture records without it.
+        // The Drop impl restores cursor when this loop exits (including panics).
+        let _cursor_hider = CursorHider::hide();
 
         let poll_interval = std::time::Duration::from_millis(16); // ~60Hz polling
         let mut last_x: i32 = -1;
@@ -454,8 +547,9 @@ impl MouseTracker {
             if let Ok(source) = CGEventSource::new(CGEventSourceStateID::CombinedSessionState) {
                 if let Ok(event) = CGEvent::new(source) {
                     let location = event.location();
-                    let x = location.x as i32 - offset_x;
-                    let y = location.y as i32 - offset_y;
+                    // CGEvent reports logical points; scale to physical pixels to match video resolution
+                    let x = ((location.x - offset_x as f64) * scale_factor) as i32;
+                    let y = ((location.y - offset_y as f64) * scale_factor) as i32;
                     let now = chrono::Utc::now().timestamp_millis();
 
                     // Check button state via NSEvent
@@ -473,6 +567,8 @@ impl MouseTracker {
                         }
                     };
 
+                    let cursor = detect_macos_cursor_type().to_string();
+
                     // Detect button press/release changes
                     let left_now = buttons & 1 != 0;
                     let left_was = last_buttons & 1 != 0;
@@ -484,14 +580,14 @@ impl MouseTracker {
                             x, y, timestamp: now,
                             event_type: "mousedown".to_string(),
                             button: "left".to_string(),
-                            cursor: "default".to_string(),
+                            cursor: cursor.clone(),
                         });
                     } else if !left_now && left_was {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
                             event_type: "mouseup".to_string(),
                             button: "left".to_string(),
-                            cursor: "default".to_string(),
+                            cursor: cursor.clone(),
                         });
                     }
                     if right_now && !right_was {
@@ -499,14 +595,14 @@ impl MouseTracker {
                             x, y, timestamp: now,
                             event_type: "mousedown".to_string(),
                             button: "right".to_string(),
-                            cursor: "default".to_string(),
+                            cursor: cursor.clone(),
                         });
                     } else if !right_now && right_was {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
                             event_type: "mouseup".to_string(),
                             button: "right".to_string(),
-                            cursor: "default".to_string(),
+                            cursor: cursor.clone(),
                         });
                     }
 
@@ -516,7 +612,7 @@ impl MouseTracker {
                             x, y, timestamp: now,
                             event_type: "mousemove".to_string(),
                             button: "".to_string(),
-                            cursor: "default".to_string(),
+                            cursor,
                         });
                         last_x = x;
                         last_y = y;
@@ -533,6 +629,7 @@ impl MouseTracker {
         }
 
         log::info!("[MouseTracker] macOS mouse tracking stopped");
+        // _cursor_hider drops here, restoring system cursor
     }
 }
 

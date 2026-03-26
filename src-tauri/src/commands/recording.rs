@@ -1073,6 +1073,8 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                     }
                     Err(e) => {
                         log::error!("Failed to spawn screencapture: {}", e);
+                        // Restore system cursor since recording failed to start
+                        crate::mouse_tracker::restore_macos_cursor();
                         app.emit("recording-error", "CaptureError").ok();
                         if let Some(win) = app.get_webview_window("recorder") {
                             win.close().ok();
@@ -1178,6 +1180,16 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
             })
             .unwrap_or((0, 0));
         state.mouse_tracker.set_offset(offset_x, offset_y);
+        // On macOS, CGEvent reports logical points but screencapture records physical pixels.
+        // Scale mouse coordinates to match video resolution on Retina displays.
+        #[cfg(target_os = "macos")]
+        {
+            let scale = app.get_webview_window("main")
+                .and_then(|w| w.current_monitor().ok().flatten())
+                .map(|m| m.scale_factor())
+                .unwrap_or(1.0);
+            state.mouse_tracker.set_scale_factor(scale);
+        }
         state.mouse_tracker.start();
         state.recording_start_timestamp = Some(chrono::Utc::now().timestamp_millis());
     }
@@ -1216,6 +1228,11 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         state.is_recording = false;
 
         state.mouse_tracker.stop();
+
+        // Defensive: ensure macOS system cursor is restored even if the Drop guard didn't fire
+        #[cfg(target_os = "macos")]
+        crate::mouse_tracker::restore_macos_cursor();
+
         let start_ts = state.recording_start_timestamp.unwrap_or(stop_timestamp);
         let events = state.mouse_tracker.get_events(start_ts);
 
@@ -1678,6 +1695,8 @@ fn kill_ffmpeg(app: &AppHandle) {
             // Screen/area capture: graceful shutdown
             #[cfg(target_os = "macos")]
             {
+                // Restore system cursor before stopping screencapture
+                crate::mouse_tracker::restore_macos_cursor();
                 // On macOS with screencapture, send SIGINT for graceful stop
                 std::process::Command::new("kill")
                     .args(["-INT", &pid_val.to_string()])
