@@ -87,6 +87,7 @@ export default class Scene {
         this.cursorImageContainer = new Container()
         this.cursorContainer = new Container()
         this.cursorContainer.position.set(this.app.screen.width * 0.5, this.app.screen.height * 0.5)
+        this.cursorContainer.visible = false // Hidden until cursor coords are initialized
         this.motionBlur = new MotionBlurFilter({ velocity: new Point(), kernelSize: 15 })
         this.cursorContainer.filters = [this.cursorShadow, this.motionBlur]
 

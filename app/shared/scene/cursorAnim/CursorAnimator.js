@@ -43,6 +43,9 @@ export default class CursorAnimator extends Animator {
     update(timestamp) {
         if (!this.coords || !this.videoDetails || this.blurStrength === null || this.rotationStrength === null || this.cutOff === null || this.isLoop === null) return
 
+        // Show cursor container once we have valid coords
+        if (!this.cursor.visible) this.cursor.visible = true
+
         let coords = this.getCoords(timestamp)
         let prevCoords = this.getCoords(Math.max(timestamp - 1000 / INERTIA_FPS, 0))
 
