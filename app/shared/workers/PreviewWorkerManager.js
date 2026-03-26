@@ -31,6 +31,8 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.isPlaying = false
         this.hasCameraVideoBackgroundBlur = false
         this.cameraVideoBackgroundBlurAmount = 0
+        this.isScreenFramePending = false
+        this.isCameraFramePending = false
     }
 
     async init(canvas, duration, args) {
@@ -63,15 +65,23 @@ export default class PreviewWorkerManager extends WorkerManager {
 
     setupVideoFrameCallbacks(hasCameraVideo) {
         const screenFrameCallback = async () => {
-            await this.postFrame(SCREEN_VIDEO, new VideoFrame(this.screenVideo))
+            if (!this.isScreenFramePending) {
+                this.isScreenFramePending = true
+                await this.postFrame(SCREEN_VIDEO, new VideoFrame(this.screenVideo))
+                this.isScreenFramePending = false
+            }
             this.screenVideo.requestVideoFrameCallback(screenFrameCallback)
         }
 
         const cameraFrameCallback = async () => {
-            const frame = new VideoFrame(this.cameraVideo)
-            let mask
-            if (this.hasCameraBlur()) mask = await this.segment(frame, false)
-            await this.postFrame(CAMERA_VIDEO, frame, mask)
+            if (!this.isCameraFramePending) {
+                this.isCameraFramePending = true
+                const frame = new VideoFrame(this.cameraVideo)
+                let mask
+                if (this.hasCameraBlur()) mask = await this.segment(frame, false)
+                await this.postFrame(CAMERA_VIDEO, frame, mask)
+                this.isCameraFramePending = false
+            }
             this.cameraVideo.requestVideoFrameCallback(cameraFrameCallback)
         }
 

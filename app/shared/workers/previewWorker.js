@@ -12,10 +12,13 @@ import {
 // Replace console methods with worker console
 Object.assign(console, workerConsole)
 
+const MIN_RENDER_INTERVAL = 33 // ~30fps cap
+
 class PreviewRenderer {
     constructor() {
         this.isPlaying = false
         this.isInitialized = false
+        this.lastRenderTime = 0
     }
 
     async init({ canvas, args, duration, screenFrame, screenVideoDims, cameraFrame, cameraVideoDims }) {
@@ -45,6 +48,12 @@ class PreviewRenderer {
 
     async render({ time }) {
         this.scene?.setTime(time)
+        // Throttle renders during playback to ~30fps
+        if (this.isPlaying) {
+            const now = performance.now()
+            if (now - this.lastRenderTime < MIN_RENDER_INTERVAL) return
+            this.lastRenderTime = now
+        }
         this.scene?.update()
         this.scene?.render()
     }
