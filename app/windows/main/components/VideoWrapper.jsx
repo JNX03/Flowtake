@@ -10,12 +10,8 @@ import {
 } from "react-redux"
 import throttle from "throttleit"
 import { useThrottledCallback } from "use-debounce"
-import {
-    CAMERA_VIDEO_URL,
-    MICROPHONE_AUDIO_URL,
-    SCREEN_VIDEO_URL
-} from "@shared/constants"
 import Media from "../../../components/Media"
+import useVideoSrc from "@shared/hooks/useVideoSrc"
 import {
     TOAST_ERROR,
     toS
@@ -34,6 +30,7 @@ import {
     setIsCleaningUpVideosDone
 } from "@shared/redux/editorSlice"
 import {
+    selectId,
     selectHasCameraVideo,
     selectHasMicrophoneAudio
 } from "@shared/redux/projectSlice"
@@ -46,8 +43,13 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
 
     const dispatch = useDispatch()
 
+    const projectId = useSelector(selectId)
     const hasCameraVideo = useSelector(selectHasCameraVideo)
     const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
+
+    const screenVideo = useVideoSrc("screen", projectId)
+    const cameraVideo = useVideoSrc("camera", projectId)
+    const microphoneAudio = useVideoSrc("microphone", projectId)
 
     const isPlaying = useSelector(selectIsPlaying)
     const playbackRate = useSelector(selectPlaybackRate)
@@ -70,13 +72,15 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     }
 
     const cleanUpVideos = useCallback(async () => {
-        screenVideoRef.current.pause()
-        await new Promise(resolve => {
-            screenVideoRef.current.addEventListener("emptied", resolve, { once: true })
-            screenVideoRef.current.src = ""
-            screenVideoRef.current.load()
-        })
-        if (hasCameraVideo || hasMicrophoneAudio) {
+        if (screenVideoRef.current) {
+            screenVideoRef.current.pause()
+            await new Promise(resolve => {
+                screenVideoRef.current.addEventListener("emptied", resolve, { once: true })
+                screenVideoRef.current.src = ""
+                screenVideoRef.current.load()
+            })
+        }
+        if ((hasCameraVideo || hasMicrophoneAudio) && cameraVideoRef.current) {
             cameraVideoRef.current.pause()
             await new Promise(resolve => {
                 cameraVideoRef.current.addEventListener("emptied", resolve, { once: true })
@@ -88,7 +92,7 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     }, [dispatch, hasCameraVideo, hasMicrophoneAudio, screenVideoRef, cameraVideoRef])
 
     useEffect(() => {
-        if (hasCameraVideo || hasMicrophoneAudio) {
+        if ((hasCameraVideo || hasMicrophoneAudio) && screenVideoRef.current && cameraVideoRef.current) {
             const screen = screenVideoRef.current
             const camera = cameraVideoRef.current
             const onTimeUpdate = throttle(() => {
@@ -117,6 +121,7 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     }, [hasCameraVideo, hasMicrophoneAudio, screenVideoRef, cameraVideoRef])
 
     useEffect(() => {
+        if (!screenVideoRef.current) return
         if (isPlaying) play(screenVideoRef.current)
         else screenVideoRef.current.pause()
     }, [isPlaying, screenVideoRef])
@@ -124,11 +129,12 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     // TODO: screen video has variable frame rate. synching really only matters when new frames are available.
     // instead of looking at currenttime, only sync when new frames are available with requestVideoFrameCallback
     const syncToTimeline = useThrottledCallback(() => {
-        if (Math.abs(screenVideoRef.current.currentTime - toS(time)) > 0.2)
+        if (screenVideoRef.current && Math.abs(screenVideoRef.current.currentTime - toS(time)) > 0.2)
             screenVideoRef.current.currentTime = toS(time)
     }, 500)
 
     useEffect(() => {
+        if (!screenVideoRef.current) return
         if (!isPlaying) screenVideoRef.current.currentTime = toS(time)
         else syncToTimeline()
     }, [isPlaying, syncToTimeline, time, screenVideoRef])
@@ -138,13 +144,13 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
             ((hasCameraVideo && isCameraVideoReady)
                 || (!hasCameraVideo && hasMicrophoneAudio && isCameraVideoReady)
                 || (!hasCameraVideo && !hasMicrophoneAudio))) {
-            screenVideoRef.current.currentTime = toS(time)
+            if (screenVideoRef.current) screenVideoRef.current.currentTime = toS(time)
             dispatch(setAreVideosReady(true))
         }
     }, [areVideosReady, dispatch, hasCameraVideo, hasMicrophoneAudio, isCameraVideoReady, isScreenVideoReady, screenVideoRef, time])
 
     useEffect(() => {
-        screenVideoRef.current.playbackRate = playbackRate
+        if (screenVideoRef.current) screenVideoRef.current.playbackRate = playbackRate
     }, [playbackRate, screenVideoRef])
 
     useEffect(() => {
@@ -174,26 +180,29 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
 
     // Added id to bust cache, otherwise chrome doesn't update video when closing / opening project
     return (<div className="invisible absolute left-0 top-0 w-full grid grid-cols-2">
-        <Media
+        {screenVideo.src && <Media
             isVideo={true}
             ref={screenVideoRef}
-            src={SCREEN_VIDEO_URL}
+            src={screenVideo.src}
+            isResolved={true}
             controls={true}
             muted={isMuted}
             onError={onError}
-            onReady={onScreenVideoReady} />
-        {hasCameraVideo && <Media
+            onReady={onScreenVideoReady} />}
+        {hasCameraVideo && cameraVideo.src && <Media
             isVideo={true}
             ref={cameraVideoRef}
-            src={CAMERA_VIDEO_URL}
+            src={cameraVideo.src}
+            isResolved={true}
             controls={true}
             muted={isMuted}
             onError={onError}
             onReady={onCameraVideoReady} />}
-        {(!hasCameraVideo && hasMicrophoneAudio) && <Media
+        {(!hasCameraVideo && hasMicrophoneAudio) && microphoneAudio.src && <Media
             isVideo={false}
             ref={cameraVideoRef}
-            src={MICROPHONE_AUDIO_URL}
+            src={microphoneAudio.src}
+            isResolved={true}
             controls={true}
             muted={isMuted}
             onError={onError}
