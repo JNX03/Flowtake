@@ -97,17 +97,16 @@ export default class PreviewScene extends Scene {
                 this.panAnimator.setState({ cursorCoords: this.cursorAnimator.coords })
                 break
             case 'cursorCoords.cutOff':
-                this.cursorAnimator.cutOff = payload
-                this.cursorAnimator.configureCutOffCoords()
+                this.cursorAnimator.setState({ cutOff: payload })
                 break
             case 'cursorCoords.isLoop':
-                this.cursorAnimator.isLoop = payload
+                this.cursorAnimator.setState({ isLoop: payload })
                 break
             case 'cursorCoords.blurStrength':
-                this.cursorAnimator.blurStrength = payload
+                this.cursorAnimator.setState({ blurStrength: payload })
                 break
             case 'project.cursorMovementRotation':
-                this.cursorAnimator.rotationStrength = payload
+                this.cursorAnimator.setState({ rotationStrength: payload })
                 break
             case 'project.cursorScale':
                 this.clickAnimator.setState({ cursorScale: payload })

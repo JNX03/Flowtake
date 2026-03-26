@@ -98,7 +98,11 @@ export default class CursorAnimator extends Animator {
 
         if (areCoordsDirty) this.configureCoords()
         if (isConfigureDirty) this.configure()
-        if (isCutOffDirty) this.configureCutOffCoords()
+        if (isCutOffDirty) {
+            // Ensure coords are computed before configuring cutoff
+            if (!this.coords && this.inertia !== null) this.configureCoords()
+            this.configureCutOffCoords()
+        }
     }
 
     configureCoords() {
