@@ -55,13 +55,27 @@ export default function NewRecording({ isOpen }) {
   })
 
   const prevPreviewRef = useRef(null)
+  const [screenPermissionDenied, setScreenPermissionDenied] = useState(false)
 
   const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError } = useQuery({
     queryKey: ['captureSourcePreview', source?.id, source?.type, source?.name, source],
-    queryFn: () => window.electron.ipcRenderer.invoke("get-source-screenshot", source),
+    queryFn: async () => {
+      try {
+        const result = await window.electron.ipcRenderer.invoke("get-source-screenshot", source)
+        if (screenPermissionDenied) setScreenPermissionDenied(false)
+        return result
+      } catch (e) {
+        const msg = typeof e === 'string' ? e : e?.message || String(e)
+        if (msg.includes("ScreenPermissionDenied")) {
+          setScreenPermissionDenied(true)
+        }
+        throw e
+      }
+    },
     gcTime: 0,
     retry: 1,
-    refetchInterval: 500,
+    // Stop polling when screen permission is denied to avoid spamming OS dialogs
+    refetchInterval: screenPermissionDenied ? false : 500,
   })
 
   // Keep previous frame visible during transitions for smooth crossfade
@@ -229,7 +243,16 @@ export default function NewRecording({ isOpen }) {
               {!isPendingCaptureSourcePreview && isPreviewError && !prevPreviewRef.current && (
                 <div className="flex flex-col items-center gap-2 z-10">
                   <ComputerDesktopIcon className="size-10 text-base-content/15" />
-                  <span className="text-xs text-base-content/30">Preview unavailable</span>
+                  {screenPermissionDenied ? (
+                    <>
+                      <span className="text-xs text-warning/80 font-medium">Screen recording permission required</span>
+                      <span className="text-xs text-base-content/40 text-center max-w-xs">
+                        Go to System Settings &rarr; Privacy &amp; Security &rarr; Screen Recording and enable this app, then restart.
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-base-content/30">Preview unavailable</span>
+                  )}
                 </div>
               )}
               {!isPendingCaptureSourcePreview && !captureSourcePreview && !isPreviewError && !prevPreviewRef.current && (

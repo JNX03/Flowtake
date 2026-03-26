@@ -1884,7 +1884,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
         #[cfg(not(target_os = "windows"))]
         {
-            // On macOS, use screencapture with region for window screenshots
+            // On macOS, check screen recording permission before screencapture
             let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w64 = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
@@ -1892,6 +1892,20 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
             #[cfg(target_os = "macos")]
             {
+                use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
+                use core_graphics::window::{
+                    kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
+                };
+                let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
+                let image = CGDisplay::screenshot(
+                    rect,
+                    kCGWindowListOptionOnScreenOnly,
+                    kCGNullWindowID,
+                    kCGWindowImageDefault,
+                );
+                if image.is_none() {
+                    return Err(AppError::General("ScreenPermissionDenied".to_string()));
+                }
                 let region = format!("{},{},{},{}", x, y, w64, h64);
                 let screenshot_str_clone = screenshot_str.clone();
                 let _output = tokio::task::spawn_blocking(move || {
@@ -1930,10 +1944,24 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
         main_win.set_content_protected(true).ok();
     }
 
-    // On macOS, use native `screencapture` command which has system-level entitlements
-    // and doesn't require the calling app to have screen recording permission
+    // On macOS, check screen recording permission before calling screencapture
+    // to avoid spamming the permission dialog on macOS Sequoia+
     #[cfg(target_os = "macos")]
     {
+        use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
+        use core_graphics::window::{
+            kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
+        };
+        let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
+        let image = CGDisplay::screenshot(
+            rect,
+            kCGWindowListOptionOnScreenOnly,
+            kCGNullWindowID,
+            kCGWindowImageDefault,
+        );
+        if image.is_none() {
+            return Err(AppError::General("ScreenPermissionDenied".to_string()));
+        }
         let (x, y, w, h) = match source_type {
             "area" => {
                 let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
