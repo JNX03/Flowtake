@@ -9,7 +9,7 @@ import {
 import { useSelector } from "react-redux"
 import { selectId } from "../shared/redux/projectSlice"
 
-const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, className, param, onReady, onError }, ref) => {
+const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, className, param, isResolved, onReady, onError }, ref) => {
 
     const internalRef = useRef(null)
 
@@ -18,8 +18,8 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
     const [retryCount, setRetryCount] = useState(0)
 
     const fullSrc = useMemo(
-        () => `${src}?projectId=${projectId}${param ? `&${param.title}=${param.value}` : ""}`,
-        [src, param, projectId])
+        () => isResolved ? src : `${src}?projectId=${projectId}${param ? `&${param.title}=${param.value}` : ""}`,
+        [src, isResolved, param, projectId])
 
     const maxRetries = 3
 
@@ -141,6 +141,7 @@ Media.propTypes = {
         title: PropTypes.string,
         value: PropTypes.any
     }),
+    isResolved: PropTypes.bool,
     onReady: PropTypes.func,
     onError: PropTypes.func
 }
