@@ -4,7 +4,8 @@ const initialState = {
     inertia: 400,
     cutOff: 0,
     isLoop: false,
-    blurStrength: .3
+    blurStrength: .3,
+    showClickRing: true
 }
 
 export const cursorCoordsSlice = createSlice({
@@ -18,7 +19,8 @@ export const cursorCoordsSlice = createSlice({
         setInertia: (state, action) => { state.inertia = action.payload },
         setCutOff: (state, action) => { state.cutOff = action.payload },
         setIsLoop: (state, action) => { state.isLoop = action.payload },
-        setBlurStrength: (state, action) => { state.blurStrength = action.payload }
+        setBlurStrength: (state, action) => { state.blurStrength = action.payload },
+        setShowClickRing: (state, action) => { state.showClickRing = action.payload }
     },
 })
 
@@ -29,12 +31,14 @@ export const {
     setInertia,
     setCutOff,
     setIsLoop,
-    setBlurStrength
+    setBlurStrength,
+    setShowClickRing
 } = cursorCoordsSlice.actions
 
 export const selectInertia = state => state.undoableState.present.cursorCoords.inertia
 export const selectCutOff = state => state.undoableState.present.cursorCoords.cutOff
 export const selectIsLoop = state => state.undoableState.present.cursorCoords.isLoop
 export const selectBlurStrength = state => state.undoableState.present.cursorCoords.blurStrength
+export const selectShowClickRing = state => state.undoableState.present.cursorCoords.showClickRing
 
 export default cursorCoordsSlice.reducer

@@ -19,7 +19,8 @@ import {
     selectBlurStrength,
     selectCutOff,
     selectInertia,
-    selectIsLoop
+    selectIsLoop,
+    selectShowClickRing
 } from "../redux/cursorCoordsSlice"
 import {
     selectAllCursorTypes,
@@ -165,6 +166,7 @@ class WorkerRenderer {
                 cameraVideoBackgroundBlurAmount: selectCameraVideoBackgroundBlurAmount(this.render.state),
                 isCameraVideoMirrored: selectIsCameraVideoMirrored(this.render.state),
                 overlayAnims: selectAllOverlays(this.render.state),
+                showClickRing: selectShowClickRing(this.render.state),
             },
             duration)
 

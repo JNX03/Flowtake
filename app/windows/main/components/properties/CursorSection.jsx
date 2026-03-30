@@ -15,10 +15,12 @@ import {
     selectCutOff,
     selectInertia,
     selectIsLoop,
+    selectShowClickRing,
     setBlurStrength,
     setCutOff,
     setInertia,
-    setIsLoop
+    setIsLoop,
+    setShowClickRing
 } from "@shared/redux/cursorCoordsSlice"
 import { selectIsStatic, setIsStatic } from "@shared/redux/cursorTypeSlice"
 import {
@@ -50,6 +52,7 @@ export default function CursorSection() {
     const isStatic = useSelector(selectIsStatic)
     const cursorShadowAlpha = useSelector(selectCursorShadowAlpha)
     const cursorMovementRotation = useSelector(selectCursorMovementRotation)
+    const showClickRing = useSelector(selectShowClickRing)
 
     const onChangeCursorScale = useCallback((value, group) => dispatch(withGroup(setCursorScale(value), group)), [dispatch])
 
@@ -72,6 +75,8 @@ export default function CursorSection() {
 
     const onChangeCursorMovementRotation = useCallback((value, group) => dispatch(withGroup(setCursorMovementRotation(value), group)), [dispatch])
 
+    const onChangeShowClickRing = useCallback(event => dispatch(setShowClickRing(event.target.checked)), [dispatch])
+
     return (
         <Card icon={<CursorArrowRippleIcon className="w-6 h-6" />} title="Cursor">
             <>
@@ -81,6 +86,10 @@ export default function CursorSection() {
 
                 <Fieldset legend="Color Theme">
                     <Toggle leftLabel="Dark" rightLabel="Light" value={cursorFill === "#fff"} onChange={onChangeTheme} />
+                </Fieldset>
+
+                <Fieldset legend="Click Ring" description="Show a yellow ring effect around the cursor on mouse clicks. Individual click rings can be further customized in the timeline.">
+                    <Toggle leftLabel="Click Ring" value={showClickRing} onChange={onChangeShowClickRing} />
                 </Fieldset>
 
                 <Fieldset legend="Smoothing" description="Cursor Smoothing removes jittery movements but can also remove some fidelity, e.g. near mouse clicks.">

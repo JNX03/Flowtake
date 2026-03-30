@@ -43,7 +43,8 @@ import {
     selectBlurStrength as selectCursorBlurStrength,
     selectCutOff,
     selectInertia,
-    selectIsLoop
+    selectIsLoop,
+    selectShowClickRing
 } from "@shared/redux/cursorCoordsSlice"
 import {
     selectAllCursorTypes,
@@ -190,6 +191,7 @@ export default function Preview() {
     const cursorCutOff = useSelector(selectCutOff)
     const cursorIsLoop = useSelector(selectIsLoop)
     const clickAnims = useSelector(selectAllClicks)
+    const showClickRing = useSelector(selectShowClickRing)
     const cursorScale = useSelector(selectCursorScale)
     const hasCameraVideo = useSelector(selectHasCameraVideo)
     const padding = useSelector(selectPadding)
@@ -470,6 +472,10 @@ export default function Preview() {
     useEffect(() => {
         manager?.postUpdate({ type: 'cursorCoords.blurStrength', payload: cursorBlurStrength })
     }, [manager, cursorBlurStrength])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'cursorCoords.showClickRing', payload: showClickRing })
+    }, [manager, showClickRing])
 
     useEffect(() => {
         manager?.postUpdate({ type: 'project.cursorMovementRotation', payload: cursorRotationStrength })

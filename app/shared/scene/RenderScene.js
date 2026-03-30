@@ -56,7 +56,7 @@ export default class RenderScene extends Scene {
 
         this.clipAnimator.setState({ padding, configs: clipAnims })
 
-        this.clickAnimator.setState({ cursorScale, configs: clickAnims })
+        this.clickAnimator.setState({ cursorScale, configs: clickAnims, showClickRing: args.showClickRing ?? true })
 
         this.cursorAnimator.setState({
             videoDetails,

@@ -105,6 +105,9 @@ export default class PreviewScene extends Scene {
             case 'cursorCoords.blurStrength':
                 this.cursorAnimator.setState({ blurStrength: payload })
                 break
+            case 'cursorCoords.showClickRing':
+                this.clickAnimator.setState({ showClickRing: payload })
+                break
             case 'project.cursorMovementRotation':
                 this.cursorAnimator.setState({ rotationStrength: payload })
                 break

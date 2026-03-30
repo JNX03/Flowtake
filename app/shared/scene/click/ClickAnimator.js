@@ -7,6 +7,7 @@ export default class ClickAnimator extends Animator {
         super()
 
         this.cursorScale = null
+        this.showClickRing = true
         this.cursor = cursor
         this.ringGraphic = new Graphics()
         this.ringGraphic.visible = false
@@ -17,8 +18,8 @@ export default class ClickAnimator extends Animator {
         const frame = this.computeFrame(timestamp)
         this.cursor.scale.set(frame.scale)
 
-        // Render click ring
-        if (frame.ringProgress > 0 && frame.ringConfig?.enabled) {
+        // Render click ring (respects global toggle)
+        if (this.showClickRing && frame.ringProgress > 0 && frame.ringConfig?.enabled) {
             const { color, size, opacity } = frame.ringConfig
             const progress = frame.ringProgress
             const radius = size * progress
@@ -33,8 +34,9 @@ export default class ClickAnimator extends Animator {
         }
     }
 
-    setState({ cursorScale, configs }) {
+    setState({ cursorScale, configs, showClickRing }) {
         if (cursorScale !== undefined) this.cursorScale = cursorScale
+        if (showClickRing !== undefined) this.showClickRing = showClickRing
         if (configs !== undefined) this.configs = configs
         this.configure()
     }
