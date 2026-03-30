@@ -97,7 +97,7 @@
     "react-redux": "^9.2.0",
     "react-resize-detector": "^12.3.0",
     "redux-undo": "^1.1.0",
-    "sanitize-filename": "^1.6.3",
+    "sanitize-filename": "^1.6.4",
     "slash": "4.0.0",
     "throttleit": "^2.1.0",
     "unused-filename": "^4.0.1",
