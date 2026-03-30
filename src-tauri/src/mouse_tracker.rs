@@ -378,10 +378,10 @@ impl MouseTracker {
             };
 
             if let Some(event_type) = event_type {
-                // For mousemove, sample at ~50ms intervals to avoid flooding
+                // For mousemove, sample at ~10ms intervals (~100Hz) for smooth tracking
                 if event_type == "mousemove" {
                     let last_time = LAST_MOUSEMOVE_TIME.load(Relaxed);
-                    if now - last_time < 50 {
+                    if now - last_time < 10 {
                         return CallNextHookEx(None, n_code, w_param, l_param);
                     }
                     LAST_MOUSEMOVE_TIME.store(now, Relaxed);
@@ -647,7 +647,7 @@ impl MouseTracker {
             offset_x, offset_y
         );
 
-        let poll_interval = std::time::Duration::from_millis(50); // ~20Hz polling
+        let poll_interval = std::time::Duration::from_millis(16); // ~60Hz polling
         let mut last_x: i32 = -1;
         let mut last_y: i32 = -1;
 

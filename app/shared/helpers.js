@@ -582,7 +582,7 @@ export const applyInertia = (coords, duration, inertia = 400) => {
     const frameDuration = 1000 / INERTIA_FPS
 
     if (coords.length > 0) {
-        // Exponential moving average smoothing.
+        // Exponential moving average smoothing with velocity-aware adaptation.
         // tau controls the time constant: higher inertia = more smoothing.
         // alpha = 1 - exp(-frameDuration / tau) gives framerate-independent decay.
         const SMOOTHING_SCALE = 0.5
@@ -590,29 +590,50 @@ export const applyInertia = (coords, duration, inertia = 400) => {
         const baseAlpha = 1 - Math.exp(-frameDuration / tau)
 
         let position = { x: coords[0].x, y: coords[0].y }
+        let velocity = { x: 0, y: 0 }
         let c = [...coords]
         let current = c.shift()
+        let prevCurrent = current
 
         for (let timestamp = 0; timestamp <= duration / frameDuration; timestamp += 1) {
             // Advance to the latest mouse event at or before this frame
+            prevCurrent = current
             while (c.length > 0 && c[0].timestamp <= timestamp * frameDuration) { current = c.shift() }
 
             const dx = current.x - position.x
             const dy = current.y - position.y
             const dist = Math.sqrt(dx * dx + dy * dy)
 
-            // Adaptive: increase alpha when far from target to prevent falling behind
-            const MAX_DIST = 200
+            // Compute raw mouse velocity from input events
+            const inputDx = current.x - prevCurrent.x
+            const inputDy = current.y - prevCurrent.y
+            const inputSpeed = Math.sqrt(inputDx * inputDx + inputDy * inputDy)
+
+            // Adaptive alpha: blends distance-based and velocity-based factors.
+            // Distance factor prevents falling behind on large movements.
+            // Velocity factor makes the cursor more responsive during fast motion.
+            const MAX_DIST = 150
             const distFactor = Math.min(dist / MAX_DIST, 1.0)
-            const alpha = baseAlpha + (1 - baseAlpha) * distFactor * 0.5
+            const MAX_SPEED = 100
+            const speedFactor = Math.min(inputSpeed / MAX_SPEED, 1.0)
+            const adaptiveFactor = Math.max(distFactor, speedFactor)
+            const alpha = baseAlpha + (1 - baseAlpha) * adaptiveFactor * 0.6
+
+            // Velocity-blended smoothing: mix EMA with a small velocity prediction
+            // to reduce lag when the cursor changes direction quickly.
+            const VELOCITY_DECAY = 0.8
+            velocity.x = velocity.x * VELOCITY_DECAY + dx * alpha * (1 - VELOCITY_DECAY)
+            velocity.y = velocity.y * VELOCITY_DECAY + dy * alpha * (1 - VELOCITY_DECAY)
+
+            const predictFactor = Math.min(adaptiveFactor * 0.3, 0.25)
 
             position = {
-                x: position.x + dx * alpha,
-                y: position.y + dy * alpha,
+                x: position.x + dx * alpha + velocity.x * predictFactor,
+                y: position.y + dy * alpha + velocity.y * predictFactor,
             }
 
             // Snap when very close to avoid infinite asymptotic approach
-            if (dist < 0.5) {
+            if (dist < 1.0) {
                 position.x = current.x
                 position.y = current.y
             }
