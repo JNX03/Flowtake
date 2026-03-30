@@ -14,7 +14,7 @@
 <p align="center">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
   <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-green.svg">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20(stable)%20%7C%20macOS%20(dev)%20%7C%20Linux%20(dev)-lightgrey.svg">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-stable-orange?logo=rust&logoColor=white">
@@ -130,9 +130,18 @@ Flowtake is built with a modern hybrid architecture combining a Rust backend wit
 
 Download the latest installer from the [Releases](https://github.com/Jnx03/Flowtake/releases) page or from [getflowtake.com](https://getflowtake.com).
 
+### Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Windows 10/11** (64-bit) | Stable | Primary supported platform |
+| **macOS** 10.15+ | Developer preview | Bugs are frequent and some features may not work. Not recommended for production use. |
+| **Linux** | Developer preview | Bugs are frequent and some features may not work. Not recommended for production use. |
+
+> **macOS and Linux users:** These platforms are actively being worked on. Expect crashes and broken features. Stable support is planned for **v2.0.0**.
+
 ### System Requirements
 
-- **OS**: Windows 10/11 (64-bit)
 - **RAM**: 4 GB minimum, 8 GB recommended
 - **Storage**: ~200 MB for installation
 - **GPU**: Hardware acceleration recommended for smooth preview
@@ -231,8 +240,8 @@ If you discover a security vulnerability, please follow our [Security Policy](SE
 
 ## Roadmap
 
-- [x] Linux support
-- [x] macOS support
+- [ ] Linux stable support (targeting v2.0.0)
+- [ ] macOS stable support (targeting v2.0.0)
 - [ ] Plugin/extension system
 - [ ] Cloud project storage
 - [ ] Collaborative editing
