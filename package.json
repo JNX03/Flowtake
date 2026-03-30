@@ -79,7 +79,7 @@
     "@tauri-apps/plugin-updater": "^2.10.0",
     "@tauri-apps/plugin-window-state": "^2.4.1",
     "d3-ease": "^3.0.1",
-    "debounce": "^2.2.0",
+    "debounce": "^3.0.0",
     "fast-fuzzy": "^1.12.0",
     "lodash-es": "^4.17.21",
     "mediabunny": "^1.40.0",
