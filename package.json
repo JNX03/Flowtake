@@ -9,6 +9,14 @@
     "email": "jn03official@gmail.com"
   },
   "homepage": "https://getflowtake.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JNX03/Flowtake.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JNX03/Flowtake/issues",
+    "email": "jn03official@gmail.com"
+  },
   "scripts": {
     "lint": "eslint --cache .",
     "dev:frontend": "vite --config vite.config.mjs",
@@ -17,7 +25,22 @@
     "build": "tauri build",
     "tauri": "tauri"
   },
-  "keywords": [],
+  "keywords": [
+    "screen-recorder",
+    "screen-recording",
+    "video-editor",
+    "auto-zoom",
+    "tauri",
+    "react",
+    "rust",
+    "pixi",
+    "ffmpeg",
+    "desktop-app",
+    "zoom-animation",
+    "timeline-editor",
+    "subtitle",
+    "cross-platform"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^9.39.1",
