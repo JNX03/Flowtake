@@ -48,7 +48,7 @@
     "@tanstack/eslint-plugin-query": "^5.91.2",
     "@tauri-apps/cli": "^2.10.1",
     "@vitejs/plugin-react": "^5.1.1",
-    "autoprefixer": "^10.4.22",
+    "autoprefixer": "^10.4.27",
     "daisyui": "^5.5.5",
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",
