@@ -96,9 +96,9 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
             const screen = screenVideoRef.current
             const camera = cameraVideoRef.current
             const onTimeUpdate = throttle(() => {
-                if (Math.abs(screen.currentTime - camera.currentTime) > 0.5)
+                if (Math.abs(screen.currentTime - camera.currentTime) > 0.15)
                     camera.currentTime = screen.currentTime
-            }, 500)
+            }, 200)
             const onPlay = async () => play(camera)
             const onPause = () => camera.pause()
             const onSeeked = () => camera.currentTime = screen.currentTime
@@ -129,9 +129,9 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     // TODO: screen video has variable frame rate. synching really only matters when new frames are available.
     // instead of looking at currenttime, only sync when new frames are available with requestVideoFrameCallback
     const syncToTimeline = useThrottledCallback(() => {
-        if (screenVideoRef.current && Math.abs(screenVideoRef.current.currentTime - toS(time)) > 0.2)
+        if (screenVideoRef.current && Math.abs(screenVideoRef.current.currentTime - toS(time)) > 0.05)
             screenVideoRef.current.currentTime = toS(time)
-    }, 500)
+    }, 150)
 
     useEffect(() => {
         if (!screenVideoRef.current) return

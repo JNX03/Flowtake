@@ -103,3 +103,5 @@ src-tauri/gen/
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+distribute.md

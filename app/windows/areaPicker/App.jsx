@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { AreaSelector } from "@bmunozg/react-image-area"
 import { CursorArrowRaysIcon } from "@heroicons/react/24/outline"
+import { convertFileSrc } from "@tauri-apps/api/core"
 import PickerWrapper from "../../components/PickerWrapper"
 
 export default function App() {
@@ -14,7 +15,7 @@ export default function App() {
     // Fetch the pre-captured screenshot (captured by Rust before this window opened)
     useEffect(() => {
         window.electron.ipcRenderer.invoke("get-picker-screenshot")
-            .then(dataUrl => { if (dataUrl) setBgImage(dataUrl) })
+            .then(filePath => { if (filePath) setBgImage(convertFileSrc(filePath)) })
             .catch(e => console.warn("[AreaPicker] Screenshot failed:", e))
     }, [])
 

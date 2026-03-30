@@ -12,7 +12,7 @@ import {
 // Replace console methods with worker console
 Object.assign(console, workerConsole)
 
-const MIN_RENDER_INTERVAL = 33 // ~30fps cap
+const MIN_RENDER_INTERVAL = 16 // ~60fps cap
 
 class PreviewRenderer {
     constructor() {

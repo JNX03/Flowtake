@@ -61,6 +61,7 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .position(0.0, 0.0)
     .resizable(false)
     .decorations(false)
+    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .content_protected(true)
@@ -71,6 +72,98 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
 }
 
 /// Capture a desktop screenshot and save it to temp dir for the window/area picker background
+/// Capture the desktop to a BMP file using native GDI (Windows only).
+/// Much faster than spawning FFmpeg (~20ms vs ~3s).
+#[cfg(target_os = "windows")]
+fn capture_desktop_to_bmp(screenshot_path: &std::path::Path) -> Result<(), String> {
+    use windows::Win32::Graphics::Gdi::*;
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+
+    unsafe {
+        let width = GetSystemMetrics(SM_CXSCREEN);
+        let height = GetSystemMetrics(SM_CYSCREEN);
+
+        if width <= 0 || height <= 0 {
+            return Err("Invalid screen dimensions".into());
+        }
+
+        let hdc_screen = GetDC(None);
+        if hdc_screen.is_invalid() {
+            return Err("Failed to get screen DC".into());
+        }
+
+        let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
+        let hbmp = CreateCompatibleBitmap(hdc_screen, width, height);
+        let old_obj = SelectObject(hdc_mem, hbmp.into());
+
+        let _ = BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_screen), 0, 0, SRCCOPY);
+
+        // Extract 24-bit BGR pixel data in bottom-up order (native BMP layout)
+        let row_stride = ((width as usize * 3) + 3) & !3usize;
+        let data_size = row_stride * height as usize;
+        let mut pixels = vec![0u8; data_size];
+
+        let mut bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: width,
+                biHeight: height,
+                biPlanes: 1,
+                biBitCount: 24,
+                biCompression: BI_RGB.0,
+                biSizeImage: data_size as u32,
+                biXPelsPerMeter: 0,
+                biYPelsPerMeter: 0,
+                biClrUsed: 0,
+                biClrImportant: 0,
+            },
+            bmiColors: [RGBQUAD::default()],
+        };
+
+        GetDIBits(
+            hdc_mem, hbmp, 0, height as u32,
+            Some(pixels.as_mut_ptr() as *mut _),
+            &mut bmi, DIB_RGB_COLORS,
+        );
+
+        SelectObject(hdc_mem, old_obj);
+        let _ = DeleteObject(hbmp.into());
+        let _ = DeleteDC(hdc_mem);
+        ReleaseDC(None, hdc_screen);
+
+        // Build BMP file: 14-byte file header + 40-byte DIB header + pixel data
+        let pixel_offset: u32 = 54;
+        let file_size = pixel_offset + data_size as u32;
+        let mut bmp = Vec::with_capacity(file_size as usize);
+
+        // BMP file header (14 bytes)
+        bmp.extend_from_slice(b"BM");
+        bmp.extend_from_slice(&file_size.to_le_bytes());
+        bmp.extend_from_slice(&[0u8; 4]);
+        bmp.extend_from_slice(&pixel_offset.to_le_bytes());
+
+        // BITMAPINFOHEADER (40 bytes)
+        bmp.extend_from_slice(&40u32.to_le_bytes());
+        bmp.extend_from_slice(&width.to_le_bytes());
+        bmp.extend_from_slice(&height.to_le_bytes());
+        bmp.extend_from_slice(&1u16.to_le_bytes());
+        bmp.extend_from_slice(&24u16.to_le_bytes());
+        bmp.extend_from_slice(&0u32.to_le_bytes());
+        bmp.extend_from_slice(&(data_size as u32).to_le_bytes());
+        bmp.extend_from_slice(&0i32.to_le_bytes());
+        bmp.extend_from_slice(&0i32.to_le_bytes());
+        bmp.extend_from_slice(&0u32.to_le_bytes());
+        bmp.extend_from_slice(&0u32.to_le_bytes());
+
+        bmp.extend_from_slice(&pixels);
+
+        std::fs::write(screenshot_path, &bmp)
+            .map_err(|e| format!("Write BMP failed: {e}"))?;
+
+        Ok(())
+    }
+}
+
 async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
     let state = app.state::<std::sync::Mutex<AppState>>();
     let temp_dir = {
@@ -78,63 +171,73 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
         s.temp_dir.clone()
     };
     std::fs::create_dir_all(&temp_dir).ok();
-    let screenshot_path = temp_dir.join("picker_bg.png");
-    let screenshot_str = screenshot_path.to_string_lossy().to_string();
 
-    // Platform-specific FFmpeg screen capture args
+    // Native GDI capture on Windows - instant, no FFmpeg process overhead
     #[cfg(target_os = "windows")]
-    let args = vec![
-        "-y", "-f", "gdigrab", "-framerate", "1", "-draw_mouse", "0",
-        "-i", "desktop", "-frames:v", "1", "-update", "true", &screenshot_str,
-    ];
-
-    #[cfg(target_os = "macos")]
-    let args = vec![
-        "-y", "-f", "avfoundation", "-framerate", "1", "-capture_cursor", "0",
-        "-i", "0:none", "-frames:v", "1", "-update", "true", &screenshot_str,
-    ];
-
-    #[cfg(target_os = "linux")]
-    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
-    #[cfg(target_os = "linux")]
-    let display_input = format!("{}+0,0", display);
-    #[cfg(target_os = "linux")]
-    let args = vec![
-        "-y", "-f", "x11grab", "-framerate", "1", "-draw_mouse", "0",
-        "-i", &display_input, "-frames:v", "1", "-update", "true", &screenshot_str,
-    ];
-
-    let output = super::ffmpeg_from_app(app)?
-        .args(&args)
-        .output()
-        .await
-        .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
-
-    if !output.status.success() {
-        log::warn!("[FFmpeg picker bg] stderr: {}", String::from_utf8_lossy(&output.stderr));
+    {
+        let screenshot_path = temp_dir.join("picker_bg.bmp");
+        return tokio::task::spawn_blocking(move || capture_desktop_to_bmp(&screenshot_path))
+            .await
+            .map_err(|e| AppError::General(format!("Join error: {e}")))?
+            .map_err(AppError::General);
     }
-    Ok(())
+
+    // FFmpeg-based capture for macOS and Linux
+    #[cfg(not(target_os = "windows"))]
+    {
+        let screenshot_path = temp_dir.join("picker_bg.png");
+        let screenshot_str = screenshot_path.to_string_lossy().to_string();
+
+        #[cfg(target_os = "macos")]
+        let args = vec![
+            "-y", "-f", "avfoundation", "-framerate", "1", "-capture_cursor", "0",
+            "-i", "0:none", "-frames:v", "1", "-update", "true", &screenshot_str,
+        ];
+
+        #[cfg(target_os = "linux")]
+        let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+        #[cfg(target_os = "linux")]
+        let display_input = format!("{}+0,0", display);
+        #[cfg(target_os = "linux")]
+        let args = vec![
+            "-y", "-f", "x11grab", "-framerate", "1", "-draw_mouse", "0",
+            "-i", &display_input, "-frames:v", "1", "-update", "true", &screenshot_str,
+        ];
+
+        let output = super::ffmpeg_from_app(app)?
+            .args(&args)
+            .output()
+            .await
+            .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
+
+        if !output.status.success() {
+            log::warn!("[FFmpeg picker bg] stderr: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        Ok(())
+    }
 }
 
 #[tauri::command]
 pub async fn get_picker_screenshot(app: AppHandle) -> AppResult<String> {
-    use base64::Engine;
-
     let state = app.state::<std::sync::Mutex<AppState>>();
     let temp_dir = {
         let s = state.lock().unwrap();
         s.temp_dir.clone()
     };
-    let screenshot_path = temp_dir.join("picker_bg.png");
 
-    if screenshot_path.exists() {
-        let data = std::fs::read(&screenshot_path)?;
-        if !data.is_empty() {
-            let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-            return Ok(format!("data:image/png;base64,{}", b64));
-        }
-    }
-    Err(AppError::General("No picker screenshot available".to_string()))
+    // Return file path for asset protocol loading (BMP on Windows, PNG elsewhere)
+    let bmp_path = temp_dir.join("picker_bg.bmp");
+    let png_path = temp_dir.join("picker_bg.png");
+
+    let screenshot_path = if bmp_path.exists() {
+        bmp_path
+    } else if png_path.exists() {
+        png_path
+    } else {
+        return Err(AppError::General("No picker screenshot available".into()));
+    };
+
+    Ok(screenshot_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -253,8 +356,8 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
         main_win.hide().map_err(AppError::Tauri)?;
     }
 
-    // Small delay then capture screenshot of desktop without main window
-    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    // Brief delay for window hide to take effect
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     capture_desktop_screenshot(&app).await.ok();
 
     // Get primary monitor dimensions
