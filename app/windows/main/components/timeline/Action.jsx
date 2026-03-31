@@ -64,30 +64,27 @@ export default function Action({
     )
 
     const click = useCallback(() => {
-        if (isClickEnabled && !isMinimized) {
-            let ids = selectedIds.length === 1 && selectedIds[0] === anim.id ? [] : [anim.id]
-            dispatch(setSelectedIds(ids))
+        if (!isClickEnabled || isMinimized) return
 
-            let animIds
-            if (isHotkeyPressed("ctrl") && isRowSelected) {
-                if (selectedIds.some(id => id === anim.id))
-                    animIds = selectedIds.filter(id => id !== anim.id)
-                else
-                    animIds = [...selectedIds, anim.id]
-
-                dispatch(setLastSelectedAnim(animIds.length > 0 ? anim : null))
-            } else if (isHotkeyPressed("shift") && isRowSelected && lastSelectedAnim) {
-                if (anim.start > lastSelectedAnim.start)
-                    animIds = getAnimsInRange(anim, lastSelectedAnim)
-                else
-                    animIds = getAnimsInRange(lastSelectedAnim, anim)
-            } else {
-                animIds = selectedIds.length === 1 && selectedIds[0] === anim.id ? [] : [anim.id]
-                dispatch(setLastSelectedAnim(animIds.length > 0 ? anim : null))
-            }
-            dispatch(setSelectedIds(animIds))
-            if (animIds.length > 0) onSelect?.()
+        let animIds
+        if (isHotkeyPressed("ctrl") && isRowSelected) {
+            // Ctrl-click: toggle this item in the selection
+            animIds = selectedIds.includes(anim.id)
+                ? selectedIds.filter(id => id !== anim.id)
+                : [...selectedIds, anim.id]
+            dispatch(setLastSelectedAnim(animIds.length > 0 ? anim : null))
+        } else if (isHotkeyPressed("shift") && isRowSelected && lastSelectedAnim) {
+            // Shift-click: range select from last selected to this item
+            animIds = anim.start > lastSelectedAnim.start
+                ? getAnimsInRange(anim, lastSelectedAnim)
+                : getAnimsInRange(lastSelectedAnim, anim)
+        } else {
+            // Plain click: toggle single selection
+            animIds = selectedIds.length === 1 && selectedIds[0] === anim.id ? [] : [anim.id]
+            dispatch(setLastSelectedAnim(animIds.length > 0 ? anim : null))
         }
+        dispatch(setSelectedIds(animIds))
+        if (animIds.length > 0) onSelect?.()
     }, [isClickEnabled, isMinimized, selectedIds, anim, dispatch, isRowSelected, lastSelectedAnim, getAnimsInRange, onSelect])
 
     const contextMenu = useCallback(e => {
@@ -118,7 +115,7 @@ export default function Action({
     return (
         <div ref={setRef} onClick={click} onContextMenu={contextMenu}
             className={`${getColorClasses()} ${getRingClasses()} ${isSelected ? "shadow-xl z-20 brightness-110" : "hover:z-10 hover:brightness-105"} ` +
-                `h-full absolute select-none flex ${isDragging ? "" : "transition-all duration-150 "}rounded-xl overflow-hidden ring-offset-base-100 ` +
+                `h-full absolute select-none flex ${isDragging ? "" : "transition-[box-shadow,filter,ring,ring-offset] duration-150 "}rounded-xl overflow-hidden ring-offset-base-100 ` +
                 `${isMinimized ? "" : "cursor-pointer"} @container`}
             style={{ left: `${leftPosition}px`, width: `${width}px` }} >
             {children}
@@ -135,10 +132,7 @@ Action.propTypes = {
     anims: PropTypes.arrayOf(PropTypes.shape({
         id: PropTypes.string.isRequired,
         start: PropTypes.number.isRequired,
-        end: PropTypes.number,
-        filter: PropTypes.func,
-        reduce: PropTypes.func,
-        map: PropTypes.func
+        end: PropTypes.number
     })).isRequired,
     start: PropTypes.number.isRequired,
     duration: PropTypes.number.isRequired,
