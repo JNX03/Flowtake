@@ -49,14 +49,23 @@ export default function FlexibleAction({
             onContextMenu={onContextMenu} isRowSelected={isRowSelected} isClickEnabled={!isDragging} color={color}
             isMinimized={isMinimized} isDragging={isDragging} actionRef={actionElementRef}>
             <div ref={leftResizeRef}
-                className={`w-3.5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
+                className={`w-5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
                 {!isMinimized && <div className="w-0.5 h-3 rounded-full bg-base-content/20" />}
             </div>
-            <div ref={moveHandleRef} className={`flex-1 flex flex-col justify-evenly min-w-0 ${isMinimized ? "" : "cursor-grab"}`}>
+            <div ref={moveHandleRef} className={`flex-1 flex flex-col justify-evenly min-w-0 relative group/move ${isMinimized ? "" : "cursor-grab"}`}>
                 {children}
+                {!isMinimized && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/move:opacity-30 transition-opacity pointer-events-none">
+                        <div className="flex flex-col gap-0.5">
+                            <div className="w-4 h-px bg-current rounded-full" />
+                            <div className="w-4 h-px bg-current rounded-full" />
+                            <div className="w-4 h-px bg-current rounded-full" />
+                        </div>
+                    </div>
+                )}
             </div>
             <div ref={rightResizeRef}
-                className={`w-3.5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
+                className={`w-5 ${isMinimized ? "" : "hover:bg-base-content/40 transition-colors cursor-ew-resize"} shrink-0 flex items-center justify-center`}>
                 {!isMinimized && <div className="w-0.5 h-3 rounded-full bg-base-content/20" />}
             </div>
         </Action>

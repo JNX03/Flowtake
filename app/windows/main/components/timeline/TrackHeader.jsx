@@ -25,7 +25,7 @@ export default function TrackHeader({
 
     if (isMinimized) {
         return <div className="h-2 flex items-center px-2">
-            <span className="text-[7px] opacity-20 truncate">{name}</span>
+            <span className="text-[8px] opacity-30 truncate">{name}</span>
         </div>
     }
 
@@ -33,7 +33,7 @@ export default function TrackHeader({
         <div className="h-12 flex items-center px-2 gap-1 group/hdr hover:bg-base-content/5 transition-colors">
             <div className={`w-1 h-6 rounded-full shrink-0 bg-${color}`} />
             <div className="flex flex-col flex-1 min-w-0 pl-1">
-                <span className="text-[10px] font-medium truncate leading-tight">{name}</span>
+                <span className="text-[11px] font-medium truncate leading-tight opacity-80">{name}</span>
                 <div className="flex items-center gap-px opacity-0 group-hover/hdr:opacity-100 transition-opacity">
                     {onToggleMute && (
                         <button onClick={e => { e.stopPropagation(); onToggleMute() }}

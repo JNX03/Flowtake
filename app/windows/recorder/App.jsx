@@ -341,12 +341,12 @@ export default function App() {
         return (
             <div
                 className="h-full w-full flex items-start justify-center"
-                style={{ WebkitAppRegion: "drag" }}
-                onMouseEnter={() => setIsExpanded(true)}
+                style={{ pointerEvents: "none" }}
             >
                 <StyleTag />
                 <div
                     className="island-pill mt-1"
+                    onMouseEnter={() => setIsExpanded(true)}
                     style={{
                         ...pillBg,
                         width: 220,
@@ -356,7 +356,8 @@ export default function App() {
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 10,
-                        WebkitAppRegion: "no-drag",
+                        pointerEvents: "auto",
+                        WebkitAppRegion: "drag",
                     }}
                 >
                     {cameraPreview}
@@ -371,12 +372,12 @@ export default function App() {
     return (
         <div
             className="h-full w-full flex items-start justify-center"
-            style={{ WebkitAppRegion: "drag" }}
-            onMouseLeave={() => setIsExpanded(false)}
+            style={{ pointerEvents: "none" }}
         >
             <StyleTag />
             <div
                 className="island-pill mt-1"
+                onMouseLeave={() => setIsExpanded(false)}
                 style={{
                     ...pillBg,
                     width: 440,
@@ -384,7 +385,8 @@ export default function App() {
                     borderRadius: 28,
                     display: "flex",
                     alignItems: "center",
-                    WebkitAppRegion: "no-drag",
+                    pointerEvents: "auto",
+                    WebkitAppRegion: "drag",
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", padding: "0 20px" }}>
