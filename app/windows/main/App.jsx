@@ -4,7 +4,8 @@ import {
     Suspense,
     useCallback,
     useEffect,
-    useRef
+    useRef,
+    useState
 } from "react"
 import {
     useDispatch,
@@ -55,6 +56,7 @@ import Loader from "./components/Loader"
 import Toasts from "./components/toasts/Toasts"
 
 // Lazy-load heavy components not needed at startup
+const SetupWizard = lazy(() => import("./components/SetupWizard"))
 const Editor = lazy(() => import("./components/Editor"))
 const Settings = lazy(() => import("./components/settings/Settings"))
 const CloseModal = lazy(() => import("./components/CloseModal"))
@@ -89,9 +91,16 @@ export default function App() {
     const outro = useSelector(selectOutro)
     const zoomTargetScale = useSelector(selectZoomTargetScale)
 
+    const [showSetupWizard, setShowSetupWizard] = useState(null) // null=loading, true=show, false=hide
+
     const dispatch = useDispatch()
     const queryClient = useQueryClient()
     const splashDismissed = useRef(false)
+
+    const onSetupComplete = useCallback(async () => {
+        await window.electron.ipcRenderer.invoke("store-set", "hasCompletedSetup", true)
+        setShowSetupWizard(false)
+    }, [])
 
     const getCapturersAndEncoders = useCallback(async () => {
         try {
@@ -144,19 +153,24 @@ export default function App() {
         const consumeEarlyData = async () => {
             try {
                 if (window.__earlyData) {
-                    const [c, e] = await Promise.all([
+                    const [c, e, setupDone] = await Promise.all([
                         window.__earlyData.capturers,
-                        window.__earlyData.encoders
+                        window.__earlyData.encoders,
+                        window.__earlyData.setupCompleted
                     ])
                     dispatch(setCapturers(Array.isArray(c) ? c : []))
                     dispatch(setEncoders(Array.isArray(e) ? e : []))
+                    setShowSetupWizard(setupDone !== true)
                     window.__earlyData = null
                 } else {
                     await getCapturersAndEncoders()
+                    const setupDone = await window.electron.ipcRenderer.invoke("store-get", "hasCompletedSetup").catch(() => null)
+                    setShowSetupWizard(setupDone !== true)
                 }
             } catch (err) {
                 console.error("[Flowtake] Early data fetch failed, retrying:", err)
                 await getCapturersAndEncoders()
+                setShowSetupWizard(false)
             }
 
             dismissSplash()
@@ -244,7 +258,10 @@ export default function App() {
     return (
         <div className="h-full relative">
             <div className="h-full overflow-auto">
-                {!hasProject && !isRecording && <Launcher />}
+                {showSetupWizard === true && !hasProject && !isRecording && (
+                    <Suspense fallback={null}><SetupWizard onComplete={onSetupComplete} /></Suspense>
+                )}
+                {showSetupWizard === false && !hasProject && !isRecording && <Launcher />}
                 {hasProject && <Suspense fallback={null}><Editor /></Suspense>}
             </div>
             <Loader />

@@ -14,7 +14,16 @@ window.electron.ipcRenderer.invoke("store-get", "appearance-theme")
 // Start FFmpeg discovery EARLY (runs in parallel with React setup + render)
 const earlyCapturers = window.electron.ipcRenderer.invoke("get-capturers").catch(() => [])
 const earlyEncoders = window.electron.ipcRenderer.invoke("get-encoders").catch(() => [])
-window.__earlyData = { capturers: earlyCapturers, encoders: earlyEncoders }
+const earlySetupCheck = window.electron.ipcRenderer.invoke("store-get", "hasCompletedSetup").catch(() => null)
+window.__earlyData = { capturers: earlyCapturers, encoders: earlyEncoders, setupCompleted: earlySetupCheck }
+
+// Increment launch count for stats
+window.electron.ipcRenderer.invoke("store-get", "launchCount")
+    .then(count => {
+        const newCount = (typeof count === 'number' ? count : 0) + 1
+        window.electron.ipcRenderer.invoke("store-set", "launchCount", newCount)
+    })
+    .catch(() => {})
 
 // Stage 2: Load framework
 import React from 'react'
