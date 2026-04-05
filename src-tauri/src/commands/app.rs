@@ -3,7 +3,7 @@ use crate::error::AppResult;
 use crate::error::AppError;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_autostart::ManagerExt;
 
@@ -260,6 +260,175 @@ pub async fn install_update(download_url: String) -> AppResult<()> {
         log::error!("[install_update] Failed to open URL: {}", e);
         crate::error::AppError::General(format!("Failed to open download URL: {}", e))
     })?;
+    Ok(())
+}
+
+#[derive(Serialize, Clone)]
+pub struct DownloadProgress {
+    pub bytes_downloaded: u64,
+    pub total_bytes: u64,
+    pub percent: f64,
+}
+
+#[tauri::command]
+pub async fn download_update(app: AppHandle, download_url: String) -> AppResult<Value> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+
+    log::info!("[download_update] Starting download from: {}", download_url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&download_url)
+        .header("User-Agent", "Flowtake")
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::General(format!("Download failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(crate::error::AppError::General(
+            format!("Download returned HTTP {}", response.status()),
+        ));
+    }
+
+    let total_bytes = response.content_length().unwrap_or(0);
+
+    // Determine file extension from URL
+    let ext = download_url
+        .rsplit('/')
+        .next()
+        .and_then(|name| {
+            if name.to_lowercase().ends_with(".exe") { Some("exe") }
+            else if name.to_lowercase().ends_with(".msi") { Some("msi") }
+            else if name.to_lowercase().ends_with(".dmg") { Some("dmg") }
+            else if name.to_lowercase().ends_with(".appimage") { Some("AppImage") }
+            else if name.to_lowercase().ends_with(".deb") { Some("deb") }
+            else { None }
+        })
+        .unwrap_or("bin");
+
+    let temp_path = std::env::temp_dir().join(format!("flowtake-update.{}", ext));
+
+    // Clean up any previous download
+    let _ = std::fs::remove_file(&temp_path);
+
+    let mut file = std::fs::File::create(&temp_path).map_err(|e| {
+        crate::error::AppError::General(format!("Failed to create temp file: {}", e))
+    })?;
+
+    let mut stream = response.bytes_stream();
+    let mut bytes_downloaded: u64 = 0;
+    let mut last_emitted_percent: f64 = -1.0;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| {
+            let _ = std::fs::remove_file(&temp_path);
+            crate::error::AppError::General(format!("Download stream error: {}", e))
+        })?;
+
+        file.write_all(&chunk).map_err(|e| {
+            let _ = std::fs::remove_file(&temp_path);
+            crate::error::AppError::General(format!("Failed to write chunk: {}", e))
+        })?;
+
+        bytes_downloaded += chunk.len() as u64;
+        let percent = if total_bytes > 0 {
+            (bytes_downloaded as f64 / total_bytes as f64 * 100.0).min(100.0)
+        } else {
+            0.0
+        };
+
+        // Emit progress every 1% to avoid flooding events
+        if (percent - last_emitted_percent) >= 1.0 || bytes_downloaded == total_bytes {
+            last_emitted_percent = percent;
+            app.emit_to("main", "update-download-progress", DownloadProgress {
+                bytes_downloaded,
+                total_bytes,
+                percent,
+            }).ok();
+        }
+    }
+
+    drop(file);
+
+    let installer_path = temp_path.to_string_lossy().to_string();
+    log::info!("[download_update] Download complete: {}", installer_path);
+
+    Ok(serde_json::json!({ "installerPath": installer_path }))
+}
+
+#[tauri::command]
+pub async fn launch_installer(installer_path: String) -> AppResult<()> {
+    use std::path::Path;
+
+    let path = Path::new(&installer_path);
+    if !path.exists() {
+        return Err(crate::error::AppError::General(
+            "Installer file not found".to_string(),
+        ));
+    }
+
+    log::info!("[launch_installer] Launching: {}", installer_path);
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        #[cfg(target_os = "windows")]
+        "exe" => {
+            use std::os::windows::process::CommandExt;
+            std::process::Command::new(&installer_path)
+                .arg("/S")
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .spawn()
+                .map_err(|e| crate::error::AppError::General(format!("Failed to launch installer: {}", e)))?;
+        }
+        #[cfg(target_os = "windows")]
+        "msi" => {
+            use std::os::windows::process::CommandExt;
+            std::process::Command::new("msiexec")
+                .args(["/i", &installer_path, "/quiet", "/norestart"])
+                .creation_flags(0x08000000)
+                .spawn()
+                .map_err(|e| crate::error::AppError::General(format!("Failed to launch MSI: {}", e)))?;
+        }
+        #[cfg(target_os = "macos")]
+        "dmg" => {
+            open::that(&installer_path).map_err(|e| {
+                crate::error::AppError::General(format!("Failed to open DMG: {}", e))
+            })?;
+        }
+        #[cfg(target_os = "linux")]
+        "appimage" => {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&installer_path)
+                .map_err(|e| crate::error::AppError::General(format!("Failed to get permissions: {}", e)))?
+                .permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&installer_path, perms)
+                .map_err(|e| crate::error::AppError::General(format!("Failed to set permissions: {}", e)))?;
+            std::process::Command::new(&installer_path)
+                .spawn()
+                .map_err(|e| crate::error::AppError::General(format!("Failed to launch AppImage: {}", e)))?;
+        }
+        #[cfg(target_os = "linux")]
+        "deb" => {
+            std::process::Command::new("pkexec")
+                .args(["dpkg", "-i", &installer_path])
+                .spawn()
+                .map_err(|e| crate::error::AppError::General(format!("Failed to install deb: {}", e)))?;
+        }
+        _ => {
+            // Fallback: open with default handler
+            open::that(&installer_path).map_err(|e| {
+                crate::error::AppError::General(format!("Failed to open installer: {}", e))
+            })?;
+        }
+    }
+
     Ok(())
 }
 

@@ -300,6 +300,8 @@ pub fn run() {
             commands::app::check_permissions,
             commands::app::check_for_updates,
             commands::app::install_update,
+            commands::app::download_update,
+            commands::app::launch_installer,
             commands::app::get_changelog,
             commands::app::choose_export_directory,
             commands::app::check_dependencies,
