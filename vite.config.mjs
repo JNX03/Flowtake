@@ -24,7 +24,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@shared': resolve('app/shared')
-    }
+    },
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime']
   },
 
   assetsInclude: ['**/*.tflite', '**/*.frag', '**/*.vert', '**/*.wgsl'],
