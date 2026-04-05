@@ -33,7 +33,6 @@ import RequestFeatureButton from "./titleBar/RequestFeatureButton"
 import SaveIndicator from "./titleBar/SaveIndicator"
 import SettingsButton from "./titleBar/SettingsButton"
 import UndoButton from "./titleBar/UndoButton"
-import UpgradeButton from "./titleBar/UpgradeButton"
 
 export default function Editor() {
 
@@ -131,7 +130,6 @@ export default function Editor() {
             <PresetsDropdown />
             <RequestFeatureButton />
             <SettingsButton />
-            <UpgradeButton />
         </TitleBar>
         <div className="bg-base-300 flex flex-col h-full relative overflow-hidden"
             onDragOver={handleDragOver}
