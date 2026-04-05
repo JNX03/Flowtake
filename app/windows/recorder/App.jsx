@@ -37,7 +37,15 @@ const StyleTag = () => (
         }
         .rec-dot { animation: rec-pulse 1.2s ease-in-out infinite; }
         .countdown-num { animation: countdown-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        html, body { background: transparent !important; }
+
+        /* Kill any window border/background */
+        *, *::before, *::after { margin: 0; padding: 0; }
+        html, body, #root {
+            background: transparent !important;
+            border: none !important;
+            outline: none !important;
+            overflow: hidden;
+        }
 
         /* Dynamic Island morph */
         .island-pill {
@@ -65,9 +73,9 @@ const StyleTag = () => (
 
         /* Subtle glow on hover */
         .island-pill:hover {
-            box-shadow: 0 4px 30px rgba(0,0,0,0.55),
+            box-shadow: 0 4px 32px rgba(0,0,0,0.6),
                         0 0 0 1px rgba(255,255,255,0.08) inset,
-                        0 0 40px rgba(99,102,241,0.06);
+                        0 0 48px rgba(99,102,241,0.07);
         }
     `}</style>
 )
@@ -77,11 +85,11 @@ const pillBg = {
     background: "rgba(10, 10, 22, 0.94)",
     backdropFilter: "blur(24px) saturate(1.6)",
     WebkitBackdropFilter: "blur(24px) saturate(1.6)",
-    boxShadow: "0 2px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) inset",
+    boxShadow: "0 2px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset",
 }
 
 // Icon button component
-const Btn = ({ onClick, title, children, className = "", active }) => (
+const Btn = ({ onClick, title, children, className = "" }) => (
     <button
         onClick={onClick}
         title={title}
@@ -89,15 +97,12 @@ const Btn = ({ onClick, title, children, className = "", active }) => (
         style={{ WebkitAppRegion: "no-drag" }}
     >
         {children}
-        {active && (
-            <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-400" />
-        )}
     </button>
 )
 
 // Separator
 const Divider = () => (
-    <div className="w-px h-4 mx-1 flex-shrink-0 bg-white/[0.08] transition-opacity duration-200" />
+    <div className="w-px h-5 mx-1.5 flex-shrink-0 bg-white/[0.08]" />
 )
 
 export default function App() {
@@ -264,38 +269,38 @@ export default function App() {
     // ─── Pre-recording: countdown / loading ──────────────────────────
     if (!isRecording) {
         return (
-            <div className="h-full w-full flex items-center justify-center">
+            <div className="h-full w-full flex items-center justify-center" style={{ padding: 2 }}>
                 <StyleTag />
                 <div
-                    className="island-pill flex items-center justify-center gap-2.5 overflow-hidden"
+                    className="island-pill flex items-center justify-center gap-3 overflow-hidden"
                     style={{
                         ...pillBg,
-                        width: countdown !== null ? 130 : 120,
-                        height: 44,
-                        borderRadius: 22,
+                        width: countdown !== null ? 160 : 150,
+                        height: 52,
+                        borderRadius: 26,
                         WebkitAppRegion: "drag",
                     }}
                 >
                     {hasCam && (
-                        <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
                             <video ref={cameraVideoRef} autoPlay muted className="object-cover h-full w-full bg-base-300" />
                         </div>
                     )}
 
                     {countdown !== null ? (
                         <>
-                            <span key={countdown} className="countdown-num text-[22px] font-bold text-white tabular-nums leading-none">
+                            <span key={countdown} className="countdown-num text-[26px] font-bold text-white tabular-nums leading-none">
                                 {countdown}
                             </span>
                             <Btn onClick={onClickCancel} title="Cancel"
-                                className="w-6 h-6 rounded-full text-white/25 hover:text-white/60 hover:bg-white/[0.08]">
-                                <XMarkIcon className="size-3" />
+                                className="w-7 h-7 rounded-full text-white/25 hover:text-white/60 hover:bg-white/[0.08]">
+                                <XMarkIcon className="size-4" />
                             </Btn>
                         </>
                     ) : (
-                        <div className="flex items-center gap-1.5">
-                            <span className="loading loading-spinner loading-xs text-indigo-400" style={{ width: 12, height: 12 }}></span>
-                            <span className="text-[10px] text-white/30 font-medium">Preparing</span>
+                        <div className="flex items-center gap-2">
+                            <span className="loading loading-spinner loading-xs text-indigo-400" style={{ width: 14, height: 14 }}></span>
+                            <span className="text-[11px] text-white/30 font-medium">Preparing</span>
                         </div>
                     )}
                 </div>
@@ -307,6 +312,7 @@ export default function App() {
     return (
         <div
             className="h-full w-full flex items-center justify-center"
+            style={{ padding: 2 }}
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
@@ -315,31 +321,31 @@ export default function App() {
                 className="island-pill flex items-center overflow-hidden"
                 style={{
                     ...pillBg,
-                    width: isExpanded ? 360 : 160,
-                    height: isExpanded ? 48 : 36,
-                    borderRadius: isExpanded ? 24 : 18,
+                    width: isExpanded ? 440 : 190,
+                    height: isExpanded ? 56 : 44,
+                    borderRadius: isExpanded ? 28 : 22,
                     WebkitAppRegion: "drag",
                 }}
             >
-                <div className="flex items-center w-full h-full px-2.5">
+                <div className="flex items-center w-full h-full px-3.5">
 
                     {/* ── Left: always visible ── */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         {hasCam && (
-                            <div className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
+                            <div className="relative w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
                                 <video ref={cameraVideoRef} autoPlay muted
                                     className={`object-cover h-full w-full bg-base-300 transition-opacity duration-200 ${isCameraOff ? 'opacity-0' : ''}`}
                                 />
                                 {isCameraOff && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-base-300">
-                                        <VideoCameraSlashIcon className="size-2.5 opacity-30" />
+                                        <VideoCameraSlashIcon className="size-3 opacity-30" />
                                     </div>
                                 )}
                             </div>
                         )}
-                        <div className={`rec-dot w-[6px] h-[6px] rounded-full flex-shrink-0 ${isPaused ? 'bg-amber-400' : 'bg-red-500'}`}
+                        <div className={`rec-dot w-[7px] h-[7px] rounded-full flex-shrink-0 ${isPaused ? 'bg-amber-400' : 'bg-red-500'}`}
                             style={isPaused ? { animation: 'none' } : {}} />
-                        <span className="font-semibold text-[11px] tabular-nums tracking-tight text-white/90 min-w-[34px]"
+                        <span className="font-semibold text-[13px] tabular-nums tracking-tight text-white/90 min-w-[40px]"
                             style={{ fontVariantNumeric: "tabular-nums" }}>
                             {formattedTime}
                         </span>
@@ -350,12 +356,12 @@ export default function App() {
                         <Divider />
                         {hasMic && (
                             <Btn onClick={toggleMic} title={isMicMuted ? "Unmute mic" : "Mute mic"}
-                                className={`w-6 h-6 rounded-md ${isMicMuted ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
+                                className={`w-8 h-8 rounded-lg ${isMicMuted ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
                                 <div className="relative">
-                                    <MicrophoneIcon className="size-3" />
+                                    <MicrophoneIcon className="size-4" />
                                     {isMicMuted && (
                                         <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-[1px] h-3 bg-red-400/80 rotate-45 rounded-full" />
+                                            <div className="w-[1.5px] h-4 bg-red-400/80 rotate-45 rounded-full" />
                                         </div>
                                     )}
                                 </div>
@@ -363,24 +369,24 @@ export default function App() {
                         )}
                         {hasCam && (
                             <Btn onClick={toggleCamera} title={isCameraOff ? "Camera on" : "Camera off"}
-                                className={`w-6 h-6 rounded-md ${isCameraOff ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
-                                {isCameraOff ? <VideoCameraSlashIcon className="size-3" /> : <VideoCameraIcon className="size-3" />}
+                                className={`w-8 h-8 rounded-lg ${isCameraOff ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
+                                {isCameraOff ? <VideoCameraSlashIcon className="size-4" /> : <VideoCameraIcon className="size-4" />}
                             </Btn>
                         )}
-                        <div className="w-px h-3 mx-0.5 bg-white/[0.04]" />
+                        <div className="w-px h-3.5 mx-1 bg-white/[0.04]" />
                         <Btn onClick={openTeleprompter} title="Teleprompter"
-                            className="w-6 h-6 rounded-md text-white/40 hover:text-indigo-300 hover:bg-indigo-500/10">
-                            <DocumentTextIcon className="size-3" />
+                            className="w-8 h-8 rounded-lg text-white/40 hover:text-indigo-300 hover:bg-indigo-500/10">
+                            <DocumentTextIcon className="size-4" />
                         </Btn>
                         <Btn onClick={takeScreenshot} title="Screenshot"
-                            className="w-6 h-6 rounded-md text-white/40 hover:text-amber-300 hover:bg-amber-500/10">
-                            <CameraIcon className="size-3" />
+                            className="w-8 h-8 rounded-lg text-white/40 hover:text-amber-300 hover:bg-amber-500/10">
+                            <CameraIcon className="size-4" />
                         </Btn>
                         <Btn onClick={toggleDrawing} title="Draw on screen"
-                            className={`relative w-6 h-6 rounded-md ${isDrawing ? "text-indigo-400 bg-indigo-500/15" : "text-white/40 hover:text-emerald-300 hover:bg-emerald-500/10"}`}>
-                            <PencilIcon className="size-3" />
+                            className={`relative w-8 h-8 rounded-lg ${isDrawing ? "text-indigo-400 bg-indigo-500/15" : "text-white/40 hover:text-emerald-300 hover:bg-emerald-500/10"}`}>
+                            <PencilIcon className="size-4" />
                             {isDrawing && (
-                                <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-400" />
+                                <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-indigo-400" />
                             )}
                         </Btn>
                     </div>
@@ -392,31 +398,31 @@ export default function App() {
                     <div className={`flex items-center gap-0.5 flex-shrink-0 expand-fade ${isExpanded ? 'expand-fade-visible' : 'expand-fade-hidden'}`}>
                         <Divider />
                         <Btn onClick={onClickRestart} title="Restart"
-                            className="w-6 h-6 rounded-md text-white/20 hover:text-white/50 hover:bg-white/[0.06]">
-                            <ArrowPathIcon className="size-3" />
+                            className="w-8 h-8 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.06]">
+                            <ArrowPathIcon className="size-4" />
                         </Btn>
                         <Btn onClick={onClickCancel} title="Discard"
-                            className="w-6 h-6 rounded-md text-white/20 hover:text-red-400/80 hover:bg-red-500/10">
-                            <TrashIcon className="size-3" />
+                            className="w-8 h-8 rounded-lg text-white/20 hover:text-red-400/80 hover:bg-red-500/10">
+                            <TrashIcon className="size-4" />
                         </Btn>
 
                         {/* Pause / Resume */}
                         {!isPaused ? (
                             <Btn onClick={onClickPause} title="Pause"
-                                className="w-7 h-7 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-white/60 hover:text-white/90">
-                                <PauseIcon className="size-3.5" />
+                                className="w-9 h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white/60 hover:text-white/90">
+                                <PauseIcon className="size-[18px]" />
                             </Btn>
                         ) : (
                             <Btn onClick={onClickResume} title="Resume"
-                                className="w-7 h-7 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400">
-                                <PlayIcon className="size-3.5" />
+                                className="w-9 h-9 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400">
+                                <PlayIcon className="size-[18px]" />
                             </Btn>
                         )}
 
                         {/* Stop — primary action */}
                         <Btn onClick={onClickStop} title="Stop & save"
-                            className="w-7 h-7 rounded-lg bg-red-500 hover:bg-red-400 active:bg-red-600 text-white ml-0.5">
-                            <StopIcon className="size-3.5" />
+                            className="w-9 h-9 rounded-xl bg-red-500 hover:bg-red-400 active:bg-red-600 text-white ml-0.5">
+                            <StopIcon className="size-[18px]" />
                         </Btn>
                     </div>
                 </div>
