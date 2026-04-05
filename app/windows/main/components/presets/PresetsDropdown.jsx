@@ -83,7 +83,7 @@ export default function PresetsDropdown() {
             >
                 Presets
             </Button>
-            <ul className="dropdown-content menu menu-sm border-base-300/10 border-2 bg-base-300/70 backdrop-blur-md rounded-lg shadow-lg w-72 mt-2">
+            <ul className="dropdown-content menu menu-sm border-base-300/10 border-2 bg-base-300/70 text-base-content backdrop-blur-md rounded-lg shadow-lg w-72 mt-2">
                 {!isPending && !isError && <>
                     {presets.items.map((preset, i) =>
                         <Preset key={i} presetDescriptor={preset} onRename={onRename} onDirty={refetch} />)}

@@ -95,7 +95,7 @@ export default function ExportButton() {
                 >
                     Exports
                 </Button>
-                <ul className="dropdown-content menu menu-sm border-base-300/10 border-2 bg-base-300/70 backdrop-blur-md rounded-lg shadow-lg w-72 mt-2">
+                <ul className="dropdown-content menu menu-sm border-base-300/10 border-2 bg-base-300/70 text-base-content backdrop-blur-md rounded-lg shadow-lg w-72 mt-2">
                     {hasProject && (
                         <li>
                             <button onClick={onNew} disabled={isClicked}><PlusIcon className="size-5" />New</button>

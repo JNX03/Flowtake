@@ -39,7 +39,7 @@ export default function AspectRatioDropdown() {
         <div ref={aspectRatioButtonRef} tabIndex={0} role="button" className="btn btn-sm w-28">
             {buttonContent(aspectRatio)}
         </div>
-        <ul tabIndex={0} className="dropdown-content menu menu-sm bg-base-300 rounded-lg z-1 w-28 shadow-sm">
+        <ul tabIndex={0} className="dropdown-content menu menu-sm bg-base-300 text-base-content rounded-lg z-1 w-28 shadow-sm">
             <li><button onClick={e => onClick(e, "16x9")}>{menuItemContent("16x9")}</button></li>
             <li><button onClick={e => onClick(e, "9x16")}>{menuItemContent("9x16")}</button></li>
             <li><button onClick={e => onClick(e, "1x1")}>{menuItemContent("1x1")}</button></li>

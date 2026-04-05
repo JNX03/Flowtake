@@ -58,23 +58,23 @@ export default function RecorderSettings() {
     const refreshCapturers = useCallback(async () => {
         setUserCapturer("")
         dispatch(setCapturers([]))
-        dispatch(setCapturers(await window.electron.ipcRenderer.invoke("get-capturers", true)))
+        dispatch(setCapturers(await window.electron.ipcRenderer.invoke("get-capturers", true) || []))
     }, [dispatch])
 
     const onSelectCapturer = useCallback(async ({ target }) => {
         setUserCapturer(target.value)
-        dispatch(setCapturers(await window.electron.ipcRenderer.invoke("set-capturer", target.value)))
+        dispatch(setCapturers(await window.electron.ipcRenderer.invoke("set-capturer", target.value) || []))
     }, [dispatch])
 
     const refreshEncoders = useCallback(async () => {
         setUserEncoder("")
         dispatch(setEncoders([]))
-        dispatch(setEncoders(await window.electron.ipcRenderer.invoke("get-encoders", true)))
+        dispatch(setEncoders(await window.electron.ipcRenderer.invoke("get-encoders", true) || []))
     }, [dispatch])
 
     const onSelectEncoder = useCallback(async ({ target }) => {
         setUserEncoder(target.value)
-        dispatch(setEncoders(await window.electron.ipcRenderer.invoke("set-encoder", target.value)))
+        dispatch(setEncoders(await window.electron.ipcRenderer.invoke("set-encoder", target.value) || []))
     }, [dispatch])
 
     const onSelectFps = async newFps => {

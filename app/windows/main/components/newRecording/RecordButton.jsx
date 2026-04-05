@@ -123,8 +123,8 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
   return (<>
     <Button
       onClick={onClick}
-      isLoading={isPending || capturers.length === 0 || encoders.length === 0}
-      disabled={isPending || capturers.length === 0 || encoders.length === 0}
+      isLoading={isPending || !capturers?.length || !encoders?.length}
+      disabled={isPending || !capturers?.length || !encoders?.length}
       icon={ArrowRightIcon}
       className="btn-primary"
     >
