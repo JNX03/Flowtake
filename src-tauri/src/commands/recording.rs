@@ -826,9 +826,9 @@ pub async fn init_recording(
         .get_webview_window("main")
         .and_then(|w| w.current_monitor().ok().flatten());
 
-    let overlay_w = 200.0;
-    let overlay_h = 20.0;
-    let margin = 16.0;
+    let overlay_w = 400.0;
+    let overlay_h = 64.0;
+    let margin = 12.0;
 
     let win_x = if let Some(m) = &monitor {
         let size = m.size();
@@ -2081,6 +2081,71 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
         } else {
             Err(AppError::General("Screenshot capture failed".to_string()))
         }
+    }
+}
+
+#[tauri::command]
+pub async fn take_recording_screenshot(app: AppHandle) -> AppResult<String> {
+    let state = app.state::<Mutex<AppState>>();
+    let temp_dir = {
+        let s = state.lock().unwrap();
+        s.temp_dir.clone()
+    };
+
+    let screenshots_dir = temp_dir.join("screenshots");
+    std::fs::create_dir_all(&screenshots_dir).ok();
+
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
+    let screenshot_path = screenshots_dir.join(format!("screenshot_{}.png", timestamp));
+    let screenshot_str = screenshot_path.to_string_lossy().to_string();
+
+    // Get screen dimensions
+    let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
+        if let Ok(Some(monitor)) = main_win.current_monitor() {
+            let size = monitor.size();
+            #[cfg(target_os = "windows")]
+            { (size.width as i64, size.height as i64) }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let scale = monitor.scale_factor();
+                ((size.width as f64 / scale) as i64, (size.height as f64 / scale) as i64)
+            }
+        } else {
+            (1920i64, 1080i64)
+        }
+    } else {
+        (1920i64, 1080i64)
+    };
+
+    let args = build_screenshot_args(0, 0, screen_w, screen_h, &screenshot_str);
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let _output = run_ffmpeg(&args_refs).await?;
+
+    if screenshot_path.exists() {
+        // Open the screenshots folder in the file explorer
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("explorer")
+                .arg("/select,")
+                .arg(&screenshot_str)
+                .spawn();
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("open")
+                .arg("-R")
+                .arg(&screenshot_str)
+                .spawn();
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let _ = std::process::Command::new("xdg-open")
+                .arg(screenshots_dir.to_string_lossy().to_string())
+                .spawn();
+        }
+        Ok(screenshot_str)
+    } else {
+        Err(AppError::General("Screenshot capture failed".to_string()))
     }
 }
 
