@@ -221,7 +221,7 @@ export default class WorkerManager {
             return { bmp: await createImageBitmap(img), error: false }
         } catch (error) {
             console.warn('Failed to load image:', src, error)
-            return { bmp: null, error }
+            return { bmp: null, error: true }
         }
     }
 
