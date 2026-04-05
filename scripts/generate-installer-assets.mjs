@@ -165,7 +165,10 @@ function pngChunk(type, data) {
   return Buffer.concat([len, typeAndData, crc]);
 }
 
-function createPNG(width, height, pixels) {
+function createPNG(width, height, pixels, { rgba = false } = {}) {
+  const channels = rgba ? 4 : 3;
+  const colorType = rgba ? 6 : 2; // 6 = RGBA, 2 = RGB
+
   // PNG signature
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -173,26 +176,32 @@ function createPNG(width, height, pixels) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;  // bit depth
-  ihdr[9] = 2;  // color type (RGB)
-  ihdr[10] = 0; // compression
-  ihdr[11] = 0; // filter
-  ihdr[12] = 0; // interlace
+  ihdr[8] = 8;         // bit depth
+  ihdr[9] = colorType; // color type
+  ihdr[10] = 0;        // compression
+  ihdr[11] = 0;        // filter
+  ihdr[12] = 0;        // interlace
 
   // IDAT - raw pixel data with filter byte per row
-  const rawData = Buffer.alloc(height * (1 + width * 3));
+  const rowBytes = width * channels;
+  const rawData = Buffer.alloc(height * (1 + rowBytes));
   for (let y = 0; y < height; y++) {
-    const rowOffset = y * (1 + width * 3);
+    const rowOffset = y * (1 + rowBytes);
     rawData[rowOffset] = 0; // no filter
     for (let x = 0; x < width; x++) {
-      const srcIdx = (y * width + x) * 3;
-      const dstIdx = rowOffset + 1 + x * 3;
+      const srcIdx = (y * width + x) * channels;
+      const dstIdx = rowOffset + 1 + x * channels;
       rawData[dstIdx] = pixels[srcIdx];
       rawData[dstIdx + 1] = pixels[srcIdx + 1];
       rawData[dstIdx + 2] = pixels[srcIdx + 2];
+      if (rgba) rawData[dstIdx + 3] = pixels[srcIdx + 3];
     }
   }
   const compressed = zlib.deflateSync(rawData);
+
+  // sRGB chunk - rendering intent 0 (perceptual) for proper macOS color
+  const srgb = Buffer.alloc(1);
+  srgb[0] = 0;
 
   // pHYs chunk - 144 DPI (5669 pixels/meter) for Retina @2x
   const phys = Buffer.alloc(9);
@@ -206,6 +215,7 @@ function createPNG(width, height, pixels) {
   return Buffer.concat([
     signature,
     pngChunk('IHDR', ihdr),
+    pngChunk('sRGB', srgb),
     pngChunk('pHYs', phys),
     pngChunk('IDAT', compressed),
     pngChunk('IEND', iend),
@@ -510,7 +520,16 @@ function generateDMGBackground() {
   const verW = textWidth(verText, verScale);
   drawText(pixels, W, H, verText, Math.round((W - verW) / 2), 370 * S, verScale, GRAY);
 
-  return createPNG(W, H, pixels);
+  // Convert RGB to RGBA (macOS Finder requires alpha channel for DMG backgrounds)
+  const rgbaPixels = Buffer.alloc(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    rgbaPixels[i * 4]     = pixels[i * 3];
+    rgbaPixels[i * 4 + 1] = pixels[i * 3 + 1];
+    rgbaPixels[i * 4 + 2] = pixels[i * 3 + 2];
+    rgbaPixels[i * 4 + 3] = 255; // fully opaque
+  }
+
+  return createPNG(W, H, rgbaPixels, { rgba: true });
 }
 
 // ─── Generate License RTF ───────────────────────────────────────────
