@@ -219,6 +219,138 @@ pub fn run() {
                     .unwrap()
             })
         })
+        // Register image:// protocol for serving background images and wallpaper thumbnails
+        .register_uri_scheme_protocol("image", |ctx, request| {
+            let app = ctx.app_handle();
+            let state = app.state::<Mutex<AppState>>();
+
+            let uri = request.uri().to_string();
+
+            // Parse path and query from URI
+            // Windows WebView2: http://image.localhost/background?renderId=xxx
+            // Other platforms: image://background?renderId=xxx or image://localhost/background?...
+            let (path_part, query) = if let Some(q_pos) = uri.find('?') {
+                (&uri[..q_pos], &uri[q_pos + 1..])
+            } else {
+                (uri.as_str(), "")
+            };
+
+            let image_type = if path_part.contains("localhost") {
+                path_part.rsplit('/').next().unwrap_or("")
+            } else if let Some(stripped) = path_part.strip_prefix("image://") {
+                stripped
+            } else {
+                path_part.rsplit('/').next().unwrap_or("")
+            };
+            let image_type = image_type.trim_start_matches('/');
+
+            // Parse query parameters
+            let get_param = |key: &str| -> Option<String> {
+                query.split('&').find_map(|p| {
+                    let mut parts = p.splitn(2, '=');
+                    if parts.next() == Some(key) {
+                        parts.next().map(|s| {
+                            percent_encoding::percent_decode_str(s)
+                                .decode_utf8_lossy()
+                                .to_string()
+                        })
+                    } else {
+                        None
+                    }
+                })
+            };
+
+            let file_path = {
+                let state = state.lock().unwrap();
+
+                match image_type {
+                    "background" => {
+                        // Resolve project_id: try renderId lookup, fall back to current project
+                        let render_id = get_param("renderId");
+                        let project_id = render_id
+                            .as_deref()
+                            .filter(|id| *id != "null" && !id.is_empty())
+                            .and_then(|rid| state.renders.get(rid).map(|r| r.project_id.clone()))
+                            .or_else(|| state.project_id.clone());
+
+                        match project_id {
+                            Some(pid) => state.background_file(&pid),
+                            None => {
+                                return tauri::http::Response::builder()
+                                    .status(404)
+                                    .body(Vec::<u8>::new())
+                                    .unwrap();
+                            }
+                        }
+                    }
+                    "wallpaper" => {
+                        let filename = match get_param("path") {
+                            Some(f) => f,
+                            None => {
+                                return tauri::http::Response::builder()
+                                    .status(400)
+                                    .body(Vec::<u8>::new())
+                                    .unwrap();
+                            }
+                        };
+
+                        // Prevent path traversal
+                        if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+                            return tauri::http::Response::builder()
+                                .status(400)
+                                .body(Vec::<u8>::new())
+                                .unwrap();
+                        }
+
+                        state.app_data_dir.join("wallpapers").join(&filename)
+                    }
+                    _ => {
+                        return tauri::http::Response::builder()
+                            .status(404)
+                            .body(Vec::<u8>::new())
+                            .unwrap();
+                    }
+                }
+            };
+
+            if !file_path.exists() {
+                return tauri::http::Response::builder()
+                    .status(404)
+                    .body(Vec::<u8>::new())
+                    .unwrap();
+            }
+
+            let data = match std::fs::read(&file_path) {
+                Ok(d) => d,
+                Err(_) => {
+                    return tauri::http::Response::builder()
+                        .status(500)
+                        .body(Vec::<u8>::new())
+                        .unwrap();
+                }
+            };
+
+            let mime_type = match file_path.extension().and_then(|e| e.to_str()) {
+                Some("png") => "image/png",
+                Some("jpg") | Some("jpeg") => "image/jpeg",
+                Some("webp") => "image/webp",
+                Some("gif") => "image/gif",
+                _ => "application/octet-stream",
+            };
+
+            tauri::http::Response::builder()
+                .status(200)
+                .header("Content-Type", mime_type)
+                .header("Content-Length", data.len().to_string())
+                .header("Access-Control-Allow-Origin", "*")
+                .body(data)
+                .unwrap_or_else(|_| {
+                    tauri::http::Response::builder()
+                        .status(500)
+                        .body(Vec::<u8>::new())
+                        .unwrap()
+                })
+        })
         .invoke_handler(tauri::generate_handler![
             // Store
             commands::store::store_get,
@@ -295,6 +427,7 @@ pub fn run() {
             commands::windows::toggle_drawing_overlay,
             // App
             commands::app::get_version,
+            commands::app::get_system_info,
             commands::app::get_machine_id,
             commands::app::get_is_sentry_enabled,
             commands::app::check_permissions,
