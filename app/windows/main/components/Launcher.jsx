@@ -106,7 +106,7 @@ export default function Launcher() {
           </div>
 
           {/* Bottom bar */}
-          <div className="flex-shrink-0 pt-3 flex items-center justify-between text-[10px] text-base-content/25">
+          <div className="flex-shrink-0 pt-3 flex items-center justify-between text-[10px] text-base-content/25 pointer-events-none">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
                 <kbd className="kbd kbd-xs">Ctrl</kbd>+<kbd className="kbd kbd-xs">,</kbd> Settings

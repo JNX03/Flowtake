@@ -88,13 +88,13 @@ const pillBg = {
     boxShadow: "0 2px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset",
 }
 
-// Icon button component
+// Icon button component — uses relative positioning + z-index to ensure clickability over drag region
 const Btn = ({ onClick, title, children, className = "" }) => (
     <button
         onClick={onClick}
         title={title}
-        className={`flex items-center justify-center transition-all duration-100 cursor-pointer flex-shrink-0 active:scale-90 ${className}`}
-        style={{ WebkitAppRegion: "no-drag" }}
+        className={`relative z-10 flex items-center justify-center transition-all duration-100 cursor-pointer flex-shrink-0 active:scale-90 ${className}`}
+        style={{ WebkitAppRegion: "no-drag", WebkitUserSelect: "none" }}
     >
         {children}
     </button>
@@ -311,26 +311,26 @@ export default function App() {
     // ─── Recording: Dynamic Island ───────────────────────────────────
     return (
         <div
-            className="h-full w-full flex items-center justify-center"
-            style={{ padding: 2 }}
+            className="h-full w-full flex items-start justify-center"
+            style={{ WebkitAppRegion: "drag" }}
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
             <StyleTag />
             <div
-                className="island-pill flex items-center overflow-hidden"
+                className="island-pill flex items-center overflow-hidden mt-1"
                 style={{
                     ...pillBg,
-                    width: isExpanded ? 440 : 190,
+                    width: isExpanded ? 440 : 220,
                     height: isExpanded ? 56 : 44,
                     borderRadius: isExpanded ? 28 : 22,
-                    WebkitAppRegion: "drag",
+                    WebkitAppRegion: "no-drag",
                 }}
             >
-                <div className="flex items-center w-full h-full px-3.5">
+                <div className={`flex items-center w-full h-full ${isExpanded ? 'px-4' : 'justify-center px-3'}`}>
 
                     {/* ── Left: always visible ── */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className={`flex items-center gap-2 flex-shrink-0 ${isExpanded ? 'ml-2' : ''}`}>
                         {hasCam && (
                             <div className="relative w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
                                 <video ref={cameraVideoRef} autoPlay muted
@@ -351,8 +351,8 @@ export default function App() {
                         </span>
                     </div>
 
-                    {/* ── Center: expand-fade (device toggles + tools) ── */}
-                    <div className={`flex items-center flex-shrink-0 expand-fade ${isExpanded ? 'expand-fade-visible' : 'expand-fade-hidden'}`}>
+                    {/* ── Center: device toggles + tools ── */}
+                    <div className={`flex items-center flex-shrink-0 ml-2 ${isExpanded ? '' : 'hidden'}`}>
                         <Divider />
                         {hasMic && (
                             <Btn onClick={toggleMic} title={isMicMuted ? "Unmute mic" : "Mute mic"}
@@ -394,8 +394,8 @@ export default function App() {
                     {/* ── Spacer ── */}
                     <div className="flex-1 min-w-0" />
 
-                    {/* ── Right: expand-fade (actions) ── */}
-                    <div className={`flex items-center gap-0.5 flex-shrink-0 expand-fade ${isExpanded ? 'expand-fade-visible' : 'expand-fade-hidden'}`}>
+                    {/* ── Right: actions ── */}
+                    <div className={`flex items-center gap-0.5 flex-shrink-0 ${isExpanded ? '' : 'hidden'}`}>
                         <Divider />
                         <Btn onClick={onClickRestart} title="Restart"
                             className="w-8 h-8 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.06]">
