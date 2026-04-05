@@ -11,7 +11,10 @@ use windows::core::BOOL;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowTextW, GetWindowTextLengthW,
     GetWindowThreadProcessId,
+    SystemParametersInfoW, SPI_GETWORKAREA,
 };
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::RECT;
 
 #[tauri::command]
 pub async fn close_window(app: AppHandle) -> AppResult<()> {
@@ -36,29 +39,61 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
         main_win.hide().map_err(AppError::Tauri)?;
     }
 
-    // Get primary monitor dimensions
-    let (mon_w, mon_h) = {
+    // Get work area dimensions (screen minus taskbar on Windows)
+    let (overlay_x, overlay_y, overlay_w, overlay_h) = {
         let monitors = app.available_monitors().unwrap_or_default();
-        if let Some(monitor) = monitors.first() {
-            let size = monitor.size();
-            let scale = monitor.scale_factor();
-            ((size.width as f64 / scale), (size.height as f64 / scale))
-        } else {
-            (1920.0, 1080.0)
+        let scale = monitors.first().map(|m| m.scale_factor()).unwrap_or(1.0);
+
+        #[cfg(target_os = "windows")]
+        {
+            let mut work_area = RECT::default();
+            let result = unsafe {
+                SystemParametersInfoW(
+                    SPI_GETWORKAREA,
+                    0,
+                    Some(&mut work_area as *mut RECT as *mut std::ffi::c_void),
+                    Default::default(),
+                )
+            };
+            if result.is_ok() {
+                (
+                    work_area.left as f64 / scale,
+                    work_area.top as f64 / scale,
+                    (work_area.right - work_area.left) as f64 / scale,
+                    (work_area.bottom - work_area.top) as f64 / scale,
+                )
+            } else {
+                if let Some(monitor) = monitors.first() {
+                    let size = monitor.size();
+                    (0.0, 0.0, size.width as f64 / scale, size.height as f64 / scale)
+                } else {
+                    (0.0, 0.0, 1920.0, 1080.0)
+                }
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Some(monitor) = monitors.first() {
+                let size = monitor.size();
+                (0.0, 0.0, size.width as f64 / scale, size.height as f64 / scale)
+            } else {
+                (0.0, 0.0, 1920.0, 1080.0)
+            }
         }
     };
 
-    log::info!("[window_picker] Monitor size: {}x{}", mon_w, mon_h);
+    log::info!("[window_picker] Overlay area: {}x{} at ({}, {})", overlay_w, overlay_h, overlay_x, overlay_y);
 
-    // Transparent fullscreen overlay with window outlines
+    // Transparent overlay with window outlines (excludes taskbar)
     let _window = WebviewWindowBuilder::new(
         &app,
         "windowPicker",
         WebviewUrl::App("app/windows/windowPicker/index.html".into()),
     )
     .title("Select Window - Flowtake")
-    .inner_size(mon_w, mon_h)
-    .position(0.0, 0.0)
+    .inner_size(overlay_w, overlay_h)
+    .position(overlay_x, overlay_y)
     .resizable(false)
     .decorations(false)
     .transparent(true)

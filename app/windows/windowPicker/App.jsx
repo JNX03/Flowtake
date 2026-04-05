@@ -70,9 +70,7 @@ export default function App() {
             </div>
 
             {/* Highlight the detected window */}
-            {activeWindow && (
-                <WindowOutline dimensions={activeWindow} name={activeWindow.name} />
-            )}
+            <WindowOutline activeWindow={activeWindow} />
         </div>
     )
 }
