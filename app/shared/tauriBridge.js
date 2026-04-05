@@ -30,6 +30,7 @@ const COMMAND_MAP = {
     'cancel-recording': 'cancel_recording',
     'get-camera-mic-config': 'get_camera_mic_config',
     'get-source-screenshot': 'get_source_screenshot',
+    'take-recording-screenshot': 'take_recording_screenshot',
     'init-camera-file': 'init_camera_file',
     'enqueue-camera-chunk': 'enqueue_camera_chunk',
     'finalize-camera-file': 'finalize_camera_file',
@@ -77,6 +78,7 @@ const COMMAND_MAP = {
     'close-area-picker-window': 'close_area_picker_window',
     'select-area': 'select_area',
     'add-note': 'add_note',
+    'toggle-drawing-overlay': 'toggle_drawing_overlay',
     'get-window-at-point': 'get_window_at_point',
     'get-monitors': 'get_monitors',
     // App

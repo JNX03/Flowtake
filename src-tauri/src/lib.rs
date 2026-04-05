@@ -243,6 +243,7 @@ pub fn run() {
             commands::recording::init_camera_file,
             commands::recording::enqueue_camera_chunk,
             commands::recording::finalize_camera_file,
+            commands::recording::take_recording_screenshot,
             // Exporter
             commands::exporter::open_export_window,
             commands::exporter::close_export_window,
@@ -289,6 +290,7 @@ pub fn run() {
             commands::windows::add_note,
             commands::windows::get_window_at_point,
             commands::windows::get_monitors,
+            commands::windows::toggle_drawing_overlay,
             // App
             commands::app::get_version,
             commands::app::get_machine_id,

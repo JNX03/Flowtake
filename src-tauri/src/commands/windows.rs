@@ -71,6 +71,46 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn toggle_drawing_overlay(app: AppHandle) -> AppResult<()> {
+    // If drawing window exists, close it
+    if let Some(win) = app.get_webview_window("drawingOverlay") {
+        win.close().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    // Get primary monitor dimensions
+    let (mon_w, mon_h) = {
+        let monitors = app.available_monitors().unwrap_or_default();
+        if let Some(monitor) = monitors.first() {
+            let size = monitor.size();
+            let scale = monitor.scale_factor();
+            ((size.width as f64 / scale), (size.height as f64 / scale))
+        } else {
+            (1920.0, 1080.0)
+        }
+    };
+
+    let _window = WebviewWindowBuilder::new(
+        &app,
+        "drawingOverlay",
+        WebviewUrl::App("app/windows/drawing/index.html".into()),
+    )
+    .title("Drawing - Flowtake")
+    .inner_size(mon_w, mon_h)
+    .position(0.0, 0.0)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .content_protected(false) // drawings must be visible in the recording
+    .build()
+    .map_err(AppError::Tauri)?;
+
+    Ok(())
+}
+
 /// Capture a desktop screenshot and save it to temp dir for the window/area picker background
 /// Capture the desktop to a BMP file using native GDI (Windows only).
 /// Much faster than spawning FFmpeg (~20ms vs ~3s).

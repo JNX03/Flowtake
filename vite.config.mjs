@@ -67,6 +67,7 @@ export default defineConfig({
         recorder: resolve(__dirname, 'app/windows/recorder/index.html'),
         windowPicker: resolve(__dirname, 'app/windows/windowPicker/index.html'),
         exporter: resolve(__dirname, 'app/windows/exporter/index.html'),
+        drawing: resolve(__dirname, 'app/windows/drawing/index.html'),
       }
     }
   },

@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window and all sub-windows",
-  "windows": ["main", "recorder", "exporter", "areaPicker", "windowPicker", "note-*"],
+  "windows": ["main", "recorder", "exporter", "areaPicker", "windowPicker", "note-*", "drawingOverlay"],
   "permissions": [
     "core:default",
     "core:window:default",
