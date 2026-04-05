@@ -1367,7 +1367,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                 dest_video.metadata().map(|m| m.len()).unwrap_or(0)
             );
 
-            let (source_name, left_trim, right_trim, top_trim, bottom_trim) = {
+            let (source_name, left_trim, right_trim, top_trim, bottom_trim, has_camera, has_mic) = {
                 let s = state.lock().unwrap();
                 let config = s.camera_mic_config.as_ref();
                 let name = config
@@ -1375,7 +1375,66 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("Recording")
                     .to_string();
-                (name, 0, 0, 0, 0)
+                let has_camera = config
+                    .and_then(|c| c.get("videoTrack"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false);
+                let has_mic = config
+                    .and_then(|c| c.get("audioTrack"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false);
+                (name, 0, 0, 0, 0, has_camera, has_mic)
+            };
+
+            // Copy camera.webm from recording temp to project temp if camera/mic was used
+            let has_camera_file = if has_camera || has_mic {
+                let camera_src = {
+                    let state_lock = state.lock().unwrap();
+                    state_lock.camera_video_file(rid)
+                };
+                if camera_src.exists() && camera_src.metadata().map(|m| m.len() > 0).unwrap_or(false) {
+                    let camera_dest = project_temp.join("camera.webm");
+                    log::info!(
+                        "[stop_recording] Copying camera file: {:?} -> {:?} (size={})",
+                        camera_src, camera_dest, camera_src.metadata().map(|m| m.len()).unwrap_or(0)
+                    );
+                    if std::fs::rename(&camera_src, &camera_dest).is_err() {
+                        log::warn!("[stop_recording] camera rename failed, trying copy");
+                        if let Err(e) = std::fs::copy(&camera_src, &camera_dest) {
+                            log::error!("[stop_recording] camera copy also failed: {}", e);
+                            false
+                        } else {
+                            std::fs::remove_file(&camera_src).ok();
+                            true
+                        }
+                    } else {
+                        true
+                    }
+                } else {
+                    log::warn!("[stop_recording] Camera file not found or empty at {:?}", camera_src);
+                    false
+                }
+            } else {
+                false
+            };
+
+            // Get camera video dimensions if camera was recorded
+            let camera_dims = if has_camera_file && has_camera {
+                let camera_path = project_temp.join("camera.webm");
+                match get_video_dimensions(&camera_path).await {
+                    Ok((w, h)) => {
+                        log::info!("[stop_recording] Camera dimensions: {}x{}", w, h);
+                        Some((w, h))
+                    }
+                    Err(e) => {
+                        log::warn!("[stop_recording] Could not probe camera dimensions ({}), using defaults", e);
+                        Some((1280, 720))
+                    }
+                }
+            } else {
+                None
             };
 
             let duration_ms = get_video_duration_ms(&app, &dest_video)
@@ -1383,15 +1442,20 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                 .unwrap_or_else(|_| (stop_timestamp - recording_start_ts).max(1000));
             log::info!("[stop_recording] Video duration: {}ms", duration_ms);
 
+            let camera_dims_json = match camera_dims {
+                Some((w, h)) => serde_json::json!({"x": w, "y": h}),
+                None => serde_json::json!(null),
+            };
+
             let project_json = serde_json::json!({
                 "version": 1,
                 "project": {
                     "id": pid,
                     "name": source_name,
-                    "hasCameraVideo": false,
-                    "hasMicrophoneAudio": false,
+                    "hasCameraVideo": has_camera && has_camera_file,
+                    "hasMicrophoneAudio": has_mic && has_camera_file,
                     "hasSystemAudio": false,
-                    "cameraVideoDimensions": null,
+                    "cameraVideoDimensions": camera_dims_json,
                     "padding": 1,
                     "borderRadius": 0,
                     "mouseEvents": mouse_events,
@@ -1447,6 +1511,20 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     if let Ok(mut video_file) = std::fs::File::open(&dest_video) {
                         zip.start_file("screen.mp4", options).ok();
                         std::io::copy(&mut video_file, &mut zip).ok();
+                    }
+                }
+
+                // Add camera.webm to zip if present
+                if has_camera_file {
+                    let camera_dest = project_temp.join("camera.webm");
+                    if let Ok(mut camera_file) = std::fs::File::open(&camera_dest) {
+                        let camera_size = camera_dest.metadata().map(|m| m.len()).unwrap_or(0);
+                        log::info!(
+                            "[stop_recording] Adding camera video to zip, size={}",
+                            camera_size
+                        );
+                        zip.start_file("camera.webm", options).ok();
+                        std::io::copy(&mut camera_file, &mut zip).ok();
                     }
                 }
 
@@ -1647,6 +1725,38 @@ async fn get_video_duration_ms(
     }
 
     Err("Could not parse duration".to_string())
+}
+
+/// Get video dimensions (width, height) using FFmpeg
+async fn get_video_dimensions(
+    video_path: &std::path::Path,
+) -> Result<(i64, i64), String> {
+    let path_str = video_path.to_string_lossy().to_string();
+    let output = run_ffmpeg(&["-i", &path_str, "-f", "null", "-"])
+        .await
+        .map_err(|e| format!("FFmpeg error: {}", e))?;
+
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    // Parse "Video: ... 1280x720" or similar from FFmpeg stderr
+    for line in stderr.lines() {
+        if line.contains("Video:") {
+            // Look for WxH pattern like "1280x720" in the Video stream line
+            for part in line.split(|c: char| c == ',' || c == ' ') {
+                let part = part.trim();
+                if let Some(x_pos) = part.find('x') {
+                    let w_str = &part[..x_pos];
+                    let h_str = &part[x_pos + 1..];
+                    if let (Ok(w), Ok(h)) = (w_str.parse::<i64>(), h_str.parse::<i64>()) {
+                        if w > 0 && h > 0 && w < 10000 && h < 10000 {
+                            return Ok((w, h));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Err("Could not parse video dimensions".to_string())
 }
 
 /// Stop the FFmpeg process gracefully by writing "q" to stdin and waiting for exit.
