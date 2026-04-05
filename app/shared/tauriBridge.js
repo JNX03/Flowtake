@@ -83,6 +83,7 @@ const COMMAND_MAP = {
     'get-monitors': 'get_monitors',
     // App
     'get-version': 'get_version',
+    'get-system-info': 'get_system_info',
     'get-machine-id': 'get_machine_id',
     'get-is-sentry-enabled': 'get_is_sentry_enabled',
     'check-permissions': 'check_permissions',

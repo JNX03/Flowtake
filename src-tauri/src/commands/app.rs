@@ -48,6 +48,28 @@ pub async fn get_machine_id() -> AppResult<String> {
     Ok(hex[..32].to_string())
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub version: String,
+    pub os: String,
+    pub os_version: String,
+    pub arch: String,
+    pub ram_gb: f64,
+}
+
+#[tauri::command]
+pub async fn get_system_info(app: AppHandle) -> AppResult<SystemInfo> {
+    use sysinfo::System;
+
+    let version = app.config().version.clone().unwrap_or_else(|| "0.0.0".to_string());
+    let os = std::env::consts::OS.to_string();
+    let arch = std::env::consts::ARCH.to_string();
+    let os_version = System::os_version().unwrap_or_else(|| "unknown".to_string());
+    let ram_gb = System::new_all().total_memory() as f64 / 1_073_741_824.0;
+
+    Ok(SystemInfo { version, os, os_version, arch, ram_gb })
+}
+
 #[tauri::command]
 pub async fn get_is_sentry_enabled() -> AppResult<bool> {
     // Sentry is disabled in Tauri version for now
