@@ -126,7 +126,7 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
       isLoading={isPending || !capturers?.length || !encoders?.length}
       disabled={isPending || !capturers?.length || !encoders?.length}
       icon={ArrowRightIcon}
-      className="btn-primary"
+      className="btn-primary w-full"
     >
       Record
     </Button>

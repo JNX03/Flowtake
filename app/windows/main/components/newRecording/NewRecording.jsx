@@ -374,11 +374,12 @@ export default function NewRecording({ isOpen }) {
           <div className="flex-1" />
 
           {/* Actions */}
-          <div className="flex flex-col gap-2">
-            <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} excludedAudioPids={excludedAudioPids} />
-            <button onClick={addNote} className="btn btn-sm btn-ghost text-base-content/40 w-full gap-1.5 hover:text-base-content/60">
-              <DocumentIcon className="size-3.5" />
-              <span className="text-xs">Teleprompter Notes</span>
+          <div className="flex gap-2">
+            <div className="flex-[4] min-w-0">
+              <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} excludedAudioPids={excludedAudioPids} />
+            </div>
+            <button onClick={addNote} className="flex-[1] btn btn-sm btn-ghost bg-base-200/30 border border-base-content/5 text-base-content/40 hover:text-base-content/60 h-auto" title="Teleprompter Notes">
+              <DocumentIcon className="size-4" />
             </button>
           </div>
         </div>
