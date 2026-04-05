@@ -423,6 +423,7 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
+    .transparent(true)
     .build()
     .map_err(AppError::Tauri)?;
 
