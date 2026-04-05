@@ -44,7 +44,8 @@ pub async fn get_machine_id() -> AppResult<String> {
     let mut hasher = Sha256::new();
     hasher.update(hostname.as_bytes());
     let result = hasher.finalize();
-    Ok(format!("{:x}", result)[..32].to_string())
+    let hex: String = result.iter().map(|b| format!("{:02x}", b)).collect();
+    Ok(hex[..32].to_string())
 }
 
 #[tauri::command]

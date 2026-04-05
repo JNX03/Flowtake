@@ -826,9 +826,9 @@ pub async fn init_recording(
         .get_webview_window("main")
         .and_then(|w| w.current_monitor().ok().flatten());
 
-    let overlay_w = 400.0;
-    let overlay_h = 64.0;
-    let margin = 12.0;
+    let overlay_w = 460.0;
+    let overlay_h = 72.0;
+    let margin = 10.0;
 
     let win_x = if let Some(m) = &monitor {
         let size = m.size();
@@ -853,6 +853,8 @@ pub async fn init_recording(
     .maximizable(false)
     .closable(false)
     .decorations(false)
+    .transparent(true)
+    .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .content_protected(true)
