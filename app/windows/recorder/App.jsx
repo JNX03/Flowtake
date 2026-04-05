@@ -309,50 +309,95 @@ export default function App() {
     }
 
     // ─── Recording: Dynamic Island ───────────────────────────────────
+
+    // Camera preview (shared ref, always in DOM but only visible when hasCam)
+    const cameraPreview = hasCam ? (
+        <div className="relative w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
+            <video ref={cameraVideoRef} autoPlay muted
+                className={`object-cover h-full w-full bg-base-300 transition-opacity duration-200 ${isCameraOff ? 'opacity-0' : ''}`}
+            />
+            {isCameraOff && (
+                <div className="absolute inset-0 flex items-center justify-center bg-base-300">
+                    <VideoCameraSlashIcon className="size-3 opacity-30" />
+                </div>
+            )}
+        </div>
+    ) : null
+
+    const recDot = (
+        <div className={`rec-dot w-[7px] h-[7px] rounded-full flex-shrink-0 ${isPaused ? 'bg-amber-400' : 'bg-red-500'}`}
+            style={isPaused ? { animation: 'none' } : {}} />
+    )
+
+    const timer = (
+        <span className="font-semibold text-[13px] tabular-nums tracking-tight text-white/90"
+            style={{ fontVariantNumeric: "tabular-nums" }}>
+            {formattedTime}
+        </span>
+    )
+
+    if (!isExpanded) {
+        // ── COMPACT: just centered dot + timer ──
+        return (
+            <div
+                className="h-full w-full flex items-start justify-center"
+                style={{ WebkitAppRegion: "drag" }}
+                onMouseEnter={() => setIsExpanded(true)}
+            >
+                <StyleTag />
+                <div
+                    className="island-pill mt-1"
+                    style={{
+                        ...pillBg,
+                        width: 220,
+                        height: 44,
+                        borderRadius: 22,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 10,
+                        WebkitAppRegion: "no-drag",
+                    }}
+                >
+                    {cameraPreview}
+                    {recDot}
+                    {timer}
+                </div>
+            </div>
+        )
+    }
+
+    // ── EXPANDED: full controls ──
     return (
         <div
             className="h-full w-full flex items-start justify-center"
             style={{ WebkitAppRegion: "drag" }}
-            onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
             <StyleTag />
             <div
-                className="island-pill flex items-center overflow-hidden mt-1"
+                className="island-pill mt-1"
                 style={{
                     ...pillBg,
-                    width: isExpanded ? 440 : 220,
-                    height: isExpanded ? 56 : 44,
-                    borderRadius: isExpanded ? 28 : 22,
+                    width: 440,
+                    height: 56,
+                    borderRadius: 28,
+                    display: "flex",
+                    alignItems: "center",
                     WebkitAppRegion: "no-drag",
                 }}
             >
-                <div className={`flex items-center w-full h-full ${isExpanded ? 'px-4' : 'justify-center px-3'}`}>
+                <div style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", padding: "0 20px" }}>
 
-                    {/* ── Left: always visible ── */}
-                    <div className={`flex items-center gap-2 flex-shrink-0 ${isExpanded ? 'ml-2' : ''}`}>
-                        {hasCam && (
-                            <div className="relative w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/10">
-                                <video ref={cameraVideoRef} autoPlay muted
-                                    className={`object-cover h-full w-full bg-base-300 transition-opacity duration-200 ${isCameraOff ? 'opacity-0' : ''}`}
-                                />
-                                {isCameraOff && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-base-300">
-                                        <VideoCameraSlashIcon className="size-3 opacity-30" />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        <div className={`rec-dot w-[7px] h-[7px] rounded-full flex-shrink-0 ${isPaused ? 'bg-amber-400' : 'bg-red-500'}`}
-                            style={isPaused ? { animation: 'none' } : {}} />
-                        <span className="font-semibold text-[13px] tabular-nums tracking-tight text-white/90 min-w-[40px]"
-                            style={{ fontVariantNumeric: "tabular-nums" }}>
-                            {formattedTime}
-                        </span>
+                    {/* ── Left: indicator + timer ── */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8, flexShrink: 0 }}>
+                        {cameraPreview}
+                        {recDot}
+                        {timer}
                     </div>
 
-                    {/* ── Center: device toggles + tools ── */}
-                    <div className={`flex items-center flex-shrink-0 ml-2 ${isExpanded ? '' : 'hidden'}`}>
+                    {/* ── Center: tools (shifted right with margin) ── */}
+                    <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 16 }}>
                         <Divider />
                         {hasMic && (
                             <Btn onClick={toggleMic} title={isMicMuted ? "Unmute mic" : "Mute mic"}
@@ -392,10 +437,10 @@ export default function App() {
                     </div>
 
                     {/* ── Spacer ── */}
-                    <div className="flex-1 min-w-0" />
+                    <div style={{ flex: 1 }} />
 
                     {/* ── Right: actions ── */}
-                    <div className={`flex items-center gap-0.5 flex-shrink-0 ${isExpanded ? '' : 'hidden'}`}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
                         <Divider />
                         <Btn onClick={onClickRestart} title="Restart"
                             className="w-8 h-8 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.06]">
@@ -406,7 +451,6 @@ export default function App() {
                             <TrashIcon className="size-4" />
                         </Btn>
 
-                        {/* Pause / Resume */}
                         {!isPaused ? (
                             <Btn onClick={onClickPause} title="Pause"
                                 className="w-9 h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white/60 hover:text-white/90">
@@ -419,7 +463,6 @@ export default function App() {
                             </Btn>
                         )}
 
-                        {/* Stop — primary action */}
                         <Btn onClick={onClickStop} title="Stop & save"
                             className="w-9 h-9 rounded-xl bg-red-500 hover:bg-red-400 active:bg-red-600 text-white ml-0.5">
                             <StopIcon className="size-[18px]" />
