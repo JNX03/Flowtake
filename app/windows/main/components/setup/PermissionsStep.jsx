@@ -13,15 +13,16 @@ export default function PermissionsStep() {
         staleTime: 0
     })
 
-    const { data: dependencies, isPending: depsPending, refetch: refetchDeps } = useQuery({
+    const { data: depsData, isPending: depsPending, refetch: refetchDeps } = useQuery({
         queryKey: ['setup-dependencies'],
         queryFn: () => window.electron.ipcRenderer.invoke("check-dependencies"),
         staleTime: 0
     })
 
+    const dependencies = depsData?.dependencies ?? depsData
     const isLoading = permPending || depsPending
     const allPermsOk = permissions?.every(p => p.hasPermission)
-    const allDepsOk = dependencies?.every(d => d.installed || !d.required)
+    const allDepsOk = Array.isArray(dependencies) ? dependencies.every(d => d.installed || !d.required) : depsData?.allInstalled
 
     const refresh = () => {
         refetchPerms()
