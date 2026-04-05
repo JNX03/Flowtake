@@ -38,7 +38,8 @@ Toast.propTypes = {
     icon: PropTypes.element,
     actions: PropTypes.arrayOf(PropTypes.shape({
         label: PropTypes.string.isRequired,
-        callback: PropTypes.func.isRequired
+        callback: PropTypes.func,
+        url: PropTypes.string
     })),
     type: PropTypes.string,
     children: PropTypes.node.isRequired,
