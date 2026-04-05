@@ -100,7 +100,7 @@ export default function Launcher() {
           </div>
 
           {/* Content area - takes remaining space */}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <NewRecording isOpen={activeView === VIEW_RECORD} />
             <Projects isOpen={activeView === VIEW_PROJECTS} />
           </div>
