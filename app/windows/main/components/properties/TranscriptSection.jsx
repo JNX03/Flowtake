@@ -21,9 +21,9 @@ import Button from "../../../../components/Button"
 import Hint from "../../../../components/Hint"
 import {
     formatPercent,
-    TOAST_ERROR,
     TOAST_SUCCESS
 } from "@shared/helpers"
+import { addErrorToast } from "@shared/errorToastHelper"
 import { withGroup } from "@shared/redux/actionEnhancers"
 import { addToast } from "@shared/redux/appSlice"
 import {
@@ -170,7 +170,7 @@ export default function TranscriptSection() {
             dispatch(setSubtitles(subtitleEntities))
             dispatch(addToast({ type: TOAST_SUCCESS, text: `Generated ${data.length} subtitle words.` }))
         },
-        onError: error => dispatch(addToast({ type: TOAST_ERROR, text: error.message })),
+        onError: error => dispatch(addErrorToast(error.message)),
         onSettled: () => setPreview(null)
     })
 

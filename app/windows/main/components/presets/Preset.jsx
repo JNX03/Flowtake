@@ -16,9 +16,9 @@ import {
 } from "react-redux"
 import {
     getPresettableData,
-    TOAST_ERROR,
     TOAST_SUCCESS
 } from "@shared/helpers"
+import { addErrorToast } from "@shared/errorToastHelper"
 import {
     getGroup,
     withGroup
@@ -76,7 +76,7 @@ export default function Preset({ presetDescriptor, onRename, onDirty }) {
             if (isDeleted) {
                 onDirty()
                 dispatch(addToast({ type: TOAST_SUCCESS, text: "Preset deleted" }))
-            } else dispatch(addToast({ type: TOAST_ERROR, text: "Preset couldn't be deleted. Please try again later" }))
+            } else dispatch(addErrorToast("Preset couldn't be deleted. Please try again later"))
         }
     }, [presetDescriptor.id, onDirty, dispatch])
 

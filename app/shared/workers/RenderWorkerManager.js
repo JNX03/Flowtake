@@ -8,6 +8,7 @@ import {
     RENDER_RENDERING,
     TOAST_ERROR
 } from "../helpers"
+import { buildGitHubIssueUrl } from "../errorReporting"
 import {
     selectCameraVideoBackgroundBlurAmount,
     selectHasCameraVideo,
@@ -90,7 +91,7 @@ export default class RenderWorkerManager extends WorkerManager {
                 break
             case RENDER_ERROR:
                 renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_CANCELED } }))
-                renderStore.dispatch(addToast({ type: TOAST_ERROR, text: "Render failed" }))
+                renderStore.dispatch(addToast({ type: TOAST_ERROR, text: "Render failed", autoDismiss: false, actions: [{ label: "Report", url: buildGitHubIssueUrl("Render failed") }] }))
                 this.isCancelled = true
                 this.onProcessed()
                 break

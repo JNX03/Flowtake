@@ -15,14 +15,9 @@ import {
     useSelector
 } from "react-redux"
 import Button from "../../../../components/Button"
-import {
-    openProject,
-    TOAST_ERROR
-} from "@shared/helpers"
-import {
-    addToast,
-    setLoaderMessage
-} from "@shared/redux/appSlice"
+import { openProject } from "@shared/helpers"
+import { addErrorToast } from "@shared/errorToastHelper"
+import { setLoaderMessage } from "@shared/redux/appSlice"
 import { selectTargetScale as selectCameraZoomTargetScale } from "@shared/redux/cameraZoomSlice"
 import {
     selectLayout,
@@ -91,7 +86,7 @@ export default function ProjectRow({ project, refetch }) {
             const isDeleted = await window.electron.ipcRenderer.invoke("delete-project", project.id)
             if (isDeleted) refetch()
             else {
-                dispatch(addToast({ type: TOAST_ERROR, text: "Project couldn't be deleted. Please try again later" }))
+                dispatch(addErrorToast("Project couldn't be deleted. Please try again later"))
                 setIsDeleteProcessing(false)
             }
         }

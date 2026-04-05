@@ -13,12 +13,13 @@ import {
 } from "react-redux"
 import {
     openProject,
-    TOAST_ERROR,
     TOAST_ERROR_CAPTURE,
     TOAST_EXPORT_COMPLETED,
     TOAST_UPDATE,
     TOAST_WARNING
 } from "@shared/helpers"
+import { addErrorToast } from "@shared/errorToastHelper"
+import { initSystemInfo } from "@shared/errorReporting"
 import {
     addToast,
     selectCapturers,
@@ -120,7 +121,7 @@ export default function App() {
     }, [dispatch])
 
     useEffect(() => {
-        const handleError = (_e, data) => { dispatch(addToast({ type: TOAST_ERROR, text: data?.message || String(data) })) }
+        const handleError = (_e, data) => { dispatch(addErrorToast(data?.message || String(data))) }
         const handleExportCompleted = (_e, data) => { dispatch(addToast({ type: TOAST_EXPORT_COMPLETED, text: data?.projectName || '' })) }
 
         window.electron.ipcRenderer.on('error', handleError)
@@ -149,6 +150,8 @@ export default function App() {
             dismissSplash()
             return
         }
+
+        initSystemInfo()
 
         const consumeEarlyData = async () => {
             try {
@@ -225,16 +228,16 @@ export default function App() {
                 actions.forEach(action => dispatch(action))
             } catch (e) {
                 console.error("[Flowtake] Project creation error:", e)
-                dispatch(addToast({ type: TOAST_ERROR, text: "Failed to open recording: " + (e?.message || String(e)) }))
+                dispatch(addErrorToast("Failed to open recording: " + (e?.message || String(e))))
                 dispatch(setLoaderMessage(null))
             }
         }
         const handleRecordingError = async (_e, error) => {
             const errorStr = typeof error === 'string' ? error : error?.message || String(error)
-            if (errorStr === "TargetError") dispatch(addToast({ type: TOAST_ERROR, text: "The selected window couldn't be found. Make sure it isn't minimized and try again." }))
-            else if (errorStr === "ScreenPermissionDenied") dispatch(addToast({ type: TOAST_ERROR, text: "Screen recording permission denied. Go to System Settings → Privacy & Security → Screen Recording and enable this app." }))
+            if (errorStr === "TargetError") dispatch(addErrorToast("The selected window couldn't be found. Make sure it isn't minimized and try again."))
+            else if (errorStr === "ScreenPermissionDenied") dispatch(addErrorToast("Screen recording permission denied. Go to System Settings → Privacy & Security → Screen Recording and enable this app."))
             else if (errorStr === "CaptureError") dispatch(addToast({ type: TOAST_ERROR_CAPTURE }))
-            else dispatch(addToast({ type: TOAST_ERROR, text: errorStr }))
+            else dispatch(addErrorToast(errorStr))
 
             dispatch(setIsRecording(false))
         }

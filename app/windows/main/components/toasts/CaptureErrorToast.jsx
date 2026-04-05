@@ -2,6 +2,7 @@ import { Cog6ToothIcon } from "@heroicons/react/16/solid"
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline"
 import PropTypes from "prop-types"
 import Toast from "../../../../components/toasts/Toast"
+import { buildGitHubIssueUrl } from "@shared/errorReporting"
 
 export default function CaptureErrorToast({ id, dismiss }) {
     return (
@@ -10,7 +11,8 @@ export default function CaptureErrorToast({ id, dismiss }) {
             autoDismiss={false}
             dismiss={dismiss}
             type="alert-error"
-            icon={<ExclamationCircleIcon className="size-6" />}>
+            icon={<ExclamationCircleIcon className="size-6" />}
+            actions={[{ label: "Report", url: buildGitHubIssueUrl("Screen capture failed - GPU driver or encoder issue") }]}>
             <span>There was a problem recording the screen. Please make sure your GPU drivers are up-to-date or select a
                 different encoder in the settings <Cog6ToothIcon className="inline-block size-4" />.</span>
         </Toast>

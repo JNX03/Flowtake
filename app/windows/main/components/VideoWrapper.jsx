@@ -12,11 +12,8 @@ import throttle from "throttleit"
 import { useThrottledCallback } from "use-debounce"
 import Media from "../../../components/Media"
 import useVideoSrc from "@shared/hooks/useVideoSrc"
-import {
-    TOAST_ERROR,
-    toS
-} from "@shared/helpers"
-import { addToast } from "@shared/redux/appSlice"
+import { toS } from "@shared/helpers"
+import { addErrorToast } from "@shared/errorToastHelper"
 import {
     selectAreVideosReady,
     selectIsCleaningUpVideos,
@@ -167,7 +164,7 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
 
     const onError = useCallback(() => {
         dispatch(setIsCleaningUpScene(true))
-        dispatch(addToast({ type: TOAST_ERROR, text: "Video couldn't be loaded. Please try again." }))
+        dispatch(addErrorToast("Video couldn't be loaded. Please try again."))
     }, [dispatch])
 
     const onScreenVideoReady = useCallback(() => {

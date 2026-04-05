@@ -39,7 +39,7 @@ export default function Toasts() {
     const dismiss = useCallback(id => dispatch(dismissToast(id)), [dispatch])
 
     const listToasts = () => {
-        return toasts.map(({ type, id, text, autoDismiss }) => {
+        return toasts.map(({ type, id, text, autoDismiss, actions }) => {
             switch (type) {
                 case TOAST_UPDATE: return <UpdateToast key={id} id={id}
                     dismiss={dismiss} />
@@ -48,7 +48,7 @@ export default function Toasts() {
                 case TOAST_ERROR_CAPTURE: return <CaptureErrorToast key={id} id={id}
                     dismiss={dismiss} />
                 case TOAST_ERROR: return <ErrorToast key={id} id={id} text={text} autoDismiss={autoDismiss}
-                    dismiss={dismiss} />
+                    actions={actions} dismiss={dismiss} />
                 case TOAST_SUCCESS: return <SuccessToast key={id} id={id} text={text} autoDismiss={autoDismiss}
                     dismiss={dismiss} />
                 case TOAST_WARNING: return <WarningToast key={id} id={id} text={text} autoDismiss={autoDismiss}

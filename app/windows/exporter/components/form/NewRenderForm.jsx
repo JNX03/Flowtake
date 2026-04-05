@@ -27,6 +27,7 @@ import {
     RENDER_PENDING,
     TOAST_ERROR
 } from "@shared/helpers"
+import { buildGitHubIssueUrl } from "@shared/errorReporting"
 import { EXPORT_PRESETS } from "@shared/exportPresets"
 import {
     addRender,
@@ -191,7 +192,7 @@ export default function Form({ onAdd, onCancel, isVisible }) {
             dispatch(addRender(render))
             onAdd()
         } catch (e) {
-            dispatch(addToast({ type: TOAST_ERROR, text: "Couldn't queue render" }))
+            dispatch(addToast({ type: TOAST_ERROR, text: "Couldn't queue render", autoDismiss: false, actions: [{ label: "Report", url: buildGitHubIssueUrl("Couldn't queue render") }] }))
             captureException(e)
         } finally {
             setIsInitializing(false)
