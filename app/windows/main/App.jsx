@@ -172,18 +172,18 @@ export default function App() {
     }, [dismissSplash])
 
     useEffect(() => {
-        const handleUpdateDownloaded = () => { dispatch(addToast({ type: TOAST_UPDATE })) }
-        window.electron.ipcRenderer.on('update-downloaded', handleUpdateDownloaded)
-
         // Defer update check to not block startup
         const timer = setTimeout(() => {
-            window.electron.ipcRenderer.invoke("check-for-updates").catch(e => console.warn("[Flowtake] Update check failed:", e))
+            window.electron.ipcRenderer.invoke("check-for-updates")
+                .then(info => {
+                    if (info?.has_update) {
+                        dispatch(addToast({ type: TOAST_UPDATE }))
+                    }
+                })
+                .catch(e => console.warn("[Flowtake] Update check failed:", e))
         }, 2000)
 
-        return () => {
-            clearTimeout(timer)
-            window.electron.ipcRenderer.removeListener('update-downloaded', handleUpdateDownloaded)
-        }
+        return () => clearTimeout(timer)
     }, [dispatch])
 
     useEffect(() => {

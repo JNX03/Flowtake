@@ -1,24 +1,27 @@
-import { ArrowDownTrayIcon, ArrowPathIcon, CheckCircleIcon } from "@heroicons/react/24/outline"
+import { ArrowDownTrayIcon, ArrowPathIcon, CheckCircleIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
-import Markdown from "react-markdown"
+import { useEffect, useRef, useState } from "react"
+import { exit } from "@tauri-apps/plugin-process"
 import Button from "../../../../components/Button"
+import MarkdownRenderer from "../../../../components/MarkdownRenderer"
 import Fieldset from "../properties/Fieldset"
 import Toggle from "../properties/Toggle"
 
-const markdownComponents = {
-    a: ({ href, children }) => (
-        <button className="link link-primary"
-            onClick={(e) => { e.preventDefault(); window.electron.ipcRenderer.invoke("open-url-in-browser", href) }}>
-            {children}
-        </button>
-    ),
+function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export default function UpdatesSettings() {
 
     const [checking, setChecking] = useState(false)
     const [updateInfo, setUpdateInfo] = useState(null)
+    const [downloadProgress, setDownloadProgress] = useState(null)
+    const [downloadError, setDownloadError] = useState(null)
+    const [installerPath, setInstallerPath] = useState(null)
+    const [isInstalling, setIsInstalling] = useState(false)
+    const unlistenRef = useRef(null)
 
     const { data: autoUpdateEnabled, isPending: isAutoUpdatePending, refetch: refetchAutoUpdate } = useQuery({
         queryKey: ['autoUpdateEnabled'],
@@ -38,6 +41,15 @@ export default function UpdatesSettings() {
         staleTime: 5 * 60 * 1000
     })
 
+    useEffect(() => {
+        return () => {
+            if (unlistenRef.current) {
+                unlistenRef.current()
+                unlistenRef.current = null
+            }
+        }
+    }, [])
+
     const onChangeAutoUpdate = async (e) => {
         await window.electron.ipcRenderer.invoke("store-set", "autoUpdateEnabled", e.target.checked)
         refetchAutoUpdate()
@@ -45,6 +57,9 @@ export default function UpdatesSettings() {
 
     const onCheckForUpdates = async () => {
         setChecking(true)
+        setDownloadProgress(null)
+        setDownloadError(null)
+        setInstallerPath(null)
         try {
             const info = await window.electron.ipcRenderer.invoke("check-for-updates")
             setUpdateInfo(info)
@@ -54,11 +69,59 @@ export default function UpdatesSettings() {
         setChecking(false)
     }
 
-    const onDownloadUpdate = () => {
+    const onDownloadUpdate = async () => {
+        if (!updateInfo?.download_url) return
+
+        setDownloadProgress({ bytesDownloaded: 0, totalBytes: 0, percent: 0 })
+        setDownloadError(null)
+        setInstallerPath(null)
+
+        // Listen for progress events
+        if (unlistenRef.current) {
+            unlistenRef.current()
+        }
+        unlistenRef.current = window.electron.ipcRenderer.on("update-download-progress", (_event, data) => {
+            setDownloadProgress({
+                bytesDownloaded: data.bytes_downloaded,
+                totalBytes: data.total_bytes,
+                percent: data.percent,
+            })
+        })
+
+        try {
+            const result = await window.electron.ipcRenderer.invoke("download-update", updateInfo.download_url)
+            setInstallerPath(result?.installerPath || null)
+            setDownloadProgress(null)
+        } catch (err) {
+            setDownloadError(err?.message || String(err) || "Download failed")
+            setDownloadProgress(null)
+        } finally {
+            if (unlistenRef.current) {
+                unlistenRef.current()
+                unlistenRef.current = null
+            }
+        }
+    }
+
+    const onInstallAndRestart = async () => {
+        if (!installerPath) return
+        setIsInstalling(true)
+        try {
+            await window.electron.ipcRenderer.invoke("launch-installer", installerPath)
+            await exit(0)
+        } catch (err) {
+            setIsInstalling(false)
+            setDownloadError(err?.message || "Failed to launch installer")
+        }
+    }
+
+    const onOpenInBrowser = () => {
         if (updateInfo?.download_url) {
             window.electron.ipcRenderer.invoke("install-update", updateInfo.download_url)
         }
     }
+
+    const isDownloading = downloadProgress !== null
 
     return (<div className="flex flex-col gap-4">
         <h4 className="font-semibold text-lg">Updates</h4>
@@ -73,7 +136,7 @@ export default function UpdatesSettings() {
 
         <Fieldset legend="Check for Updates" description={`Current version: ${version || "..."}`}>
             <div className="flex flex-col gap-3">
-                <Button icon={ArrowPathIcon} onClick={onCheckForUpdates} disabled={checking}>
+                <Button icon={ArrowPathIcon} onClick={onCheckForUpdates} disabled={checking || isDownloading}>
                     {checking ? "Checking..." : "Check for Updates"}
                 </Button>
 
@@ -95,13 +158,63 @@ export default function UpdatesSettings() {
                             </span>
                         </div>
                         {updateInfo.release_notes && (
-                            <div className="text-sm text-base-content/70 mb-3 max-h-32 overflow-y-auto prose prose-sm prose-headings:text-base-content prose-p:text-base-content/70 prose-li:text-base-content/70 prose-strong:text-base-content/80 prose-a:text-primary max-w-none">
-                                <Markdown components={markdownComponents}>{updateInfo.release_notes}</Markdown>
+                            <div className="text-sm mb-3 max-h-32 overflow-y-auto">
+                                <MarkdownRenderer>{updateInfo.release_notes}</MarkdownRenderer>
                             </div>
                         )}
-                        <Button icon={ArrowDownTrayIcon} onClick={onDownloadUpdate}>
-                            Download Update
-                        </Button>
+
+                        {/* Download progress */}
+                        {isDownloading && (
+                            <div className="flex flex-col gap-1.5 mb-3">
+                                <progress
+                                    className="progress progress-primary w-full"
+                                    value={downloadProgress.percent}
+                                    max="100"
+                                />
+                                <div className="flex items-center justify-between text-xs text-base-content/50">
+                                    <span>Downloading... {Math.round(downloadProgress.percent)}%</span>
+                                    <span>
+                                        {formatBytes(downloadProgress.bytesDownloaded)}
+                                        {downloadProgress.totalBytes > 0 && ` / ${formatBytes(downloadProgress.totalBytes)}`}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Download error */}
+                        {downloadError && (
+                            <div className="text-sm text-error mb-3">
+                                {downloadError}
+                            </div>
+                        )}
+
+                        {/* Action buttons */}
+                        {!isDownloading && !installerPath && !isInstalling && (
+                            <div className="flex items-center gap-2">
+                                <Button icon={ArrowDownTrayIcon} onClick={onDownloadUpdate}>
+                                    Download Update
+                                </Button>
+                                <button className="btn btn-ghost btn-sm gap-1" onClick={onOpenInBrowser}>
+                                    <ArrowTopRightOnSquareIcon className="size-4" />
+                                    Open in browser
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Ready to install */}
+                        {installerPath && !isInstalling && (
+                            <Button icon={ArrowDownTrayIcon} onClick={onInstallAndRestart}>
+                                Install and Restart
+                            </Button>
+                        )}
+
+                        {/* Installing */}
+                        {isInstalling && (
+                            <div className="flex items-center gap-2 text-sm text-base-content/60">
+                                <span className="loading loading-spinner loading-sm" />
+                                Installing update...
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -126,8 +239,8 @@ export default function UpdatesSettings() {
                                 </span>
                             </div>
                             {entry.release_notes && (
-                                <div className="text-sm text-base-content/70 prose prose-sm prose-headings:text-base-content prose-p:text-base-content/70 prose-li:text-base-content/70 prose-strong:text-base-content/80 prose-a:text-primary max-w-none">
-                                    <Markdown components={markdownComponents}>{entry.release_notes}</Markdown>
+                                <div className="text-sm">
+                                    <MarkdownRenderer>{entry.release_notes}</MarkdownRenderer>
                                 </div>
                             )}
                         </div>
