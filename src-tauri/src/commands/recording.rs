@@ -1763,8 +1763,6 @@ async fn get_video_dimensions(
 /// For window capture: signals capture thread to stop (which drops stdin → EOF).
 /// For screen/area capture: writes "q\n" to stdin of std::process::Child.
 fn kill_ffmpeg(app: &AppHandle) {
-    use std::io::Write;
-
     let state = app.state::<Mutex<AppState>>();
 
     let is_window_capture = {
@@ -1818,6 +1816,7 @@ fn kill_ffmpeg(app: &AppHandle) {
             }
             #[cfg(not(target_os = "macos"))]
             {
+                use std::io::Write;
                 // Send "q\n" to FFmpeg stdin for graceful shutdown
                 if let Some(ref mut stdin) = process.stdin.take() {
                     match stdin.write_all(b"q\n").and_then(|_| stdin.flush()) {
@@ -2018,6 +2017,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                 if image.is_none() {
                     return Err(AppError::General("ScreenPermissionDenied".to_string()));
                 }
+                drop(image);
                 let region = format!("{},{},{},{}", x, y, w64, h64);
                 let screenshot_str_clone = screenshot_str.clone();
                 let _output = tokio::task::spawn_blocking(move || {
