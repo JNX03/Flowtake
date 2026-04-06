@@ -13,7 +13,7 @@
 
 <p align="center">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-green.svg">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.4.1-green.svg">
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20(stable)%20%7C%20macOS%20(dev)%20%7C%20Linux%20(dev)-lightgrey.svg">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white">

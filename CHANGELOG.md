@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-04-07
+
+### Fixed
+- High RAM usage (up to 7GB) on macOS during recording
+- macOS screencapture stderr pipe buffer growing unbounded
+- PreviewWorkerManager not terminated on component unmount
+- VideoFrame callbacks running indefinitely after worker termination
+
+### Performance
+- Reuse pre-allocated frame buffer in window capture loop instead of per-frame allocation
+- Use static string references for mouse events to eliminate per-event heap allocations
+
 ## [1.3.2] - 2026-03-26
 
 ### Added
@@ -145,7 +157,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Multi-format export: MP4 H.264, MP4 H.265, WebM VP9
 - Hardware encoder support (NVENC, VideoToolbox)
 
-[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/JNX03/Flowtake/compare/v1.3.2...v1.4.1
 [1.3.2]: https://github.com/JNX03/Flowtake/compare/v.1.3.0...v1.3.2
 [1.3.0]: https://github.com/JNX03/Flowtake/compare/v.1.2.1...v.1.3.0
 [1.2.1]: https://github.com/JNX03/Flowtake/compare/1.2.0...v.1.2.1
