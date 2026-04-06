@@ -12,6 +12,7 @@ import {
     selectBackground,
     setBackground
 } from "@shared/redux/projectSlice"
+import { IMAGE_SCHEME_PREFIX } from "@shared/constants"
 import BackgroundPreview from "./BackgroundPreview"
 import Fieldset from "./Fieldset"
 
@@ -48,7 +49,7 @@ const Wallpapers = ({ disabled = false }) => {
                 {wallpapers.map(({ path }, i) => (
                     <BackgroundPreview key={i} isLoading={wallpaperLoading === path}>
                         <img
-                            src={`image://wallpaper?path=${path}&thumbnail=true`}
+                            src={`${IMAGE_SCHEME_PREFIX}wallpaper?path=${path}&thumbnail=true`}
                             onClick={() => onClickWallpaper(path)}
                             className={`aspect-video object-cover object-center rounded-md cursor-pointer border-2 ${background?.path === path ? "border-primary" : "border-transparent"
                                 }`}

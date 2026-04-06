@@ -6,6 +6,7 @@ import {
 } from "pixi.js"
 import { shallowEqual } from "react-redux"
 import { drawGradient } from "../helpers"
+import { IMAGE_SCHEME_PREFIX } from "../constants"
 import { LOAD_IMAGE, postAsync } from "../workers/helpers"
 
 export default class Background {
@@ -65,7 +66,7 @@ export default class Background {
 
     async setImage() {
         this.sprite.tint = 0xffffff
-        const { bmp, error } = await postAsync(self, LOAD_IMAGE, `image://background?renderId=${this.renderId}`)
+        const { bmp, error } = await postAsync(self, LOAD_IMAGE, `${IMAGE_SCHEME_PREFIX}background?renderId=${this.renderId}`)
         if (error) throw new Error(error)
         this.destroyTexture()
         this.sprite.texture = new Texture({ source: new ImageSource({ resource: bmp }) })
