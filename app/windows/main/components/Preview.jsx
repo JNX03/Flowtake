@@ -278,6 +278,12 @@ export default function Preview() {
     }, [createManager, manager, areVideosReady, duration, mouseEvents])
 
     useEffect(() => {
+        return () => {
+            if (manager) manager.terminate()
+        }
+    }, [manager])
+
+    useEffect(() => {
         const getDims = (aspectWidth, aspectHeight, maxRendererWidth, maxRendererHeight) => {
             let css
             if (wrapperWidth / wrapperHeight > aspectWidth / aspectHeight)

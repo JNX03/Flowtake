@@ -8,9 +8,9 @@ pub struct MouseEvent {
     pub x: i32,
     pub y: i32,
     pub timestamp: i64,
-    pub event_type: String, // "mousedown", "mouseup", "mousemove"
-    pub button: String,     // "left", "right", "middle"
-    pub cursor: String,     // cursor type
+    pub event_type: &'static str, // "mousedown", "mouseup", "mousemove"
+    pub button: &'static str,     // "left", "right", "middle"
+    pub cursor: &'static str,     // cursor type
 }
 
 /// Global mouse tracker that uses a low-level Windows mouse hook
@@ -417,9 +417,9 @@ impl MouseTracker {
                     x: mouse_struct.pt.x - offset_x,
                     y: mouse_struct.pt.y - offset_y,
                     timestamp: now,
-                    event_type: event_type.to_string(),
-                    button: button.to_string(),
-                    cursor: cursor_name.to_string(),
+                    event_type,
+                    button,
+                    cursor: cursor_name,
                 };
 
                 if let Ok(hook_events) = HOOK_EVENTS.try_lock() {
@@ -567,7 +567,7 @@ impl MouseTracker {
                         }
                     };
 
-                    let cursor = detect_macos_cursor_type().to_string();
+                    let cursor = detect_macos_cursor_type();
 
                     // Detect button press/release changes
                     let left_now = buttons & 1 != 0;
@@ -578,31 +578,31 @@ impl MouseTracker {
                     if left_now && !left_was {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
-                            event_type: "mousedown".to_string(),
-                            button: "left".to_string(),
-                            cursor: cursor.clone(),
+                            event_type: "mousedown",
+                            button: "left",
+                            cursor,
                         });
                     } else if !left_now && left_was {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
-                            event_type: "mouseup".to_string(),
-                            button: "left".to_string(),
-                            cursor: cursor.clone(),
+                            event_type: "mouseup",
+                            button: "left",
+                            cursor,
                         });
                     }
                     if right_now && !right_was {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
-                            event_type: "mousedown".to_string(),
-                            button: "right".to_string(),
-                            cursor: cursor.clone(),
+                            event_type: "mousedown",
+                            button: "right",
+                            cursor,
                         });
                     } else if !right_now && right_was {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
-                            event_type: "mouseup".to_string(),
-                            button: "right".to_string(),
-                            cursor: cursor.clone(),
+                            event_type: "mouseup",
+                            button: "right",
+                            cursor,
                         });
                     }
 
@@ -610,8 +610,8 @@ impl MouseTracker {
                     if x != last_x || y != last_y {
                         events.lock().unwrap().push(MouseEvent {
                             x, y, timestamp: now,
-                            event_type: "mousemove".to_string(),
-                            button: "".to_string(),
+                            event_type: "mousemove",
+                            button: "",
                             cursor,
                         });
                         last_x = x;
@@ -678,9 +678,9 @@ impl MouseTracker {
                         x,
                         y,
                         timestamp: now,
-                        event_type: "mousemove".to_string(),
-                        button: "".to_string(),
-                        cursor: "default".to_string(),
+                        event_type: "mousemove",
+                        button: "",
+                        cursor: "default",
                     });
                     last_x = x;
                     last_y = y;

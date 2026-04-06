@@ -197,10 +197,11 @@ fn macos_screen_device_index(monitor_index: i64) -> i64 {
 }
 
 /// Capture a single window frame using PrintWindow API.
-/// Returns raw BGRA pixel data. Only the window's own content is captured,
+/// Writes raw BGRA pixel data into the provided buffer. Only the window's own content is captured,
 /// excluding any overlapping windows (DWM composited).
+/// Returns true on success, false on failure (buffer is zeroed on failure).
 #[cfg(target_os = "windows")]
-fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<u8>> {
+fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32, buffer: &mut [u8]) -> bool {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS};
@@ -209,7 +210,8 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<
         let hwnd = HWND(hwnd_raw as *mut _);
         let hdc_window = GetDC(Some(hwnd));
         if hdc_window.is_invalid() {
-            return None;
+            buffer.fill(0);
+            return false;
         }
 
         let hdc_mem = CreateCompatibleDC(Some(hdc_window));
@@ -242,8 +244,6 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<
             bmiColors: [RGBQUAD::default()],
         };
 
-        let buf_size = (width * height * 4) as usize;
-        let mut buffer = vec![0u8; buf_size];
         GetDIBits(
             hdc_mem,
             hbmp,
@@ -260,7 +260,7 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32) -> Option<Vec<
         let _ = DeleteDC(hdc_mem);
         ReleaseDC(Some(hwnd), hdc_window);
 
-        Some(buffer)
+        true
     }
 }
 
@@ -277,6 +277,8 @@ fn window_capture_loop(
     use std::io::Write;
 
     let frame_duration = std::time::Duration::from_nanos(1_000_000_000 / 30); // ~33ms for 30fps
+    let buf_size = (width * height * 4) as usize;
+    let mut frame_buffer = vec![0u8; buf_size];
 
     log::info!(
         "[capture_loop] Starting window capture: hwnd={} {}x{}",
@@ -286,17 +288,10 @@ fn window_capture_loop(
     while !stop_flag.load(Ordering::Relaxed) {
         let start = std::time::Instant::now();
 
-        if let Some(frame) = capture_window_frame(hwnd, width, height) {
-            if stdin.write_all(&frame).is_err() {
-                log::warn!("[capture_loop] FFmpeg stdin pipe broken, stopping");
-                break;
-            }
-        } else {
-            // Window might be minimized or closed, write a black frame
-            let black_frame = vec![0u8; (width * height * 4) as usize];
-            if stdin.write_all(&black_frame).is_err() {
-                break;
-            }
+        capture_window_frame(hwnd, width, height, &mut frame_buffer);
+        if stdin.write_all(&frame_buffer).is_err() {
+            log::warn!("[capture_loop] FFmpeg stdin pipe broken, stopping");
+            break;
         }
 
         let elapsed = start.elapsed();
@@ -1064,8 +1059,29 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                     .stderr(Stdio::piped());
 
                 match cmd.spawn() {
-                    Ok(process) => {
+                    Ok(mut process) => {
                         let pid = process.id();
+                        let stderr = process.stderr.take();
+                        let app_clone = app.clone();
+                        if let Some(stderr) = stderr {
+                            std::thread::spawn(move || {
+                                use std::io::BufRead;
+                                let reader = std::io::BufReader::new(stderr);
+                                for line in reader.lines() {
+                                    match line {
+                                        Ok(msg) => {
+                                            log::info!("[screencapture] {}", msg);
+                                            if msg.contains("Permission denied")
+                                                || msg.contains("not granted")
+                                            {
+                                                app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
+                                            }
+                                        }
+                                        Err(_) => break,
+                                    }
+                                }
+                            });
+                        }
                         {
                             let mut state = state.lock().unwrap();
                             state.ffmpeg_child_id = Some(pid);
