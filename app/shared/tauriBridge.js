@@ -241,9 +241,22 @@ const ipcRenderer = {
     },
 
     once(channel, callback) {
-        once(channel, (event) => {
+        const wrappedCallback = (event) => {
+            // Auto-remove from listeners map when it fires
+            const channelListeners = listeners.get(channel);
+            if (channelListeners) {
+                const idx = channelListeners.findIndex(l => l.callback === callback);
+                if (idx !== -1) channelListeners.splice(idx, 1);
+            }
             callback(event, event.payload);
-        });
+        };
+        const unlisten = once(channel, wrappedCallback);
+
+        if (!listeners.has(channel)) {
+            listeners.set(channel, []);
+        }
+        listeners.get(channel).push({ callback, unlisten });
+
         return this;
     },
 

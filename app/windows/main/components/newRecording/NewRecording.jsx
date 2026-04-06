@@ -10,7 +10,7 @@ import {
 } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
 import PropTypes from "prop-types"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   useDispatch,
   useSelector
@@ -166,20 +166,63 @@ export default function NewRecording({ isOpen }) {
     setShowMonitorPicker(false)
   }
 
-  const openWindowPicker = () => {
-    window.electron.ipcRenderer.invoke("open-window-picker")
-    window.electron.ipcRenderer.once(
-      "window-selected",
-      (_e, selectedWindow) => dispatch(setSource(selectedWindow))
-    )
-  }
+  const windowSelectedCbRef = useRef(null)
+  const areaSelectedCbRef = useRef(null)
 
-  const openAreaPicker = () => {
-    window.electron.ipcRenderer.invoke("open-area-picker")
-    window.electron.ipcRenderer.once("area-selected", (_e, selectedArea) =>
+  const openWindowPicker = useCallback(async () => {
+    // Clean up any stale listener from a previous cancelled picker
+    if (windowSelectedCbRef.current) {
+      window.electron.ipcRenderer.removeListener("window-selected", windowSelectedCbRef.current)
+    }
+
+    const cb = (_e, selectedWindow) => {
+      windowSelectedCbRef.current = null
+      dispatch(setSource(selectedWindow))
+    }
+    windowSelectedCbRef.current = cb
+    window.electron.ipcRenderer.once("window-selected", cb)
+
+    try {
+      await window.electron.ipcRenderer.invoke("open-window-picker")
+    } catch (err) {
+      window.electron.ipcRenderer.removeListener("window-selected", cb)
+      windowSelectedCbRef.current = null
+      console.error("[Flowtake] Failed to open window picker:", err)
+    }
+  }, [dispatch])
+
+  const openAreaPicker = useCallback(async () => {
+    if (areaSelectedCbRef.current) {
+      window.electron.ipcRenderer.removeListener("area-selected", areaSelectedCbRef.current)
+    }
+
+    const cb = (_e, selectedArea) => {
+      areaSelectedCbRef.current = null
       dispatch(setSource(selectedArea))
-    )
-  }
+    }
+    areaSelectedCbRef.current = cb
+    window.electron.ipcRenderer.once("area-selected", cb)
+
+    try {
+      await window.electron.ipcRenderer.invoke("open-area-picker")
+    } catch (err) {
+      window.electron.ipcRenderer.removeListener("area-selected", cb)
+      areaSelectedCbRef.current = null
+      console.error("[Flowtake] Failed to open area picker:", err)
+    }
+  }, [dispatch])
+
+  // Clean up picker listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (windowSelectedCbRef.current) {
+        window.electron.ipcRenderer.removeListener("window-selected", windowSelectedCbRef.current)
+      }
+      if (areaSelectedCbRef.current) {
+        window.electron.ipcRenderer.removeListener("area-selected", areaSelectedCbRef.current)
+      }
+    }
+  }, [])
 
   const onEnableSystemAudio = async () => {
     if (defaultSystemAudioSource) {
@@ -308,7 +351,6 @@ export default function NewRecording({ isOpen }) {
                     : "Full display capture"}
                   active={source.type === SOURCE_TYPE_SCREEN}
                   onClick={selectScreen}
-                  disabled={isPendingCaptureSourcePreview}
                   hasDropdown={monitors && monitors.length > 1}
                 />
                 {/* Monitor picker dropdown */}
@@ -339,7 +381,6 @@ export default function NewRecording({ isOpen }) {
                 description="Single app window"
                 active={source.type === SOURCE_TYPE_WINDOW}
                 onClick={openWindowPicker}
-                disabled={isPendingCaptureSourcePreview}
                 iconFlip
               />
               <SourceCard
@@ -348,7 +389,6 @@ export default function NewRecording({ isOpen }) {
                 description="Custom screen region"
                 active={source.type === SOURCE_TYPE_AREA}
                 onClick={openAreaPicker}
-                disabled={isPendingCaptureSourcePreview}
               />
             </div>
           </div>

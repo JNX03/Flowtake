@@ -78,7 +78,7 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
     if (!isProjectClosing) dispatch(setLoaderMessage(isRecording ? "Recording..." : null))
   }, [dispatch, isRecording, isProjectClosing])
 
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     const video = (cameras ?? []).find(({ id }) => id === camera) ?? null
     const audio = (microphones ?? []).find(({ id }) => id === microphone) ?? null
 
@@ -95,14 +95,19 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
       },
     }
 
-    window.electron.ipcRenderer.invoke("init-recording", source, mediaSourceConfig, isRecordingSystemAudio ? systemAudio : null)
+    try {
+      await window.electron.ipcRenderer.invoke("init-recording", source, mediaSourceConfig, isRecordingSystemAudio ? systemAudio : null)
 
-    // Mute excluded apps when recording with system audio
-    if (isRecordingSystemAudio && excludedAudioPids.length > 0) {
-      window.electron.ipcRenderer.invoke("mute-audio-sessions", excludedAudioPids)
+      // Mute excluded apps when recording with system audio
+      if (isRecordingSystemAudio && excludedAudioPids.length > 0) {
+        window.electron.ipcRenderer.invoke("mute-audio-sessions", excludedAudioPids)
+      }
+
+      dispatch(setIsRecording(true))
+    } catch (err) {
+      console.error("[Flowtake] init-recording failed:", err)
+      dispatch(setIsRecording(false))
     }
-
-    dispatch(setIsRecording(true))
   }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids])
 
   const onClick = useCallback(() => {
