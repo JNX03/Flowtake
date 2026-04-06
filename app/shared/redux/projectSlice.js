@@ -7,6 +7,7 @@ const initialState = {
     hasCameraVideo: false,
     hasMicrophoneAudio: false,
     hasSystemAudio: false,
+    cameraVideoDimensions: null,
     videoDetails: null,
     background: null,
     padding: .9,

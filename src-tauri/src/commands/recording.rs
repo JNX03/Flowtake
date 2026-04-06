@@ -1447,6 +1447,21 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                 None => serde_json::json!(null),
             };
 
+            let clip_layout = if has_camera && has_camera_file {
+                serde_json::json!({
+                    "mode": "camera-overlay",
+                    "config": {
+                        "cameraPosition": { "x": 0, "y": 1 },
+                        "cameraBaseScale": 0.5,
+                        "cameraBorderRadius": 0.25
+                    }
+                })
+            } else {
+                serde_json::json!({
+                    "mode": "screen-fullscreen"
+                })
+            };
+
             let project_json = serde_json::json!({
                 "version": 1,
                 "project": {
@@ -1472,9 +1487,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     "entities": [{
                         "start": 0,
                         "end": duration_ms,
-                        "layout": {
-                            "mode": "screen-fullscreen"
-                        }
+                        "layout": clip_layout
                     }]
                 }
             });
