@@ -246,6 +246,7 @@ If you discover a security vulnerability, please follow our [Security Policy](SE
 - [ ] Cloud project storage
 - [ ] Collaborative editing
 - [ ] AI-powered auto-editing suggestions
+- [ ] Tutorial
 - [x] Direct upload to YouTube/social platforms
 
 ## License
