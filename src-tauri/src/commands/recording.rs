@@ -2032,21 +2032,24 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
             #[cfg(target_os = "macos")]
             {
-                use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
-                use core_graphics::window::{
-                    kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
-                };
-                let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
-                let image = CGDisplay::screenshot(
-                    rect,
-                    kCGWindowListOptionOnScreenOnly,
-                    kCGNullWindowID,
-                    kCGWindowImageDefault,
-                );
-                if image.is_none() {
-                    return Err(AppError::General("ScreenPermissionDenied".to_string()));
+                // Check screen permission in an inner block so the non-Send CGImage
+                // is dropped before we hit any .await points.
+                {
+                    use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
+                    use core_graphics::window::{
+                        kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
+                    };
+                    let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
+                    let image = CGDisplay::screenshot(
+                        rect,
+                        kCGWindowListOptionOnScreenOnly,
+                        kCGNullWindowID,
+                        kCGWindowImageDefault,
+                    );
+                    if image.is_none() {
+                        return Err(AppError::General("ScreenPermissionDenied".to_string()));
+                    }
                 }
-                drop(image);
                 let region = format!("{},{},{},{}", x, y, w64, h64);
                 let screenshot_str_clone = screenshot_str.clone();
                 let _output = tokio::task::spawn_blocking(move || {
