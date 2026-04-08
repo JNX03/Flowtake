@@ -7,8 +7,10 @@ import {
   SpeakerWaveIcon,
   VideoCameraIcon,
   MicrophoneIcon,
+  ChevronUpIcon,
+  AdjustmentsHorizontalIcon,
 } from "@heroicons/react/24/outline"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import PropTypes from "prop-types"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -35,10 +37,12 @@ import RecordButton from "./RecordButton"
 export default function NewRecording({ isOpen }) {
 
   const dispatch = useDispatch()
+  const queryClient = useQueryClient()
   const source = useSelector(selectSource)
   const [isRecordingSystemAudio, setIsRecordingSystemAudio] = useState(false)
   const [excludedAudioPids, setExcludedAudioPids] = useState([])
   const [showMonitorPicker, setShowMonitorPicker] = useState(false)
+  const [showAudioSettings, setShowAudioSettings] = useState(false)
   const monitorPickerRef = useRef(null)
 
   const { data: defaultSystemAudioSource, isPending } = useQuery({
@@ -46,6 +50,44 @@ export default function NewRecording({ isOpen }) {
     queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultSystemAudioSource"),
     staleTime: Infinity
   })
+
+  // Check if a microphone is selected
+  const { data: selectedMicrophone } = useQuery({
+    queryKey: ['microphone'],
+    queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultAudioSource"),
+    staleTime: Infinity
+  })
+
+  // Audio processing settings
+  const { data: noiseSuppression } = useQuery({
+    queryKey: ['audioSetting', 'noiseSuppression'],
+    queryFn: async () => {
+      const v = await window.electron.ipcRenderer.invoke("store-get", "noiseSuppression")
+      return v ?? true
+    },
+    staleTime: Infinity
+  })
+  const { data: echoCancellation } = useQuery({
+    queryKey: ['audioSetting', 'echoCancellation'],
+    queryFn: async () => {
+      const v = await window.electron.ipcRenderer.invoke("store-get", "echoCancellation")
+      return v ?? true
+    },
+    staleTime: Infinity
+  })
+  const { data: autoGainControl } = useQuery({
+    queryKey: ['audioSetting', 'autoGainControl'],
+    queryFn: async () => {
+      const v = await window.electron.ipcRenderer.invoke("store-get", "autoGainControl")
+      return v ?? true
+    },
+    staleTime: Infinity
+  })
+
+  const setAudioSetting = useCallback((key, value) => {
+    window.electron.ipcRenderer.invoke("store-set", key, value)
+    queryClient.invalidateQueries({ queryKey: ['audioSetting', key] })
+  }, [queryClient])
 
   // Fetch available monitors
   const { data: monitors } = useQuery({
@@ -326,8 +368,18 @@ export default function NewRecording({ isOpen }) {
               )}
             </div>
 
-            {/* Live indicator - bottom right */}
-            <div className="absolute bottom-3 right-3">
+            {/* Audio source badges - bottom right area */}
+            <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+              {selectedMicrophone && (
+                <span className="badge badge-sm bg-black/50 backdrop-blur-md border-white/10 text-emerald-400/90 gap-1">
+                  <MicrophoneIcon className="size-3" /> Mic
+                </span>
+              )}
+              {isRecordingSystemAudio && (
+                <span className="badge badge-sm bg-black/50 backdrop-blur-md border-white/10 text-blue-400/90 gap-1">
+                  <SpeakerWaveIcon className="size-3" /> System
+                </span>
+              )}
               <span className="badge badge-sm bg-black/50 backdrop-blur-md border-white/10 text-white/80 gap-1.5">
                 <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
                 Live
@@ -407,6 +459,40 @@ export default function NewRecording({ isOpen }) {
               </div>
               {isRecordingSystemAudio && (
                 <AppAudioControl onExcludedAppsChange={setExcludedAudioPids} />
+              )}
+            </div>
+
+            {/* Audio processing settings */}
+            <div className="mt-2.5 pt-2.5 border-t border-base-content/5">
+              <button
+                onClick={() => setShowAudioSettings(v => !v)}
+                className="flex items-center gap-2.5 w-full group"
+              >
+                <AdjustmentsHorizontalIcon className="size-4 text-base-content/40 flex-shrink-0" />
+                <span className="text-xs text-base-content/70 flex-1 text-left">Audio processing</span>
+                <ChevronUpIcon className={`size-3 text-base-content/30 transition-transform duration-200 ${showAudioSettings ? "" : "rotate-180"}`} />
+              </button>
+              {showAudioSettings && (
+                <div className="mt-2 ml-6.5 flex flex-col gap-1.5">
+                  <Toggle
+                    rightLabel={<span className="text-[11px] text-base-content/60">Noise suppression</span>}
+                    justifyBetween={false}
+                    value={noiseSuppression ?? true}
+                    onChange={() => setAudioSetting("noiseSuppression", !(noiseSuppression ?? true))}
+                  />
+                  <Toggle
+                    rightLabel={<span className="text-[11px] text-base-content/60">Echo cancellation</span>}
+                    justifyBetween={false}
+                    value={echoCancellation ?? true}
+                    onChange={() => setAudioSetting("echoCancellation", !(echoCancellation ?? true))}
+                  />
+                  <Toggle
+                    rightLabel={<span className="text-[11px] text-base-content/60">Auto gain control</span>}
+                    justifyBetween={false}
+                    value={autoGainControl ?? true}
+                    onChange={() => setAudioSetting("autoGainControl", !(autoGainControl ?? true))}
+                  />
+                </div>
               )}
             </div>
           </div>

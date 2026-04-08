@@ -11,17 +11,23 @@ import {
 import {
   useCallback,
   useEffect,
+  useRef,
   useState
 } from "react"
 import {
   CONSTRAINTS_AUDIO,
   CONSTRAINTS_VIDEO
 } from "@shared/helpers"
+import useAudioMeter from "@shared/hooks/useAudioMeter"
+import VolumeMeter from "../../../../components/VolumeMeter"
 
 export default function CameraMicrophoneSelect() {
 
   const queryClient = useQueryClient()
   const [permissionDenied, setPermissionDenied] = useState({ video: false, audio: false })
+  const [meterStream, setMeterStream] = useState(null)
+  const meterStreamRef = useRef(null)
+  const { level, peak } = useAudioMeter(meterStream)
 
   const detect = useCallback(async (type, mediaDevices) => {
     const devices = (mediaDevices || []).filter(({ kind }) => kind === `${type}input`)
@@ -223,6 +229,40 @@ export default function CameraMicrophoneSelect() {
       detectMicrophones()
   }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual, permissionDenied.audio, hasDeviceLabels])
 
+  // Acquire a metering-only audio stream when a microphone is selected
+  useEffect(() => {
+    if (!microphone || !microphones || permissionDenied.audio) {
+      if (meterStreamRef.current) {
+        meterStreamRef.current.getTracks().forEach(t => t.stop())
+        meterStreamRef.current = null
+      }
+      setMeterStream(null)
+      return
+    }
+    const selected = microphones.find(({ id }) => id === microphone)
+    if (!selected) return
+
+    let cancelled = false
+    navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: { ...CONSTRAINTS_AUDIO, deviceId: selected.deviceId }
+    }).then(stream => {
+      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+      if (meterStreamRef.current) meterStreamRef.current.getTracks().forEach(t => t.stop())
+      meterStreamRef.current = stream
+      setMeterStream(stream)
+    }).catch(() => {})
+
+    return () => {
+      cancelled = true
+      if (meterStreamRef.current) {
+        meterStreamRef.current.getTracks().forEach(t => t.stop())
+        meterStreamRef.current = null
+      }
+      setMeterStream(null)
+    }
+  }, [microphone, microphones, permissionDenied.audio])
+
   const options = (sources, defaultValue) => {
     const options = [<option value="-1" key={0}>{defaultValue}</option>]
     sources?.forEach(
@@ -261,19 +301,27 @@ export default function CameraMicrophoneSelect() {
 
       {/* Microphone row */}
       <div className="flex items-center gap-2">
-        <div className={`size-7 rounded-lg flex items-center justify-center flex-shrink-0 ${permissionDenied.audio ? "bg-error/10 text-error/60" : "bg-base-content/5 text-base-content/40"}`}>
+        <div className={`relative size-7 rounded-lg flex items-center justify-center flex-shrink-0 ${permissionDenied.audio ? "bg-error/10 text-error/60" : "bg-base-content/5 text-base-content/40"}`}>
           <MicrophoneIcon className="size-3.5" />
+          {microphone && !permissionDenied.audio && (
+            <div className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-500 ring-1 ring-base-100" />
+          )}
         </div>
-        <select
-          onChange={onSelectMicrophone}
-          disabled={isPending || permissionDenied.audio}
-          value={microphone ?? "-1"}
-          className={`select select-sm flex-1 min-w-0 bg-transparent border-base-content/8 focus:border-primary/30 text-xs ${permissionDenied.audio ? "select-error" : ""}`}
-        >
-          {permissionDenied.audio
-            ? <option value="-1">Mic not available</option>
-            : options(microphones, "No microphone")}
-        </select>
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          <select
+            onChange={onSelectMicrophone}
+            disabled={isPending || permissionDenied.audio}
+            value={microphone ?? "-1"}
+            className={`select select-sm w-full bg-transparent border-base-content/8 focus:border-primary/30 text-xs ${permissionDenied.audio ? "select-error" : ""}`}
+          >
+            {permissionDenied.audio
+              ? <option value="-1">Mic not available</option>
+              : options(microphones, "No microphone")}
+          </select>
+          {microphone && !permissionDenied.audio && (
+            <VolumeMeter level={level} peak={peak} showPeak />
+          )}
+        </div>
       </div>
 
       {/* Refresh / Permission denied */}
