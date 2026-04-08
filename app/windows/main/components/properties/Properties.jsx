@@ -6,6 +6,7 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon,
     ComputerDesktopIcon,
+    CubeIcon,
     CursorArrowRippleIcon,
     FilmIcon,
     MusicalNoteIcon,
@@ -28,6 +29,7 @@ import {
     MASKS,
     OVERLAY_TRACKS,
     SCREEN_RECORDING,
+    SPATIALS,
     SUBTITLES,
     TRANSCRIPT,
     ZOOMS
@@ -48,6 +50,7 @@ import {
     setSelectedIds,
     setSelectedRow
 } from "@shared/redux/timelineSlice"
+import { selectSpatialIds } from "@shared/redux/spatialSlice"
 import { selectZoomIds } from "@shared/redux/zoomSlice"
 import AudioTrackSection from "./AudioTrackSection"
 import BackgroundSection from "./BackgroundSection"
@@ -61,6 +64,7 @@ import OverlaySection from "./OverlaySection"
 import ScreenRecordingSection from "./ScreenRecordingSection"
 import SubtitleSection from "./SubtitleSection"
 import TranscriptSection from "./TranscriptSection"
+import SpatialSection from "./SpatialSection"
 import ZoomSection from "./ZoomSection"
 
 export default function Properties({ isCollapsed = false, onToggle }) {
@@ -73,6 +77,7 @@ export default function Properties({ isCollapsed = false, onToggle }) {
     const hasAnyAudio = hasMicrophoneAudio || hasSystemAudio
     const clipAnimIds = useSelector(selectClipIds)
     const zoomAnimIds = useSelector(selectZoomIds)
+    const spatialAnimIds = useSelector(selectSpatialIds)
     const maskAnimIds = useSelector(selectMaskIds)
     const audioClipIds = useSelector(selectAudioClipIds)
     const overlayIds = useSelector(selectOverlayIds)
@@ -89,6 +94,11 @@ export default function Properties({ isCollapsed = false, onToggle }) {
                 dispatch(setIsMaskingModeEnabled(false))
                 dispatch(setSelectedIds(zoomAnimIds))
                 dispatch(setSelectedRow(ZOOMS))
+                break
+            case SPATIALS:
+                dispatch(setIsMaskingModeEnabled(false))
+                dispatch(setSelectedIds(spatialAnimIds))
+                dispatch(setSelectedRow(SPATIALS))
                 break
             case MASKS:
                 dispatch(setIsMaskingModeEnabled(true))
@@ -168,6 +178,13 @@ export default function Properties({ isCollapsed = false, onToggle }) {
                             </button>
                         </li>
                         <li>
+                            <button onClick={() => open(SPATIALS)}
+                                className={`tooltip tooltip-left ${openSection === SPATIALS ? "menu-active" : ""}`}
+                                data-tip="Spatial 3D">
+                                <CubeIcon className="w-6 h-6" />
+                            </button>
+                        </li>
+                        <li>
                             <button onClick={() => open(MASKS)}
                                 className={`tooltip tooltip-left ${openSection === MASKS ? "menu-active" : ""}`}
                                 data-tip="Masks">
@@ -218,6 +235,7 @@ export default function Properties({ isCollapsed = false, onToggle }) {
                         {openSection === CLIPS && <ClipSection />}
                         {openSection === CLICKS && <ClickSection />}
                         {openSection === ZOOMS && <ZoomSection />}
+                        {openSection === SPATIALS && <SpatialSection />}
                         {openSection === SUBTITLES && <SubtitleSection />}
                         {openSection === MASKS && <MaskSection />}
                         {openSection === "filters" && <FilterSection />}
