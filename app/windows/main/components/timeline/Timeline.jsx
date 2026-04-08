@@ -19,6 +19,7 @@ import {
     msToPx,
     OVERLAY_TRACKS,
     pxToMs,
+    SPATIALS,
     SUBTITLES,
     ZOOMS
 } from "@shared/helpers"
@@ -85,7 +86,9 @@ import {
 } from "@shared/redux/timelineSlice"
 import { selectAllMasks } from "@shared/redux/maskSlice"
 import { selectAllOverlays } from "@shared/redux/overlaySlice"
+import { selectAllSpatials } from "@shared/redux/spatialSlice"
 import { selectAllSubtitles } from "@shared/redux/subtitleSlice"
+import { selectSpatialIds } from "@shared/redux/spatialSlice"
 import { selectAllZooms, selectZoomIds } from "@shared/redux/zoomSlice"
 import { subscribe, isDragActive } from "../../dragState"
 import AddTrackButton from "./AddTrackButton"
@@ -96,6 +99,7 @@ import Cursor from "./Cursor"
 import Masks from "./Masks"
 import Minimap from "./Minimap"
 import OverlayTracks from "./OverlayTracks"
+import SpatialClips from "./SpatialClips"
 import Subtitles from "./Subtitles"
 import TimelineToolbar from "./TimelineToolbar"
 import TimeScale from "./TimeScale"
@@ -119,6 +123,7 @@ export default function Timeline() {
     const selectedRow = useSelector(selectSelectedRow)
     const clipIds = useSelector(selectClipIds)
     const zoomIds = useSelector(selectZoomIds)
+    const spatialIds = useSelector(selectSpatialIds)
     const subtitleIds = useSelector(selectSubtitleIds)
     const audioClipIds = useSelector(selectAudioClipIds)
     const overlayIds = useSelector(selectOverlayIds)
@@ -136,6 +141,7 @@ export default function Timeline() {
     const zooms = useSelector(selectAllZooms)
     const subtitles = useSelector(selectAllSubtitles)
     const masks = useSelector(selectAllMasks)
+    const spatialAnims = useSelector(selectAllSpatials)
     const audioClips = useSelector(selectAllAudioClips)
     const overlays = useSelector(selectAllOverlays)
 
@@ -251,6 +257,7 @@ export default function Timeline() {
                 case SUBTITLES: ids = subtitleIds; break
                 case CLIPS: ids = clipIds; break
                 case ZOOMS: ids = zoomIds; break
+                case SPATIALS: ids = spatialIds; break
                 case AUDIO_TRACKS: ids = audioClipIds; break
                 case OVERLAY_TRACKS: ids = overlayIds; break
             }
@@ -259,7 +266,7 @@ export default function Timeline() {
                 if (newSelectedIds.length !== selectedIds.length) dispatch(setSelectedIds(newSelectedIds))
             }
         }
-    }, [clipIds, dispatch, selectedIds, selectedIds.length, selectedRow, subtitleIds, zoomIds, audioClipIds, overlayIds])
+    }, [clipIds, dispatch, selectedIds, selectedIds.length, selectedRow, subtitleIds, zoomIds, spatialIds, audioClipIds, overlayIds])
 
     const scrollToStart = useCallback(() => {
         if (container.current) container.current.scrollLeft = 0
@@ -285,14 +292,14 @@ export default function Timeline() {
     // Snapping lines computation (moved from Controls.jsx)
     useEffect(() => {
         if (isSnappingEnabled && !isPlaying) {
-            const allElements = [...clicks, ...clips, ...zooms, ...subtitles, ...audioClips, ...overlays]
+            const allElements = [...clicks, ...clips, ...zooms, ...spatialAnims, ...subtitles, ...audioClips, ...overlays]
             if (isMaskingModeEnabled) allElements.push(...masks)
             let lines = allElements.flatMap(({ start, end }) => [start, end])
             lines.push(time)
             lines = [...new Set(lines)].sort((a, b) => a - b)
             dispatch(setSnappingLines(lines))
         }
-    }, [isSnappingEnabled, clicks, clips, zooms, subtitles, masks, audioClips, overlays, time, isMaskingModeEnabled, isPlaying, dispatch])
+    }, [isSnappingEnabled, clicks, clips, zooms, spatialAnims, subtitles, masks, audioClips, overlays, time, isMaskingModeEnabled, isPlaying, dispatch])
 
     // Fit to view: set zoom so entire timeline fits in container
     const handleFitToView = useCallback(() => {
@@ -399,6 +406,7 @@ export default function Timeline() {
                         {/* Built-in tracks */}
                         <TrackHeader name="Clips" color="primary" isMinimized={mini} height="h-16" />
                         <TrackHeader name="Zooms" color="secondary" isMinimized={mini} />
+                        <TrackHeader name="Spatial" color="accent" isMinimized={mini} />
                         {totalSubtitles > 0 && <TrackHeader name="Subtitles" color="tertiary" isMinimized={mini} />}
 
                         {isMaskingModeEnabled && <TrackHeader name="Masks" color="neutral" isMinimized={false} />}
@@ -468,6 +476,7 @@ export default function Timeline() {
                             <Clicks />
                             <Clips />
                             <Zooms />
+                            <SpatialClips />
                             {totalSubtitles > 0 && <Subtitles />}
                             {isMaskingModeEnabled && <Masks />}
 
