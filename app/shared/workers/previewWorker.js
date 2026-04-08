@@ -36,7 +36,10 @@ class PreviewRenderer {
         this.isInitialized = true
     }
 
-    async setVideoFrame({ type, frame, mask }) {
+    async setVideoFrame({ type, frame, mask, landmarks }) {
+        if (type === "camera" && this.scene?.camera) {
+            this.scene.camera.setEyeContactData(landmarks, !!landmarks)
+        }
         this.scene?.setFrame(type, frame, mask)
         if (!this.isPlaying) this.scene?.render()
     }

@@ -34,6 +34,8 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.isScreenFramePending = false
         this.isCameraFramePending = false
         this.stopped = false
+        this.eyeContactEnabled = false
+        this.faceLandmarkerReady = false
     }
 
     async init(canvas, duration, args) {
@@ -82,7 +84,11 @@ export default class PreviewWorkerManager extends WorkerManager {
                 const frame = new VideoFrame(this.cameraVideo)
                 let mask
                 if (this.hasCameraBlur()) mask = await this.segment(frame, false)
-                await this.postFrame(CAMERA_VIDEO, frame, mask)
+                let landmarks = null
+                if (this.eyeContactEnabled && this.faceLandmarkerReady) {
+                    landmarks = this.detectFaceLandmarks(frame)
+                }
+                await this.postFrame(CAMERA_VIDEO, frame, mask, landmarks)
                 this.isCameraFramePending = false
             }
             if (!this.stopped) this.cameraVideo.requestVideoFrameCallback(cameraFrameCallback)
@@ -107,16 +113,30 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.postCameraVideoMaskUpdate(data)
     }
 
-    postFrame(type, frame, mask) {
+    postFrame(type, frame, mask, landmarks) {
         // postFrame is using postAsync to handle backpressure
         const transferList = [frame]
         if (mask) transferList.push(mask)
-        return this.postAsync(FRAME, { type, frame, mask }, undefined, transferList)
+        return this.postAsync(FRAME, { type, frame, mask, landmarks }, undefined, transferList)
     }
 
     postIsPlaying(isPlaying) {
         this.post(IS_PLAYING, isPlaying)
         this.isPlaying = isPlaying
+    }
+
+    async enableEyeContact(cameraVideoDims) {
+        if (this.faceLandmarkerReady) return
+        try {
+            await this.createFaceLandmarker(cameraVideoDims)
+            this.faceLandmarkerReady = true
+        } catch (e) {
+            console.warn("[Flowtake] FaceLandmarker initialization failed:", e)
+        }
+    }
+
+    setEyeContactEnabled(enabled) {
+        this.eyeContactEnabled = enabled
     }
 
     async postCameraVideoMaskUpdate(data) {

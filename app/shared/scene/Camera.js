@@ -15,6 +15,7 @@ import {
 } from "pixi.js"
 import { shallowEqual } from "react-redux"
 import CanvasWrapper from "./CanvasWrapper"
+import { applyEyeContactCorrection } from "./spatial/eyeContact"
 import fragment from "./shaders/selfieSegmentation.frag?raw"
 import vertex from "./shaders/selfieSegmentation.vert?raw"
 import source from "./shaders/selfieSegmentation.wgsl?raw"
@@ -27,6 +28,8 @@ export default class Camera extends CanvasWrapper {
         this.blurAmount = 0
         this.isMirrored = false
         this.rendererDims = null
+        this.eyeContactEnabled = false
+        this.eyeContactLandmarks = null
 
         this.texture = new Texture({ source: new CanvasSource({ resource: this.canvas }) })
 
@@ -140,8 +143,16 @@ export default class Camera extends CanvasWrapper {
         this.bg.pivot.x = this.isMirrored ? this.dims.x : 0
     }
 
+    setEyeContactData(landmarks, enabled) {
+        this.eyeContactLandmarks = landmarks
+        this.eyeContactEnabled = enabled
+    }
+
     drawContent() {
         super.drawContent()
+        if (this.eyeContactEnabled && this.eyeContactLandmarks) {
+            applyEyeContactCorrection(this.canvas.context, this.eyeContactLandmarks, this.dims.x, this.dims.y)
+        }
         this.texture.source.update()
     }
 

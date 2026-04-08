@@ -167,6 +167,27 @@ export default class WorkerManager {
             })
     }
 
+    async createFaceLandmarker({ x, y }) {
+        const { FilesetResolver, FaceLandmarker } = await import("@mediapipe/tasks-vision")
+        const faceLandmarkerModelUrl = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+        this.faceLandmarker = await FaceLandmarker.createFromOptions(
+            await FilesetResolver.forVisionTasks("../selfie_segmentation/wasm"),
+            {
+                baseOptions: { modelAssetPath: faceLandmarkerModelUrl, delegate: "GPU" },
+                outputFaceBlendshapes: false,
+                outputFacialTransformationMatrixes: false,
+                numFaces: 1,
+                canvas: new OffscreenCanvas(x, y)
+            })
+    }
+
+    detectFaceLandmarks(input) {
+        if (!this.faceLandmarker) return null
+        const result = this.faceLandmarker.detect(input)
+        if (!result.faceLandmarks?.length) return null
+        return result.faceLandmarks[0]
+    }
+
     async segment(input, closeInput = true) {
         const segmentation = this.segmenter.segment(input)
         if (closeInput) input.close()
