@@ -29,9 +29,11 @@ import {
     selectAudioTracks,
     toggleTrackLock,
     toggleTrackMute,
-    removeTrack as removeAudioTrack
+    removeTrack as removeAudioTrack,
+    selectAllAudioClips
 } from "@shared/redux/audioTrackSlice"
-import { selectClipIds } from "@shared/redux/clipSlice"
+import { selectAllClicks } from "@shared/redux/clickSlice"
+import { selectAllClips, selectClipIds } from "@shared/redux/clipSlice"
 import {
     closeAllContextMenus,
     selectIsClickMenuOpen,
@@ -67,22 +69,29 @@ import {
 import {
     selectActiveSnapLine,
     selectIsMaskingModeEnabled,
+    selectIsSnappingEnabled,
+    selectOffset,
     selectPxPerMs,
     selectSelectedIds,
     selectSelectedRow,
+    selectTime,
     setOffset,
     setPxPerMs,
     setScrollLeft,
     setSelectedIds,
+    setSnappingLines,
+    setTime,
     setWidth
 } from "@shared/redux/timelineSlice"
-import { selectZoomIds } from "@shared/redux/zoomSlice"
+import { selectAllMasks } from "@shared/redux/maskSlice"
+import { selectAllOverlays } from "@shared/redux/overlaySlice"
+import { selectAllSubtitles } from "@shared/redux/subtitleSlice"
+import { selectAllZooms, selectZoomIds } from "@shared/redux/zoomSlice"
 import { subscribe, isDragActive } from "../../dragState"
 import AddTrackButton from "./AddTrackButton"
 import AudioTracks from "./AudioTracks"
 import Clicks from "./Clicks"
 import Clips from "./Clips"
-import Controls from "./Controls"
 import Cursor from "./Cursor"
 import Masks from "./Masks"
 import Minimap from "./Minimap"
@@ -103,6 +112,7 @@ export default function Timeline() {
     const areHotkeysEnabled = useSelector(selectAreHotkeysEnabled)
     const pxPerMs = useSelector(selectPxPerMs)
     const isMaskingModeEnabled = useSelector(selectIsMaskingModeEnabled)
+    const timelineOffset = useSelector(selectOffset)
 
     const totalSubtitles = useSelector(selectTotalSubtitles)
     const selectedIds = useSelector(selectSelectedIds)
@@ -117,6 +127,17 @@ export default function Timeline() {
     const nextOverlayTrackId = useSelector(selectNextOverlayTrackId)
     const allOverlaysForDrop = useSelector(selectAllOverlaysForDrop)
     const activeSnapLine = useSelector(selectActiveSnapLine)
+    const isSnappingEnabled = useSelector(selectIsSnappingEnabled)
+    const time = useSelector(selectTime)
+
+    // Snapping data selectors (moved from Controls.jsx)
+    const clicks = useSelector(selectAllClicks)
+    const clips = useSelector(selectAllClips)
+    const zooms = useSelector(selectAllZooms)
+    const subtitles = useSelector(selectAllSubtitles)
+    const masks = useSelector(selectAllMasks)
+    const audioClips = useSelector(selectAllAudioClips)
+    const overlays = useSelector(selectAllOverlays)
 
     const isClipMenuOpen = useSelector(selectIsClipMenuOpen)
     const isClickMenuOpen = useSelector(selectIsClickMenuOpen)
@@ -252,6 +273,32 @@ export default function Timeline() {
         else if (isPlaying && t > scrollThreshold) container.current.scrollLeft = msToPx(t - scrollThreshold, pxPerMs)
     }, [pxPerMs, isPlaying])
 
+    // Click-to-seek: click on empty timeline area to jump playhead there
+    const handleTimelineClick = useCallback(e => {
+        if (isPlaying || !container.current) return
+        // Only seek if clicking directly on the grid background (not on a clip/action)
+        if (e.target.closest('[class*="absolute"]') && !e.target.dataset.dropZone) return
+        const t = clamp(pxToMs(e.clientX - timelineOffset + container.current.scrollLeft, pxPerMs), 0, duration)
+        dispatch(setTime(t))
+    }, [isPlaying, pxPerMs, timelineOffset, duration, dispatch])
+
+    // Snapping lines computation (moved from Controls.jsx)
+    useEffect(() => {
+        if (isSnappingEnabled && !isPlaying) {
+            const allElements = [...clicks, ...clips, ...zooms, ...subtitles, ...audioClips, ...overlays]
+            if (isMaskingModeEnabled) allElements.push(...masks)
+            let lines = allElements.flatMap(({ start, end }) => [start, end])
+            lines.push(time)
+            lines = [...new Set(lines)].sort((a, b) => a - b)
+            dispatch(setSnappingLines(lines))
+        }
+    }, [isSnappingEnabled, clicks, clips, zooms, subtitles, masks, audioClips, overlays, time, isMaskingModeEnabled, isPlaying, dispatch])
+
+    // Fit to view: set zoom so entire timeline fits in container
+    const handleFitToView = useCallback(() => {
+        if (containerWidth && duration) dispatch(setPxPerMs(containerWidth / duration))
+    }, [dispatch, containerWidth, duration])
+
     // Show drag-over indicator when a custom pointer drag is active
     useEffect(() => subscribe(() => setIsDragOver(isDragActive())), [])
 
@@ -335,33 +382,35 @@ export default function Timeline() {
             <div className="flex flex-col h-full bg-base-100 rounded-lg relative z-0">
 
                 {/* Toolbar */}
-                <TimelineToolbar />
+                <TimelineToolbar zoomSteps={zoomSteps} onFitToView={handleFitToView} />
                 <Minimap containerRef={container} />
 
                 <div className="flex flex-1 min-h-0">
-                    {/* Zoom/snap controls */}
-                    <Controls onScrollToStart={scrollToStart} />
 
                     {/* Track headers - left column */}
                     <div ref={headerScroll}
-                        className="w-28 shrink-0 flex-col border-r border-base-content/10 overflow-hidden hidden lg:flex">
+                        className="w-36 shrink-0 flex-col border-r border-base-content/10 overflow-hidden hidden md:flex">
                         {/* TimeScale spacer */}
-                        <div className="h-4 shrink-0" />
-                        <div className="h-4 shrink-0" />
+                        <div className="h-6 shrink-0" />
                         {/* Clicks row spacer */}
                         <div className={`${mini ? "h-2" : "h-4"} shrink-0 flex items-center px-2`}>
                             {!mini && <span className="text-[9px] opacity-30 truncate">Clicks</span>}
                         </div>
                         {/* Built-in tracks */}
-                        <TrackHeader name="Clips" color="primary" isMinimized={mini} />
+                        <TrackHeader name="Clips" color="primary" isMinimized={mini} height="h-16" />
                         <TrackHeader name="Zooms" color="secondary" isMinimized={mini} />
                         {totalSubtitles > 0 && <TrackHeader name="Subtitles" color="tertiary" isMinimized={mini} />}
 
                         {isMaskingModeEnabled && <TrackHeader name="Masks" color="neutral" isMinimized={false} />}
 
+                        {/* Track group separator */}
+                        {(audioTracks.length > 0 || overlayTracks.length > 0) && !mini && (
+                            <div className="h-px bg-base-content/10 mx-2 my-1" />
+                        )}
+
                         {/* Audio track headers */}
                         {audioTracks.length > 0 && (
-                            <div className="border-t border-base-content/5 mt-1 pt-1">
+                            <div>
                                 {audioTracks.map(track => (
                                     <TrackHeader
                                         key={`ah-${track.id}`}
@@ -381,7 +430,7 @@ export default function Timeline() {
 
                         {/* Overlay track headers */}
                         {overlayTracks.length > 0 && (
-                            <div className="border-t border-base-content/5 mt-1 pt-1">
+                            <div>
                                 {overlayTracks.map(track => (
                                     <TrackHeader
                                         key={`oh-${track.id}`}
@@ -408,8 +457,8 @@ export default function Timeline() {
                     {/* Timeline tracks content */}
                     <div ref={container}
                         data-drop-zone="timeline"
-                        className={`flex-1 px-20 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar relative`}>
-                        {duration && <div ref={timeline}
+                        className={`flex-1 px-8 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar relative`}>
+                        {duration && <div ref={timeline} onClick={handleTimelineClick}
                             className="grid grid-cols-1 gap-1 relative bg-size-[100%_100%] z-0 min-h-full"
                             style={{ width: `${timelineWidth}px`, backgroundImage: getGridBackgroundImage(gridSpacing) }}>
 
@@ -421,6 +470,11 @@ export default function Timeline() {
                             <Zooms />
                             {totalSubtitles > 0 && <Subtitles />}
                             {isMaskingModeEnabled && <Masks />}
+
+                            {/* Track group separator */}
+                            {(audioTracks.length > 0 || overlayTracks.length > 0) && !mini && (
+                                <div className="h-px bg-base-content/8 -mx-1" />
+                            )}
 
                             {/* Audio & Overlay tracks - rendered inline */}
                             <AudioTracks />

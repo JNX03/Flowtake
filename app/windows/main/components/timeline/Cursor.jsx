@@ -68,7 +68,7 @@ export default function Cursor({ onScrollToCursor }) {
     const isPlayingRef = useRef(isPlaying)
     const isStoppedRef = useRef(isStopped)
 
-    const setTimeThrottled = useThrottledCallback(t => dispatch(setTime(t)), 32, { 'trailing': true })
+    const setTimeThrottled = useThrottledCallback(t => dispatch(setTime(t)), 16, { 'trailing': true })
 
     const applyTime = useCallback((unclampedTime, scrollToCursor = true, throttled = false) => {
         const t = clamp(unclampedTime, videoDetails.start, videoDetails.end)
@@ -202,9 +202,9 @@ export default function Cursor({ onScrollToCursor }) {
             "group w-4 absolute bottom-0 z-30 flex flex-col items-center h-full"
         }>
             {/* Top diamond indicator */}
-            <div className={`w-2.5 h-2.5 ${isMouseDown ? "bg-base-content" : "bg-info group-hover:bg-base-content"} rounded-sm rotate-45 mt-1 shrink-0 group-hover:scale-125 transition-all`} />
+            <div className={`w-3 h-3 ${isMouseDown ? "bg-base-content" : "bg-info group-hover:bg-base-content"} rounded-sm rotate-45 mt-0.5 shrink-0 group-hover:scale-125 transition-all shadow-sm`} />
             <div className={
-                `${isMouseDown ? "w-0.5 bg-base-content" : "w-0.5 group-hover:w-1 bg-info group-hover:bg-base-content"} ` +
+                `${isMouseDown ? "w-0.5 bg-base-content" : "w-px group-hover:w-0.5 bg-info group-hover:bg-base-content"} ` +
                 "flex-1 shadow-lg transition-all"
             } />
         </div>
