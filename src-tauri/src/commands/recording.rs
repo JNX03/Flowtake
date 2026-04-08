@@ -852,7 +852,7 @@ pub async fn init_recording(
     .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .content_protected(true)
+    .content_protected(super::windows::is_content_protection_enabled(&app))
     .build();
 
     match recorder_window {
@@ -2002,7 +2002,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let h64 = (h64 - (h64 % 2)).max(2);
 
             if let Some(main_win) = app.get_webview_window("main") {
-                main_win.set_content_protected(true).ok();
+                main_win.set_content_protected(super::windows::is_content_protection_enabled(&app)).ok();
             }
 
             let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
@@ -2085,7 +2085,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
     // Screen/Area screenshot using platform-specific capture
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.set_content_protected(true).ok();
+        main_win.set_content_protected(super::windows::is_content_protection_enabled(&app)).ok();
     }
 
     // On macOS, check screen recording permission before calling screencapture

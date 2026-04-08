@@ -79,6 +79,7 @@ const COMMAND_MAP = {
     'select-area': 'select_area',
     'add-note': 'add_note',
     'toggle-drawing-overlay': 'toggle_drawing_overlay',
+    'set-content-protection': 'set_content_protection',
     'get-window-at-point': 'get_window_at_point',
     'get-monitors': 'get_monitors',
     // App
@@ -191,6 +192,7 @@ const ARGS_MAP = {
     'set_encoder': (args) => ({ encoder: args[0] }),
     'get_capturers': (args) => ({ force: args[0] }),
     'set_capturer': (args) => ({ capturer: args[0] }),
+    'set_content_protection': (args) => ({ enabled: args[0] }),
     'get_window_at_point': (args) => ({ x: args[0], y: args[1] }),
     'get_projects': (args) => ({ page: args[0] }),
     'extract_audio_buffer': (args) => ({ source: args[0] }),

@@ -51,6 +51,12 @@ export default function GeneralSettings() {
         staleTime: Infinity
     })
 
+    const { data: contentProtectionEnabled, isPending: isContentProtPending, refetch: refetchContentProt } = useQuery({
+        queryKey: ['contentProtectionEnabled'],
+        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "contentProtectionEnabled"),
+        staleTime: Infinity
+    })
+
     const onChangeIsIssueReportingEnabled = async (e) => {
         await window.electron.ipcRenderer.invoke("store-set", "isIssueReportingEnabled", e.target.checked)
         refetch()
@@ -74,6 +80,11 @@ export default function GeneralSettings() {
     const onChangeNotifications = async (e) => {
         await window.electron.ipcRenderer.invoke("store-set", "notificationsEnabled", e.target.checked)
         refetchNotif()
+    }
+
+    const onChangeContentProtection = async (e) => {
+        await window.electron.ipcRenderer.invoke("set-content-protection", e.target.checked)
+        refetchContentProt()
     }
 
     const openLogsDirectory = () => { window.electron.ipcRenderer.invoke("open-logs-dir") }
@@ -113,6 +124,13 @@ export default function GeneralSettings() {
             <Toggle leftLabel="Enable notifications" value={isNotifPending ? false : (notificationsEnabled ?? true)}
                 onChange={onChangeNotifications} disabled={isNotifPending}
                 isIndeterminate={isNotifPending} />
+        </Fieldset>
+
+        <Fieldset legend="Privacy" description="Control whether Flowtake is visible in screenshots and screen recordings.">
+            <Toggle leftLabel="Hide app from screenshots & recordings"
+                value={isContentProtPending ? true : (contentProtectionEnabled ?? true)}
+                onChange={onChangeContentProtection} disabled={isContentProtPending}
+                isIndeterminate={isContentProtPending} />
         </Fieldset>
 
         <Fieldset legend="Issue reporting" description="Restart Flowtake for changes to issue reporting to go into effect.">

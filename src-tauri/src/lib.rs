@@ -425,6 +425,7 @@ pub fn run() {
             commands::windows::get_window_at_point,
             commands::windows::get_monitors,
             commands::windows::toggle_drawing_overlay,
+            commands::windows::set_content_protection,
             // App
             commands::app::get_version,
             commands::app::get_system_info,
@@ -501,7 +502,8 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 if let Some(win) = handle.get_webview_window("main") {
                     // Exclude main window from screen captures (preview & recording)
-                    win.set_content_protected(true).ok();
+                    let protected = commands::windows::is_content_protection_enabled(&handle);
+                    win.set_content_protected(protected).ok();
                     win.show().ok();
                     win.set_focus().ok();
                 }

@@ -2,6 +2,39 @@ use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_store::StoreExt;
+
+/// Read the content-protection preference from the store.
+/// Returns `true` (protected / hidden from capture) when the key is absent.
+pub fn is_content_protection_enabled(app: &AppHandle) -> bool {
+    app.store("store.json")
+        .ok()
+        .and_then(|s| s.get("contentProtectionEnabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
+#[tauri::command]
+pub async fn set_content_protection(app: AppHandle, enabled: bool) -> AppResult<()> {
+    // Persist to store
+    let store = app
+        .store("store.json")
+        .map_err(|e| AppError::General(e.to_string()))?;
+    store.set("contentProtectionEnabled", Value::Bool(enabled));
+    store
+        .save()
+        .map_err(|e| AppError::General(e.to_string()))?;
+
+    // Apply to every existing window except drawingOverlay
+    for (label, window) in app.webview_windows() {
+        if label == "drawingOverlay" {
+            continue;
+        }
+        window.set_content_protected(enabled).ok();
+    }
+
+    Ok(())
+}
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{HWND, LPARAM};
@@ -99,7 +132,7 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
-    .content_protected(true)
+    .content_protected(is_content_protection_enabled(&app))
     .build()
     .map_err(AppError::Tauri)?;
 
@@ -504,7 +537,7 @@ pub async fn add_note(app: AppHandle) -> AppResult<()> {
     .resizable(true)
     .decorations(false)
     .always_on_top(true)
-    .content_protected(true)
+    .content_protected(is_content_protection_enabled(&app))
     .build()
     .map_err(AppError::Tauri)?;
 
