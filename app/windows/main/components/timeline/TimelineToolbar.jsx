@@ -1,12 +1,18 @@
 import {
-    DocumentDuplicateIcon,
-    ScissorsIcon,
-    TrashIcon
-} from "@heroicons/react/16/solid"
-import {
     ArrowUturnLeftIcon,
-    ArrowUturnRightIcon
+    ArrowUturnRightIcon,
+    DocumentDuplicateIcon,
+    ForwardIcon,
+    LinkIcon,
+    LinkSlashIcon,
+    MagnifyingGlassMinusIcon,
+    MagnifyingGlassPlusIcon,
+    PauseIcon,
+    ScissorsIcon,
+    TrashIcon,
+    ViewfinderCircleIcon
 } from "@heroicons/react/16/solid"
+import { Bars4Icon } from "@heroicons/react/24/outline"
 import { useCallback } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
 import {
@@ -34,6 +40,7 @@ import {
 } from "@shared/redux/clipSlice"
 import {
     selectAreHotkeysEnabled,
+    selectDuration,
     selectIsPlaying
 } from "@shared/redux/editorSlice"
 import {
@@ -42,10 +49,19 @@ import {
     updateSubtitle
 } from "@shared/redux/subtitleSlice"
 import {
+    selectEditingMode,
+    selectIsMaskingModeEnabled,
+    selectIsSnappingEnabled,
+    selectPxPerMs,
     selectSelectedIds,
     selectSelectedRow,
     selectTime,
-    setSelectedIds
+    setEditingMode,
+    setIsMaskingModeEnabled,
+    setIsSnappingEnabled,
+    setPxPerMs,
+    setSelectedIds,
+    setSelectedRow
 } from "@shared/redux/timelineSlice"
 import {
     removeAudioClip,
@@ -96,7 +112,16 @@ function getIdPrefix(row) {
     }
 }
 
-export default function TimelineToolbar() {
+function formatTimecode(ms) {
+    if (ms == null || isNaN(ms)) return "00:00.00"
+    const totalSeconds = Math.floor(ms / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    const centiseconds = Math.floor((ms % 1000) / 10)
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`
+}
+
+export default function TimelineToolbar({ zoomSteps, onFitToView }) {
 
     const dispatch = useDispatch()
     const store = useStore()
@@ -106,6 +131,11 @@ export default function TimelineToolbar() {
     const isPlaying = useSelector(selectIsPlaying)
     const areHotkeysEnabled = useSelector(selectAreHotkeysEnabled)
     const time = useSelector(selectTime)
+    const duration = useSelector(selectDuration)
+    const pxPerMs = useSelector(selectPxPerMs)
+    const isSnappingEnabled = useSelector(selectIsSnappingEnabled)
+    const isMaskingModeEnabled = useSelector(selectIsMaskingModeEnabled)
+    const editingMode = useSelector(selectEditingMode)
     const hasSelection = selectedIds.length > 0
 
     const handleUndo = useCallback(() => dispatch(ActionCreators.undo()), [dispatch])
@@ -183,7 +213,6 @@ export default function TimelineToolbar() {
             const newStart = entity.end
             const newEnd = newStart + duration
 
-            // Check for overlap with existing entities
             const hasOverlap = allEntities.some(e =>
                 e.id !== entity.id && e.start < newEnd && e.end > newStart
             )
@@ -215,13 +244,51 @@ export default function TimelineToolbar() {
         dispatch(setSelectedIds(newIds.length > 0 ? newIds : []))
     }, [dispatch, store, hasSelection, isPlaying, selectedIds, selectedRow])
 
+    // Freeze frame: split at playhead and set playbackRate=0 on new clip
+    const handleFreezeFrame = useCallback(() => {
+        if (!hasSelection || isPlaying || selectedRow !== CLIPS) return
+        const state = store.getState()
+        const group = getGroup("freeze")
+
+        selectedIds.forEach(id => {
+            const entity = getEntity(state, selectedRow, id)
+            if (!entity || !canSplit(entity, time)) return
+
+            const newId = `clip-${crypto.randomUUID()}`
+            const freezeEnd = Math.min(time + 2000, entity.end)
+            const afterId = `clip-${crypto.randomUUID()}`
+
+            dispatch(withGroup(upsertClips([
+                { id: entity.id, end: time },
+                { ...entity, id: newId, start: time, end: freezeEnd, playbackRate: 0 },
+                { ...entity, id: afterId, start: freezeEnd, end: entity.end }
+            ]), group))
+        })
+    }, [dispatch, store, hasSelection, isPlaying, selectedIds, selectedRow, time])
+
+    // Zoom slider
+    const zoomIndex = zoomSteps ? zoomSteps.findIndex(step => step >= pxPerMs) : 0
+    const handleZoomChange = useCallback(e => {
+        const idx = Number(e.target.value)
+        if (zoomSteps?.[idx] != null) dispatch(setPxPerMs(zoomSteps[idx]))
+    }, [dispatch, zoomSteps])
+
+    // Toggles
+    const handleToggleSnap = useCallback(() => dispatch(setIsSnappingEnabled(!isSnappingEnabled)), [dispatch, isSnappingEnabled])
+    const handleToggleRipple = useCallback(() => dispatch(setEditingMode(editingMode === "normal" ? "ripple" : "normal")), [dispatch, editingMode])
+    const handleToggleMasking = useCallback(() => {
+        dispatch(setSelectedIds([]))
+        dispatch(setIsMaskingModeEnabled(!isMaskingModeEnabled))
+        dispatch(setSelectedRow(null))
+    }, [dispatch, isMaskingModeEnabled])
+
     useHotkeys('delete', handleDelete, { enabled: areHotkeysEnabled && hasSelection && !isPlaying }, [handleDelete])
     useHotkeys('backspace', handleDelete, { enabled: areHotkeysEnabled && hasSelection && !isPlaying }, [handleDelete])
     useHotkeys('s', handleSplit, { enabled: areHotkeysEnabled && hasSelection && !isPlaying }, [handleSplit])
     useHotkeys('mod+d', handleDuplicate, { enabled: areHotkeysEnabled && hasSelection && !isPlaying, preventDefault: true }, [handleDuplicate])
 
     return (
-        <div className="flex items-center gap-0.5 px-2 py-1 border-b border-base-content/10 shrink-0">
+        <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-base-content/10 shrink-0">
             {/* Undo / Redo */}
             <button onClick={handleUndo}
                 className="btn btn-ghost btn-xs btn-square tooltip tooltip-bottom" data-tip="Undo">
@@ -251,7 +318,32 @@ export default function TimelineToolbar() {
                 <DocumentDuplicateIcon className="size-3.5" />
             </button>
 
-            <div className="flex-1" />
+            <div className="w-px h-4 bg-base-content/10 mx-1" />
+
+            {/* Extended tools */}
+            <button onClick={handleFreezeFrame}
+                className="btn btn-ghost btn-xs btn-square tooltip tooltip-bottom"
+                data-tip="Freeze Frame" disabled={!hasSelection || isPlaying || selectedRow !== CLIPS}>
+                <PauseIcon className="size-3.5" />
+            </button>
+            <button onClick={() => {/* Speed control - just a visual shortcut hint */}}
+                className="btn btn-ghost btn-xs btn-square tooltip tooltip-bottom"
+                data-tip="Speed (select clip)" disabled={!hasSelection || selectedRow !== CLIPS}>
+                <ForwardIcon className="size-3.5" />
+            </button>
+
+            {/* Time display - center */}
+            <div className="flex-1 flex justify-center">
+                <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-md bg-base-200/60">
+                    <span className="text-xs font-mono tracking-tight opacity-90" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {formatTimecode(time)}
+                    </span>
+                    <span className="text-[10px] opacity-30">/</span>
+                    <span className="text-[10px] font-mono tracking-tight opacity-50" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {formatTimecode(duration)}
+                    </span>
+                </div>
+            </div>
 
             {/* Selection info */}
             {hasSelection && (
@@ -260,8 +352,43 @@ export default function TimelineToolbar() {
                 </span>
             )}
 
+            {/* Toggle buttons */}
+            <button className={`btn btn-xs btn-square ${isSnappingEnabled ? "btn-info" : "btn-ghost"} tooltip tooltip-bottom`}
+                data-tip={isSnappingEnabled ? "Snap on" : "Snap off"}
+                onClick={handleToggleSnap} disabled={isPlaying}>
+                {isSnappingEnabled ? <LinkSlashIcon className="size-3.5" /> : <LinkIcon className="size-3.5" />}
+            </button>
+            <button className={`btn btn-xs btn-square ${isMaskingModeEnabled ? "btn-info" : "btn-ghost"} tooltip tooltip-bottom`}
+                data-tip={isMaskingModeEnabled ? "Masking on" : "Masking off"}
+                onClick={handleToggleMasking}>
+                <Bars4Icon className="size-3.5" />
+            </button>
+            <button className={`btn btn-xs btn-square ${editingMode === "ripple" ? "btn-warning" : "btn-ghost"} tooltip tooltip-bottom`}
+                data-tip={editingMode === "ripple" ? "Ripple on" : "Ripple off"}
+                onClick={handleToggleRipple} disabled={isPlaying}>
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M2 8h3l2-4 2 8 2-4h3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </button>
+
+            <div className="w-px h-4 bg-base-content/10 mx-1" />
+
+            {/* Zoom controls */}
+            <button className="btn btn-ghost btn-xs btn-square tooltip tooltip-bottom" data-tip="Fit"
+                onClick={onFitToView}>
+                <ViewfinderCircleIcon className="size-3.5" />
+            </button>
+            <MagnifyingGlassMinusIcon className="size-3 opacity-30 shrink-0" />
+            {zoomSteps && (
+                <input type="range" className="range range-xs w-20"
+                    min={0} max={zoomSteps.length - 1} step={1}
+                    value={zoomIndex >= 0 ? zoomIndex : 0}
+                    onChange={handleZoomChange} />
+            )}
+            <MagnifyingGlassPlusIcon className="size-3 opacity-30 shrink-0" />
+
             {/* Add track - visible on small screens where left panel is hidden */}
-            <div className="lg:hidden">
+            <div className="lg:hidden ml-1">
                 <AddTrackButton />
             </div>
         </div>
