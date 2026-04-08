@@ -14,7 +14,7 @@ import {
 const MIN_DURATION = 100
 const SNAP_THRESHOLD_PX = 10
 const DRAG_THRESHOLD_PX = 3
-const CROSS_TRACK_THROTTLE_PX = 5
+const CROSS_TRACK_THROTTLE_PX = 2
 
 // Find non-overlapping position on a track, closest to the desired start
 function findNonOverlappingPosition(targetStart, clipDuration, existingClips, videoDuration) {
@@ -54,6 +54,55 @@ function findNonOverlappingPosition(targetStart, clipDuration, existingClips, vi
     }
 
     return bestPos
+}
+
+// Resolve overlap for free-move: if targetStart causes overlap, snap to nearest valid edge
+function resolveOverlap(targetStart, clipDuration, clipId, allAnims, videoDuration) {
+    const others = allAnims.filter(a => a.id !== clipId)
+    const targetEnd = targetStart + clipDuration
+
+    // Check if position is free
+    const overlapping = others.filter(c => c.start < targetEnd && c.end > targetStart)
+    if (overlapping.length === 0) return clamp(targetStart, 0, videoDuration - clipDuration)
+
+    // Find the nearest non-overlapping snap position (edge of blocking clip)
+    let bestPos = targetStart
+    let bestDist = Infinity
+
+    for (const c of overlapping) {
+        // Try snapping to right edge of blocking clip
+        const posAfter = c.end
+        const distAfter = Math.abs(posAfter - targetStart)
+        if (distAfter < bestDist && posAfter + clipDuration <= videoDuration) {
+            const stillOverlaps = others.some(o => o.id !== c.id && o.start < posAfter + clipDuration && o.end > posAfter)
+            if (!stillOverlaps) { bestDist = distAfter; bestPos = posAfter }
+        }
+
+        // Try snapping to left edge of blocking clip
+        const posBefore = c.start - clipDuration
+        const distBefore = Math.abs(posBefore - targetStart)
+        if (distBefore < bestDist && posBefore >= 0) {
+            const stillOverlaps = others.some(o => o.id !== c.id && o.start < posBefore + clipDuration && o.end > posBefore)
+            if (!stillOverlaps) { bestDist = distBefore; bestPos = posBefore }
+        }
+    }
+
+    return clamp(bestPos, 0, videoDuration - clipDuration)
+}
+
+// Find the hard limit for resize-left (furthest left edge before hitting another clip)
+function getResizeLeftLimit(clipId, allAnims) {
+    const others = allAnims.filter(a => a.id !== clipId)
+    // The left resize limit is the end of any clip that ends before or at the current clip's start
+    // But since we allow gaps, we need the end of the closest clip to the left that would block
+    return others.reduce((limit, c) => c.end > limit ? Math.max(limit, 0) : limit, 0)
+}
+
+// Find the hard limit for resize-right (furthest right edge before hitting another clip)
+function getResizeRightLimit(clipStart, clipId, allAnims, videoDuration) {
+    const others = allAnims.filter(a => a.id !== clipId && a.start > clipStart)
+    if (others.length === 0) return videoDuration
+    return Math.min(...others.map(c => c.start), videoDuration)
 }
 
 // Find track element under mouse via elementsFromPoint
@@ -143,17 +192,9 @@ export default function useDragInteraction({
     const start = useMemo(() => anim?.start || 0, [anim?.start])
     const duration = useMemo(() => anim ? (anim.end - anim.start) : 0, [anim])
 
-    const minStart = useMemo(
-        () => anims.reduce((closest, current) =>
-            current.end > closest && current.end <= anim.start ? current.end : closest, 0),
-        [anim, anims])
-
-    const maxEnd = useMemo(
-        () => videoDuration
-            ? anims.reduce((closest, current) =>
-                current.start < closest && current.start >= anim.end ? current.start : closest, videoDuration)
-            : null,
-        [anim, anims, videoDuration])
+    // Free movement bounds: allow full timeline range (gaps allowed)
+    const minStart = 0
+    const maxEnd = videoDuration ?? null
 
     const lines = useMemo(() => {
         if (!isSnappingEnabled) return null
@@ -171,6 +212,7 @@ export default function useDragInteraction({
     refs.current.lines = lines
     refs.current.videoDuration = videoDuration
     refs.current.anim = anim
+    refs.current.anims = anims
     refs.current.onChange = onChange
     refs.current.onTrackChange = onTrackChange
     refs.current.getTrackAnims = getTrackAnims
@@ -336,8 +378,17 @@ export default function useDragInteraction({
                 newStart = snap.newStart
                 dispatchSnapLine(snap.activeSnap)
 
-                const { effectiveMinStart, effectiveMaxEnd } = handleCrossTrack(e, newStart)
-                d.currentStart = clamp(newStart, effectiveMinStart, effectiveMaxEnd - d.currentDuration)
+                const r = refs.current
+                if (r.crossTrackEnabled && r.trackDropZone && r.getTrackAnims) {
+                    // Cross-track drag: use existing cross-track logic for bounds
+                    const { effectiveMinStart, effectiveMaxEnd } = handleCrossTrack(e, newStart)
+                    d.currentStart = clamp(newStart, effectiveMinStart, effectiveMaxEnd - d.currentDuration)
+                } else {
+                    // Free movement with overlap prevention
+                    d.currentStart = resolveOverlap(
+                        newStart, d.initialDuration, r.anim.id, r.anims, r.videoDuration
+                    )
+                }
 
             } else if (d.mode === "resize-left") {
                 let newStart = d.initialStart + delta
@@ -345,13 +396,15 @@ export default function useDragInteraction({
                 newStart = snap.value
                 dispatchSnapLine(snap.activeSnap)
 
+                const r = refs.current
                 const currentEnd = d.currentStart + d.currentDuration
-                d.currentStart = clamp(newStart, refs.current.minStart, currentEnd - MIN_DURATION)
-                d.currentDuration = clamp(
-                    d.initialDuration + d.initialStart - newStart,
-                    MIN_DURATION,
-                    currentEnd - refs.current.minStart
-                )
+                // Find the nearest clip edge to the left that would block resize
+                const others = r.anims.filter(a => a.id !== r.anim.id && a.end <= currentEnd)
+                const leftLimit = others.length > 0
+                    ? Math.max(...others.filter(a => a.end <= d.initialStart + d.initialDuration).map(a => a.end), 0)
+                    : 0
+                d.currentStart = clamp(newStart, leftLimit, currentEnd - MIN_DURATION)
+                d.currentDuration = currentEnd - d.currentStart
 
             } else if (d.mode === "resize-right") {
                 let newEnd = d.initialStart + d.initialDuration + delta
@@ -359,10 +412,16 @@ export default function useDragInteraction({
                 newEnd = snap.value
                 dispatchSnapLine(snap.activeSnap)
 
+                const r = refs.current
+                // Find the nearest clip edge to the right that would block resize
+                const others = r.anims.filter(a => a.id !== r.anim.id && a.start >= d.currentStart)
+                const rightLimit = others.length > 0
+                    ? Math.min(...others.map(a => a.start), r.videoDuration)
+                    : r.videoDuration
                 d.currentDuration = clamp(
-                    newEnd - d.initialStart,
+                    newEnd - d.currentStart,
                     MIN_DURATION,
-                    refs.current.maxEnd - d.currentStart
+                    rightLimit - d.currentStart
                 )
             }
 
