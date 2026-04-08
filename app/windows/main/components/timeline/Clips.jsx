@@ -79,6 +79,6 @@ export default function Clips() {
         [dispatch]
     )
 
-    return (<Row name={CLIPS} className="h-12" animIds={clipIds} action={Clip} onDoubleClick={onDoubleClick}
+    return (<Row name={CLIPS} className="h-16" animIds={clipIds} action={Clip} onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu} isMinimized={isMinimized} />)
 }

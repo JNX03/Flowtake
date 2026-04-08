@@ -19,6 +19,7 @@ import {
 } from "@shared/constants"
 import {
     CLIPS,
+    formatMs,
     formatPercent,
     formatX
 } from "@shared/helpers"
@@ -87,6 +88,7 @@ export default function Clip({ id }) {
 
         <Label
             isMinimized={isMinimized}
+            badge={formatMs(anim.end - anim.start)}
             line1={<><FilmIcon className="size-4 shrink-0 mr-1" />Clip</>}
             line2={<>
                 {hasCameraVideo && <span className="flex items-center gap-1">

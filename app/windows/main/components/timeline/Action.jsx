@@ -107,15 +107,23 @@ export default function Action({
     }
 
     const getRingClasses = () => {
-        return isSelected
-            ? "ring-2 ring-base-content hover:ring-offset-2"
-            : `ring-0 ${isMinimized ? "" : "hover:ring-2"} ring-base-content/60`
+        if (isSelected) {
+            switch (color) {
+                case "primary": return "ring-2 ring-primary/80 hover:ring-offset-2"
+                case "secondary": return "ring-2 ring-secondary/80 hover:ring-offset-2"
+                case "tertiary": return "ring-2 ring-tertiary/80 hover:ring-offset-2"
+                case "accent": return "ring-2 ring-accent/80 hover:ring-offset-2"
+                case "neutral": return "ring-2 ring-neutral/80 hover:ring-offset-2"
+                default: return "ring-2 ring-base-content hover:ring-offset-2"
+            }
+        }
+        return `ring-0 ${isMinimized ? "" : "hover:ring-2"} ring-base-content/60`
     }
 
     return (
         <div ref={setRef} onClick={click} onContextMenu={contextMenu}
-            className={`${getColorClasses()} ${getRingClasses()} ${isSelected ? "shadow-xl z-20 brightness-110" : "hover:z-10 hover:brightness-105"} ` +
-                `h-full absolute select-none flex ${isDragging ? "" : "transition-[box-shadow,filter,ring,ring-offset] duration-150 "}rounded-xl overflow-hidden ring-offset-base-100 ` +
+            className={`${getColorClasses()} ${getRingClasses()} ${isSelected ? "shadow-lg z-20 brightness-110" : "hover:z-10 hover:brightness-105"} ` +
+                `h-full absolute select-none flex ${isDragging ? "opacity-80 " : "transition-[box-shadow,filter,ring,ring-offset,opacity] duration-150 "}rounded-xl overflow-hidden ring-offset-base-100 ` +
                 `${isMinimized ? "" : "cursor-pointer"} @container`}
             style={{ left: `${leftPosition}px`, width: `${width}px` }} >
             {children}
