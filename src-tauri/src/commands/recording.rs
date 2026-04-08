@@ -861,6 +861,15 @@ pub async fn init_recording(
             if let Err(e) = win.set_always_on_top(true) {
                 log::warn!("Failed to set recorder always-on-top: {}", e);
             }
+            // Make transparent areas click-through at OS level to prevent cursor flickering.
+            // The JS frontend toggles this off/on via setIgnoreCursorEvents when the mouse
+            // enters/leaves the interactive pill.
+            #[cfg(target_os = "windows")]
+            {
+                if let Err(e) = win.set_ignore_cursor_events(true) {
+                    log::warn!("Failed to set ignore cursor events on recorder: {}", e);
+                }
+            }
             log::info!("Recorder window created successfully (always-on-top)");
         }
         Err(e) => {

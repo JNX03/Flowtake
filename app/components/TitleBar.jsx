@@ -15,7 +15,7 @@ function WindowControls() {
     }, [])
 
     return (
-        <div className="flex items-center h-8 flex-none" style={{ WebkitAppRegion: "no-drag" }}>
+        <div className="flex items-center h-8 flex-none">
             <button onClick={minimize}
                 className="w-11 h-8 flex items-center justify-center hover:bg-base-content/10 transition-colors">
                 <svg width="10" height="1" viewBox="0 0 10 1" className="fill-current">
@@ -43,7 +43,7 @@ export default function TitleBar({ children, overlayButtons, title, subtitle, hi
     return (
         <>
             <div className="fixed w-full top-0 z-10 bg-base-300 flex gap-2 h-8">
-                <div className="flex-1 min-w-0 p-1 pr-0 flex select-none" style={{ WebkitAppRegion: "drag" }}>
+                <div className="flex-1 min-w-0 p-1 pr-0 flex select-none" data-tauri-drag-region>
                     <div className="avatar mr-2">
                         <div className="w-5 h-5">
                             <img src={icon} />
@@ -60,7 +60,7 @@ export default function TitleBar({ children, overlayButtons, title, subtitle, hi
                         )}
                     </h1>
                 </div>
-                <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" }}>
+                <div className="flex items-center gap-1">
                     {children}
                 </div>
                 {!hideControls && <WindowControls />}

@@ -32,7 +32,7 @@
       #splash.removing { opacity:0; transition:opacity .15s ease-out }
       #splash-titlebar {
         height:32px;display:flex;align-items:center;padding:0 8px;
-        -webkit-app-region:drag;flex-shrink:0;
+        flex-shrink:0;
       }
       #splash-titlebar-icon { width:20px;height:20px;margin-right:8px;border-radius:4px }
       #splash-titlebar-text {
@@ -109,7 +109,7 @@
         animation:splash-check .2s ease-out;
       }
     </style>
-    <div id="splash-titlebar">
+    <div id="splash-titlebar" data-tauri-drag-region>
       <svg id="splash-titlebar-icon" viewBox="0 0 256 256" fill="none">
         <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
         <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="#12122a"/>

@@ -111,12 +111,12 @@ export default function App() {
     return (
         <div className="h-full flex flex-col bg-base-300 rounded-xl overflow-hidden border border-base-content/10">
             {/* Drag region - no window controls */}
-            <div className="h-8 flex-none flex items-center select-none" style={{ WebkitAppRegion: "drag" }}>
+            <div className="h-8 flex-none flex items-center select-none" data-tauri-drag-region>
                 <span className="text-[11px] font-medium opacity-40 pl-4">Flowtake</span>
             </div>
 
             {/* Tab navigation */}
-            <div className="px-5 pb-1" style={{ WebkitAppRegion: "no-drag" }}>
+            <div className="px-5 pb-1">
                 <div className="flex gap-1 bg-base-100/50 rounded-lg p-1">
                     <button
                         onClick={() => setUserOpenSection(EXPORTER_SECTION_NEW_RENDER)}

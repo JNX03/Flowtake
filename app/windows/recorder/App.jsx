@@ -22,6 +22,7 @@ import {
     useRef,
     useState
 } from "react"
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import DeviceRecorder from "../main/DeviceRecorder"
 
 const StyleTag = () => (
@@ -94,7 +95,7 @@ const Btn = ({ onClick, title, children, className = "" }) => (
         onClick={onClick}
         title={title}
         className={`relative z-10 flex items-center justify-center transition-all duration-100 cursor-pointer flex-shrink-0 active:scale-90 ${className}`}
-        style={{ WebkitAppRegion: "no-drag", WebkitUserSelect: "none" }}
+        style={{ WebkitUserSelect: "none" }}
     >
         {children}
     </button>
@@ -117,6 +118,23 @@ export default function App() {
     const [isCameraOff, setIsCameraOff] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const [isDrawing, setIsDrawing] = useState(false)
+
+    // On Windows, make transparent areas click-through to prevent cursor flickering.
+    // Toggle off when mouse enters the interactive pill, back on when it leaves.
+    const appWindow = useMemo(() => getCurrentWindow(), [])
+    const enableCursorEvents = useCallback(() => {
+        appWindow.setIgnoreCursorEvents(false).catch(() => {})
+    }, [appWindow])
+    const disableCursorEvents = useCallback(() => {
+        appWindow.setIgnoreCursorEvents(true).catch(() => {})
+    }, [appWindow])
+
+    useEffect(() => {
+        if (navigator.platform.includes('Win')) {
+            appWindow.setIgnoreCursorEvents(true).catch(() => {})
+        }
+        return () => { appWindow.setIgnoreCursorEvents(false).catch(() => {}) }
+    }, [appWindow])
 
     const formattedTime = useMemo(() => {
         if (typeof moment.duration.fn.format === "undefined") momentDurationFormatSetup(moment)
@@ -273,12 +291,14 @@ export default function App() {
                 <StyleTag />
                 <div
                     className="island-pill flex items-center justify-center gap-3 overflow-hidden"
+                    data-tauri-drag-region
+                    onMouseEnter={enableCursorEvents}
+                    onMouseLeave={disableCursorEvents}
                     style={{
                         ...pillBg,
                         width: countdown !== null ? 160 : 150,
                         height: 52,
                         borderRadius: 26,
-                        WebkitAppRegion: "drag",
                     }}
                 >
                     {hasCam && (
@@ -346,7 +366,9 @@ export default function App() {
                 <StyleTag />
                 <div
                     className="island-pill mt-1"
-                    onMouseEnter={() => setIsExpanded(true)}
+                    data-tauri-drag-region
+                    onMouseEnter={() => { enableCursorEvents(); setIsExpanded(true) }}
+                    onMouseLeave={disableCursorEvents}
                     style={{
                         ...pillBg,
                         width: 220,
@@ -357,7 +379,6 @@ export default function App() {
                         justifyContent: "center",
                         gap: 10,
                         pointerEvents: "auto",
-                        WebkitAppRegion: "drag",
                     }}
                 >
                     {cameraPreview}
@@ -377,7 +398,9 @@ export default function App() {
             <StyleTag />
             <div
                 className="island-pill mt-1"
-                onMouseLeave={() => setIsExpanded(false)}
+                data-tauri-drag-region
+                onMouseEnter={enableCursorEvents}
+                onMouseLeave={() => { disableCursorEvents(); setIsExpanded(false) }}
                 style={{
                     ...pillBg,
                     width: 440,
@@ -386,7 +409,6 @@ export default function App() {
                     display: "flex",
                     alignItems: "center",
                     pointerEvents: "auto",
-                    WebkitAppRegion: "drag",
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", padding: "0 20px" }}>
