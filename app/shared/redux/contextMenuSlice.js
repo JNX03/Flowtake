@@ -15,6 +15,8 @@ const initialState = {
     isNewSubtitleMenuOpen: false,
     isMaskMenuOpen: false,
     isNewMaskMenuOpen: false,
+    isSpatialMenuOpen: false,
+    isNewSpatialMenuOpen: false,
     selectedMaskRow: null,
 }
 
@@ -51,6 +53,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsClipMenuOpen: (state, action) => {
             state.isClipMenuOpen = action.payload
@@ -62,6 +66,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsClickMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -73,6 +79,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsZoomMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -84,6 +92,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsSubtitleMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -95,6 +105,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsNewClipMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -106,6 +118,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsNewZoomMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -117,6 +131,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsNewSubtitleMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -128,6 +144,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = action.payload
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsMaskMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -139,6 +157,8 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = action.payload
             state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
         },
         setIsNewMaskMenuOpen: (state, action) => {
             state.isClipMenuOpen = false
@@ -150,6 +170,34 @@ export const contextMenuSlice = createSlice({
             state.isNewSubtitleMenuOpen = false
             state.isMaskMenuOpen = false
             state.isNewMaskMenuOpen = action.payload
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
+        },
+        setIsSpatialMenuOpen: (state, action) => {
+            state.isClipMenuOpen = false
+            state.isClickMenuOpen = false
+            state.isZoomMenuOpen = false
+            state.isSubtitleMenuOpen = false
+            state.isNewClipMenuOpen = false
+            state.isNewZoomMenuOpen = false
+            state.isNewSubtitleMenuOpen = false
+            state.isMaskMenuOpen = false
+            state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = action.payload
+            state.isNewSpatialMenuOpen = false
+        },
+        setIsNewSpatialMenuOpen: (state, action) => {
+            state.isClipMenuOpen = false
+            state.isClickMenuOpen = false
+            state.isZoomMenuOpen = false
+            state.isSubtitleMenuOpen = false
+            state.isNewClipMenuOpen = false
+            state.isNewZoomMenuOpen = false
+            state.isNewSubtitleMenuOpen = false
+            state.isMaskMenuOpen = false
+            state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = action.payload
         }
     },
 })
@@ -172,7 +220,9 @@ export const {
     setIsNewZoomMenuOpen,
     setIsNewSubtitleMenuOpen,
     setIsMaskMenuOpen,
-    setIsNewMaskMenuOpen
+    setIsNewMaskMenuOpen,
+    setIsSpatialMenuOpen,
+    setIsNewSpatialMenuOpen
 } = contextMenuSlice.actions
 
 export const selectPosition = state => state.contextMenu.position
@@ -190,5 +240,7 @@ export const selectIsNewZoomMenuOpen = state => state.contextMenu.isNewZoomMenuO
 export const selectIsNewSubtitleMenuOpen = state => state.contextMenu.isNewSubtitleMenuOpen
 export const selectIsMaskMenuOpen = state => state.contextMenu.isMaskMenuOpen
 export const selectIsNewMaskMenuOpen = state => state.contextMenu.isNewMaskMenuOpen
+export const selectIsSpatialMenuOpen = state => state.contextMenu.isSpatialMenuOpen
+export const selectIsNewSpatialMenuOpen = state => state.contextMenu.isNewSpatialMenuOpen
 
 export default contextMenuSlice.reducer
