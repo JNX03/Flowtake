@@ -34,6 +34,7 @@ import MaskAnimator from "./mask/MaskAnimator"
 import OverlayAnimator from "./overlay/OverlayAnimator"
 import PanAnimator from "./pan/PanAnimator"
 import Screen from "./Screen"
+import SpatialAnimator from "./spatial/SpatialAnimator"
 import SubtitleAnimator from "./subtitle/SubtitleAnimator"
 import TransitionAnimator from "./transition/TransitionAnimator"
 import ZoomAnimator from "./zoom/ZoomAnimator"
@@ -128,6 +129,8 @@ export default class Scene {
         this.filterAnimator = new FilterAnimator(this.screen.container)
 
         this.overlayAnimator = new OverlayAnimator(this.app.stage)
+
+        this.spatialAnimator = new SpatialAnimator(this.container, this.app)
 
         this.transitionAnimator = new TransitionAnimator(this.container)
 
@@ -228,6 +231,7 @@ export default class Scene {
         this.cameraZoomAnimator?.update(this.time, clipFrame)
         this.maskAnimator?.update(this.time)
         this.overlayAnimator?.update(this.time)
+        this.spatialAnimator?.update(this.time)
         this.transitionAnimator?.update(this.time)
 
         this.camera?.update()
@@ -258,6 +262,8 @@ export default class Scene {
         this.maskAnimator.setState({ rendererDims: this.rendererDims })
 
         this.overlayAnimator?.setState({ rendererDims: this.rendererDims })
+
+        this.spatialAnimator?.setState({ rendererDims: this.rendererDims })
 
         this.transitionAnimator?.setState({ rendererDims: this.rendererDims })
 
