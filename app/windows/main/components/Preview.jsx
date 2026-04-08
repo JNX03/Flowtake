@@ -118,6 +118,7 @@ import {
     selectWidth,
     setSubtitles
 } from "@shared/redux/subtitleSlice"
+import { selectAllSpatials } from "@shared/redux/spatialSlice"
 import { selectTime } from "@shared/redux/timelineSlice"
 import {
     selectAllZooms,
@@ -180,6 +181,7 @@ export default function Preview() {
     const subtitleShadowAlpha = useSelector(selectSubtitleShadowAlpha)
     const subtitlePosition = useSelector(selectPosition)
 
+    const spatials = useSelector(selectAllSpatials)
     const zooms = useSelector(selectAllZooms)
     const leftTrim = useSelector(selectLeftTrim)
     const rightTrim = useSelector(selectRightTrim)
@@ -566,6 +568,10 @@ export default function Preview() {
     useEffect(() => {
         manager?.postUpdate({ type: 'filterAnims', payload: filterAnims })
     }, [manager, filterAnims])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'spatialAnims', payload: spatials })
+    }, [manager, spatials])
 
     useEffect(() => {
         manager?.postUpdate({ type: 'cursorCoords.inertia', payload: inertia })

@@ -108,6 +108,10 @@ export default class RenderScene extends Scene {
             this.overlayAnimator.setState({ configs: args.overlayAnims, rendererDims })
         }
 
+        if (args.spatials) {
+            this.spatialAnimator?.setState({ configs: args.spatials })
+        }
+
         this.cursorShadow.alpha = cursorShadowAlpha
 
         await this.background.setState({ config: background })

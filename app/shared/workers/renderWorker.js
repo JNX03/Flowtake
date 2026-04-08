@@ -29,6 +29,7 @@ import {
 import { selectAllMasks } from "../redux/maskSlice"
 import { selectAllOverlays } from "../redux/overlaySlice"
 import { selectAllPans } from "../redux/panSlice"
+import { selectAllSpatials } from "../redux/spatialSlice"
 import {
     selectBackground,
     selectBorderRadius,
@@ -166,6 +167,7 @@ class WorkerRenderer {
                 cameraVideoBackgroundBlurAmount: selectCameraVideoBackgroundBlurAmount(this.render.state),
                 isCameraVideoMirrored: selectIsCameraVideoMirrored(this.render.state),
                 overlayAnims: selectAllOverlays(this.render.state),
+                spatials: selectAllSpatials(this.render.state),
                 showClickRing: selectShowClickRing(this.render.state),
             },
             duration)

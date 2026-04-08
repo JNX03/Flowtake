@@ -168,6 +168,9 @@ export default class PreviewScene extends Scene {
             case 'overlayAnims':
                 this.overlayAnimator?.setState({ configs: payload })
                 break
+            case 'spatialAnims':
+                this.spatialAnimator?.setState({ configs: payload })
+                break
             case 'filterAnims':
             case 'filterAnims.brightness':
             case 'filterAnims.contrast':
