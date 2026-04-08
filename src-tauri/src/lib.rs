@@ -302,7 +302,22 @@ pub fn run() {
                                 .unwrap();
                         }
 
-                        state.app_data_dir.join("wallpapers").join(&filename)
+                        let wallpapers_dir = state.app_data_dir.join("wallpapers");
+                        let candidate = wallpapers_dir.join(&filename);
+                        if let (Ok(canonical), Ok(base)) = (candidate.canonicalize(), wallpapers_dir.canonicalize()) {
+                            if !canonical.starts_with(&base) {
+                                return tauri::http::Response::builder()
+                                    .status(400)
+                                    .body(Vec::<u8>::new())
+                                    .unwrap();
+                            }
+                            canonical
+                        } else {
+                            return tauri::http::Response::builder()
+                                .status(404)
+                                .body(Vec::<u8>::new())
+                                .unwrap();
+                        }
                     }
                     _ => {
                         return tauri::http::Response::builder()

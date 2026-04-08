@@ -23,24 +23,37 @@ pub async fn update_background(
     match r#type.as_str() {
         "wallpaper" => {
             if let Some(rel_path) = relative_path {
+                if rel_path.contains("..") || rel_path.contains('/') || rel_path.contains('\\') {
+                    return Err(AppError::General("Invalid path".into()));
+                }
                 let state = app.state::<Mutex<AppState>>();
                 let state = state.lock().unwrap();
                 let wallpapers_dir = state.app_data_dir.join("wallpapers");
                 let src = wallpapers_dir.join(&rel_path);
-                if src.exists() {
-                    std::fs::copy(&src, &bg_file)?;
+                let canonical_src = src.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
+                let canonical_base = wallpapers_dir.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
+                if !canonical_src.starts_with(&canonical_base) {
+                    return Err(AppError::General("Path traversal denied".into()));
                 }
+                std::fs::copy(&canonical_src, &bg_file)?;
             }
         }
         "image" => {
             if let Some(rel_path) = relative_path {
+                if rel_path.contains("..") || rel_path.contains('/') || rel_path.contains('\\') {
+                    return Err(AppError::General("Invalid path".into()));
+                }
                 let state = app.state::<Mutex<AppState>>();
                 let state = state.lock().unwrap();
                 let project_temp = state.project_temp_dir(&project_id);
+                let base_dir = project_temp.clone();
                 let src = project_temp.join(&rel_path);
-                if src.exists() {
-                    std::fs::copy(&src, &bg_file)?;
+                let canonical_src = src.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
+                let canonical_base = base_dir.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
+                if !canonical_src.starts_with(&canonical_base) {
+                    return Err(AppError::General("Path traversal denied".into()));
                 }
+                std::fs::copy(&canonical_src, &bg_file)?;
             }
         }
         _ => {}

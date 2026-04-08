@@ -1,6 +1,6 @@
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import rehypeRaw from "rehype-raw"
+import rehypeSanitize from "rehype-sanitize"
 
 const components = {
     a: ({ href, children }) => (
@@ -41,7 +41,7 @@ const components = {
 export default function MarkdownRenderer({ children, className }) {
     return (
         <div className={`prose prose-sm prose-headings:text-base-content prose-p:text-base-content/70 prose-li:text-base-content/70 prose-strong:text-base-content/80 prose-a:text-primary max-w-none ${className || ""}`}>
-            <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
+            <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={components}>
                 {children}
             </Markdown>
         </div>
