@@ -81,6 +81,15 @@ import {
     setSelectedIds
 } from "./redux/timelineSlice"
 import {
+    addSpatial,
+    applyProperties as applySpatialAnimsProperties,
+    removeSpatial,
+    removeSpatials,
+    setSpatials,
+    updateSpatial,
+    upsertSpatials
+} from "./redux/spatialSlice"
+import {
     addZoom,
     applyProperties as applyZoomAnimsProperties,
     removeZoom,
@@ -95,7 +104,7 @@ import {
 const _configs = {}
 async function loadConfigs() {
     if (_configs.loaded) return _configs
-    const [RIR, CC, CkC, ClC, CtC, MC, PC, SC, ZC] = await Promise.all([
+    const [RIR, CC, CkC, ClC, CtC, MC, PC, SC, SpC, ZC] = await Promise.all([
         import("./RendererInputReader"),
         import("./scene/cameraZoom/CameraZoomConfig"),
         import("./scene/click/ClickConfig"),
@@ -104,6 +113,7 @@ async function loadConfigs() {
         import("./scene/mask/MaskConfig"),
         import("./scene/pan/PanConfig"),
         import("./scene/subtitle/SubtitleConfig"),
+        import("./scene/spatial/SpatialConfig"),
         import("./scene/zoom/ZoomConfig"),
     ])
     _configs.RendererInputReader = RIR.default
@@ -114,6 +124,7 @@ async function loadConfigs() {
     _configs.MaskConfig = MC.default
     _configs.PanConfig = PC.default
     _configs.SubtitleConfig = SC.default
+    _configs.SpatialConfig = SpC.default
     _configs.ZoomConfig = ZC.default
     _configs.loaded = true
     return _configs
@@ -150,6 +161,7 @@ export const SUBTITLES = "subtitles"
 export const MASKS = "masks"
 export const AUDIO_TRACKS = "audio-tracks"
 export const OVERLAY_TRACKS = "overlay-tracks"
+export const SPATIALS = "spatials"
 export const SCREEN_RECORDING = "screen-recording"
 export const CAMERA_RECORDING = "camera-recording"
 export const BACKGROUND = "background"
@@ -211,6 +223,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         actions.push(applyZoomAnimsProperties(json.zoomAnims))
         actions.push(applyCameraZoomAnimsProperties(json.cameraZoomAnims))
         if (json.cursorCoords) actions.push(applyCursorCoordsProperties(json.cursorCoords))
+        if (json.spatialAnims) actions.push(applySpatialAnimsProperties(json.spatialAnims))
         if (json.audioTrackAnims) actions.push(applyAudioTrackAnimsProperties(json.audioTrackAnims))
         if (json.overlayAnims) actions.push(applyOverlayAnimsProperties(json.overlayAnims))
 
@@ -266,6 +279,14 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
             actions.push(setMasks(
                 json.maskAnims.entities.map(config => new cfgs.MaskConfig(config, defaultMaskBlurStrength, defaultMaskAlpha,
                     defaultMaskBorderRadius, defaultMaskFill).serialize())))
+
+        if (json.spatialAnims?.entities)
+            actions.push(setSpatials(
+                json.spatialAnims.entities.map(config => new cfgs.SpatialConfig(config,
+                    json.spatialAnims.intro ?? 1500, json.spatialAnims.outro ?? 1500,
+                    json.spatialAnims.rotateX ?? 15, json.spatialAnims.rotateY ?? 0, json.spatialAnims.rotateZ ?? 0,
+                    json.spatialAnims.perspective ?? 800, json.spatialAnims.cameraDistance ?? 1.5,
+                    json.spatialAnims.eyeContactEnabled ?? true).serialize())))
 
         actions.push(setHasProject(true))
         return actions
@@ -454,6 +475,15 @@ export const createZoom = (time, configs, duration, defaultCameraZoomTargetScale
     ]
 }
 
+export const createSpatial = (time, configs, duration, defaultRotateX, defaultRotateY, defaultRotateZ,
+    defaultPerspective, defaultCameraDistance, defaultEyeContactEnabled, defaultIntro, defaultOutro) => {
+
+    const args = getStartAndEnd(duration, configs, time)
+
+    return addSpatial((new _configs.SpatialConfig(args, defaultIntro, defaultOutro, defaultRotateX, defaultRotateY,
+        defaultRotateZ, defaultPerspective, defaultCameraDistance, defaultEyeContactEnabled)).serialize())
+}
+
 export const createSubtitle = (time, subtitles, duration) =>
     addSubtitle((new _configs.SubtitleConfig({ ...getStartAndEnd(duration, subtitles, time), text: "Subtitle" })).serialize())
 
@@ -500,7 +530,8 @@ export const getPresettableData = presentState => {
         cursorCoords,
         maskAnims,
         audioTrackAnims,
-        overlayAnims
+        overlayAnims,
+        spatialAnims
     } = presentState
 
     const presettableData = {
@@ -515,7 +546,8 @@ export const getPresettableData = presentState => {
         cursorCoords: serializeEntitySlice(cursorCoords, false),
         maskAnims: serializeEntitySlice(maskAnims, false),
         audioTrackAnims: serializeEntitySlice(audioTrackAnims, false),
-        overlayAnims: serializeEntitySlice(overlayAnims, false)
+        overlayAnims: serializeEntitySlice(overlayAnims, false),
+        spatialAnims: serializeEntitySlice(spatialAnims, false)
     }
 
     delete presettableData.project.name

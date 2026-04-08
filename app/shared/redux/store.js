@@ -76,6 +76,10 @@ import filterAnimsReducer, {
     filterSlice,
     reset as resetFilterAnims
 } from './filterSlice'
+import spatialAnimsReducer, {
+    spatialSlice,
+    reset as resetSpatialAnims
+} from './spatialSlice'
 import zoomAnimsReducer, {
     reset as resetZoomAnims,
     zoomSlice
@@ -99,7 +103,8 @@ const filterSlices = isAnyOf(
     ...Object.values(maskSlice.actions),
     ...Object.values(audioTrackSlice.actions),
     ...Object.values(overlaySlice.actions),
-    ...Object.values(filterSlice.actions)
+    ...Object.values(filterSlice.actions),
+    ...Object.values(spatialSlice.actions)
 )
 
 // Set of excluded action types for O(1) lookup
@@ -115,6 +120,7 @@ const EXCLUDED_ACTION_TYPES = new Set([
     maskSlice.actions.setMasks.type,
     audioTrackSlice.actions.setAudioClips.type,
     overlaySlice.actions.setOverlays.type,
+    spatialSlice.actions.setSpatials.type,
 ])
 
 const filterActions = action => !EXCLUDED_ACTION_TYPES.has(action.type)
@@ -172,6 +178,7 @@ closeListenerMiddleware.startListening({
         dispatch(resetAudioTrackAnims())
         dispatch(resetOverlayAnims())
         dispatch(resetFilterAnims())
+        dispatch(resetSpatialAnims())
         dispatch(resetAssets())
         dispatch(setLoaderMessage("Saving project..."))
         await window.electron.ipcRenderer.invoke("close-project")
@@ -205,6 +212,7 @@ export default configureStore({
                 audioTrackAnims: audioTrackAnimsReducer,
                 overlayAnims: overlayAnimsReducer,
                 filterAnims: filterAnimsReducer,
+                spatialAnims: spatialAnimsReducer,
             }),
             {
                 limit: 50,
@@ -234,7 +242,8 @@ const save = debounce(async (dispatch, getState) => {
         maskAnims,
         audioTrackAnims,
         overlayAnims,
-        filterAnims
+        filterAnims,
+        spatialAnims
     } = getState().undoableState.present
 
     // Only save if a project is currently opened
@@ -253,6 +262,7 @@ const save = debounce(async (dispatch, getState) => {
             audioTrackAnims: serializeEntitySlice(audioTrackAnims),
             overlayAnims: serializeEntitySlice(overlayAnims),
             filterAnims: { ...filterAnims },
+            spatialAnims: serializeEntitySlice(spatialAnims),
         }
 
         await window.electron.ipcRenderer.invoke("save-json", slices)
