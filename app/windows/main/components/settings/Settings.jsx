@@ -3,6 +3,7 @@ import {
     BoltIcon,
     Cog6ToothIcon,
     ComputerDesktopIcon,
+    LanguageIcon,
     QueueListIcon,
     SwatchIcon
 } from "@heroicons/react/20/solid"
@@ -25,10 +26,11 @@ import ExporterSettings from "./ExporterSettings"
 import GeneralSettings from "./GeneralSettings"
 import HotkeysSettings from "./HotkeysSettings"
 import RecorderSettings from "./RecorderSettings"
+import SpeechToTextSettings from "./SpeechToTextSettings"
 import UpdatesSettings from "./UpdatesSettings"
 
-import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS, SETTINGS_UPDATES } from "./constants"
-export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS, SETTINGS_UPDATES }
+import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS, SETTINGS_STT, SETTINGS_UPDATES } from "./constants"
+export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_LICENSE, SETTINGS_HOTKEYS, SETTINGS_STT, SETTINGS_UPDATES }
 
 export default function Settings() {
     const dispatch = useDispatch()
@@ -66,6 +68,9 @@ export default function Settings() {
                     <NavItem icon={QueueListIcon} label="Exporter"
                         active={openSettings === SETTINGS_EXPORTER}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_EXPORTER))} />
+                    <NavItem icon={LanguageIcon} label="Speech to Text"
+                        active={openSettings === SETTINGS_STT}
+                        onClick={() => dispatch(setOpenSettings(SETTINGS_STT))} />
                     <NavItem icon={BoltIcon} label="Hotkeys"
                         active={openSettings === SETTINGS_HOTKEYS}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_HOTKEYS))}
@@ -102,6 +107,7 @@ export default function Settings() {
                     {openSettings === SETTINGS_APPEARANCE && <AppearanceSettings />}
                     {openSettings === SETTINGS_RECORDER && <RecorderSettings />}
                     {openSettings === SETTINGS_EXPORTER && <ExporterSettings />}
+                    {openSettings === SETTINGS_STT && <SpeechToTextSettings />}
                     {openSettings === SETTINGS_HOTKEYS && <HotkeysSettings />}
                     {openSettings === SETTINGS_UPDATES && <UpdatesSettings />}
                 </div>

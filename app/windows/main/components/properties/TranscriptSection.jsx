@@ -10,7 +10,9 @@ import {
 import { useMutation } from "@tanstack/react-query"
 import {
     useCallback,
+    useEffect,
     useMemo,
+    useRef,
     useState
 } from "react"
 import {
@@ -45,7 +47,8 @@ import {
     setSubtitles,
     setTextColor,
     setTranscript,
-    setWidth
+    setWidth,
+    updateSubtitle
 } from "@shared/redux/subtitleSlice"
 import SubtitlesGenerator from "../../subtitles/SubtitlesGenerator"
 import Card from "./Card"
@@ -59,12 +62,70 @@ const AUDIO_SOURCE_AUTO = "auto"
 const AUDIO_SOURCE_MICROPHONE = "microphone"
 const AUDIO_SOURCE_SYSTEM = "screen"
 
+function EditableWord({ config, isEditing, onStartEdit, onStopEdit, onNavigate, totalConfigs, index }) {
+    const dispatch = useDispatch()
+    const [localText, setLocalText] = useState(config.text)
+    const inputRef = useRef(null)
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) inputRef.current.focus()
+    }, [isEditing])
+
+    useEffect(() => {
+        setLocalText(config.text)
+    }, [config.text])
+
+    const commit = useCallback(() => {
+        const trimmed = localText.trim()
+        if (trimmed && trimmed !== config.text) {
+            dispatch(updateSubtitle({ id: config.id, changes: { text: trimmed } }))
+        } else {
+            setLocalText(config.text)
+        }
+        onStopEdit()
+    }, [dispatch, localText, config.id, config.text, onStopEdit])
+
+    const onKeyDown = useCallback((e) => {
+        if (e.key === "Enter") {
+            e.preventDefault()
+            commit()
+        } else if (e.key === "Tab") {
+            e.preventDefault()
+            commit()
+            const next = e.shiftKey ? Math.max(0, index - 1) : Math.min(totalConfigs - 1, index + 1)
+            onNavigate(next)
+        } else if (e.key === "Escape") {
+            setLocalText(config.text)
+            onStopEdit()
+        }
+    }, [commit, index, totalConfigs, onNavigate, config.text, onStopEdit])
+
+    if (isEditing) {
+        return (
+            <input ref={inputRef} value={localText} onChange={e => setLocalText(e.target.value)}
+                onBlur={commit} onKeyDown={onKeyDown}
+                className="input input-xs inline-block w-auto min-w-8 max-w-32 mx-0.5 px-1"
+                style={{ width: `${Math.max(localText.length + 1, 3)}ch` }}
+            />
+        )
+    }
+
+    return (
+        <span onClick={() => onStartEdit(index)}
+            className="inline cursor-pointer hover:bg-primary/10 hover:rounded px-0.5 transition-colors"
+            title="Click to edit">
+            {config.text}{" "}
+        </span>
+    )
+}
+
 export default function TranscriptSection() {
     const [fileProgress, setFileProgress] = useState(null)
     const [preview, setPreview] = useState(null)
     const [inputLanguage, setInputLanguage] = useState(Object.keys(SubtitlesGenerator.INPUT_LANGUAGES)[0])
     const [languageSearch, setLanguageSearch] = useState("")
     const [audioSource, setAudioSource] = useState(AUDIO_SOURCE_AUTO)
+    const [editingIndex, setEditingIndex] = useState(null)
 
     const backgroundColor = useSelector(selectBackgroundColor)
     const position = useSelector(selectPosition)
@@ -77,6 +138,19 @@ export default function TranscriptSection() {
     const hasSystemAudio = useSelector(selectHasSystemAudio)
 
     const dispatch = useDispatch()
+
+    // Load stored default language preference
+    const { data: storedDefaultLanguage } = useQuery({
+        queryKey: ['sttDefaultLanguage'],
+        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "sttDefaultLanguage"),
+        staleTime: Infinity
+    })
+
+    useEffect(() => {
+        if (storedDefaultLanguage && SubtitlesGenerator.INPUT_LANGUAGES[storedDefaultLanguage]) {
+            setInputLanguage(storedDefaultLanguage)
+        }
+    }, [storedDefaultLanguage])
 
     // Filter languages based on search
     const filteredLanguages = useMemo(() => {
@@ -202,14 +276,17 @@ export default function TranscriptSection() {
 
             <Fieldset legend="Transcript">
                 <div className="w-full max-h-80 overflow-y-auto text-xs leading-relaxed">
-                    {configs.map(({ text }, i) => (
-                        <span key={i} className="inline">
-                            {text}{" "}
-                        </span>
+                    {configs.map((config, i) => (
+                        <EditableWord key={config.id} config={config} index={i}
+                            isEditing={editingIndex === i}
+                            onStartEdit={setEditingIndex}
+                            onStopEdit={() => setEditingIndex(null)}
+                            onNavigate={setEditingIndex}
+                            totalConfigs={totalConfigs} />
                     ))}
                 </div>
                 <div className="text-xs opacity-50 mt-2">
-                    {totalConfigs} words detected
+                    {totalConfigs} words detected &mdash; click any word to edit
                 </div>
             </Fieldset>
 
