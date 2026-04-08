@@ -24,6 +24,8 @@ import {
 } from "react"
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import DeviceRecorder from "../main/DeviceRecorder"
+import useAudioMeter from "@shared/hooks/useAudioMeter"
+import VolumeMeter from "../../components/VolumeMeter"
 
 const StyleTag = () => (
     <style>{`
@@ -118,6 +120,18 @@ export default function App() {
     const [isCameraOff, setIsCameraOff] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
     const [isDrawing, setIsDrawing] = useState(false)
+    const [audioStream, setAudioStream] = useState(null)
+    const { level } = useAudioMeter(audioStream, isRecording && hasMic)
+
+    // Grab the audio stream from the device recorder once available
+    useEffect(() => {
+        const stream = deviceRecorder?.mediaRecorder?.stream
+        if (stream && stream.getAudioTracks().length > 0) {
+            setAudioStream(stream)
+        } else {
+            setAudioStream(null)
+        }
+    }, [deviceRecorder, isRecording])
 
     // On Windows, make transparent areas click-through to prevent cursor flickering.
     // Toggle off when mouse enters the interactive pill, back on when it leaves.
@@ -383,6 +397,7 @@ export default function App() {
                 >
                     {cameraPreview}
                     {recDot}
+                    {hasMic && <VolumeMeter level={isMicMuted ? 0 : level} compact />}
                     {timer}
                 </div>
             </div>
@@ -424,17 +439,22 @@ export default function App() {
                     <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 16 }}>
                         <Divider />
                         {hasMic && (
-                            <Btn onClick={toggleMic} title={isMicMuted ? "Unmute mic" : "Mute mic"}
-                                className={`w-8 h-8 rounded-lg ${isMicMuted ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
-                                <div className="relative">
-                                    <MicrophoneIcon className="size-4" />
-                                    {isMicMuted && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="w-[1.5px] h-4 bg-red-400/80 rotate-45 rounded-full" />
-                                        </div>
-                                    )}
+                            <div className="flex items-center gap-1">
+                                <Btn onClick={toggleMic} title={isMicMuted ? "Unmute mic" : "Mute mic"}
+                                    className={`w-8 h-8 rounded-lg ${isMicMuted ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
+                                    <div className="relative">
+                                        <MicrophoneIcon className="size-4" />
+                                        {isMicMuted && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-[1.5px] h-4 bg-red-400/80 rotate-45 rounded-full" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </Btn>
+                                <div className="w-12">
+                                    <VolumeMeter level={isMicMuted ? 0 : level} />
                                 </div>
-                            </Btn>
+                            </div>
                         )}
                         {hasCam && (
                             <Btn onClick={toggleCamera} title={isCameraOff ? "Camera on" : "Camera off"}

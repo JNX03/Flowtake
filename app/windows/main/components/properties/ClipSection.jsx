@@ -1,6 +1,9 @@
 import {
     AdjustmentsHorizontalIcon,
-    FilmIcon
+    FilmIcon,
+    MicrophoneIcon,
+    SpeakerWaveIcon,
+    SpeakerXMarkIcon,
 } from "@heroicons/react/24/outline"
 import {
     useCallback,
@@ -43,6 +46,12 @@ import {
     updateClips
 } from "@shared/redux/clipSlice"
 import {
+    selectIsMicrophoneMuted,
+    selectIsSystemAudioMuted,
+    setIsMicrophoneMuted,
+    setIsSystemAudioMuted,
+} from "@shared/redux/editorSlice"
+import {
     selectAspectRatio,
     selectHasCameraVideo,
     selectHasMicrophoneAudio,
@@ -76,6 +85,8 @@ export default function ClipSection() {
     const defaultPlaybackRate = useSelector(selectPlaybackRate)
     const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
     const hasSystemAudio = useSelector(selectHasSystemAudio)
+    const isMicrophoneMuted = useSelector(selectIsMicrophoneMuted)
+    const isSystemAudioMuted = useSelector(selectIsSystemAudioMuted)
 
     const configs = useMemo(
         () => selectedIds.map(id => entities[id]).filter(Boolean),
@@ -356,13 +367,57 @@ export default function ClipSection() {
             {(hasMicrophoneAudio || hasSystemAudio) &&
                 <Fieldset legend="Audio">
 
-                    {hasMicrophoneAudio && <Slider value={configs[0]?.microphoneAudioVolume ?? 1}
-                        isIndeterminate={isIndeterminateMicrophoneAudioVolume} onChange={onChangeMicrophoneAudioVolume}
-                        label={"Microphone Audio Volume"} format={formatPercent} />}
+                    {/* Source indicators */}
+                    <div className="flex gap-1.5 mb-3">
+                        {hasMicrophoneAudio && (
+                            <span className="badge badge-sm gap-1 bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                                <MicrophoneIcon className="size-3" /> Mic
+                            </span>
+                        )}
+                        {hasSystemAudio && (
+                            <span className="badge badge-sm gap-1 bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                <SpeakerWaveIcon className="size-3" /> System
+                            </span>
+                        )}
+                    </div>
 
-                    {hasSystemAudio && <Slider value={configs[0]?.systemAudioVolume ?? 1}
-                        isIndeterminate={isIndeterminateSystemAudioVolume} onChange={onChangeSystemAudioVolume}
-                        label={"System Audio Volume"} format={formatPercent} />}
+                    {hasMicrophoneAudio && (
+                        <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                                <Slider value={isMicrophoneMuted ? 0 : (configs[0]?.microphoneAudioVolume ?? 1)}
+                                    isIndeterminate={isIndeterminateMicrophoneAudioVolume}
+                                    onChange={onChangeMicrophoneAudioVolume}
+                                    label={"Microphone Volume"} format={formatPercent}
+                                    disabled={isMicrophoneMuted} />
+                            </div>
+                            <button
+                                className={`btn btn-ghost btn-xs btn-square mb-0.5 ${isMicrophoneMuted ? "text-warning" : "text-base-content/40"}`}
+                                onClick={() => dispatch(setIsMicrophoneMuted(!isMicrophoneMuted))}
+                                title={isMicrophoneMuted ? "Unmute microphone" : "Mute microphone"}
+                            >
+                                {isMicrophoneMuted ? <SpeakerXMarkIcon className="size-3.5" /> : <MicrophoneIcon className="size-3.5" />}
+                            </button>
+                        </div>
+                    )}
+
+                    {hasSystemAudio && (
+                        <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                                <Slider value={isSystemAudioMuted ? 0 : (configs[0]?.systemAudioVolume ?? 1)}
+                                    isIndeterminate={isIndeterminateSystemAudioVolume}
+                                    onChange={onChangeSystemAudioVolume}
+                                    label={"System Audio Volume"} format={formatPercent}
+                                    disabled={isSystemAudioMuted} />
+                            </div>
+                            <button
+                                className={`btn btn-ghost btn-xs btn-square mb-0.5 ${isSystemAudioMuted ? "text-warning" : "text-base-content/40"}`}
+                                onClick={() => dispatch(setIsSystemAudioMuted(!isSystemAudioMuted))}
+                                title={isSystemAudioMuted ? "Unmute system audio" : "Mute system audio"}
+                            >
+                                {isSystemAudioMuted ? <SpeakerXMarkIcon className="size-3.5" /> : <SpeakerWaveIcon className="size-3.5" />}
+                            </button>
+                        </div>
+                    )}
 
                 </Fieldset>}
 

@@ -6,6 +6,8 @@ const initialState = {
     playbackRate: 1,
     microphoneAudioVolume: 1,
     systemAudioVolume: 1,
+    isMicrophoneMuted: false,
+    isSystemAudioMuted: false,
     isInitialized: false,
     areVideosReady: false,
     isMuted: true,
@@ -42,6 +44,12 @@ export const editorSlice = createSlice({
         },
         setSystemAudioVolume: (state, action) => {
             state.systemAudioVolume = action.payload
+        },
+        setIsMicrophoneMuted: (state, action) => {
+            state.isMicrophoneMuted = action.payload
+        },
+        setIsSystemAudioMuted: (state, action) => {
+            state.isSystemAudioMuted = action.payload
         },
         setIsInitialized: (state, action) => {
             state.isInitialized = action.payload
@@ -98,6 +106,8 @@ export const {
     setPlaybackRate,
     setMicrophoneAudioVolume,
     setSystemAudioVolume,
+    setIsMicrophoneMuted,
+    setIsSystemAudioMuted,
     reset,
     setIsInitialized,
     setIsBuffering,
@@ -137,5 +147,7 @@ export const selectArePanAnimEntitiesGenerated = state => state.editor.arePanAni
 export const selectAreZoomAnimEntitiesGenerated = state => state.editor.areZoomAnimEntitiesGenerated
 export const selectAreCameraZoomAnimEntitiesGenerated = state => state.editor.areCameraZoomAnimEntitiesGenerated
 export const selectDuration = state => state.editor.duration
+export const selectIsMicrophoneMuted = state => state.editor.isMicrophoneMuted
+export const selectIsSystemAudioMuted = state => state.editor.isSystemAudioMuted
 
 export default editorSlice.reducer
