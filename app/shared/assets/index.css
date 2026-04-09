@@ -408,3 +408,17 @@ select option {
     height: 1px;
     background: color-mix(in oklab, var(--color-base-content) 10%, transparent);
 }
+
+/* === Tutorial === */
+.tutorial-spotlight-pulse {
+    animation: tutorialPulse 2s ease-in-out infinite;
+}
+
+@keyframes tutorialPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 40%, transparent);
+    }
+    50% {
+        box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-primary) 0%, transparent);
+    }
+}
