@@ -18,11 +18,9 @@ import momentDurationFormatSetup from "moment-duration-format"
 import {
     useCallback,
     useEffect,
-    useMemo,
     useRef,
     useState
 } from "react"
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import DeviceRecorder from "../main/DeviceRecorder"
 import useAudioMeter from "@shared/hooks/useAudioMeter"
 import VolumeMeter from "../../components/VolumeMeter"
@@ -132,23 +130,6 @@ export default function App() {
             setAudioStream(null)
         }
     }, [deviceRecorder, isRecording])
-
-    // On Windows, make transparent areas click-through to prevent cursor flickering.
-    // Toggle off when mouse enters the interactive pill, back on when it leaves.
-    const appWindow = useMemo(() => getCurrentWindow(), [])
-    const enableCursorEvents = useCallback(() => {
-        appWindow.setIgnoreCursorEvents(false).catch(() => {})
-    }, [appWindow])
-    const disableCursorEvents = useCallback(() => {
-        appWindow.setIgnoreCursorEvents(true).catch(() => {})
-    }, [appWindow])
-
-    useEffect(() => {
-        if (navigator.platform.includes('Win')) {
-            appWindow.setIgnoreCursorEvents(true).catch(() => {})
-        }
-        return () => { appWindow.setIgnoreCursorEvents(false).catch(() => {}) }
-    }, [appWindow])
 
     const formattedTime = useMemo(() => {
         if (typeof moment.duration.fn.format === "undefined") momentDurationFormatSetup(moment)
@@ -306,8 +287,6 @@ export default function App() {
                 <div
                     className="island-pill flex items-center justify-center gap-3 overflow-hidden"
                     data-tauri-drag-region
-                    onMouseEnter={enableCursorEvents}
-                    onMouseLeave={disableCursorEvents}
                     style={{
                         ...pillBg,
                         width: countdown !== null ? 160 : 150,
@@ -381,8 +360,7 @@ export default function App() {
                 <div
                     className="island-pill mt-1"
                     data-tauri-drag-region
-                    onMouseEnter={() => { enableCursorEvents(); setIsExpanded(true) }}
-                    onMouseLeave={disableCursorEvents}
+                    onMouseEnter={() => setIsExpanded(true)}
                     style={{
                         ...pillBg,
                         width: 220,
@@ -414,8 +392,7 @@ export default function App() {
             <div
                 className="island-pill mt-1"
                 data-tauri-drag-region
-                onMouseEnter={enableCursorEvents}
-                onMouseLeave={() => { disableCursorEvents(); setIsExpanded(false) }}
+                onMouseLeave={() => setIsExpanded(false)}
                 style={{
                     ...pillBg,
                     width: 440,
