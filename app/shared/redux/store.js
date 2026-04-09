@@ -67,6 +67,7 @@ import projectReducer, {
     reset as resetProject
 } from './projectSlice'
 import recorderReducer, { reset as resetRecorder } from './recorderSlice'
+import tutorialReducer from './tutorialSlice'
 import subtitleAnimsReducer, {
     reset as resetSubtitleAnims,
     subtitleSlice
@@ -193,6 +194,7 @@ export default configureStore({
         app: appReducer,
         editor: editorReducer,
         recorder: recorderReducer,
+        tutorial: tutorialReducer,
         license: licenseReducer,
         timeline: timelineReducer,
         contextMenu: contextMenuReducer,
