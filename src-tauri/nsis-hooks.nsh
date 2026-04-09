@@ -5,7 +5,7 @@
   DetailPrint "Checking system requirements..."
   DetailPrint "Installing Flowtake - Screen recorder with automatic zoom animations"
   DetailPrint "Publisher: Jnx03"
-  DetailPrint "Website: https://getflowtake.com"
+  DetailPrint "Website: https://github.com/JNX03/Flowtake"
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
@@ -28,7 +28,7 @@
 
   FFmpegDone:
     DetailPrint "Flowtake installation complete!"
-    DetailPrint "Visit https://getflowtake.com for help and documentation."
+    DetailPrint "Visit https://github.com/JNX03/Flowtake for help and documentation."
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL

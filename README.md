@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://getflowtake.com">Website</a> &bull;
   <a href="#features">Features</a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#development">Development</a> &bull;
@@ -128,7 +127,7 @@ Flowtake is built with a modern hybrid architecture combining a Rust backend wit
 
 ### Download
 
-Download the latest installer from the [Releases](https://github.com/Jnx03/Flowtake/releases) page or from [getflowtake.com](https://getflowtake.com).
+Download the latest installer from the [Releases](https://github.com/Jnx03/Flowtake/releases) page.
 
 ### Platform Support
 
@@ -265,6 +264,5 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  Made with Rust, React, and a lot of screen recordings.<br>
-  <a href="https://getflowtake.com">getflowtake.com</a>
+  Made with Rust, React, and a lot of screen recordings.
 </p>

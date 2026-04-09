@@ -244,7 +244,6 @@ Use the [Feature Request](https://github.com/Jnx03/Flowtake/issues/new?template=
 ## Community
 
 - **Issues**: [GitHub Issues](https://github.com/Jnx03/Flowtake/issues)
-- **Website**: [getflowtake.com](https://getflowtake.com)
 - **Email**: [jn03official@gmail.com](mailto:jn03official@gmail.com)
 
 ---

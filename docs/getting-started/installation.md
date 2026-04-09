@@ -2,7 +2,7 @@
 
 ## Download
 
-Download the latest installer from the [Releases page](https://github.com/Jnx03/Flowtake/releases) or from [getflowtake.com](https://getflowtake.com).
+Download the latest installer from the [Releases page](https://github.com/Jnx03/Flowtake/releases).
 
 Available installer formats:
 

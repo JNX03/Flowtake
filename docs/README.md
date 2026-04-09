@@ -24,12 +24,10 @@ Record your screen, edit with a powerful timeline, add effects, overlays, captio
 ## Quick Links
 
 - [Download the latest release](https://github.com/Jnx03/Flowtake/releases)
-- [Website](https://getflowtake.com)
 - [Report an issue](https://github.com/Jnx03/Flowtake/issues)
 
 ---
 
 <p align="center">
-  Made with Rust, React, and a lot of screen recordings.<br>
-  <a href="https://getflowtake.com">getflowtake.com</a>
+  Made with Rust, React, and a lot of screen recordings.
 </p>
