@@ -158,6 +158,15 @@ export default function TutorialProvider({ children }) {
         await window.electron.ipcRenderer.invoke("store-set", "hasCompletedTutorial", true)
     }, [dispatch])
 
+    const handleNext = useCallback(() => {
+        const step = TUTORIAL_STEPS[currentStepIndex]
+        if (step?.isFinal) {
+            handleComplete()
+        } else {
+            dispatch(advanceStep())
+        }
+    }, [currentStepIndex, dispatch, handleComplete])
+
     const contextValue = { isActive, currentStepIndex }
 
     if (!isActive) {
@@ -198,6 +207,7 @@ export default function TutorialProvider({ children }) {
                         padding={padding}
                         placement={currentStep?.placement}
                         onSkip={handleSkip}
+                        onNext={handleNext}
                     />
                 )}
             </TutorialOverlay>

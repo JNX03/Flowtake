@@ -66,7 +66,7 @@ function getArrowStyle(placement) {
     }
 }
 
-export default function TutorialTooltip({ stepIndex, rect, padding, placement, onSkip }) {
+export default function TutorialTooltip({ stepIndex, rect, padding, placement, onSkip, onNext }) {
     const step = TUTORIAL_STEPS[stepIndex]
     const totalSteps = TUTORIAL_STEPS.length
     const tooltipWidth = 300
@@ -115,9 +115,17 @@ export default function TutorialTooltip({ stepIndex, rect, padding, placement, o
                     >
                         Skip tutorial
                     </button>
-                    <span className="text-xs text-base-content/30">
-                        {stepIndex + 1} / {totalSteps}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-base-content/30">
+                            {stepIndex + 1} / {totalSteps}
+                        </span>
+                        <button
+                            className="btn btn-primary btn-xs"
+                            onClick={onNext}
+                        >
+                            {step.isFinal ? 'Finish' : 'Next'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

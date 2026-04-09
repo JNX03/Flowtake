@@ -66,16 +66,19 @@ export default function TutorialOverlay({ targetSelector, children }) {
 
     return (
         <div className="fixed inset-0 z-[998] pointer-events-none transition-opacity duration-300">
-            {/* Click-blocking backdrop areas (4 rects around the spotlight) */}
-            <div className="pointer-events-auto absolute inset-0" style={{ clipPath: `polygon(
-                0% 0%, 100% 0%, 100% 100%, 0% 100%,
-                0% ${rect.top - padding}px,
-                ${rect.left - padding}px ${rect.top - padding}px,
-                ${rect.left - padding}px ${rect.top + rect.height + padding}px,
-                0% ${rect.top + rect.height + padding}px
-            )` }}>
-                <div className="w-full h-full bg-base-300/60 backdrop-blur-sm" />
-            </div>
+            {/* Click-blocking backdrop — 4 strips around the spotlight gap */}
+            {/* Top strip */}
+            <div className="pointer-events-auto absolute bg-base-300/60 backdrop-blur-sm"
+                style={{ top: 0, left: 0, width: '100%', height: Math.max(0, rect.top - padding) }} />
+            {/* Bottom strip */}
+            <div className="pointer-events-auto absolute bg-base-300/60 backdrop-blur-sm"
+                style={{ top: rect.top + rect.height + padding, left: 0, width: '100%', height: Math.max(0, window.innerHeight - rect.top - rect.height - padding) }} />
+            {/* Left strip */}
+            <div className="pointer-events-auto absolute bg-base-300/60 backdrop-blur-sm"
+                style={{ top: rect.top - padding, left: 0, width: Math.max(0, rect.left - padding), height: rect.height + padding * 2 }} />
+            {/* Right strip */}
+            <div className="pointer-events-auto absolute bg-base-300/60 backdrop-blur-sm"
+                style={{ top: rect.top - padding, left: rect.left + rect.width + padding, width: Math.max(0, window.innerWidth - rect.left - rect.width - padding), height: rect.height + padding * 2 }} />
 
             {/* Spotlight cutout with pulse */}
             <div
