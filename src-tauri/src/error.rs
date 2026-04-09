@@ -24,10 +24,6 @@ pub enum AppError {
     #[error("No project open")]
     NoProjectOpen,
 
-    #[allow(dead_code)]
-    #[error("License error: {0}")]
-    LicenseError(String),
-
     #[error("{0}")]
     General(String),
 
