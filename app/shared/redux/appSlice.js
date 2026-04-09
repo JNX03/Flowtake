@@ -7,7 +7,6 @@ const initialState = {
     capturers: [],
     encoders: [],
     openSettings: null,
-    isReceivingUpdates: false,
     renderQueueProgress: -1,
     isProjectClosing: false,
     hasExports: false,
@@ -43,9 +42,6 @@ export const appSlice = createSlice({
         setOpenSettings: (state, action) => {
             state.openSettings = action.payload
         },
-        setIsReceivingUpdates: (state, action) => {
-            state.isReceivingUpdates = action.payload
-        },
         setRenderQueueProgress: (state, action) => {
             state.renderQueueProgress = action.payload
         },
@@ -72,7 +68,6 @@ export const {
     setEncoders,
     setCapturers,
     setOpenSettings,
-    setIsReceivingUpdates,
     setRenderQueueProgress,
     setIsProjectClosing,
     setHasExports,
@@ -85,7 +80,6 @@ export const selectEncoders = state => state.app.encoders
 export const selectLoaderMessage = state => state.app.loaderMessage
 export const selectOpenSettings = state => state.app.openSettings
 export const selectToasts = state => state.app.toasts
-export const selectIsReceivingUpdates = state => state.app.isReceivingUpdates
 export const selectRenderQueueProgress = state => state.app.renderQueueProgress
 export const selectIsProjectClosing = state => state.app.isProjectClosing
 export const selectHasExports = state => state.app.hasExports

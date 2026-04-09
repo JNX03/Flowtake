@@ -16,7 +16,6 @@ import NewRecording from "./newRecording/NewRecording"
 import Projects from "./projects/Projects"
 import { setOpenSettings } from "@shared/redux/appSlice"
 import { SETTINGS_GENERAL } from "./settings/constants"
-import { selectHasLicense } from "@shared/redux/licenseSlice"
 
 const VIEW_RECORD = "record"
 const VIEW_PROJECTS = "projects"
@@ -25,8 +24,6 @@ export default function Launcher() {
 
   const [activeView, setActiveView] = useState(VIEW_RECORD)
   const dispatch = useDispatch()
-  const hasLicense = useSelector(selectHasLicense)
-
   const { data: version } = useQuery({
     queryKey: ['version'],
     queryFn: () => window.electron.ipcRenderer.invoke("get-version"),

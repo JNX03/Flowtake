@@ -53,7 +53,6 @@ import editorReducer, {
     setIsPlaying,
     setIsSaving
 } from './editorSlice'
-import licenseReducer from './licenseSlice'
 import maskAnimsReducer, {
     maskSlice,
     reset as resetMaskAnims
@@ -195,7 +194,6 @@ export default configureStore({
         editor: editorReducer,
         recorder: recorderReducer,
         tutorial: tutorialReducer,
-        license: licenseReducer,
         timeline: timelineReducer,
         contextMenu: contextMenuReducer,
         assets: assetReducer,
