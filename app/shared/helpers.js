@@ -131,10 +131,6 @@ async function loadConfigs() {
 }
 
 export const TOAST_UPDATE = "toast-update"
-export const TOAST_LICENSE_ACTIVATED = "toast-license-activated"
-export const TOAST_LICENSE_ALREADY_USED = "toast-license-already-used"
-export const TOAST_EXPIRED_LIFETIME_LICENSE = "toast-expired-lifetime-license"
-export const TOAST_EXPIRED_SUBSCRIPTION = "toast-expired-subscription"
 export const TOAST_EXPORT_COMPLETED = "toast-export-completed"
 export const TOAST_SUCCESS = "toast-success"
 export const TOAST_WARNING = "toast-warning"

@@ -2,7 +2,7 @@ import PropTypes from "prop-types"
 import CopyButton from "../CopyButton"
 
 export default function ShareableUrl({ useShareableUrl, objectId }) {
-    const url = () => objectId ? `https://getflowtake.com/videos/${objectId}` : ""
+    const url = () => objectId ? `https://github.com/JNX03/Flowtake/videos/${objectId}` : ""
 
     return (<div className="join">
         <input type="text" className="join-item input" placeholder="Link"

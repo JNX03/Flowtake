@@ -74,7 +74,7 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
     }, [dispatch, id, render.id])
 
     const url = useCallback(() =>
-        render.upload.objectId ? `https://getflowtake.com/videos/${render.upload.objectId}` : "",
+        render.upload.objectId ? `https://github.com/JNX03/Flowtake/videos/${render.upload.objectId}` : "",
         [render.upload.objectId])
 
     const revealInExplorer = useCallback(() => {
