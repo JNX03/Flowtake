@@ -2098,13 +2098,14 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
         };
         let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
-        let image = CGDisplay::screenshot(
+        let has_permission = CGDisplay::screenshot(
             rect,
             kCGWindowListOptionOnScreenOnly,
             kCGNullWindowID,
             kCGWindowImageDefault,
-        );
-        if image.is_none() {
+        )
+        .is_some();
+        if !has_permission {
             return Err(AppError::General("ScreenPermissionDenied".to_string()));
         }
         let (x, y, w, h) = match source_type {
