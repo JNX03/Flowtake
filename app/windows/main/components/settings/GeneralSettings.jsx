@@ -1,6 +1,9 @@
-import { FolderOpenIcon, ChatBubbleLeftRightIcon, LightBulbIcon } from "@heroicons/react/24/outline"
+import { FolderOpenIcon, ChatBubbleLeftRightIcon, LightBulbIcon, AcademicCapIcon } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
+import { useCallback } from "react"
+import { useDispatch } from "react-redux"
 import Button from "../../../../components/Button"
+import { resetTutorial, startTutorial } from "@shared/redux/tutorialSlice"
 import Fieldset from "../properties/Fieldset"
 import Toggle from "../properties/Toggle"
 
@@ -20,6 +23,14 @@ const AUTO_SAVE_OPTIONS = [
 ]
 
 export default function GeneralSettings() {
+
+    const dispatch = useDispatch()
+
+    const restartTutorial = useCallback(async () => {
+        await window.electron.ipcRenderer.invoke("store-set", "hasCompletedTutorial", false)
+        dispatch(resetTutorial())
+        dispatch(startTutorial())
+    }, [dispatch])
 
     const { data: isIssueReportingEnabled, isPending, isError, refetch } = useQuery({
         queryKey: ['isIssueReportingEnabled'],
@@ -140,6 +151,10 @@ export default function GeneralSettings() {
         </Fieldset>
 
         <Button icon={FolderOpenIcon} onClick={openLogsDirectory}>Open logs folder</Button>
+
+        <Fieldset legend="Tutorial" description="Re-run the interactive tutorial to learn the basics.">
+            <Button icon={AcademicCapIcon} onClick={restartTutorial}>Restart Tutorial</Button>
+        </Fieldset>
 
         <Fieldset legend="Help & Feedback">
             <div className="flex flex-wrap gap-2">

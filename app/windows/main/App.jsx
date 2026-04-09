@@ -58,6 +58,7 @@ import Toasts from "./components/toasts/Toasts"
 
 // Lazy-load heavy components not needed at startup
 const SetupWizard = lazy(() => import("./components/SetupWizard"))
+const TutorialProvider = lazy(() => import("./components/tutorial/TutorialProvider"))
 const Editor = lazy(() => import("./components/Editor"))
 const Settings = lazy(() => import("./components/settings/Settings"))
 const CloseModal = lazy(() => import("./components/CloseModal"))
@@ -259,32 +260,36 @@ export default function App() {
     }, [hasProject, queryClient])
 
     return (
-        <div className="h-full relative">
-            <div className="h-full overflow-auto">
-                {showSetupWizard === true && !hasProject && !isRecording && (
-                    <Suspense fallback={null}><SetupWizard onComplete={onSetupComplete} /></Suspense>
-                )}
-                {showSetupWizard === false && !hasProject && !isRecording && <Launcher />}
-                {hasProject && <Suspense fallback={null}><Editor /></Suspense>}
-            </div>
-            <Loader />
-            <Toasts />
-            <Suspense fallback={null}>
-                <Settings />
-                <CloseModal />
-                <PermissionsModal />
-            </Suspense>
-            {hasProject && <Suspense fallback={null}>
-                <ClickMenu />
-                <ClipMenu />
-                <MaskMenu />
-                <NewClipMenu />
-                <NewMaskMenu />
-                <NewSubtitleMenu />
-                <NewZoomMenu />
-                <SubtitleMenu />
-                <ZoomMenu />
-            </Suspense>}
-        </div>
+        <Suspense fallback={null}>
+            <TutorialProvider>
+                <div className="h-full relative">
+                    <div className="h-full overflow-auto">
+                        {showSetupWizard === true && !hasProject && !isRecording && (
+                            <Suspense fallback={null}><SetupWizard onComplete={onSetupComplete} /></Suspense>
+                        )}
+                        {showSetupWizard === false && !hasProject && !isRecording && <Launcher />}
+                        {hasProject && <Suspense fallback={null}><Editor /></Suspense>}
+                    </div>
+                    <Loader />
+                    <Toasts />
+                    <Suspense fallback={null}>
+                        <Settings />
+                        <CloseModal />
+                        <PermissionsModal />
+                    </Suspense>
+                    {hasProject && <Suspense fallback={null}>
+                        <ClickMenu />
+                        <ClipMenu />
+                        <MaskMenu />
+                        <NewClipMenu />
+                        <NewMaskMenu />
+                        <NewSubtitleMenu />
+                        <NewZoomMenu />
+                        <SubtitleMenu />
+                        <ZoomMenu />
+                    </Suspense>}
+                </div>
+            </TutorialProvider>
+        </Suspense>
     )
 }

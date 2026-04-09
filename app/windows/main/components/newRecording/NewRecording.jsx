@@ -391,7 +391,7 @@ export default function NewRecording({ isOpen }) {
         {/* Right: Controls panel */}
         <div className="w-72 flex-shrink-0 flex flex-col gap-3">
           {/* Source selection */}
-          <div className="bg-base-200/30 rounded-xl border border-base-content/5 p-3">
+          <div className="bg-base-200/30 rounded-xl border border-base-content/5 p-3" data-tutorial="source-panel">
             <label className="text-[11px] font-semibold text-base-content/40 uppercase tracking-wider mb-2.5 block">Source</label>
             <div className="flex flex-col gap-1.5">
               <div className="relative" ref={monitorPickerRef}>
@@ -501,7 +501,7 @@ export default function NewRecording({ isOpen }) {
 
           {/* Actions */}
           <div className="flex gap-2">
-            <div className="flex-[4] min-w-0">
+            <div className="flex-[4] min-w-0" data-tutorial="record-button">
               <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} excludedAudioPids={excludedAudioPids} />
             </div>
             <button onClick={addNote} className="flex-[1] btn btn-sm btn-ghost bg-base-200/30 border border-base-content/5 text-base-content/40 hover:text-base-content/60 h-auto" title="Teleprompter Notes">

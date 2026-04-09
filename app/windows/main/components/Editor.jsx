@@ -126,7 +126,7 @@ export default function Editor() {
             <RenameButton />
             <CloseButton />
             <ActivateButton />
-            <ExportButton />
+            <span data-tutorial="export-button"><ExportButton /></span>
             <PresetsDropdown />
             <RequestFeatureButton />
             <SettingsButton />
@@ -148,7 +148,9 @@ export default function Editor() {
                 />
             </div>
             {/* Bottom section: Timeline */}
-            <Timeline />
+            <div data-tutorial="timeline">
+                <Timeline />
+            </div>
             <DragOverlay />
 
             {/* File drag-and-drop overlay */}
