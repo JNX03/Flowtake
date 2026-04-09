@@ -1,14 +1,14 @@
 {
   "name": "flowtake",
   "productName": "Flowtake",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Screen recorder with automatic zoom animations",
   "type": "module",
   "author": {
     "name": "Jnx03",
     "email": "jn03official@gmail.com"
   },
-  "homepage": "https://getflowtake.com",
+  "homepage": "https://github.com/JNX03/Flowtake",
   "repository": {
     "type": "git",
     "url": "https://github.com/JNX03/Flowtake.git"
