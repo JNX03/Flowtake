@@ -540,15 +540,26 @@ pub async fn init_recording(
         recording_offset_x = x;
         recording_offset_y = y;
     } else {
-        // Screen/Area: use platform-specific capture
-        let capture_format = platform_capture_format();
-        ffmpeg_args.extend([
-            "-y".to_string(),
-            "-f".to_string(),
-            capture_format.to_string(),
-            "-framerate".to_string(),
-            "30".to_string(),
-        ]);
+        // Screen/Area: use platform-specific capture.
+        //
+        // Windows uses `ddagrab` (DXGI Desktop Duplication) rather than `gdigrab`.
+        // gdigrab's BitBlt-based capture causes the hardware cursor to visibly
+        // flicker on screen at the capture framerate; ddagrab reads the GPU
+        // presentation surface directly and does not interfere with the cursor.
+        // `ddagrab` is a libavfilter source filter, so on Windows we feed it via
+        // `-f lavfi` at the per-source push point below and the framerate lives
+        // inside the filter string — don't emit a top-level `-f`/`-framerate` here.
+        ffmpeg_args.push("-y".to_string());
+        #[cfg(not(target_os = "windows"))]
+        {
+            let capture_format = platform_capture_format();
+            ffmpeg_args.extend([
+                "-f".to_string(),
+                capture_format.to_string(),
+                "-framerate".to_string(),
+                "30".to_string(),
+            ]);
+        }
 
         // Get screen dimensions for area percentage conversion
         // On Windows, gdigrab operates in physical pixel space
@@ -587,17 +598,25 @@ pub async fn init_recording(
 
                 #[cfg(target_os = "windows")]
                 {
+                    // ddagrab captures per-monitor (DXGI output). The area x/y/width/height
+                    // are already in physical-pixel space relative to the selected monitor,
+                    // so we pass them straight through as offset_x/offset_y/video_size.
+                    // Note: ddagrab cannot capture across monitor boundaries — the area UI
+                    // clamps to a single monitor, so this isn't a regression.
+                    let monitor_idx = source
+                        .get("monitorIndex")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
                     ffmpeg_args.extend([
-                        "-draw_mouse".to_string(),
-                        "0".to_string(),
-                        "-offset_x".to_string(),
-                        x.to_string(),
-                        "-offset_y".to_string(),
-                        y.to_string(),
-                        "-video_size".to_string(),
-                        format!("{}x{}", width, height),
+                        "-f".to_string(),
+                        "lavfi".to_string(),
                         "-i".to_string(),
-                        "desktop".to_string(),
+                        format!(
+                            "ddagrab=output_idx={}:framerate=30:draw_mouse=0:offset_x={}:offset_y={}:video_size={}x{}",
+                            monitor_idx, x, y, width, height
+                        ),
+                        "-vf".to_string(),
+                        "hwdownload,format=bgra".to_string(),
                     ]);
                 }
                 #[cfg(target_os = "macos")]
@@ -654,27 +673,44 @@ pub async fn init_recording(
 
                 #[cfg(target_os = "windows")]
                 {
-                    ffmpeg_args.push("-draw_mouse".to_string());
-                    ffmpeg_args.push("0".to_string());
+                    // ddagrab captures one DXGI output at a time. Pick the monitor via
+                    // output_idx; offsets are relative to that output, so for a whole-
+                    // monitor capture they're (0, 0).
+                    let monitor_idx = source
+                        .get("monitorIndex")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
 
+                    let mut filter = format!(
+                        "ddagrab=output_idx={}:framerate=30:draw_mouse=0",
+                        monitor_idx
+                    );
                     if let (Some(w), Some(h)) = (monitor_w, monitor_h) {
                         let w = (w - (w % 2)).max(2);
                         let h = (h - (h % 2)).max(2);
                         log::info!(
-                            "[recording] monitor capture: x={} y={} w={} h={}",
-                            monitor_x, monitor_y, w, h
+                            "[recording] monitor capture (ddagrab): idx={} w={} h={}",
+                            monitor_idx, w, h
                         );
-                        ffmpeg_args.extend([
-                            "-offset_x".to_string(),
-                            monitor_x.to_string(),
-                            "-offset_y".to_string(),
-                            monitor_y.to_string(),
-                            "-video_size".to_string(),
-                            format!("{}x{}", w, h),
-                        ]);
+                        filter.push_str(&format!(":video_size={}x{}", w, h));
+                    } else {
+                        log::info!(
+                            "[recording] monitor capture (ddagrab): idx={} (native size)",
+                            monitor_idx
+                        );
                     }
+                    // monitor_x/monitor_y are virtual-desktop coordinates — intentionally
+                    // unused here because ddagrab is per-output.
+                    let _ = (monitor_x, monitor_y);
 
-                    ffmpeg_args.extend(["-i".to_string(), "desktop".to_string()]);
+                    ffmpeg_args.extend([
+                        "-f".to_string(),
+                        "lavfi".to_string(),
+                        "-i".to_string(),
+                        filter,
+                        "-vf".to_string(),
+                        "hwdownload,format=bgra".to_string(),
+                    ]);
                 }
                 #[cfg(target_os = "macos")]
                 {
@@ -2295,15 +2331,16 @@ pub async fn take_recording_screenshot(app: AppHandle) -> AppResult<String> {
     }
 }
 
-/// Get the platform-specific FFmpeg capture format for screen recording
+/// Get the platform-specific FFmpeg capture format for screen recording.
+/// Windows no longer uses this — the screen/area recording path goes through
+/// the `ddagrab` lavfi source filter directly.
+#[cfg(not(target_os = "windows"))]
 fn platform_capture_format() -> &'static str {
-    #[cfg(target_os = "windows")]
-    { "gdigrab" }
     #[cfg(target_os = "macos")]
     { "avfoundation" }
     #[cfg(target_os = "linux")]
     { "x11grab" }
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     { "x11grab" }
 }
 
