@@ -27,6 +27,8 @@
     "core:window:allow-set-resizable",
     "core:window:allow-set-skip-taskbar",
     "core:window:allow-set-ignore-cursor-events",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
     "core:webview:default",
     "core:webview:allow-create-webview-window",
     "shell:default",
