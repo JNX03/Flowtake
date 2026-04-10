@@ -24,6 +24,23 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.worker = new PreviewWorker()
         getWebWorkerIntegration()?.addWorker(this.worker)
 
+        // Surface worker-side evaluation errors. Without these listeners, if
+        // the worker script throws while loading its imports (before the
+        // message listener is installed), the worker is silently dead and
+        // postAsync(INIT_PREVIEW, ...) hangs forever.
+        this.worker.addEventListener("error", e => {
+            console.error(
+                "[PreviewWorkerManager] worker error:",
+                e?.message,
+                "at",
+                e?.filename + ":" + e?.lineno + ":" + e?.colno,
+                e?.error || e
+            )
+        })
+        this.worker.addEventListener("messageerror", e => {
+            console.error("[PreviewWorkerManager] worker messageerror:", e)
+        })
+
         this.worker.addEventListener("message", event => this.onMessage(event))
         this.screenVideo = screenVideo
         this.cameraVideo = cameraVideo
@@ -153,6 +170,13 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     async onMessage(event) {
+        // Intercept the boot handshake before delegating to the base class
+        // so it's visible even if super.onMessage consumes it.
+        if (event?.data?.type === "PREVIEW_WORKER_READY") {
+            console.log("[PreviewWorkerManager] got PREVIEW_WORKER_READY from worker", event.data.payload)
+            return
+        }
+
         const isMessageHandled = await super.onMessage(event)
 
         if (isMessageHandled) return
