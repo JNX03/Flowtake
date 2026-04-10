@@ -10,12 +10,18 @@ import {
 } from "react-redux"
 import { ActionCreators } from "redux-undo"
 import TitleBar from "../../../components/TitleBar"
+import { addErrorToast } from "@shared/errorToastHelper"
 import {
     selectHasProject,
     setLoaderMessage
 } from "@shared/redux/appSlice"
-import { selectIsInitialized } from "@shared/redux/editorSlice"
 import {
+    selectAreVideosReady,
+    selectDuration,
+    selectIsInitialized
+} from "@shared/redux/editorSlice"
+import {
+    selectMouseEvents,
     selectName
 } from "@shared/redux/projectSlice"
 import AssetPanel from "./assets/AssetPanel"
@@ -39,6 +45,9 @@ export default function Editor() {
     const dispatch = useDispatch()
     const hasProject = useSelector(selectHasProject)
     const isInitialized = useSelector(selectIsInitialized)
+    const areVideosReady = useSelector(selectAreVideosReady)
+    const duration = useSelector(selectDuration)
+    const mouseEvents = useSelector(selectMouseEvents)
     const name = useSelector(selectName)
     const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(true)
     const [isPropertiesCollapsed, setIsPropertiesCollapsed] = useState(false)
@@ -69,6 +78,25 @@ export default function Editor() {
     useEffect(() => {
         dispatch(setLoaderMessage(isInitialized ? null : "Opening editor..."))
     }, [isInitialized, dispatch])
+
+    // Safety net: if the editor is stuck on "Opening editor..." for more than
+    // 15 s, the video element or the worker manager has silently stalled.
+    // Log the slice state that createManager waits on, and surface a toast so
+    // the user sees something actionable instead of an indefinite spinner.
+    useEffect(() => {
+        if (isInitialized) return
+        const t = setTimeout(() => {
+            console.warn("[Flowtake] Editor init stalled 15s", {
+                areVideosReady,
+                duration,
+                hasMouseEvents: Array.isArray(mouseEvents) && mouseEvents.length > 0,
+            })
+            dispatch(addErrorToast(
+                "Editor didn't finish initializing. Try reopening the project from the launcher."
+            ))
+        }, 15000)
+        return () => clearTimeout(t)
+    }, [isInitialized, dispatch, areVideosReady, duration, mouseEvents])
 
     const handleDragOver = useCallback(e => {
         if (e.dataTransfer?.types?.includes("Files")) {
