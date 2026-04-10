@@ -1640,7 +1640,12 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 
             {
                 let mut state = state.lock().unwrap();
-                state.project_id = None;
+                // Close any file handles left over from the recording phase.
+                // Leave project_id set so that between this point and
+                // open_project() running on the main window, any file/video
+                // command keyed on state.project_id still resolves to the
+                // just-recorded project. open_project will re-set it to the
+                // same id moments later.
                 state.file_handles.clear();
             }
 
@@ -1667,7 +1672,16 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         app.emit_to("main", "load", serde_json::Value::Null).ok();
     }
 
-    app.emit("recording-stopped", true).ok();
+    // Fan out "recording-stopped" to every live window except the recorder,
+    // which was just destroyed above. A broadcast emit() would also target
+    // the recorder's stale HWND and make winit log a spurious
+    // "PostMessage failed ; Invalid window handle" warning on Windows.
+    for (label, _) in app.webview_windows() {
+        if label == "recorder" {
+            continue;
+        }
+        app.emit_to(label.as_str(), "recording-stopped", true).ok();
+    }
 
     if let Some(ref rid) = recording_id {
         let state_lock = state.lock().unwrap();
