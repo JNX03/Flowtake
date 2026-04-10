@@ -120,6 +120,16 @@ export default function App() {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isDrawing, setIsDrawing] = useState(false)
     const [audioStream, setAudioStream] = useState(null)
+
+    const { data: cameraMicConfig } = useQuery({
+        queryKey: ['cameraMicConfig'],
+        queryFn: () => window.electron.ipcRenderer.invoke("get-camera-mic-config"),
+        staleTime: Infinity
+    })
+
+    const hasMic = !!cameraMicConfig?.audioTrack
+    const hasCam = !!cameraMicConfig?.videoTrack
+
     const { level } = useAudioMeter(audioStream, isRecording && hasMic)
 
     // Grab the audio stream from the device recorder once available
@@ -139,15 +149,6 @@ export default function App() {
 
     const timeRef = useRef(time)
     const cameraVideoRef = useRef(null)
-
-    const { data: cameraMicConfig } = useQuery({
-        queryKey: ['cameraMicConfig'],
-        queryFn: () => window.electron.ipcRenderer.invoke("get-camera-mic-config"),
-        staleTime: Infinity
-    })
-
-    const hasMic = !!cameraMicConfig?.audioTrack
-    const hasCam = !!cameraMicConfig?.videoTrack
 
     const createDeviceRecorder = useCallback(async () => {
         const recorder = new DeviceRecorder()
