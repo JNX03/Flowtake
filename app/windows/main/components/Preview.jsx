@@ -20,6 +20,7 @@ import {
 } from "react-redux"
 import { useResizeDetector } from "react-resize-detector"
 import { MODE_SIDE_BY_SIDE } from "@shared/constants"
+import { addErrorToast } from "@shared/errorToastHelper"
 import {
     selectRendererDims,
     setRendererDims
@@ -235,14 +236,24 @@ export default function Preview() {
     const { width: wrapperWidth, height: wrapperHeight, ref } = useResizeDetector()
 
     const createManager = useCallback(async () => {
-        const manager = new PreviewWorkerManager(screenVideoRef.current, cameraVideoRef.current)
-        await manager.init(
-            canvasRef.current,
-            duration,
-            { cursorFill, cursorStroke, mouseEvents, hasCameraVideo, projectId: id })
+        console.log("[Preview] createManager start", { duration, hasCameraVideo, projectId: id })
+        try {
+            const manager = new PreviewWorkerManager(screenVideoRef.current, cameraVideoRef.current)
+            console.log("[Preview] awaiting manager.init()")
+            await manager.init(
+                canvasRef.current,
+                duration,
+                { cursorFill, cursorStroke, mouseEvents, hasCameraVideo, projectId: id })
+            console.log("[Preview] manager.init() resolved")
 
-        setManager(manager)
-        dispatch(setIsInitialized(true))
+            setManager(manager)
+            dispatch(setIsInitialized(true))
+        } catch (e) {
+            console.error("[Preview] createManager failed:", e?.stack || e?.message || String(e))
+            dispatch(addErrorToast("Failed to initialize preview: " + (e?.message || String(e))))
+            // Allow re-entry so a retry (project reopen) can run createManager again.
+            hasManagerRef.current = false
+        }
 
     }, [cursorFill, cursorStroke, dispatch, duration, hasCameraVideo, id, mouseEvents])
 

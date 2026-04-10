@@ -41,6 +41,12 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
             let timeoutId
             let canPlayListener
 
+            console.log("[Media] mounting video element", {
+                fullSrc,
+                initialReadyState: video?.readyState,
+                networkState: video?.networkState,
+            })
+
             const handleVideoError = () => {
                 const err = video.error
                 console.error("[Media] Video error:", err?.code, err?.message, "src:", fullSrc)
@@ -48,6 +54,7 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
             video.addEventListener('error', handleVideoError)
 
             const handleCanPlay = () => {
+                console.log("[Media] canplay fired for", fullSrc, "readyState=", video.readyState)
                 clearTimeout(timeoutId)
                 onReady?.()
             }

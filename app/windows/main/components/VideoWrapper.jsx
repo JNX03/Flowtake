@@ -137,14 +137,24 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
     }, [isPlaying, syncToTimeline, time, screenVideoRef])
 
     useEffect(() => {
+        console.log("[VideoWrapper] ready-check", {
+            areVideosReady,
+            isScreenVideoReady,
+            isCameraVideoReady,
+            hasCameraVideo,
+            hasMicrophoneAudio,
+            screenSrc: screenVideo.src,
+            projectId,
+        })
         if (!areVideosReady && isScreenVideoReady &&
             ((hasCameraVideo && isCameraVideoReady)
                 || (!hasCameraVideo && hasMicrophoneAudio && isCameraVideoReady)
                 || (!hasCameraVideo && !hasMicrophoneAudio))) {
             if (screenVideoRef.current) screenVideoRef.current.currentTime = toS(time)
+            console.log("[VideoWrapper] videos ready -> dispatching setAreVideosReady(true)")
             dispatch(setAreVideosReady(true))
         }
-    }, [areVideosReady, dispatch, hasCameraVideo, hasMicrophoneAudio, isCameraVideoReady, isScreenVideoReady, screenVideoRef, time])
+    }, [areVideosReady, dispatch, hasCameraVideo, hasMicrophoneAudio, isCameraVideoReady, isScreenVideoReady, screenVideoRef, time, screenVideo.src, projectId])
 
     useEffect(() => {
         if (screenVideoRef.current) screenVideoRef.current.playbackRate = playbackRate
