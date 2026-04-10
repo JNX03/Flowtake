@@ -52,6 +52,7 @@ pub async fn get_projects(app: AppHandle, page: Option<usize>) -> AppResult<Valu
 pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
 
+    log::info!("[open_project] Opening project: {}", id);
     crate::debug_log(&format!("[open_project] Opening project: {}", id));
 
     // Set project ID
@@ -84,12 +85,15 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     let zip_path = match zip_path {
         Some(p) => p,
         None => {
+            log::warn!("[open_project] zip path not found in store for id={}", id);
             store.delete(format!("projects.{}", id));
             let mut state = state.lock().unwrap();
             state.project_id = None;
             return Ok(Value::Null);
         }
     };
+
+    log::info!("[open_project] zip_path={}", zip_path);
 
     // Unzip project
     let temp_dir = {
@@ -100,8 +104,11 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     app.emit("load", "Opening project...").ok();
 
     match unzip_project(&zip_path, &temp_dir) {
-        Ok(_) => {}
-        Err(_) => {
+        Ok(_) => {
+            log::info!("[open_project] unzipped into {:?}", temp_dir);
+        }
+        Err(e) => {
+            log::error!("[open_project] unzip failed: {}", e);
             store.delete(format!("projects.{}", id));
             let mut state = state.lock().unwrap();
             state.project_id = None;
@@ -115,8 +122,10 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
         let content = std::fs::read_to_string(&project_json_path)?;
         let json: Value = serde_json::from_str(&content)?;
         app.emit("load", "").ok();
+        log::info!("[open_project] returning JSON to frontend for id={}", id);
         Ok(json)
     } else {
+        log::warn!("[open_project] project.json MISSING at {:?}", project_json_path);
         let mut state = state.lock().unwrap();
         state.project_id = None;
         Ok(Value::Null)

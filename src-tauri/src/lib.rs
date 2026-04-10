@@ -53,6 +53,7 @@ pub fn run() {
             let state = app.state::<Mutex<AppState>>();
 
             let uri = request.uri().to_string();
+            log::info!("[video://] Request URI: {}", uri);
             debug_log(&format!("[video://] Request URI: {}", uri));
 
             // Parse video type and query from URI
@@ -111,12 +112,18 @@ pub fn run() {
             };
 
             if !file_path.exists() {
+                log::warn!("[video://] File NOT FOUND: {:?}", file_path);
                 debug_log(&format!("[video://] File not found: {:?}", file_path));
                 return tauri::http::Response::builder()
                     .status(404)
                     .body(Vec::<u8>::new())
                     .unwrap();
             }
+            log::info!(
+                "[video://] Serving file: {:?} (size={})",
+                file_path,
+                file_path.metadata().map(|m| m.len()).unwrap_or(0)
+            );
             debug_log(&format!("[video://] Serving file: {:?} (size={})", file_path, file_path.metadata().map(|m| m.len()).unwrap_or(0)));
 
             let file_size = file_path
@@ -521,6 +528,12 @@ pub fn run() {
                     win.set_content_protected(protected).ok();
                     win.show().ok();
                     win.set_focus().ok();
+
+                    // Auto-open devtools in debug builds so the console is
+                    // visible without needing F12 / right-click (which may be
+                    // intercepted by the app's custom title bar / CSS).
+                    #[cfg(debug_assertions)]
+                    win.open_devtools();
                 }
             });
 
