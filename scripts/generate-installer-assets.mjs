@@ -17,6 +17,10 @@ const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
 const INSTALLER_DIR = join(ROOT, 'src-tauri', 'installer');
 
+// Read version from package.json so installer assets stay in sync with releases
+const PKG_VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')).version;
+const VERSION_TEXT = `V${PKG_VERSION}`;
+
 // Brand colors
 const NAVY = [15, 15, 35];        // #0f0f23
 const DARK_BG = [18, 18, 42];     // #12122a
@@ -391,7 +395,7 @@ function generateSidebar() {
 
   // Version text at bottom
   const verScale = 1;
-  const verText = 'V1.3.0';
+  const verText = VERSION_TEXT;
   const verW = textWidth(verText, verScale);
   drawText(pixels, W, H, verText, Math.round((W - verW) / 2), 285, verScale, GRAY);
 
@@ -515,7 +519,7 @@ function generateDMGBackground() {
   }
 
   // Version at bottom
-  const verText = 'V1.3.0';
+  const verText = VERSION_TEXT;
   const verScale = 1 * S;
   const verW = textWidth(verText, verScale);
   drawText(pixels, W, H, verText, Math.round((W - verW) / 2), 370 * S, verScale, GRAY);
