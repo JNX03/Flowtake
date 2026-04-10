@@ -21,6 +21,13 @@ export default class PanAnimator extends Animator {
         this.blur = blur
         this.screenVideoDimensions = screenVideoDimensions
         this.duration = screenVideoDuration
+
+        // Smoothing state for cursor-follow. Reset on scrub/seek and configure.
+        this.smoothedFocus = null
+        this.smoothedVelocity = { x: 0, y: 0 }
+        this.prevFocus = null
+        this.lastUpdateMs = null
+        this.lastTimelineTs = undefined
     }
 
     update(timestamp, clipFrame) {
@@ -28,10 +35,45 @@ export default class PanAnimator extends Animator {
 
         const frame = this.computeFrame(timestamp)
 
-        const focus = this.getWeightedFocus(frame.focus)
+        // Detect scrub / seek — reset smoothing state on large timestamp jumps
+        // so the cursor doesn't drag from an old position when the user scrubs.
+        const nowMs = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now()
+        const timelineJumped =
+            this.lastTimelineTs !== undefined &&
+            Math.abs(timestamp - this.lastTimelineTs) > 120
+        this.lastTimelineTs = timestamp
 
-        // Store focus for velocity computation in next frame
+        if (timelineJumped) {
+            this.smoothedFocus = null
+            this.smoothedVelocity = { x: 0, y: 0 }
+            this.prevFocus = null
+            this.lastUpdateMs = null
+        }
+
+        // Framerate-independent dt, clamped to avoid divide-by-zero and large spikes
+        // after tab suspension.
+        const dt = this.lastUpdateMs
+            ? Math.min(Math.max((nowMs - this.lastUpdateMs) / 1000, 1 / 240), 0.1)
+            : 1 / 60
+        this.lastUpdateMs = nowMs
+
+        const rawFocus = this.getWeightedFocus(frame.focus, dt)
+
+        // Keep raw previous focus for next frame's velocity calc inside getWeightedFocus.
         this.prevFocus = frame.focus
+
+        // Framerate-independent EMA low-pass on the final focus. TAU is the time
+        // constant (seconds) — larger = smoother but more lag on fast flicks.
+        const FOCUS_TAU = 0.09
+        const alpha = 1 - Math.exp(-dt / FOCUS_TAU)
+        if (!this.smoothedFocus) {
+            this.smoothedFocus = { x: rawFocus.x, y: rawFocus.y }
+        } else {
+            this.smoothedFocus.x += (rawFocus.x - this.smoothedFocus.x) * alpha
+            this.smoothedFocus.y += (rawFocus.y - this.smoothedFocus.y) * alpha
+        }
+
+        const focus = this.smoothedFocus
 
         const pivot = this.getPivot(focus)
         const position = this.getPosition(focus, clipFrame)
@@ -54,7 +96,7 @@ export default class PanAnimator extends Animator {
         ]
     }
 
-    getWeightedFocus(focus) {
+    getWeightedFocus(focus, dt) {
         const cursor = {
             x: focus.x * this.screenVideoDimensions.x - this.trim.left,
             y: focus.y * this.screenVideoDimensions.y - this.trim.top
@@ -67,14 +109,32 @@ export default class PanAnimator extends Animator {
 
         const videoCenter = this.getVideoCenter()
 
-        // Velocity-based camera leading: lookahead increases with speed
-        let lookahead = 0.2
-        if (this.prevFocus) {
-            const vx = (focus.x - this.prevFocus.x) * 60 // per-second velocity (normalized coords)
-            const vy = (focus.y - this.prevFocus.y) * 60
-            const speed = Math.sqrt(vx * vx + vy * vy)
-            lookahead = Math.min(0.2 + speed * 0.8, 0.6)
+        // Instantaneous normalized velocity (per-second), dt-correct.
+        // The old code multiplied by a hard-coded 60 which assumed a fixed 60fps
+        // render cadence — but the preview worker throttles renders and dt is
+        // actually irregular, so velocity spiked on every frame boundary.
+        let instVx = 0
+        let instVy = 0
+        if (this.prevFocus && dt > 0) {
+            instVx = (focus.x - this.prevFocus.x) / dt
+            instVy = (focus.y - this.prevFocus.y) / dt
         }
+
+        // Low-pass the velocity itself so it doesn't spike on sample boundaries.
+        const VEL_TAU = 0.15
+        const velAlpha = 1 - Math.exp(-dt / VEL_TAU)
+        this.smoothedVelocity.x += (instVx - this.smoothedVelocity.x) * velAlpha
+        this.smoothedVelocity.y += (instVy - this.smoothedVelocity.y) * velAlpha
+
+        const speed = Math.sqrt(
+            this.smoothedVelocity.x * this.smoothedVelocity.x +
+            this.smoothedVelocity.y * this.smoothedVelocity.y
+        )
+
+        // Softer lookahead than before (was 0.2 + speed*0.8 capped at 0.6).
+        // Jitter gets magnified by the zoom scale, so we prioritize stability
+        // over aggressive camera leading.
+        const lookahead = Math.min(0.15 + speed * 0.35, 0.4)
 
         return {
             x: (cursor.x + (cursor.x - videoCenter.x) * lookahead) / videoDims.x,
@@ -125,6 +185,14 @@ export default class PanAnimator extends Animator {
 
         const animsToConfigure = this.getAnimsToConfigure(deps, true, true)
         this.configureAnims(animsToConfigure, deps, true, true)
+
+        // Reset smoothing state so the first frame after a config change doesn't
+        // ease from a stale position.
+        this.smoothedFocus = null
+        this.smoothedVelocity = { x: 0, y: 0 }
+        this.prevFocus = null
+        this.lastUpdateMs = null
+        this.lastTimelineTs = undefined
     }
 
     computeIdleFrame() {

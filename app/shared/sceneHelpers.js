@@ -192,10 +192,21 @@ export const applyInertia = (coords, duration, inertia = 400) => {
 }
 
 export const getCoords = (screenVideoDimensions, videoDetails, timestamp, map, normalize = false) => {
-    let coord = map.get(Math.round(Math.min(timestamp, videoDetails.end) / (1000 / 60)))
-    // if no coord was found, return the last coord
-    if (!coord) coord = map.get("last")
-    const { x, y } = coord
+    // Linearly interpolate between adjacent cursor frames instead of rounding to
+    // the nearest one. Rounding quantizes the output to 16.67ms steps which
+    // shows up as horizontal stepping under zoom magnification.
+    const clamped = Math.min(timestamp, videoDetails.end)
+    const frameTime = clamped / (1000 / INERTIA_FPS)
+    const f0 = Math.max(0, Math.floor(frameTime))
+    const t = frameTime - f0
+
+    let a = map.get(f0)
+    if (!a) a = map.get("last")
+    const b = map.get(f0 + 1) || a
+
+    const x = a.x + (b.x - a.x) * t
+    const y = a.y + (b.y - a.y) * t
+
     if (normalize) return { x: x / screenVideoDimensions.x, y: y / screenVideoDimensions.y }
     return { x, y }
 }
