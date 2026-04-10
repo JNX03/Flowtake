@@ -1,7 +1,7 @@
 import {
     getFullScreenScale,
     interpolate
-} from "../../helpers"
+} from "../../sceneHelpers"
 import Animator from "../Animator"
 import CameraZoom from "./CameraZoom"
 

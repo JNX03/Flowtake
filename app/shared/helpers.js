@@ -779,25 +779,12 @@ export const pxToMs = (px, pxPerMs) => px / pxPerMs
 
 export const msToPx = (ms, pxPerMs) => ms * pxPerMs
 
-export const drawGradient = (canvas, direction, color1, color2, color3) => {
-
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-
-    const gradient = ctx.createLinearGradient(
-        direction.from.x * canvas.width,
-        direction.from.y * canvas.height,
-        direction.to.x * canvas.width,
-        direction.to.y * canvas.height)
-
-    gradient.addColorStop(0, color1)
-    gradient.addColorStop(.5, color2)
-    gradient.addColorStop(1, color3)
-
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-}
+// drawGradient and getGroupedMouseEvents moved to ./sceneHelpers so the
+// preview web worker (Scene → Background → ...) can import them without
+// dragging the rest of this file (every redux slice, react-redux, d3-ease)
+// into the worker bundle. Re-exported here so main-thread consumers that
+// still import them from @shared/helpers keep working.
+export { drawGradient, getGroupedMouseEvents } from "./sceneHelpers"
 
 export const formatX = value => `${Number(value).toFixed(2)}×`
 export const formatPx = value => `${value}px`
@@ -818,25 +805,6 @@ export const svgToBmp = async (svg, size = { x: 150, y: 150 }) => {
     canvas.getContext("2d").drawImage(img, 0, 0, size.x, size.y)
 
     return createImageBitmap(canvas)
-}
-
-export const getGroupedMouseEvents = mouseEvents => {
-    const clickEvents = mouseEvents.filter(({ type }) => type === "mousedown" || type === "mouseup")
-    let groups = []
-    clickEvents.forEach(event => {
-        switch (event.type) {
-            case "mousedown":
-                groups.push({ mousedown: event })
-                break
-            case "mouseup":
-                // handles the case that first event is mouseup without mousedown
-                if (groups.length > 0)
-                    groups[groups.length - 1].mouseup = event
-                break
-        }
-    })
-
-    return groups.filter(group => group.mousedown && group.mouseup)
 }
 
 export const getGridBackgroundImage = gridSpacing =>

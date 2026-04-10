@@ -1,4 +1,4 @@
-import { interpolateCoords } from "../../helpers"
+import { interpolateCoords } from "../../sceneHelpers"
 import Animation from "../Animation"
 
 export default class Drag extends Animation {

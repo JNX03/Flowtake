@@ -5,7 +5,7 @@ import {
     getGroupedMouseEvents,
     INERTIA_FPS,
     interpolateCoords
-} from "../../helpers"
+} from "../../sceneHelpers"
 import Animator from "../Animator"
 import Drag from "./Drag"
 

@@ -2,7 +2,7 @@ import {
     Container,
     Text
 } from "pixi.js"
-import { interpolate } from "../../helpers"
+import { interpolate } from "../../sceneHelpers"
 import Animation from "../Animation"
 
 const wordBaseAlpha = 0.5

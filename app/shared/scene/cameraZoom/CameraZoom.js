@@ -2,7 +2,7 @@ import { easeLinear } from "d3-ease"
 import {
     getFullScreenScale,
     interpolate
-} from "../../helpers"
+} from "../../sceneHelpers"
 import Animation from "../Animation"
 
 export default class CameraZoom extends Animation {

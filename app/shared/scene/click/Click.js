@@ -1,5 +1,5 @@
 import { easeSinInOut } from "d3-ease"
-import { interpolate } from "../../helpers"
+import { interpolate } from "../../sceneHelpers"
 import Animation from "../Animation"
 
 export default class Click extends Animation {

@@ -5,7 +5,7 @@ import {
     Sprite,
     Texture
 } from "pixi.js"
-import { interpolate } from "../../helpers"
+import { interpolate } from "../../sceneHelpers"
 import Animation from "../Animation"
 
 const BACKGROUND_ALPHA = 0.8

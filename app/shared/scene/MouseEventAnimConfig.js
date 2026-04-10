@@ -1,4 +1,4 @@
-import { getGroupedMouseEvents } from "../helpers"
+import { getGroupedMouseEvents } from "../sceneHelpers"
 import AnimConfig from "./AnimConfig"
 
 export default class MouseEventAnimConfig extends AnimConfig {

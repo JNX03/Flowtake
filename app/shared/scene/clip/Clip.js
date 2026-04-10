@@ -9,7 +9,7 @@ import {
     interpolate,
     interpolateCoords,
     interpolateRect
-} from "../../helpers"
+} from "../../sceneHelpers"
 import Animation from "../Animation"
 import { CAMERA_OFFSET } from "./ClipAnimator"
 

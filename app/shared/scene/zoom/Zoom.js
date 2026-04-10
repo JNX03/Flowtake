@@ -1,4 +1,4 @@
-import { getEasingFunction, interpolate } from "../../helpers"
+import { getEasingFunction, interpolate } from "../../sceneHelpers"
 import Animation from "../Animation"
 
 export default class Zoom extends Animation {

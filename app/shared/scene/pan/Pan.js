@@ -1,7 +1,7 @@
 import {
     getCoords,
     interpolateCoords
-} from "../../helpers"
+} from "../../sceneHelpers"
 import Animation from "../Animation"
 
 export default class Pan extends Animation {
