@@ -101,10 +101,22 @@ impl MouseTracker {
                 use windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW;
                 use windows::Win32::UI::WindowsAndMessaging::WM_QUIT;
 
-                if let Some(ref _handle) = self.hook_thread {
+                if self.hook_thread.is_some() {
                     let tid = HOOK_THREAD_ID.load(std::sync::atomic::Ordering::Relaxed);
                     if tid != 0 {
-                        let _ = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0));
+                        if let Err(e) =
+                            PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0))
+                        {
+                            log::warn!(
+                                "[MouseTracker] PostThreadMessageW failed: {} (tid={})",
+                                e,
+                                tid
+                            );
+                        }
+                    } else {
+                        log::debug!(
+                            "[MouseTracker] HOOK_THREAD_ID is 0; hook thread already exited"
+                        );
                     }
                 }
             }
