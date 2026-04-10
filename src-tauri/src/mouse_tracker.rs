@@ -44,6 +44,7 @@ impl MouseTracker {
     }
 
     /// Set the display scale factor (for Retina displays)
+    #[cfg(target_os = "macos")]
     pub fn set_scale_factor(&mut self, scale: f64) {
         self.scale_factor = scale;
     }
