@@ -1,12 +1,10 @@
-import {
-    Container,
-    Geometry,
-    Mesh,
-    MeshMaterial,
-    RenderTexture,
-    Sprite,
-    Texture
-} from "pixi.js"
+// NOTE: Mesh, MeshMaterial, Geometry, and Texture are not used in this file.
+// MeshMaterial in particular was removed in PIXI v8 — importing it from
+// pixi.js would throw a SyntaxError at module-link time in strict ESM
+// (i.e. the preview web worker), killing the worker before any code runs,
+// which is reported as a bare `error` Event with no details and leaves
+// postAsync(INIT_PREVIEW, ...) hanging forever.
+import { Container, RenderTexture, Sprite } from "pixi.js"
 import Animator from "../Animator"
 import Spatial from "./Spatial"
 
