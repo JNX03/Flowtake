@@ -64,7 +64,9 @@ export default class Scene {
     }
 
     async createApp(canvas = null, onBackgroundError = null) {
+        console.log("[Scene] createApp: creating Application")
         this.app = new Application()
+        console.log("[Scene] createApp: calling app.init (preference=webgl)", { hasCanvas: !!canvas, canvasType: canvas?.constructor?.name })
         await this.app.init({
             canvas,
             background: '#000',
@@ -74,6 +76,7 @@ export default class Scene {
             preference: "webgl", // TODO: at the moment webgl is faster in web workers. Do benchmarking after electron updates
             useBackBuffer: true
         })
+        console.log("[Scene] createApp: app.init resolved")
 
         this.app.stage.sortableChildren = true
 
@@ -105,6 +108,7 @@ export default class Scene {
     }
 
     async init({ mouseEvents, hasCameraVideo, cursorFill, cursorStroke }, duration) {
+        console.log("[Scene] init: constructing animators")
 
         this.clipAnimator = new ClipAnimator(this.camera?.outerContainer, this.camera?.dims, hasCameraVideo)
 
@@ -116,7 +120,9 @@ export default class Scene {
 
         this.zoomAnimator = new ZoomAnimator(this.screen.fg, this.screen.container, this.zoomBlur, this.screen.dims)
 
+        console.log("[Scene] init: awaiting Assets.load('roboto')")
         const { family } = await Assets.load("roboto")
+        console.log("[Scene] init: roboto loaded, family=", family)
         this.subtitleAnimator = new SubtitleAnimator(this.subtitleContainer, family)
 
         this.cursorTypeAnimator = new CursorTypeAnimator(this.cursorImageContainer)
@@ -136,7 +142,9 @@ export default class Scene {
 
         this.cursorFill = cursorFill
         this.cursorStroke = cursorStroke
+        console.log("[Scene] init: awaiting createCursorSprites")
         await this.createCursorSprites()
+        console.log("[Scene] init: createCursorSprites done")
     }
 
     initScreenVideo(dims, content = null) {
