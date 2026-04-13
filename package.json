@@ -63,7 +63,7 @@
   "dependencies": {
     "@bmunozg/react-image-area": "^1.2.0",
     "@heroicons/react": "^2.2.0",
-    "@huggingface/transformers": "^3.8.0",
+    "@huggingface/transformers": "^4.0.1",
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "@reduxjs/toolkit": "^2.11.2",
     "@tailwindcss/typography": "^0.5.19",
