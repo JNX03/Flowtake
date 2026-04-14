@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/banner.png" alt="Flowtake Logo">
+  <img src="resources/banner.png" alt="Flowtake banner">
 </p>
 
 <p align="center">
