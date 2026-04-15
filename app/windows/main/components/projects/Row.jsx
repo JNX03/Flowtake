@@ -3,6 +3,7 @@ import {
     FolderIcon,
     TrashIcon
 } from "@heroicons/react/24/outline"
+import { ask } from "@tauri-apps/plugin-dialog"
 import moment from "moment"
 import PropTypes from 'prop-types'
 import {
@@ -81,16 +82,24 @@ export default function ProjectRow({ project, refetch }) {
         playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius, maskFill, intro, outro, zoomTargetScale, refetch])
 
     const deleteProject = useCallback(async () => {
-        if (window.confirm("Are you sure?")) {
-            setIsDeleteProcessing(true)
-            const isDeleted = await window.electron.ipcRenderer.invoke("delete-project", project.id)
-            if (isDeleted) refetch()
-            else {
-                dispatch(addErrorToast("Project couldn't be deleted. Please try again later"))
-                setIsDeleteProcessing(false)
-            }
+        const confirmed = await ask(`Delete "${project.name || "Recording"}"? This cannot be undone.`, {
+            title: "Delete project",
+            kind: "warning",
+            okLabel: "Delete",
+            cancelLabel: "Cancel"
+        })
+        if (!confirmed) return
+        setIsDeleteProcessing(true)
+        try {
+            await window.electron.ipcRenderer.invoke("delete-project", project.id)
+            await refetch()
+        } catch (e) {
+            console.error("[deleteProject]", e)
+            dispatch(addErrorToast(`Couldn't delete project: ${e?.message || e}`))
+        } finally {
+            setIsDeleteProcessing(false)
         }
-    }, [project.id, refetch, dispatch])
+    }, [project.id, project.name, refetch, dispatch])
 
     return (
         <tr className="hover">

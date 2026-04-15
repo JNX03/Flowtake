@@ -5,6 +5,7 @@ import {
     PencilIcon,
     TrashIcon
 } from "@heroicons/react/16/solid"
+import { ask } from "@tauri-apps/plugin-dialog"
 import PropTypes from 'prop-types'
 import {
     useCallback,
@@ -69,16 +70,25 @@ export default function Preset({ presetDescriptor, onRename, onDirty }) {
     const [isBusy, setIsBusy] = useState(false)
 
     const onClickDelete = useCallback(async () => {
-        if (window.confirm("Are you sure?")) {
-            setIsBusy(true)
-            const isDeleted = await window.electron.ipcRenderer.invoke("delete-preset", presetDescriptor.id)
+        const confirmed = await ask(`Delete preset "${presetDescriptor.name || "Preset"}"?`, {
+            title: "Delete preset",
+            kind: "warning",
+            okLabel: "Delete",
+            cancelLabel: "Cancel"
+        })
+        if (!confirmed) return
+        setIsBusy(true)
+        try {
+            await window.electron.ipcRenderer.invoke("delete-preset", presetDescriptor.id)
+            onDirty()
+            dispatch(addToast({ type: TOAST_SUCCESS, text: "Preset deleted" }))
+        } catch (e) {
+            console.error("[deletePreset]", e)
+            dispatch(addErrorToast("Preset couldn't be deleted. Please try again later"))
+        } finally {
             setIsBusy(false)
-            if (isDeleted) {
-                onDirty()
-                dispatch(addToast({ type: TOAST_SUCCESS, text: "Preset deleted" }))
-            } else dispatch(addErrorToast("Preset couldn't be deleted. Please try again later"))
         }
-    }, [presetDescriptor.id, onDirty, dispatch])
+    }, [presetDescriptor.id, presetDescriptor.name, onDirty, dispatch])
 
     const onClickUpdate = useCallback(async () => {
         setIsBusy(true)
