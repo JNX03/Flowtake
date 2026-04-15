@@ -1,7 +1,6 @@
 import {
     useCallback,
     useEffect,
-    useRef,
     useState
 } from "react"
 import {
@@ -40,6 +39,12 @@ import SaveIndicator from "./titleBar/SaveIndicator"
 import SettingsButton from "./titleBar/SettingsButton"
 import UndoButton from "./titleBar/UndoButton"
 
+function getViewport(w) {
+    if (w >= 1280) return { propertiesMode: "docked", propertiesWidth: 320 }
+    if (w >= 900) return { propertiesMode: "docked", propertiesWidth: 280 }
+    return { propertiesMode: "drawer", propertiesWidth: 320 }
+}
+
 export default function Editor() {
 
     const dispatch = useDispatch()
@@ -50,26 +55,23 @@ export default function Editor() {
     const mouseEvents = useSelector(selectMouseEvents)
     const name = useSelector(selectName)
     const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(true)
-    const [isPropertiesCollapsed, setIsPropertiesCollapsed] = useState(false)
     const [isFileDragOver, setIsFileDragOver] = useState(false)
-    const autoCollapseRef = useRef(false)
+    const [viewport, setViewport] = useState(() => getViewport(typeof window !== "undefined" ? window.innerWidth : 1280))
+    const [isPropertiesDrawerOpen, setIsPropertiesDrawerOpen] = useState(false)
 
-    // Auto-collapse/expand Properties panel based on window width
+    // Derive panel mode purely from window width. Three states:
+    //   >= 1280 → docked 320
+    //   900–1279 → docked 280
+    //   < 900 → drawer overlay
     useEffect(() => {
-        const handleResize = () => {
-            const w = window.innerWidth
-            if (w < 1024 && !autoCollapseRef.current) {
-                autoCollapseRef.current = true
-                setIsPropertiesCollapsed(true)
-            } else if (w >= 1280 && autoCollapseRef.current) {
-                autoCollapseRef.current = false
-                setIsPropertiesCollapsed(false)
-            }
-        }
-        handleResize()
-        window.addEventListener('resize', handleResize)
-        return () => window.removeEventListener('resize', handleResize)
+        const onResize = () => setViewport(getViewport(window.innerWidth))
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
     }, [])
+
+    useEffect(() => {
+        if (viewport.propertiesMode !== "drawer") setIsPropertiesDrawerOpen(false)
+    }, [viewport.propertiesMode])
 
     useEffect(() => {
         if (hasProject) dispatch(ActionCreators.clearHistory())
@@ -148,31 +150,42 @@ export default function Editor() {
 
     return (<>
         <TitleBar overlayButtons={3} subtitle={name} >
-            <SaveIndicator />
-            <UndoButton />
-            <RedoButton />
-            <RenameButton />
-            <CloseButton />
-            <ActivateButton />
-            <span data-tutorial="export-button"><ExportButton /></span>
-            <PresetsDropdown />
-            <RequestFeatureButton />
-            <SettingsButton />
+            <div className="flex items-center gap-0.5">
+                <SaveIndicator />
+                <UndoButton />
+                <RedoButton />
+                <RenameButton />
+                <CloseButton />
+                <ActivateButton />
+            </div>
+            <div className="flex items-center gap-0.5 pl-2 ml-1 border-l border-base-content/10">
+                <span data-tutorial="export-button"><ExportButton /></span>
+            </div>
+            <div className="hidden sm:flex items-center gap-0.5 pl-2 ml-1 border-l border-base-content/10">
+                <PresetsDropdown />
+                <RequestFeatureButton />
+                <SettingsButton />
+            </div>
+            <div className="sm:hidden flex items-center pl-2 ml-1 border-l border-base-content/10">
+                <SettingsButton />
+            </div>
         </TitleBar>
         <div className="bg-base-300 flex flex-col h-full relative overflow-hidden"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}>
             {/* Top section: Assets | Preview | Properties */}
-            <div className="pt-1 px-1.5 flex gap-1.5 flex-1 overflow-hidden min-h-0">
+            <div className="pt-1 px-1.5 flex gap-1.5 flex-1 overflow-hidden min-h-0 relative">
                 <AssetPanel
                     isOpen={isAssetPanelOpen}
                     onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
                 />
                 <Preview />
                 <Properties
-                    isCollapsed={isPropertiesCollapsed}
-                    onToggle={() => { autoCollapseRef.current = false; setIsPropertiesCollapsed(!isPropertiesCollapsed) }}
+                    mode={viewport.propertiesMode}
+                    panelWidth={viewport.propertiesWidth}
+                    isDrawerOpen={isPropertiesDrawerOpen}
+                    onDrawerChange={setIsPropertiesDrawerOpen}
                 />
             </div>
             {/* Bottom section: Timeline */}

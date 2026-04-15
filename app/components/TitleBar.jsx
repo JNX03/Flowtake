@@ -60,7 +60,7 @@ export default function TitleBar({ children, overlayButtons, title, subtitle, hi
                         )}
                     </h1>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 pr-1">
                     {children}
                 </div>
                 {!hideControls && <WindowControls />}
