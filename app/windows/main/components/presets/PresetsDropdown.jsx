@@ -74,14 +74,14 @@ export default function PresetsDropdown() {
     return (<>
         <div className="dropdown">
             <Button
-                className="mt-1 btn-xs"
+                className="btn-ghost"
                 onClick={() => { }}
                 disabled={isPending || isError}
                 isLoading={isPending}
                 icon={AdjustmentsHorizontalIcon}
                 size="xs"
             >
-                Presets
+                <span className="hidden lg:inline">Presets</span>
             </Button>
             <ul className="dropdown-content menu menu-sm border-base-300/10 border-2 bg-base-300/70 text-base-content backdrop-blur-md rounded-lg shadow-lg w-72 mt-2">
                 {!isPending && !isError && <>

@@ -85,12 +85,12 @@ export default function ExportButton() {
     return (<>
         {hasExports && <div className="dropdown">
             <Button
-                className="mt-1 btn-xs btn-primary"
+                className="btn-primary"
                 icon={QueueListIcon}
                 size="xs"
                 onClick={() => { }}
             >
-                Exports
+                <span className="hidden md:inline">Exports</span>
             </Button>
             <ul className="dropdown-content menu menu-sm border-base-300/10 border-2 bg-base-300/70 text-base-content backdrop-blur-md rounded-lg shadow-lg w-72 mt-2">
                 {hasProject && (
@@ -110,13 +110,13 @@ export default function ExportButton() {
         {!hasExports && hasProject && (
             <Button
                 onClick={onNew}
-                className="mt-1 btn-xs btn-primary"
+                className="btn-primary"
                 disabled={isClicked}
                 isLoading={isClicked}
                 icon={QueueListIcon}
                 size="xs"
             >
-                Exports
+                <span className="hidden md:inline">Exports</span>
             </Button>
         )}
     </>)
