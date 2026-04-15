@@ -1,5 +1,6 @@
 import tailwindcss from "@tailwindcss/vite"
 import react from '@vitejs/plugin-react'
+import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import { normalizePath } from "vite"
@@ -7,10 +8,27 @@ import { viteStaticCopy } from "vite-plugin-static-copy"
 
 const host = process.env.TAURI_DEV_HOST
 
+const mediapipeWasmDir = resolve(__dirname, 'node_modules/@mediapipe/tasks-vision/wasm')
+
+const serveMediapipeWasmInDev = {
+  name: 'serve-mediapipe-wasm-in-dev',
+  apply: 'serve',
+  configureServer(server) {
+    server.middlewares.use('/selfie_segmentation/wasm', (req, res, next) => {
+      const requested = (req.url || '').split('?')[0]
+      const abs = resolve(mediapipeWasmDir, '.' + requested)
+      if (!abs.startsWith(mediapipeWasmDir) || !existsSync(abs)) return next()
+      res.setHeader('Content-Type', abs.endsWith('.wasm') ? 'application/wasm' : 'application/javascript')
+      res.end(readFileSync(abs))
+    })
+  }
+}
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
+    serveMediapipeWasmInDev,
     viteStaticCopy({
       targets: [
         {
