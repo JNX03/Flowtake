@@ -15,7 +15,7 @@ export default function RedoButton() {
 
     useHotkeys('ctrl+y', redo, { enabled: areHotkeysEnabled, enableOnFormTags: true }, [areHotkeysEnabled, future])
 
-    return (<button className="mt-1 btn btn-xs btn-square" onClick={redo} disabled={future.length === 0}>
+    return (<button className="btn btn-ghost btn-xs btn-square" onClick={redo} disabled={future.length === 0}>
         <ArrowUturnRightIcon className="size-4" />
     </button>)
 }

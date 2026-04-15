@@ -7,7 +7,7 @@ export default function SettingsButton() {
     const dispatch = useDispatch()
 
     return (
-        <button className="btn btn-xs btn-square mt-1" onClick={() => { dispatch(setOpenSettings(SETTINGS_GENERAL)) }}>
+        <button className="btn btn-ghost btn-xs btn-square" onClick={() => { dispatch(setOpenSettings(SETTINGS_GENERAL)) }}>
             <Cog6ToothIcon className="size-4" />
         </button>
     )

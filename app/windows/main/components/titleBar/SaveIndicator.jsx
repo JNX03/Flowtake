@@ -47,7 +47,7 @@ export default function SaveIndicator() {
         }
     }, [])
 
-    return (<label className={"mt-1 cursor-default swap swap-flip " +
+    return (<label className={"px-1 cursor-default swap swap-flip " +
         `${showCheckmark ? "swap-active" : ""} ${isSaving || showCheckmark ? "" : "hidden"}`}>
         <CheckIcon className="swap-on size-4 text-success" />
         <span className="swap-off loading loading-spinner loading-xs text-base-content/70" />
