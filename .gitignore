@@ -105,3 +105,4 @@ src-tauri/gen/
 .env.sentry-build-plugin
 
 distribute.md
+docs
