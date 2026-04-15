@@ -2,10 +2,14 @@ import { DropShadowFilter } from "pixi-filters/drop-shadow"
 import { MotionBlurFilter } from "pixi-filters/motion-blur"
 import { ZoomBlurFilter } from "pixi-filters/zoom-blur"
 import {
+    AccessibilitySystem,
     Application,
     Assets,
     Container,
     DOMAdapter,
+    DOMPipe,
+    EventSystem,
+    extensions,
     ImageSource,
     Point,
     Sprite,
@@ -42,6 +46,7 @@ import ZoomAnimator from "./zoom/ZoomAnimator"
 export default class Scene {
     constructor() {
         DOMAdapter.set(WebWorkerAdapter)
+        extensions.remove(DOMPipe, AccessibilitySystem, EventSystem)
 
         Assets.add([{ src: Roboto, alias: "roboto" }])
 

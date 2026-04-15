@@ -1,3 +1,5 @@
+import "pixi.js/webworker"
+
 import PreviewScene from "../scene/PreviewScene"
 import {
     FRAME,
