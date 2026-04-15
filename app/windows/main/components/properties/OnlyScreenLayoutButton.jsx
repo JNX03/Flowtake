@@ -7,11 +7,7 @@ export default function OnlyScreenLayoutButton({ onClick, isActive, disabled = f
 
     const aspectRatio = useSelector(selectAspectRatio)
 
-    const activeClasses = (alwaysDrawBg = false) => isActive
-        ? "bg-info border-info-content"
-        : `${alwaysDrawBg ? "bg-base-200" : ""}${disabled ? " border-base-content/20" : ""}`
-
-    const aspectRatioClasses = () => {
+    const innerAspect = () => {
         switch (aspectRatio) {
             case "16x9": return "aspect-video"
             case "9x16": return "aspect-9/16"
@@ -20,22 +16,28 @@ export default function OnlyScreenLayoutButton({ onClick, isActive, disabled = f
         }
     }
 
-    const paddingClasses = () => {
-        switch (aspectRatio) {
-            case "9x16": return "py-1 px-4"
-            case "1x1": return "py-1 px-2"
-            default: return "p-1"
-        }
-    }
+    const frameClasses = isActive
+        ? "bg-info/30 border-info"
+        : `bg-base-300/40 border-base-content/20 ${disabled ? "opacity-40" : ""}`
 
-    return (<button className={`btn btn-sm ${isActive ? "btn-info" : ""} h-auto ${paddingClasses()}`}
-        onClick={onClick} disabled={disabled}>
-        <div className={`w-full ${aspectRatioClasses()} relative p-1`}>
-            <div className={`w-full h-full rounded-xs border-2 flex items-center justify-center transition-all ${activeClasses()}`} >
-                <ComputerDesktopIcon className="h-4 w-4" />
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`group relative h-20 w-full rounded-lg border transition-all flex items-center justify-center p-2
+                ${isActive
+                    ? "border-info ring-2 ring-info/30 bg-info/10"
+                    : "border-base-content/10 hover:border-base-content/30 hover:bg-base-200/60"}
+                ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+        >
+            <div className={`relative ${innerAspect()} max-w-[88%] max-h-full h-full`}>
+                <div className={`w-full h-full rounded-sm border flex items-center justify-center transition-all ${frameClasses}`}>
+                    <ComputerDesktopIcon className="h-4 w-4" />
+                </div>
             </div>
-        </div>
-    </button>)
+        </button>
+    )
 }
 
 OnlyScreenLayoutButton.propTypes = {

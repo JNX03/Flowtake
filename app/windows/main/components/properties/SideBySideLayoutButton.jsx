@@ -10,19 +10,7 @@ export default function SideBySideLayoutButton({ onClick, isActive, cameraPositi
 
     const aspectRatio = useSelector(selectAspectRatio)
 
-    const activeClasses = (alwaysDrawBg = false) => isActive
-        ? "bg-info border-info-content"
-        : `${alwaysDrawBg ? "bg-base-200" : ""}${disabled ? " border-base-content/20" : ""}`
-
-    const positionClasses = () => {
-        if (cameraPosition === "left") return "flex"
-        else if (cameraPosition === "right") return "flex flex-row-reverse"
-        else if (cameraPosition === "top") return "flex flex-col"
-        else if (cameraPosition === "bottom") return "flex flex-col-reverse"
-        return "flex"
-    }
-
-    const aspectRatioClasses = () => {
+    const innerAspect = () => {
         switch (aspectRatio) {
             case "16x9": return "aspect-video"
             case "9x16": return "aspect-9/16"
@@ -31,25 +19,40 @@ export default function SideBySideLayoutButton({ onClick, isActive, cameraPositi
         }
     }
 
-    const paddingClasses = () => {
-        switch (aspectRatio) {
-            case "9x16": return "py-1 px-4"
-            case "1x1": return "py-1 px-2"
-            default: return "p-1"
-        }
+    const directionClasses = () => {
+        if (cameraPosition === "left") return "flex-row"
+        if (cameraPosition === "right") return "flex-row-reverse"
+        if (cameraPosition === "top") return "flex-col"
+        if (cameraPosition === "bottom") return "flex-col-reverse"
+        return "flex-row"
     }
 
-    return (<button className={`btn btn-sm ${isActive ? "btn-info" : ""} h-auto ${paddingClasses()}`}
-        onClick={onClick} disabled={disabled}>
-        <div className={`w-full relative p-1 ${positionClasses()} ${aspectRatioClasses()} gap-1`}>
-            <div className={`flex-1 rounded-xs border-2 flex items-center justify-center transition-all ${activeClasses()}`} >
-                <UserIcon className="h-4 w-4" />
+    const paneBase = "rounded-sm border flex items-center justify-center transition-all"
+    const paneState = isActive
+        ? "bg-info/30 border-info"
+        : `bg-base-300/40 border-base-content/20 ${disabled ? "opacity-40" : ""}`
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`group relative h-20 w-full rounded-lg border transition-all flex items-center justify-center p-2
+                ${isActive
+                    ? "border-info ring-2 ring-info/30 bg-info/10"
+                    : "border-base-content/10 hover:border-base-content/30 hover:bg-base-200/60"}
+                ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+        >
+            <div className={`relative ${innerAspect()} max-w-[88%] max-h-full h-full flex ${directionClasses()} gap-1`}>
+                <div className={`flex-1 ${paneBase} ${paneState}`}>
+                    <UserIcon className="h-4 w-4" />
+                </div>
+                <div className={`flex-[2] ${paneBase} ${paneState}`}>
+                    <ComputerDesktopIcon className="h-4 w-4" />
+                </div>
             </div>
-            <div className={`flex-2 rounded-xs border-2 flex items-center justify-center transition-all ${activeClasses()}`} >
-                <ComputerDesktopIcon className="h-4 w-4" />
-            </div>
-        </div>
-    </button>)
+        </button>
+    )
 }
 
 SideBySideLayoutButton.propTypes = {

@@ -19,11 +19,7 @@ import {
     MODE_CAMERA_OVERLAY,
     MODE_SCREEN_FULLSCREEN,
     MODE_SIDE_BY_SIDE,
-    POS_BOTTOM_LEFT,
-
-    POS_BOTTOM_RIGHT,
-    POS_TOP_LEFT,
-    POS_TOP_RIGHT
+    POS_BOTTOM_LEFT
 } from "@shared/constants"
 import Button from "../../../../components/Button"
 import {
@@ -62,10 +58,10 @@ import {
 } from "@shared/redux/timelineSlice"
 import CameraOverlayLayoutButton from "./CameraOverlayLayoutButton"
 import Card from "./Card"
-import CoordPicker from "./CoordPicker"
 import Fieldset from "./Fieldset"
 import OnlyCameraLayoutButton from "./OnlyCameraLayoutButton"
 import OnlyScreenLayoutButton from "./OnlyScreenLayoutButton"
+import PositionPicker from "./PositionPicker"
 import SideBySideLayoutButton from "./SideBySideLayoutButton"
 import Slider from "./Slider"
 import SpeedSection from "./SpeedSection"

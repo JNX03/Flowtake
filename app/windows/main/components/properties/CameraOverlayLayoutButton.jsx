@@ -17,9 +17,14 @@ export default function CameraOverlayLayoutButton({ onClick, isActive, cameraPos
 
     const aspectRatio = useSelector(selectAspectRatio)
 
-    const activeClasses = (alwaysDrawBg = false) => isActive
-        ? "bg-info border-info-content"
-        : `${alwaysDrawBg ? "bg-base-200" : ""}${disabled ? " border-base-content/20" : ""}`
+    const innerAspect = () => {
+        switch (aspectRatio) {
+            case "16x9": return "aspect-video"
+            case "9x16": return "aspect-9/16"
+            case "1x1": return "aspect-square"
+            default: return "aspect-video"
+        }
+    }
 
     const positionClasses = () => {
         if (shallowEqual(cameraPosition, POS_TOP_LEFT)) return "left-1 top-1"
@@ -29,34 +34,35 @@ export default function CameraOverlayLayoutButton({ onClick, isActive, cameraPos
         return "right-1 bottom-1"
     }
 
-    const aspectRatioClasses = () => {
-        switch (aspectRatio) {
-            case "16x9": return "aspect-video"
-            case "9x16": return "aspect-9/16"
-            case "1x1": return "aspect-square"
-            default: return "aspect-video"
-        }
-    }
+    const frameClasses = isActive
+        ? "bg-info/20 border-info"
+        : `bg-base-300/40 border-base-content/20 ${disabled ? "opacity-40" : ""}`
 
-    const paddingClasses = () => {
-        switch (aspectRatio) {
-            case "9x16": return "py-1 px-4"
-            case "1x1": return "py-1 px-2"
-            default: return "p-1"
-        }
-    }
+    const chipClasses = isActive
+        ? "bg-info border-info-content"
+        : "bg-base-200 border-base-content/30"
 
-    return (<button className={`btn btn-sm ${isActive ? "btn-info" : ""} h-auto ${paddingClasses()}`}
-        onClick={onClick} disabled={disabled}>
-        <div className={`w-full ${aspectRatioClasses()} relative p-1`}>
-            <div className={`w-full h-full rounded-xs border-2 flex items-center justify-center transition-all ${activeClasses()}`} >
-                <ComputerDesktopIcon className="h-4 w-4" />
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`group relative h-20 w-full rounded-lg border transition-all flex items-center justify-center p-2
+                ${isActive
+                    ? "border-info ring-2 ring-info/30 bg-info/10"
+                    : "border-base-content/10 hover:border-base-content/30 hover:bg-base-200/60"}
+                ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+        >
+            <div className={`relative ${innerAspect()} max-w-[88%] max-h-full h-full`}>
+                <div className={`w-full h-full rounded-sm border flex items-center justify-center transition-all ${frameClasses}`}>
+                    <ComputerDesktopIcon className="h-4 w-4" />
+                </div>
+                <div className={`absolute ${positionClasses()} w-5 h-5 rounded-full border flex items-center justify-center transition-all ${chipClasses}`}>
+                    <UserIcon className="h-3 w-3" />
+                </div>
             </div>
-            <div className={`absolute ${positionClasses()} w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${activeClasses(true)}`} >
-                <UserIcon className="h-3 w-3" />
-            </div>
-        </div>
-    </button>)
+        </button>
+    )
 }
 
 CameraOverlayLayoutButton.propTypes = {
