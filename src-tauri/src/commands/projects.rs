@@ -171,24 +171,45 @@ pub async fn close_project(app: AppHandle) -> AppResult<()> {
 pub async fn delete_project(app: AppHandle, project_id: String) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
 
-    // Remove files
-    {
+    let (temp, zip) = {
         let state = state.lock().unwrap();
-        let temp = state.project_temp_dir(&project_id);
-        let zip = state.project_zip_path(&project_id);
-        std::fs::remove_dir_all(&temp).ok();
-        std::fs::remove_file(&zip).ok();
+        (
+            state.project_temp_dir(&project_id),
+            state.project_zip_path(&project_id),
+        )
+    };
+
+    log::info!("[delete_project] id={} zip={:?} temp={:?}", project_id, zip, temp);
+
+    // Remove temp dir best-effort; on Windows handles from a recent open may linger.
+    if let Err(e) = std::fs::remove_dir_all(&temp) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            log::warn!("[delete_project] remove temp dir failed ({:?}): {}", temp, e);
+        }
     }
 
-    // Remove from store
+    // Zip deletion must succeed — that's the canonical "project exists" signal.
+    if zip.exists() {
+        std::fs::remove_file(&zip).map_err(|e| {
+            log::error!("[delete_project] remove zip failed ({:?}): {}", zip, e);
+            AppError::General(format!("Failed to delete project file: {}", e))
+        })?;
+    }
+
     let store = app
         .store("store.json")
         .map_err(|e| AppError::General(e.to_string()))?;
-    store.delete(format!("projects.{}", project_id));
+    let mut projects = match store.get("projects") {
+        Some(Value::Object(map)) => map,
+        _ => Default::default(),
+    };
+    let removed = projects.remove(&project_id).is_some();
+    store.set("projects", Value::Object(projects));
     store
         .save()
         .map_err(|e| AppError::General(e.to_string()))?;
 
+    log::info!("[delete_project] done id={} removed_from_store={}", project_id, removed);
     Ok(())
 }
 
