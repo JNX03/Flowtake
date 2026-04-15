@@ -19,9 +19,9 @@ export default function RenameButton() {
         [isOpen, areHotkeysEnabled])
 
     return (<>
-        <button className="mt-1 btn btn-xs" onClick={() => setIsOpen(true)}>
+        <button className="btn btn-ghost btn-xs" onClick={() => setIsOpen(true)}>
             <PencilIcon className="size-4" />
-            Rename
+            <span className="hidden md:inline">Rename</span>
         </button>
         <TextInputModal title={"Rename project"} label="Project name" value={name} isOpen={isOpen}
             close={() => setIsOpen(false)} save={value => dispatch(setName(value))} />

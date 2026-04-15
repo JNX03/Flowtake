@@ -21,13 +21,13 @@ export default function CloseButton() {
     return (<>
         <Button
             onClick={closeProject}
-            className="mt-1"
+            className="btn-ghost"
             disabled={isProjectClosing}
             isLoading={isProjectClosing}
             icon={XMarkIcon}
             size="xs"
         >
-            Close
+            <span className="hidden md:inline">Close</span>
         </Button>
     </>)
 }
