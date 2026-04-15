@@ -244,7 +244,7 @@ export default function ClipSection() {
             {hasCameraVideo && <>
 
                 <Fieldset legend="Layout">
-                    <div className="grid grid-cols-2 gap-1">
+                    <div className="grid grid-cols-2 gap-2">
                         <CameraOverlayLayoutButton onClick={() => onChangeLayoutMode(MODE_CAMERA_OVERLAY)}
                             isActive={layoutMode === MODE_CAMERA_OVERLAY} cameraPosition={POS_BOTTOM_LEFT}
                             disabled={configs.length === 0} />
@@ -258,39 +258,9 @@ export default function ClipSection() {
                     </div>
                 </Fieldset>
 
-                {layoutMode === MODE_CAMERA_OVERLAY && cameraPosition && <Fieldset legend="Layout Settings">
-                    <div className="tabs tabs-lift tabs-xs">
-                        <input type="radio" name="layout_position" className="tab" aria-label="Corners"
-                            defaultChecked={shallowEqual(cameraPosition, POS_TOP_LEFT)
-                                || shallowEqual(cameraPosition, POS_TOP_RIGHT)
-                                || shallowEqual(cameraPosition, POS_BOTTOM_LEFT)
-                                || shallowEqual(cameraPosition, POS_BOTTOM_RIGHT)} />
-                        <div className="tab-content border-base-300 bg-base-100 p-4 h-auto!">
-                            <div className="w-full grid grid-cols-2 gap-1">
-                                <CameraOverlayLayoutButton onClick={() => onChangeCameraOverlayPosition(POS_TOP_LEFT)}
-                                    isActive={shallowEqual(cameraPosition, POS_TOP_LEFT)}
-                                    cameraPosition={POS_TOP_LEFT} />
-                                <CameraOverlayLayoutButton onClick={() => onChangeCameraOverlayPosition(POS_TOP_RIGHT)}
-                                    isActive={shallowEqual(cameraPosition, POS_TOP_RIGHT)}
-                                    cameraPosition={POS_TOP_RIGHT} />
-                                <CameraOverlayLayoutButton onClick={() => onChangeCameraOverlayPosition(POS_BOTTOM_LEFT)}
-                                    isActive={shallowEqual(cameraPosition, POS_BOTTOM_LEFT)}
-                                    cameraPosition={POS_BOTTOM_LEFT} />
-                                <CameraOverlayLayoutButton onClick={() => onChangeCameraOverlayPosition(POS_BOTTOM_RIGHT)}
-                                    isActive={shallowEqual(cameraPosition, POS_BOTTOM_RIGHT)}
-                                    cameraPosition={POS_BOTTOM_RIGHT} />
-                            </div>
-                        </div>
-
-                        <input type="radio" name="layout_position" className="tab" aria-label="Free"
-                            defaultChecked={!shallowEqual(cameraPosition, POS_TOP_LEFT)
-                                && !shallowEqual(cameraPosition, POS_TOP_RIGHT)
-                                && !shallowEqual(cameraPosition, POS_BOTTOM_LEFT)
-                                && !shallowEqual(cameraPosition, POS_BOTTOM_RIGHT)} />
-                        <div className="tab-content border-base-300 bg-base-100 p-4 h-auto!">
-                            <CoordPicker coords={cameraPosition} onChange={onChangeCameraOverlayPosition} />
-                        </div>
-                    </div>
+                {layoutMode === MODE_CAMERA_OVERLAY && cameraPosition && <Fieldset legend="Camera Position">
+                    <PositionPicker coords={cameraPosition} onChange={onChangeCameraOverlayPosition}
+                        disabled={configs.length === 0} />
 
                     <Slider min={.01}
                         value={configs[0]?.layout.config?.cameraBaseScale ?? CAMERA_OVERLAY_DEFAULT_CONFIG.cameraBaseScale}
@@ -305,10 +275,9 @@ export default function ClipSection() {
 
                 </Fieldset>}
 
-                {layoutMode === MODE_SIDE_BY_SIDE && <Fieldset legend="Layout Settings">
+                {layoutMode === MODE_SIDE_BY_SIDE && <Fieldset legend="Camera Position">
 
-                    <label className="fieldset-label">Camera Position</label>
-                    <div className="w-full grid grid-cols-2 gap-1">
+                    <div className="grid grid-cols-2 gap-2">
                         {(aspectRatio === "16x9" || aspectRatio === "1x1") && <SideBySideLayoutButton
                             cameraPosition="left" onClick={() => onChangeSideBySideCameraPosition("left")}
                             isActive={cameraPosition === "left"} />}
