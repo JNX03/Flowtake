@@ -49,6 +49,7 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
 
             const handleVideoError = () => {
                 const err = video.error
+                if (err?.code === 4 && !video.getAttribute("src")) return
                 console.error("[Media] Video error:", err?.code, err?.message, "src:", fullSrc)
             }
             video.addEventListener('error', handleVideoError)
