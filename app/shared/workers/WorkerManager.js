@@ -1,3 +1,4 @@
+import { FaceLandmarker, FilesetResolver, ImageSegmenter } from "@mediapipe/tasks-vision"
 import modelAssetPath from "../assets/selfie_segmenter_landscape.tflite"
 import crosshairCursorDarkSVG from "../assets/svgs/cursors/dark/crosshair.svg"
 import defaultCursorDarkSVG from "../assets/svgs/cursors/dark/default.svg"
@@ -158,7 +159,6 @@ export default class WorkerManager {
         // TODO: once ImageSegmenter works in web workers, do segmentation there.
         // https://github.com/google-ai-edge/mediapipe/issues/5257
         // https://github.com/google-ai-edge/mediapipe/issues/5479
-        const { FilesetResolver, ImageSegmenter } = await import("@mediapipe/tasks-vision")
         this.segmenter = await ImageSegmenter.createFromOptions(
             await FilesetResolver.forVisionTasks("../selfie_segmentation/wasm"),
             {
@@ -168,7 +168,6 @@ export default class WorkerManager {
     }
 
     async createFaceLandmarker({ x, y }) {
-        const { FilesetResolver, FaceLandmarker } = await import("@mediapipe/tasks-vision")
         const faceLandmarkerModelUrl = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
         this.faceLandmarker = await FaceLandmarker.createFromOptions(
             await FilesetResolver.forVisionTasks("../selfie_segmentation/wasm"),
