@@ -1,73 +1,133 @@
 <p align="center">
-  <img src="resources/banner.png" alt="Flowtake banner">
+  <img src="resources/banner.png" alt="Flowtake Logo">
+</p>
+
+<h3 align="center">Screen recordings, automatically animated.</h3>
+
+<p align="center">
+  A free, open-source desktop screen recorder that automatically adds cinematic zoom and pan animations to your recordings — like Screen Studio, but free, local, and cross-platform.
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> &bull;
-  <a href="#installation">Installation</a> &bull;
-  <a href="#development">Development</a> &bull;
-  <a href="CONTRIBUTING.md">Contributing</a> &bull;
-  <a href="https://github.com/Jnx03/Flowtake/releases">Releases</a>
-</p>
-
-<p align="center">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.4.1-green.svg">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20(stable)%20%7C%20macOS%20(dev)%20%7C%20Linux%20(dev)-lightgrey.svg">
+  <a href="https://github.com/JNX03/Flowtake/releases/latest"><img alt="Latest Release" src="https://img.shields.io/github/v/release/JNX03/Flowtake?label=download&color=4C1D95"></a>
+  <a href="https://github.com/JNX03/Flowtake/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/JNX03/Flowtake/total?color=4C1D95"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white">
-  <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-stable-orange?logo=rust&logoColor=white">
   <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
 </p>
 
+<p align="center">
+  <a href="#download">Download</a> &bull;
+  <a href="#features">Features</a> &bull;
+  <a href="#why-flowtake">Why Flowtake?</a> &bull;
+  <a href="#screenshots">Screenshots</a> &bull;
+  <a href="#development">Development</a> &bull;
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
 ---
 
-Flowtake is a desktop screen recording application that automatically generates polished zoom and pan animations from your recordings. Record your screen, edit with a powerful timeline, add effects, overlays, captions, and export production-ready videos — all from one app.
-
-<!-- Add screenshots to docs/screenshots/ and uncomment below -->
+<!-- DEMO GIF -->
+<!-- TODO: Record with Flowtake itself, save to docs/demos/demo.gif, then uncomment below -->
 <!-- <p align="center">
-  <img src="docs/screenshots/editor.png" alt="Flowtake Editor" width="800">
-  <img src="docs/screenshots/timeline.png" alt="Flowtake Timeline" width="800">
+  <img src="docs/demos/demo.gif" alt="Flowtake demo — record, auto-zoom, export" width="800">
 </p> -->
+
+## Download
+
+Get the latest stable release for your platform:
+
+| Platform | Installer | Download |
+|----------|-----------|----------|
+| **Windows 10/11** (x64) | `.exe` / `.msi` / portable `.zip` | [Latest release](https://github.com/JNX03/Flowtake/releases/latest) |
+| **macOS** (Universal) | `.dmg` / portable `.zip` | [Latest release](https://github.com/JNX03/Flowtake/releases/latest) |
+| **Linux** (x64) | `.AppImage` / `.deb` / `.rpm` / portable `.tar.gz` | [Latest release](https://github.com/JNX03/Flowtake/releases/latest) |
+
+> **Platform status** — Windows is stable and the primary daily-driver platform. macOS and Linux builds exist but are a developer preview — expect bugs. Stable support for all three is targeted for **v2.0**.
+
+FFmpeg is bundled on Windows and macOS. On Linux, the `.deb` and `.rpm` packages declare `ffmpeg`, `xdotool`, and `wmctrl` as dependencies and your package manager will install them automatically.
+
+## Why Flowtake?
+
+| | Flowtake | Screen Studio | Loom | OBS Studio |
+|---|---|---|---|---|
+| **Auto-zoom animations** | ✓ | ✓ | ✗ | ✗ |
+| **Free** | ✓ | ✗ ($229) | Partial (freemium) | ✓ |
+| **Open source** | ✓ (MIT) | ✗ | ✗ | ✓ |
+| **Runs locally (no cloud)** | ✓ | ✓ | ✗ | ✓ |
+| **Cross-platform** | ✓ (Win/Mac/Linux) | macOS only | ✓ | ✓ |
+| **Built-in editor** | ✓ | ✓ | ✓ | ✗ |
+| **Cursor smoothing + blur** | ✓ | ✓ | ✗ | ✗ |
+| **Teleprompter** | ✓ | ✗ | ✗ | ✗ |
+| **Masks / redaction** | ✓ | Limited | ✗ | ✗ |
+| **Native binary footprint** | ~80 MB (Tauri) | ~100 MB | Web / Electron | ~300 MB |
+
+Flowtake gives you the polish of Screen Studio, the flexibility of OBS, and the zero-friction of Loom — all free, all local, all open source.
 
 ## Features
 
 ### Recording
-- **Screen Capture** — Record full screen, specific windows, or custom regions
-- **Camera Overlay** — Picture-in-picture with configurable layouts (side-by-side, overlay, camera-only)
-- **System Audio** — Capture system audio alongside microphone input
+- **Screen capture** — Record full screen, specific windows, or custom regions
+- **Camera overlay** — Picture-in-picture with configurable layouts (side-by-side, overlay, camera-only)
+- **System audio** — Capture system audio alongside microphone input
 - **Multi-monitor** — Support for multi-display setups
 
-### Editing
-- **Auto-Zoom Animations** — Intelligent zoom effects that follow your cursor and focus areas
-- **Pan Animations** — Smooth camera panning with velocity-based camera leading for natural follow
-- **Cursor Inertia & Motion Blur** — Adaptive velocity-based cursor smoothing with motion blur scaled by speed
-- **Timeline Zoom** — Ctrl+mousewheel zoom with granular grid spacing and fine-grained zoom steps
-- **Smooth Playhead** — Refined playhead with larger drag handles and improved clip feedback
-- **Click Indicators** — Animated visual feedback for mouse clicks
-- **Custom Cursors** — Replace or style cursor appearance in recordings
-- **Clips & Cuts** — Trim, split, and arrange video segments
-- **Undo/Redo** — Full history support for all editing operations
+### Auto-animation
+- **Auto-zoom** — Intelligent zoom effects that follow your cursor and focus areas
+- **Pan animations** — Smooth camera panning with velocity-based camera leading for natural follow
+- **Cursor inertia & motion blur** — Adaptive velocity-based cursor smoothing with motion blur scaled by speed
+- **Click indicators** — Animated visual feedback for mouse clicks
+- **Custom cursors** — Replace or style cursor appearance in recordings
 
-### Effects & Overlays
-- **Overlay Tracks** — Add images, shapes, and custom elements with animation
-- **Audio Tracks** — Import and mix multiple audio tracks
-- **Subtitles & Captions** — Built-in subtitle editor with speech recognition
-- **Masks & Blur** — Redact sensitive areas with blur or solid masks
+### Editing
+- **Timeline editor** — Ctrl+mousewheel zoom with granular grid spacing
+- **Clips & cuts** — Trim, split, and arrange video segments
+- **Smooth playhead** — Refined playhead with larger drag handles and improved clip feedback
+- **Undo/redo** — Full history support for all editing operations
+
+### Effects & overlays
+- **Overlay tracks** — Add images, shapes, and custom elements with animation
+- **Audio tracks** — Import and mix multiple audio tracks
+- **Subtitles & captions** — Built-in subtitle editor with on-device speech recognition
+- **Masks & blur** — Redact sensitive areas with blur or solid masks
 - **Backgrounds** — Custom backgrounds with wallpaper and blur effects
-- **Intro/Outro** — Configurable zoom transitions for start and end
+- **Intro/outro** — Configurable zoom transitions for start and end
 
 ### Productivity
-- **Teleprompter** — Built-in teleprompter with speech recognition sync
+- **Teleprompter** — Built-in teleprompter with speech recognition sync (unique to Flowtake)
 - **Presets** — Save and load recording/editing presets
-- **Asset Library** — Predefined assets for quick overlay creation
-- **Project System** — Save, load, and manage editing projects
+- **Asset library** — Predefined assets for quick overlay creation
+- **Project system** — Save, load, and manage editing projects
 - **Hotkeys** — Fully customizable keyboard shortcuts
 
 ### Export
-- **FFmpeg Encoding** — Professional-grade video encoding
-- **Multiple Formats** — Export to MP4, WebM, and more
-- **Configurable Quality** — Choose encoder, resolution, and bitrate settings
+- **FFmpeg encoding** — Professional-grade video encoding via bundled FFmpeg sidecar
+- **Multiple formats** — Export to MP4, WebM, and more
+- **Configurable quality** — Choose encoder, resolution, and bitrate settings
+
+## Screenshots
+
+<!-- TODO: Replace placeholders with real screenshots -->
+<!-- Save to docs/screenshots/ and uncomment below -->
+<!-- <p align="center">
+  <img src="docs/screenshots/editor.png" alt="Flowtake editor" width="800">
+  <br><em>The timeline editor — clips, effects, overlays, subtitles.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/recording.png" alt="Flowtake recording overlay" width="800">
+  <br><em>Native recorder with area picker and camera overlay.</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/effects.png" alt="Flowtake effects panel" width="800">
+  <br><em>Masks, blur, custom backgrounds, redaction.</em>
+</p> -->
+
+_Screenshots coming soon — see [docs/launch](docs/launch/) for marketing materials._
 
 ## Architecture
 
@@ -79,7 +139,7 @@ Flowtake is built with a modern hybrid architecture combining a Rust backend wit
 +------------------------------------------------------------------+
 |                                                                    |
 |   +---------------------------+   +----------------------------+   |
-|   |      Tauri v2 (Rust)      |   |     React 18 Frontend      |   |
+|   |      Tauri v2 (Rust)      |   |     React 19 Frontend      |   |
 |   |---------------------------|   |----------------------------|   |
 |   | - Recording control       |   | - Editor workspace         |   |
 |   | - FFmpeg sidecar mgmt     |   | - Timeline (zoom, pan,     |   |
@@ -100,7 +160,7 @@ Flowtake is built with a modern hybrid architecture combining a Rust backend wit
 +------------------------------------------------------------------+
 ```
 
-### Multi-Window Design
+### Multi-window design
 
 | Window | Purpose |
 |--------|---------|
@@ -111,35 +171,25 @@ Flowtake is built with a modern hybrid architecture combining a Rust backend wit
 | **Area Picker** | Custom region selection tool |
 | **Note** | Annotation window (excluded from capture) |
 
-### Tech Stack
+### Tech stack
 
 | Layer | Technology |
 |-------|-----------|
-| **Desktop Framework** | [Tauri v2](https://v2.tauri.app/) (Rust) |
-| **Frontend** | [React 18](https://react.dev/) + [Redux Toolkit](https://redux-toolkit.js.org/) |
+| **Desktop framework** | [Tauri v2](https://v2.tauri.app/) (Rust) |
+| **Frontend** | [React 19](https://react.dev/) + [Redux Toolkit](https://redux-toolkit.js.org/) |
 | **Styling** | [TailwindCSS 4](https://tailwindcss.com/) + [DaisyUI 5](https://daisyui.com/) |
-| **Graphics** | [Pixi.js 8](https://pixijs.com/) (2D animation rendering) |
-| **Video Encoding** | [FFmpeg](https://ffmpeg.org/) (bundled sidecar) |
-| **Build Tool** | [Vite 7](https://vite.dev/) |
-| **AI/ML** | [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/guide) + [HuggingFace Transformers](https://huggingface.co/docs/transformers.js) |
+| **Graphics** | [Pixi.js 8](https://pixijs.com/) (WebGL-accelerated 2D rendering) |
+| **Video encoding** | [FFmpeg](https://ffmpeg.org/) (bundled sidecar) |
+| **Build tool** | [Vite 7](https://vite.dev/) |
+| **AI / ML** | [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/guide) + [HuggingFace Transformers](https://huggingface.co/docs/transformers.js) (on-device) |
 
 ## Installation
 
-### Download
+### Download (recommended)
 
-Download the latest installer from the [Releases](https://github.com/Jnx03/Flowtake/releases) page.
+Grab the latest installer from the [Releases page](https://github.com/JNX03/Flowtake/releases/latest).
 
-### Platform Support
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| **Windows 10/11** (64-bit) | Stable | Primary supported platform |
-| **macOS** 10.15+ | Developer preview | Bugs are frequent and some features may not work. Not recommended for production use. |
-| **Linux** | Developer preview | Bugs are frequent and some features may not work. Not recommended for production use. |
-
-> **macOS and Linux users:** These platforms are actively being worked on. Expect crashes and broken features. Stable support is planned for **v2.0.0**.
-
-### System Requirements
+### System requirements
 
 - **RAM**: 4 GB minimum, 8 GB recommended
 - **Storage**: ~200 MB for installation
@@ -158,7 +208,7 @@ Download the latest installer from the [Releases](https://github.com/Jnx03/Flowt
 
 ```bash
 # Clone the repository
-git clone https://github.com/Jnx03/Flowtake.git
+git clone https://github.com/JNX03/Flowtake.git
 cd Flowtake
 
 # Install frontend dependencies
@@ -168,7 +218,7 @@ npm install
 npm run dev
 ```
 
-### Available Scripts
+### Available scripts
 
 | Command | Description |
 |---------|-------------|
@@ -178,7 +228,7 @@ npm run dev
 | `npm run build:frontend` | Build frontend assets only |
 | `npm run lint` | Run ESLint on the codebase |
 
-### Project Structure
+### Project structure
 
 ```
 Flowtake/
@@ -222,7 +272,14 @@ For detailed documentation, see the [docs](docs/) directory or browse by topic:
 
 ## Contributing
 
-We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) to get started.
+Flowtake is actively developed and welcomes contributions — especially:
+
+- **Wayland cursor tracking fixes** (the biggest open bug)
+- **macOS polish and bug reports**
+- **Translation / localization**
+- **New auto-zoom tuning profiles**
+
+Please read the [Contributing Guide](CONTRIBUTING.md) to get started.
 
 Quick overview:
 1. Fork the repository
@@ -231,18 +288,18 @@ Quick overview:
 4. Push to your branch (`git push origin feature/your-feature`)
 5. Open a Pull Request
 
-Please also review our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+Please also review the [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ## Security
 
-If you discover a security vulnerability, please follow our [Security Policy](SECURITY.md). Do **not** open a public issue for security vulnerabilities.
+If you discover a security vulnerability, please follow the [Security Policy](SECURITY.md). Do **not** open a public issue for security vulnerabilities.
 
 ## Roadmap
 
 - [ ] Linux stable support (targeting v2.0.0)
 - [ ] macOS stable support (targeting v2.0.0)
 - [ ] Plugin/extension system
-- [ ] Cloud project storage
+- [ ] Cloud project storage (optional, opt-in)
 - [ ] Collaborative editing
 - [ ] AI-powered auto-editing suggestions
 - [x] Tutorial
@@ -251,6 +308,10 @@ If you discover a security vulnerability, please follow our [Security Policy](SE
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Press & media
+
+For press inquiries, logos, screenshots, and product descriptions, see [PRESS.md](PRESS.md).
 
 ## Acknowledgments
 
@@ -265,4 +326,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 <p align="center">
   Made with Rust, React, and a lot of screen recordings.
+  <br>
+  <sub>If Flowtake saves you time, a star on the repo means a lot.</sub>
 </p>
