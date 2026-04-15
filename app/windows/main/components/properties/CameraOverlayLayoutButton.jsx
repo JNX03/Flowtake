@@ -40,21 +40,20 @@ export default function CameraOverlayLayoutButton({ onClick, isActive, cameraPos
 
     const paddingClasses = () => {
         switch (aspectRatio) {
-            case "16x9": return "p-1"
-            case "9x16": return "py-1 px-8"
-            case "1x1": return "py-1 px-5"
+            case "9x16": return "py-1 px-4"
+            case "1x1": return "py-1 px-2"
             default: return "p-1"
         }
     }
 
-    return (<button className={`btn ${isActive ? "btn-info" : ""} h-auto ${paddingClasses()}`}
+    return (<button className={`btn btn-sm ${isActive ? "btn-info" : ""} h-auto ${paddingClasses()}`}
         onClick={onClick} disabled={disabled}>
-        <div className={`w-full ${aspectRatioClasses()} relative p-2`}>
+        <div className={`w-full ${aspectRatioClasses()} relative p-1`}>
             <div className={`w-full h-full rounded-xs border-2 flex items-center justify-center transition-all ${activeClasses()}`} >
-                <ComputerDesktopIcon className="h-6 w-6" />
+                <ComputerDesktopIcon className="h-4 w-4" />
             </div>
-            <div className={`absolute ${positionClasses()} w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${activeClasses(true)}`} >
-                <UserIcon className="h-5 w-5" />
+            <div className={`absolute ${positionClasses()} w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${activeClasses(true)}`} >
+                <UserIcon className="h-3 w-3" />
             </div>
         </div>
     </button>)

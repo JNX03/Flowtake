@@ -264,7 +264,7 @@ export default function ClipSection() {
 
                 {layoutMode === MODE_CAMERA_OVERLAY && cameraPosition && <Fieldset legend="Layout Settings">
                     <div className="tabs tabs-lift tabs-xs">
-                        <input type="radio" name="layout_position" className="tab" aria-label="Corner positioning"
+                        <input type="radio" name="layout_position" className="tab" aria-label="Corners"
                             defaultChecked={shallowEqual(cameraPosition, POS_TOP_LEFT)
                                 || shallowEqual(cameraPosition, POS_TOP_RIGHT)
                                 || shallowEqual(cameraPosition, POS_BOTTOM_LEFT)
@@ -286,7 +286,7 @@ export default function ClipSection() {
                             </div>
                         </div>
 
-                        <input type="radio" name="layout_position" className="tab" aria-label="Free positioning"
+                        <input type="radio" name="layout_position" className="tab" aria-label="Free"
                             defaultChecked={!shallowEqual(cameraPosition, POS_TOP_LEFT)
                                 && !shallowEqual(cameraPosition, POS_TOP_RIGHT)
                                 && !shallowEqual(cameraPosition, POS_BOTTOM_LEFT)
