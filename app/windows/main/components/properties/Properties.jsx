@@ -12,9 +12,11 @@ import {
     MusicalNoteIcon,
     PhotoIcon,
     Square2StackIcon,
-    VideoCameraIcon
+    VideoCameraIcon,
+    XMarkIcon
 } from "@heroicons/react/24/outline"
 import PropTypes from "prop-types"
+import { useEffect } from "react"
 import {
     useDispatch,
     useSelector
@@ -67,7 +69,34 @@ import TranscriptSection from "./TranscriptSection"
 import SpatialSection from "./SpatialSection"
 import ZoomSection from "./ZoomSection"
 
-export default function Properties({ isCollapsed = false, onToggle }) {
+function SidebarButton({ active, onClick, label, children }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={label}
+            data-tip={label}
+            className={`tooltip tooltip-left relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
+                ${active
+                    ? "bg-base-content/10 text-primary"
+                    : "text-base-content/70 hover:bg-base-content/5 hover:text-base-content"}`}
+        >
+            {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-r" />}
+            {children}
+        </button>
+    )
+}
+
+SidebarButton.propTypes = {
+    active: PropTypes.bool,
+    onClick: PropTypes.func.isRequired,
+    label: PropTypes.string.isRequired,
+    children: PropTypes.node.isRequired,
+}
+
+const ICON_CLS = "w-5 h-5"
+
+export default function Properties({ mode = "docked", panelWidth = 320, isDrawerOpen = false, onDrawerChange }) {
 
     const dispatch = useDispatch()
 
@@ -82,6 +111,8 @@ export default function Properties({ isCollapsed = false, onToggle }) {
     const audioClipIds = useSelector(selectAudioClipIds)
     const overlayIds = useSelector(selectOverlayIds)
     const openSection = useSelector(selectOpenSection)
+
+    const isDrawer = mode === "drawer"
 
     const open = section => {
         switch (section) {
@@ -121,134 +152,155 @@ export default function Properties({ isCollapsed = false, onToggle }) {
                 dispatch(setSelectedRow(null))
         }
         dispatch(setOpenSection(section))
+        if (isDrawer) onDrawerChange?.(true)
+    }
+
+    useEffect(() => {
+        if (!isDrawer || !isDrawerOpen) return
+        const onKey = e => { if (e.key === "Escape") onDrawerChange?.(false) }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [isDrawer, isDrawerOpen, onDrawerChange])
+
+    const iconBar = (
+        <nav className="w-11 shrink-0 bg-base-100 rounded-lg flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar">
+            <SidebarButton label="Screen Recording" active={openSection === SCREEN_RECORDING} onClick={() => open(SCREEN_RECORDING)}>
+                <ComputerDesktopIcon className={ICON_CLS} />
+            </SidebarButton>
+            {hasCameraVideo && (
+                <SidebarButton label="Camera Recording" active={openSection === CAMERA_RECORDING} onClick={() => open(CAMERA_RECORDING)}>
+                    <VideoCameraIcon className={ICON_CLS} />
+                </SidebarButton>
+            )}
+            <SidebarButton label="Background" active={openSection === BACKGROUND} onClick={() => open(BACKGROUND)}>
+                <PhotoIcon className={ICON_CLS} />
+            </SidebarButton>
+            <SidebarButton label="Cursor" active={openSection === CURSOR} onClick={() => open(CURSOR)}>
+                <CursorArrowRippleIcon className={ICON_CLS} />
+            </SidebarButton>
+            {hasAnyAudio && (
+                <SidebarButton label="Auto Transcribe" active={openSection === TRANSCRIPT} onClick={() => open(TRANSCRIPT)}>
+                    <ChatBubbleOvalLeftEllipsisIcon className={ICON_CLS} />
+                </SidebarButton>
+            )}
+
+            <hr className="w-6 border-t border-base-content/10 my-1" />
+
+            <SidebarButton label="Clips" active={openSection === CLIPS} onClick={() => open(CLIPS)}>
+                <FilmIcon className={ICON_CLS} />
+            </SidebarButton>
+            <SidebarButton label="Zooms" active={openSection === ZOOMS} onClick={() => open(ZOOMS)}>
+                <ArrowsPointingOutIcon className={ICON_CLS} />
+            </SidebarButton>
+            <SidebarButton label="Spatial 3D" active={openSection === SPATIALS} onClick={() => open(SPATIALS)}>
+                <CubeIcon className={ICON_CLS} />
+            </SidebarButton>
+            <SidebarButton label="Masks" active={openSection === MASKS} onClick={() => open(MASKS)}>
+                <Bars4Icon className={ICON_CLS} />
+            </SidebarButton>
+            <SidebarButton label="Filters" active={openSection === "filters"} onClick={() => open("filters")}>
+                <AdjustmentsHorizontalIcon className={ICON_CLS} />
+            </SidebarButton>
+
+            <hr className="w-6 border-t border-base-content/10 my-1" />
+
+            <SidebarButton label="Audio Tracks" active={openSection === AUDIO_TRACKS} onClick={() => open(AUDIO_TRACKS)}>
+                <MusicalNoteIcon className={ICON_CLS} />
+            </SidebarButton>
+            <SidebarButton label="Overlays" active={openSection === OVERLAY_TRACKS} onClick={() => open(OVERLAY_TRACKS)}>
+                <Square2StackIcon className={ICON_CLS} />
+            </SidebarButton>
+
+            {isDrawer && (
+                <>
+                    <hr className="w-6 border-t border-base-content/10 my-1" />
+                    <SidebarButton
+                        label={isDrawerOpen ? "Close panel" : "Open panel"}
+                        active={isDrawerOpen}
+                        onClick={() => onDrawerChange?.(!isDrawerOpen)}
+                    >
+                        {isDrawerOpen
+                            ? <ChevronRightIcon className={ICON_CLS} />
+                            : <ChevronLeftIcon className={ICON_CLS} />}
+                    </SidebarButton>
+                </>
+            )}
+        </nav>
+    )
+
+    const contentPanel = (
+        <div className="h-full min-h-0 flex flex-col">
+            {isDrawer && (
+                <div className="flex items-center justify-between px-2 pt-2 shrink-0">
+                    <span className="text-[11px] uppercase tracking-wider text-base-content/50 px-2">Properties</span>
+                    <button
+                        onClick={() => onDrawerChange?.(false)}
+                        className="btn btn-ghost btn-xs btn-square"
+                        aria-label="Close panel"
+                    >
+                        <XMarkIcon className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-hidden">
+                {openSection === SCREEN_RECORDING && <ScreenRecordingSection />}
+                {openSection === CAMERA_RECORDING && hasCameraVideo && <CameraSection />}
+                {openSection === BACKGROUND && <BackgroundSection />}
+                {openSection === CURSOR && <CursorSection />}
+                {openSection === TRANSCRIPT && hasAnyAudio && <TranscriptSection />}
+                {openSection === CLIPS && <ClipSection />}
+                {openSection === CLICKS && <ClickSection />}
+                {openSection === ZOOMS && <ZoomSection />}
+                {openSection === SPATIALS && <SpatialSection />}
+                {openSection === SUBTITLES && <SubtitleSection />}
+                {openSection === MASKS && <MaskSection />}
+                {openSection === "filters" && <FilterSection />}
+                {openSection === AUDIO_TRACKS && <AudioTrackSection />}
+                {openSection === OVERLAY_TRACKS && <OverlaySection />}
+            </div>
+        </div>
+    )
+
+    if (isDrawer) {
+        return (
+            <>
+                <div className="relative h-full shrink-0 z-20">
+                    {iconBar}
+                </div>
+                {isDrawerOpen && (
+                    <>
+                        <div
+                            className="absolute inset-0 bg-black/30 backdrop-blur-[1px] z-10 transition-opacity"
+                            onClick={() => onDrawerChange?.(false)}
+                        />
+                        <div
+                            className="absolute right-0 top-0 bottom-0 z-20 shadow-2xl bg-base-100 rounded-l-lg overflow-hidden"
+                            style={{ width: `min(${panelWidth}px, calc(100vw - 60px))` }}
+                        >
+                            {contentPanel}
+                        </div>
+                    </>
+                )}
+            </>
+        )
     }
 
     return (
-        <div className={`${isCollapsed ? "w-12" : "w-80"} shrink-0 relative transition-all duration-200`}>
-            <div className="absolute left-0 top-0 right-0 bottom-0">
-                <div className="flex flex-row gap-1.5 h-full">
-                    <ul className="menu bg-base-100 rounded-lg overflow-y-auto no-scrollbar shrink-0">
-                        <li>
-                            <button onClick={() => open(SCREEN_RECORDING)}
-                                className={`tooltip tooltip-left ${openSection === SCREEN_RECORDING ? "menu-active" : ""}`}
-                                data-tip="Screen Recording">
-                                <ComputerDesktopIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        {hasCameraVideo && <li>
-                            <button onClick={() => open(CAMERA_RECORDING)}
-                                className={`tooltip tooltip-left ${openSection === CAMERA_RECORDING ? "menu-active" : ""}`}
-                                data-tip="Camera Recording">
-                                <VideoCameraIcon className="w-6 h-6" />
-                            </button>
-                        </li>}
-                        <li>
-                            <button onClick={() => open(BACKGROUND)}
-                                className={`tooltip tooltip-left ${openSection === BACKGROUND ? "menu-active" : ""}`}
-                                data-tip="Background">
-                                <PhotoIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <li>
-                            <button onClick={() => open(CURSOR)}
-                                className={`tooltip tooltip-left ${openSection === CURSOR ? "menu-active" : ""}`}
-                                data-tip="Cursor">
-                                <CursorArrowRippleIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        {hasAnyAudio && <li>
-                            <button onClick={() => open(TRANSCRIPT)}
-                                className={`tooltip tooltip-left ${openSection === TRANSCRIPT ? "menu-active" : ""}`}
-                                data-tip="Auto Transcribe">
-                                <ChatBubbleOvalLeftEllipsisIcon className="w-6 h-6" />
-                            </button>
-                        </li>}
-                        <li>
-                            <button onClick={() => open(CLIPS)}
-                                className={`tooltip tooltip-left ${openSection === CLIPS ? "menu-active" : ""}`}
-                                data-tip="Clips">
-                                <FilmIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <li>
-                            <button onClick={() => open(ZOOMS)}
-                                className={`tooltip tooltip-left ${openSection === ZOOMS ? "menu-active" : ""}`}
-                                data-tip="Zooms">
-                                <ArrowsPointingOutIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <li>
-                            <button onClick={() => open(SPATIALS)}
-                                className={`tooltip tooltip-left ${openSection === SPATIALS ? "menu-active" : ""}`}
-                                data-tip="Spatial 3D">
-                                <CubeIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <li>
-                            <button onClick={() => open(MASKS)}
-                                className={`tooltip tooltip-left ${openSection === MASKS ? "menu-active" : ""}`}
-                                data-tip="Masks">
-                                <Bars4Icon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <li>
-                            <button onClick={() => open("filters")}
-                                className={`tooltip tooltip-left ${openSection === "filters" ? "menu-active" : ""}`}
-                                data-tip="Filters">
-                                <AdjustmentsHorizontalIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <div className="divider my-0" />
-                        <li>
-                            <button onClick={() => open(AUDIO_TRACKS)}
-                                className={`tooltip tooltip-left ${openSection === AUDIO_TRACKS ? "menu-active" : ""}`}
-                                data-tip="Audio Tracks">
-                                <MusicalNoteIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        <li>
-                            <button onClick={() => open(OVERLAY_TRACKS)}
-                                className={`tooltip tooltip-left ${openSection === OVERLAY_TRACKS ? "menu-active" : ""}`}
-                                data-tip="Overlays">
-                                <Square2StackIcon className="w-6 h-6" />
-                            </button>
-                        </li>
-                        {onToggle && <>
-                            <div className="divider my-0" />
-                            <li>
-                                <button onClick={onToggle}
-                                    className="tooltip tooltip-left"
-                                    data-tip={isCollapsed ? "Expand panel" : "Collapse panel"}>
-                                    {isCollapsed
-                                        ? <ChevronLeftIcon className="w-5 h-5" />
-                                        : <ChevronRightIcon className="w-5 h-5" />}
-                                </button>
-                            </li>
-                        </>}
-                    </ul>
-                    {!isCollapsed && <div className="flex-1 h-full">
-                        {openSection === SCREEN_RECORDING && <ScreenRecordingSection />}
-                        {openSection === CAMERA_RECORDING && hasCameraVideo && <CameraSection />}
-                        {openSection === BACKGROUND && <BackgroundSection />}
-                        {openSection === CURSOR && <CursorSection />}
-                        {openSection === TRANSCRIPT && hasAnyAudio && <TranscriptSection />}
-                        {openSection === CLIPS && <ClipSection />}
-                        {openSection === CLICKS && <ClickSection />}
-                        {openSection === ZOOMS && <ZoomSection />}
-                        {openSection === SPATIALS && <SpatialSection />}
-                        {openSection === SUBTITLES && <SubtitleSection />}
-                        {openSection === MASKS && <MaskSection />}
-                        {openSection === "filters" && <FilterSection />}
-                        {openSection === AUDIO_TRACKS && <AudioTrackSection />}
-                        {openSection === OVERLAY_TRACKS && <OverlaySection />}
-                    </div>}
-                </div>
+        <div
+            className="shrink-0 relative h-full flex flex-row gap-1.5 transition-[width] duration-200"
+            style={{ width: `calc(${panelWidth}px + 2.75rem + 0.375rem)` }}
+        >
+            {iconBar}
+            <div className="flex-1 min-w-0 h-full">
+                {contentPanel}
             </div>
         </div>
     )
 }
 
 Properties.propTypes = {
-    isCollapsed: PropTypes.bool,
-    onToggle: PropTypes.func
+    mode: PropTypes.oneOf(["docked", "drawer"]),
+    panelWidth: PropTypes.number,
+    isDrawerOpen: PropTypes.bool,
+    onDrawerChange: PropTypes.func,
 }
