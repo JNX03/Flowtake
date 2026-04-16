@@ -49,6 +49,27 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::RECT;
 
+#[cfg(target_os = "macos")]
+use core_foundation::array::{CFArray, CFArrayRef};
+#[cfg(target_os = "macos")]
+use core_foundation::base::TCFType;
+#[cfg(target_os = "macos")]
+use core_foundation::dictionary::{CFDictionaryGetValueIfPresent, CFDictionaryRef};
+#[cfg(target_os = "macos")]
+use core_foundation::number::{CFNumber, CFNumberRef};
+#[cfg(target_os = "macos")]
+use core_foundation::string::{CFString, CFStringRef};
+#[cfg(target_os = "macos")]
+use core_graphics::window::{
+    kCGNullWindowID, kCGWindowListExcludeDesktopElements, kCGWindowListOptionOnScreenOnly,
+};
+
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGWindowListCopyWindowInfo(option: u32, relative_to_window: u32) -> CFArrayRef;
+}
+
 #[tauri::command]
 pub async fn close_window(app: AppHandle) -> AppResult<()> {
     if let Some(window) = app.get_webview_window("main") {
@@ -375,13 +396,25 @@ pub async fn select_window(app: AppHandle, window: Value) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
-    // Get screen dimensions in logical pixels for coordinate clamping
-    // (matching C# DPI-unaware coordinates)
+    // Screen dimensions used for clamping enumerated window bounds.
+    // - Windows: bounds come from GetWindowRect in physical pixels, but the PowerShell
+    //   C# host is DPI-unaware so it reports already-scaled-down pixels; divide by scale.
+    // - macOS: enumerate_windows_macos now returns physical pixels (logical points * scale),
+    //   so clamp against physical screen dimensions directly.
     let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
         if let Ok(Some(monitor)) = main_win.current_monitor() {
             let size = monitor.size();
-            let scale = monitor.scale_factor();
-            ((size.width as f64 / scale) as i64, (size.height as f64 / scale) as i64)
+            #[cfg(target_os = "macos")]
+            let dims = (size.width as i64, size.height as i64);
+            #[cfg(not(target_os = "macos"))]
+            let dims = {
+                let scale = monitor.scale_factor();
+                (
+                    (size.width as f64 / scale) as i64,
+                    (size.height as f64 / scale) as i64,
+                )
+            };
+            dims
         } else {
             (1920, 1080)
         }
@@ -884,58 +917,183 @@ ConvertTo-Json -InputObject @($windows) -Depth 3
 }
 
 #[cfg(target_os = "macos")]
-fn enumerate_windows_macos(our_pid: u32) -> Value {
-    // Use AppleScript/CGWindowListCopyWindowInfo via osascript for window enumeration
-    let script = format!(
-        r#"tell application "System Events"
-    set windowList to {{}}
-    repeat with proc in (every process whose background only is false)
-        try
-            if unix id of proc is not {} then
-                repeat with w in (every window of proc)
-                    try
-                        set winName to name of w
-                        set winPos to position of w
-                        set winSize to size of w
-                        set end of windowList to "{{\"name\":\"" & winName & "\",\"id\":\"" & (id of w as string) & "\",\"type\":\"window\",\"x\":" & (item 1 of winPos as string) & ",\"y\":" & (item 2 of winPos as string) & ",\"width\":" & (item 1 of winSize as string) & ",\"height\":" & (item 2 of winSize as string) & "}}"
-                    end try
-                end repeat
-            end if
-        end try
-    end repeat
-    return "[" & my joinList(windowList, ",") & "]"
-end tell
+fn cf_dict_raw_lookup(dict: CFDictionaryRef, key: &'static str) -> Option<*const core::ffi::c_void> {
+    let cf_key = CFString::from_static_string(key);
+    let mut value: *const core::ffi::c_void = core::ptr::null();
+    let present = unsafe { CFDictionaryGetValueIfPresent(dict, cf_key.to_void(), &mut value) };
+    if present == 0 || value.is_null() {
+        None
+    } else {
+        Some(value)
+    }
+}
 
-on joinList(theList, delimiter)
-    set oldDelimiters to AppleScript's text item delimiters
-    set AppleScript's text item delimiters to delimiter
-    set theString to theList as string
-    set AppleScript's text item delimiters to oldDelimiters
-    return theString
-end joinList"#,
-        our_pid
-    );
+#[cfg(target_os = "macos")]
+fn cf_dict_get_i32(dict: CFDictionaryRef, key: &'static str) -> Option<i32> {
+    let value = cf_dict_raw_lookup(dict, key)?;
+    let n = unsafe { CFNumber::wrap_under_get_rule(value as CFNumberRef) };
+    n.to_i32()
+}
 
-    let output = std::process::Command::new("osascript")
-        .args(["-e", &script])
-        .output();
+#[cfg(target_os = "macos")]
+fn cf_dict_get_i64(dict: CFDictionaryRef, key: &'static str) -> Option<i64> {
+    let value = cf_dict_raw_lookup(dict, key)?;
+    let n = unsafe { CFNumber::wrap_under_get_rule(value as CFNumberRef) };
+    n.to_i64()
+}
 
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if stdout.is_empty() {
-                return Value::Array(vec![]);
-            }
-            serde_json::from_str::<Value>(&stdout).unwrap_or_else(|e| {
-                log::error!("[get_windows] AppleScript JSON parse error: {}", e);
-                Value::Array(vec![])
-            })
+#[cfg(target_os = "macos")]
+fn cf_dict_get_f64(dict: CFDictionaryRef, key: &'static str) -> Option<f64> {
+    let value = cf_dict_raw_lookup(dict, key)?;
+    let n = unsafe { CFNumber::wrap_under_get_rule(value as CFNumberRef) };
+    n.to_f64()
+}
+
+#[cfg(target_os = "macos")]
+fn cf_dict_get_string(dict: CFDictionaryRef, key: &'static str) -> Option<String> {
+    let value = cf_dict_raw_lookup(dict, key)?;
+    let s = unsafe { CFString::wrap_under_get_rule(value as CFStringRef) };
+    Some(s.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn cf_dict_get_dict_ref(dict: CFDictionaryRef, key: &'static str) -> Option<CFDictionaryRef> {
+    let value = cf_dict_raw_lookup(dict, key)?;
+    Some(value as CFDictionaryRef)
+}
+
+#[cfg(target_os = "macos")]
+fn macos_main_screen_scale() -> f64 {
+    use objc::runtime::{Class, Object};
+    use objc::{msg_send, sel, sel_impl};
+    unsafe {
+        let cls = match Class::get("NSScreen") {
+            Some(c) => c,
+            None => return 1.0,
+        };
+        let main_screen: *mut Object = msg_send![cls, mainScreen];
+        if main_screen.is_null() {
+            return 1.0;
         }
-        Err(e) => {
-            log::error!("[get_windows] AppleScript execution error: {}", e);
-            Value::Array(vec![])
+        let scale: f64 = msg_send![main_screen, backingScaleFactor];
+        if scale > 0.0 {
+            scale
+        } else {
+            1.0
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn enumerate_windows_macos(our_pid: u32) -> Value {
+    // Use CGWindowListCopyWindowInfo — fast (~1ms), returns z-order front-to-back,
+    // needs only Screen Recording permission (already required by the app).
+    let scale = macos_main_screen_scale();
+    let options = kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements;
+
+    let array_ref = unsafe { CGWindowListCopyWindowInfo(options, kCGNullWindowID) };
+    if array_ref.is_null() {
+        log::warn!(
+            "[enumerate_windows_macos] CGWindowListCopyWindowInfo returned null \
+             (Screen Recording permission likely missing)"
+        );
+        return Value::Array(vec![]);
+    }
+
+    // Untyped CFArray — elements come out as raw *const c_void and we cast each to CFDictionaryRef.
+    let window_list: CFArray = unsafe { CFArray::wrap_under_create_rule(array_ref) };
+
+    let mut result: Vec<Value> = Vec::new();
+
+    for i in 0..window_list.len() {
+        let dict_ptr = match window_list.get(i) {
+            Some(p) => *p,
+            None => continue,
+        };
+        if dict_ptr.is_null() {
+            continue;
+        }
+        let dict_ref = dict_ptr as CFDictionaryRef;
+
+        // Skip our own process' windows (picker overlay, main window, etc.)
+        let pid = match cf_dict_get_i32(dict_ref, "kCGWindowOwnerPID") {
+            Some(p) => p,
+            None => continue,
+        };
+        if pid as u32 == our_pid {
+            continue;
+        }
+
+        // Layer 0 = normal application windows. Non-zero layers are dock, menu bar,
+        // status items, wallpaper, screensaver, etc. — not pickable.
+        let layer = cf_dict_get_i32(dict_ref, "kCGWindowLayer").unwrap_or(99);
+        if layer != 0 {
+            continue;
+        }
+
+        // Prefer the window's own title; fall back to the owning app's name so that
+        // windows with an empty kCGWindowName (common when the accessibility client
+        // hasn't been granted extra permission) still show something useful.
+        let window_name = cf_dict_get_string(dict_ref, "kCGWindowName").unwrap_or_default();
+        let owner_name = cf_dict_get_string(dict_ref, "kCGWindowOwnerName").unwrap_or_default();
+        let name = if !window_name.is_empty() {
+            window_name
+        } else {
+            owner_name
+        };
+        if name.is_empty() {
+            continue;
+        }
+
+        let win_id = match cf_dict_get_i64(dict_ref, "kCGWindowNumber") {
+            Some(n) => n,
+            None => continue,
+        };
+
+        // kCGWindowBounds is a CFDictionary with X, Y, Width, Height in logical points.
+        let bounds_ref = match cf_dict_get_dict_ref(dict_ref, "kCGWindowBounds") {
+            Some(b) => b,
+            None => continue,
+        };
+        if bounds_ref.is_null() {
+            continue;
+        }
+
+        let bx = cf_dict_get_f64(bounds_ref, "X").unwrap_or(0.0);
+        let by = cf_dict_get_f64(bounds_ref, "Y").unwrap_or(0.0);
+        let bw = cf_dict_get_f64(bounds_ref, "Width").unwrap_or(0.0);
+        let bh = cf_dict_get_f64(bounds_ref, "Height").unwrap_or(0.0);
+
+        // Drop tiny popovers/tooltips that the user can't meaningfully hover over.
+        if bw < 40.0 || bh < 40.0 {
+            continue;
+        }
+
+        // Convert logical points -> physical pixels so the frontend's dpr-multiplied
+        // cursor coords hit-test against bounds in the same space. WindowOutline then
+        // divides back by dpr to render in CSS pixels.
+        let px = (bx * scale) as i64;
+        let py = (by * scale) as i64;
+        let pw = (bw * scale) as i64;
+        let ph = (bh * scale) as i64;
+
+        result.push(serde_json::json!({
+            "name": name,
+            "id": win_id.to_string(),
+            "type": "window",
+            "x": px,
+            "y": py,
+            "width": pw,
+            "height": ph,
+        }));
+    }
+
+    log::info!(
+        "[enumerate_windows_macos] Returning {} windows (scale={})",
+        result.len(),
+        scale
+    );
+    Value::Array(result)
 }
 
 #[cfg(target_os = "linux")]
