@@ -294,12 +294,12 @@ export default function NewRecording({ isOpen }) {
   }
 
   return (
-    <div className={`${isOpen ? "" : "hidden"} h-full flex flex-col`}>
-      {/* Main content: side-by-side layout */}
-      <div className="flex-1 min-h-0 flex gap-5">
+    <div className={`${isOpen ? "" : "hidden"} h-full min-h-0 flex flex-col`}>
+      {/* Main content: always side-by-side */}
+      <div className="flex-1 min-h-0 flex gap-3 md:gap-4">
         {/* Left: Preview */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="relative rounded-2xl overflow-hidden bg-base-200/50 border border-base-content/5 flex-1 min-h-0">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          <div className="relative rounded-xl overflow-hidden bg-base-200/50 border border-base-content/5 flex-1 min-h-0">
             <div className="w-full h-full flex items-center justify-center relative">
               {/* Previous frame as background for smooth crossfade */}
               {prevPreviewRef.current && (
@@ -327,7 +327,7 @@ export default function NewRecording({ isOpen }) {
               )}
               {!isPendingCaptureSourcePreview && isPreviewError && !prevPreviewRef.current && (
                 <div className="flex flex-col items-center gap-2 z-10">
-                  <ComputerDesktopIcon className="size-10 text-base-content/15" />
+                  <ComputerDesktopIcon className="size-10 md:size-12 text-base-content/15" />
                   {screenPermissionDenied ? (
                     <>
                       <span className="text-xs text-warning/80 font-medium">Screen recording permission required</span>
@@ -342,7 +342,7 @@ export default function NewRecording({ isOpen }) {
               )}
               {!isPendingCaptureSourcePreview && !captureSourcePreview && !isPreviewError && !prevPreviewRef.current && (
                 <div className="flex flex-col items-center gap-2 z-10">
-                  <ComputerDesktopIcon className="size-10 text-base-content/15" />
+                  <ComputerDesktopIcon className="size-10 md:size-12 text-base-content/15" />
                   <span className="text-xs text-base-content/30">Select a source to preview</span>
                 </div>
               )}
@@ -388,119 +388,114 @@ export default function NewRecording({ isOpen }) {
           </div>
         </div>
 
-        {/* Right: Controls panel */}
-        <div className="w-72 flex-shrink-0 flex flex-col gap-3">
-          {/* Source selection */}
-          <div className="bg-base-200/30 rounded-xl border border-base-content/5 p-3" data-tutorial="source-panel">
-            <label className="text-[11px] font-semibold text-base-content/40 uppercase tracking-wider mb-2.5 block">Source</label>
-            <div className="flex flex-col gap-1.5">
-              <div className="relative" ref={monitorPickerRef}>
-                <SourceCard
-                  icon={ComputerDesktopIcon}
-                  label="Screen"
-                  description={monitors && monitors.length > 1 && source.type === SOURCE_TYPE_SCREEN && source.id
-                    ? `${monitors.find(m => m.id === source.id)?.isPrimary ? "Primary" : monitors.findIndex(m => m.id === source.id) + 1} - ${source.monitorWidth}x${source.monitorHeight}`
-                    : "Full display capture"}
-                  active={source.type === SOURCE_TYPE_SCREEN}
-                  onClick={selectScreen}
-                  hasDropdown={monitors && monitors.length > 1}
-                />
-                {/* Monitor picker dropdown */}
-                {showMonitorPicker && monitors && monitors.length > 1 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-base-200 border border-base-content/10 rounded-xl shadow-xl overflow-hidden">
-                    {monitors.map((m, i) => (
-                      <button
-                        key={m.id}
-                        onClick={() => selectMonitor(m)}
-                        className={`w-full text-left px-3 py-2.5 text-xs hover:bg-base-300/60 flex items-center gap-2.5 transition-colors
-                          ${source.id === m.id ? "text-primary font-medium bg-primary/5" : "text-base-content/70"}`}
-                      >
-                        <ComputerDesktopIcon className="size-3.5 flex-shrink-0" />
-                        <span className="flex-1 truncate">
-                          {m.isPrimary ? `Monitor ${i + 1} (Primary)` : `Monitor ${i + 1}`}
-                        </span>
-                        <span className="text-base-content/30 font-mono text-[10px]">
-                          {m.width}x{m.height}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <SourceCard
+        {/* Right: Controls panel — flat, compact, always fits */}
+        <div className="w-60 lg:w-64 xl:w-72 flex-shrink-0 min-h-0 flex flex-col gap-2.5">
+          {/* Source — horizontal segmented */}
+          <div className="relative flex-shrink-0" ref={monitorPickerRef} data-tutorial="source-panel">
+            <SectionLabel>Source</SectionLabel>
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-base-200/40 border border-base-content/5">
+              <SourceSegment
+                icon={ComputerDesktopIcon}
+                label="Screen"
+                active={source.type === SOURCE_TYPE_SCREEN}
+                onClick={selectScreen}
+                hasDropdown={monitors && monitors.length > 1}
+              />
+              <SourceSegment
                 icon={WindowIcon}
                 label="Window"
-                description="Single app window"
                 active={source.type === SOURCE_TYPE_WINDOW}
                 onClick={openWindowPicker}
                 iconFlip
               />
-              <SourceCard
+              <SourceSegment
                 icon={CursorArrowRaysIcon}
                 label="Area"
-                description="Custom screen region"
                 active={source.type === SOURCE_TYPE_AREA}
                 onClick={openAreaPicker}
               />
             </div>
+            {/* Active source detail */}
+            <div className="mt-1 px-1 text-[10px] text-base-content/40 truncate">
+              {source.type === SOURCE_TYPE_SCREEN && (monitors && monitors.length > 1 && source.id
+                ? `${monitors.find(m => m.id === source.id)?.isPrimary ? "Primary display" : `Monitor ${monitors.findIndex(m => m.id === source.id) + 1}`} · ${source.monitorWidth}×${source.monitorHeight}`
+                : "Full display capture")}
+              {source.type === SOURCE_TYPE_WINDOW && (source.name || "Click to pick a window")}
+              {source.type === SOURCE_TYPE_AREA && "Custom screen region"}
+            </div>
+            {/* Monitor picker dropdown */}
+            {showMonitorPicker && monitors && monitors.length > 1 && (
+              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-base-200 border border-base-content/10 rounded-lg shadow-xl overflow-hidden">
+                {monitors.map((m, i) => (
+                  <button
+                    key={m.id}
+                    onClick={() => selectMonitor(m)}
+                    className={`w-full text-left px-2.5 py-2 text-xs hover:bg-base-300/60 flex items-center gap-2 transition-colors
+                      ${source.id === m.id ? "text-primary font-medium bg-primary/5" : "text-base-content/70"}`}
+                  >
+                    <ComputerDesktopIcon className="size-3.5 flex-shrink-0" />
+                    <span className="flex-1 truncate">
+                      {m.isPrimary ? `Monitor ${i + 1} (Primary)` : `Monitor ${i + 1}`}
+                    </span>
+                    <span className="text-base-content/30 font-mono text-[10px]">
+                      {m.width}×{m.height}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Devices */}
-          <div className="bg-base-200/30 rounded-xl border border-base-content/5 p-3">
-            <label className="text-[11px] font-semibold text-base-content/40 uppercase tracking-wider mb-2.5 block">Devices</label>
+          <div className="flex-shrink-0">
+            <SectionLabel>Devices</SectionLabel>
             <CameraMicrophoneSelect />
-
-            {/* System audio */}
-            <div className="mt-2.5 pt-2.5 border-t border-base-content/5">
-              <div className="flex items-center gap-2.5">
-                <SpeakerWaveIcon className="size-4 text-base-content/40 flex-shrink-0" />
-                <Toggle rightLabel={<span className="text-xs text-base-content/70">System audio</span>} justifyBetween={false} value={isRecordingSystemAudio}
-                  onChange={onEnableSystemAudio} disabled={isPending} />
-              </div>
-              {isRecordingSystemAudio && (
-                <AppAudioControl onExcludedAppsChange={setExcludedAudioPids} />
-              )}
-            </div>
-
-            {/* Audio processing settings */}
-            <div className="mt-2.5 pt-2.5 border-t border-base-content/5">
-              <button
-                onClick={() => setShowAudioSettings(v => !v)}
-                className="flex items-center gap-2.5 w-full group"
-              >
-                <AdjustmentsHorizontalIcon className="size-4 text-base-content/40 flex-shrink-0" />
-                <span className="text-xs text-base-content/70 flex-1 text-left">Audio processing</span>
-                <ChevronUpIcon className={`size-3 text-base-content/30 transition-transform duration-200 ${showAudioSettings ? "" : "rotate-180"}`} />
-              </button>
-              {showAudioSettings && (
-                <div className="mt-2 ml-6.5 flex flex-col gap-1.5">
-                  <Toggle
-                    rightLabel={<span className="text-[11px] text-base-content/60">Noise suppression</span>}
-                    justifyBetween={false}
-                    value={noiseSuppression ?? true}
-                    onChange={() => setAudioSetting("noiseSuppression", !(noiseSuppression ?? true))}
-                  />
-                  <Toggle
-                    rightLabel={<span className="text-[11px] text-base-content/60">Echo cancellation</span>}
-                    justifyBetween={false}
-                    value={echoCancellation ?? true}
-                    onChange={() => setAudioSetting("echoCancellation", !(echoCancellation ?? true))}
-                  />
-                  <Toggle
-                    rightLabel={<span className="text-[11px] text-base-content/60">Auto gain control</span>}
-                    justifyBetween={false}
-                    value={autoGainControl ?? true}
-                    onChange={() => setAudioSetting("autoGainControl", !(autoGainControl ?? true))}
-                  />
-                </div>
-              )}
-            </div>
           </div>
 
-          <div className="flex-1" />
+          {/* Audio toggles — inline row */}
+          <div className="flex-shrink-0 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <SpeakerWaveIcon className="size-3.5 text-base-content/40 flex-shrink-0" />
+              <Toggle rightLabel={<span className="text-xs text-base-content/70">System audio</span>} justifyBetween={false} value={isRecordingSystemAudio}
+                onChange={onEnableSystemAudio} disabled={isPending} />
+            </div>
+            {isRecordingSystemAudio && (
+              <AppAudioControl onExcludedAppsChange={setExcludedAudioPids} />
+            )}
+            <button
+              onClick={() => setShowAudioSettings(v => !v)}
+              className="flex items-center gap-2 w-full group text-left"
+            >
+              <AdjustmentsHorizontalIcon className="size-3.5 text-base-content/40 flex-shrink-0" />
+              <span className="text-xs text-base-content/70 flex-1">Audio processing</span>
+              <ChevronUpIcon className={`size-3 text-base-content/30 transition-transform ${showAudioSettings ? "" : "rotate-180"}`} />
+            </button>
+            {showAudioSettings && (
+              <div className="ml-5 flex flex-col gap-1">
+                <Toggle
+                  rightLabel={<span className="text-[11px] text-base-content/60">Noise suppression</span>}
+                  justifyBetween={false}
+                  value={noiseSuppression ?? true}
+                  onChange={() => setAudioSetting("noiseSuppression", !(noiseSuppression ?? true))}
+                />
+                <Toggle
+                  rightLabel={<span className="text-[11px] text-base-content/60">Echo cancellation</span>}
+                  justifyBetween={false}
+                  value={echoCancellation ?? true}
+                  onChange={() => setAudioSetting("echoCancellation", !(echoCancellation ?? true))}
+                />
+                <Toggle
+                  rightLabel={<span className="text-[11px] text-base-content/60">Auto gain</span>}
+                  justifyBetween={false}
+                  value={autoGainControl ?? true}
+                  onChange={() => setAudioSetting("autoGainControl", !(autoGainControl ?? true))}
+                />
+              </div>
+            )}
+          </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
+          {/* Actions — pinned to bottom */}
+          <div className="mt-auto flex gap-2 flex-shrink-0 pt-1">
             <div className="flex-[4] min-w-0" data-tutorial="record-button">
               <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} excludedAudioPids={excludedAudioPids} />
             </div>
@@ -514,44 +509,40 @@ export default function NewRecording({ isOpen }) {
   )
 }
 
-function SourceCard({ icon: Icon, label, description, active, onClick, disabled, iconFlip, hasDropdown }) {
+function SectionLabel({ children }) {
+  return (
+    <label className="text-[10px] font-semibold text-base-content/35 uppercase tracking-wider mb-1 block">{children}</label>
+  )
+}
+
+SectionLabel.propTypes = {
+  children: PropTypes.node.isRequired,
+}
+
+function SourceSegment({ icon: Icon, label, active, onClick, iconFlip, hasDropdown }) {
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all w-full text-left group
+      className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-all
         ${active
-          ? "bg-primary/10 border-primary/25 shadow-[0_0_0_1px_rgba(108,92,231,0.1)]"
-          : "bg-transparent border-transparent hover:bg-base-content/5"
-        }
-        disabled:opacity-40 disabled:cursor-not-allowed`}
+          ? "bg-primary/15 text-primary"
+          : "text-base-content/50 hover:text-base-content/80 hover:bg-base-content/5"
+        }`}
     >
-      <div className={`size-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
-        ${active ? "bg-primary/15 text-primary" : "bg-base-content/5 text-base-content/40 group-hover:bg-base-content/8 group-hover:text-base-content/60"}`}>
+      <div className="flex items-center gap-0.5">
         <Icon className={`size-4 ${iconFlip ? "scale-x-[-1]" : ""}`} />
+        {hasDropdown && active && <ChevronDownIcon className="size-2.5 opacity-60" />}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className={`text-sm font-medium flex items-center gap-1 transition-colors
-          ${active ? "text-primary" : "text-base-content/70 group-hover:text-base-content/90"}`}>
-          {label}
-          {hasDropdown && <ChevronDownIcon className="size-3 opacity-50" />}
-        </div>
-        <div className="text-[11px] text-base-content/35 truncate">{description}</div>
-      </div>
-      {active && (
-        <div className="size-2 rounded-full bg-primary flex-shrink-0" />
-      )}
+      <span className="text-[10px] font-medium">{label}</span>
     </button>
   )
 }
 
-SourceCard.propTypes = {
+SourceSegment.propTypes = {
   icon: PropTypes.elementType.isRequired,
   label: PropTypes.string.isRequired,
-  description: PropTypes.string,
   active: PropTypes.bool,
   onClick: PropTypes.func.isRequired,
-  disabled: PropTypes.bool,
   iconFlip: PropTypes.bool,
   hasDropdown: PropTypes.bool,
 }
