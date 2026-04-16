@@ -76,9 +76,9 @@ export default function Projects({ isOpen }) {
         maskBlurStrength, maskAlpha, maskBorderRadius, maskFill, intro, outro, zoomTargetScale, dispatch])
 
     return (<>
-        <div className={`flex flex-col gap-4 ${isOpen ? "" : "hidden"}`}>
+        <div className={`h-full flex flex-col gap-3 min-h-0 ${isOpen ? "" : "hidden"}`}>
             {/* Actions bar */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-shrink-0">
                 <Button
                     className="btn-primary btn-sm"
                     onClick={findProject}
@@ -109,36 +109,38 @@ export default function Projects({ isOpen }) {
             </div>
 
             {/* Projects list */}
-            {isPending && (
-                <div className="flex items-center justify-center py-16">
-                    <span className="loading loading-spinner loading-md text-primary/40"></span>
-                </div>
-            )}
-            {!isPending && !isError && projects?.items?.length > 0 && (
-                <div className="rounded-xl overflow-hidden bg-base-200/30 border border-base-content/5">
-                    <table className="table table-sm">
-                        <thead>
-                            <tr className="border-b border-base-content/5">
-                                <th className="text-base-content/40 font-normal text-xs">Project name</th>
-                                <th className="text-base-content/40 font-normal text-xs">Last updated</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {projects?.items.map(project => (
-                                <ProjectRow key={project.id} project={project} refetch={refetch} />
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-            {!isPending && !isError && (!projects?.items || projects.items.length === 0) && (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                    <DocumentMagnifyingGlassIcon className="size-10 text-base-content/10" />
-                    <p className="text-sm text-base-content/30">No projects yet</p>
-                    <p className="text-xs text-base-content/20">Record your first screen capture to get started</p>
-                </div>
-            )}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+                {isPending && (
+                    <div className="flex items-center justify-center py-16">
+                        <span className="loading loading-spinner loading-md text-primary/40"></span>
+                    </div>
+                )}
+                {!isPending && !isError && projects?.items?.length > 0 && (
+                    <div className="rounded-xl overflow-hidden bg-base-200/30 border border-base-content/5">
+                        <table className="table table-sm">
+                            <thead>
+                                <tr className="border-b border-base-content/5">
+                                    <th className="text-base-content/40 font-normal text-xs">Project name</th>
+                                    <th className="text-base-content/40 font-normal text-xs">Last updated</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {projects?.items.map(project => (
+                                    <ProjectRow key={project.id} project={project} refetch={refetch} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                {!isPending && !isError && (!projects?.items || projects.items.length === 0) && (
+                    <div className="h-full flex flex-col items-center justify-center gap-3">
+                        <DocumentMagnifyingGlassIcon className="size-10 text-base-content/10" />
+                        <p className="text-sm text-base-content/30">No projects yet</p>
+                        <p className="text-xs text-base-content/20">Record your first screen capture to get started</p>
+                    </div>
+                )}
+            </div>
         </div>
     </>)
 }

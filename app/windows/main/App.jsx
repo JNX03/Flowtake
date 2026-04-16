@@ -263,7 +263,7 @@ export default function App() {
         <Suspense fallback={null}>
             <TutorialProvider>
                 <div className="h-full relative">
-                    <div className="h-full overflow-auto">
+                    <div className="h-full overflow-hidden">
                         {showSetupWizard === true && !hasProject && !isRecording && (
                             <Suspense fallback={null}><SetupWizard onComplete={onSetupComplete} /></Suspense>
                         )}

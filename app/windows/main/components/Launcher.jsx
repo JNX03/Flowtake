@@ -35,7 +35,7 @@ export default function Launcher() {
       <ExportButton />
     </TitleBar>
 
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
       <aside className="w-[52px] flex-shrink-0 bg-base-200/40 border-r border-base-content/5 flex flex-col items-center py-3 gap-1">
         <SidebarItem
@@ -71,48 +71,27 @@ export default function Launcher() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-6 py-4 flex flex-col">
+      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-4 md:px-5 py-2.5 flex flex-col overflow-hidden">
           {/* Compact header */}
-          <div className="flex items-center justify-between mb-4 flex-shrink-0">
-            <div>
-              <h2 className="font-brand font-semibold text-lg text-base-content/90">
-                {activeView === VIEW_RECORD ? "New Recording" : "My Projects"}
-              </h2>
-              <p className="text-xs text-base-content/40 mt-0.5">
-                {activeView === VIEW_RECORD
-                  ? "Set up your recording source, camera, and microphone"
-                  : "Open a recent recording or find a project file"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
-                className="badge badge-sm bg-base-200/60 border-base-content/10 text-base-content/50 gap-1.5 hover:text-base-content/80 hover:bg-base-200 transition-colors cursor-pointer"
-              >
-                <GitHubIcon className="size-3" />
-                Open Source
-              </button>
-            </div>
+          <div className="flex items-center justify-between mb-2.5 flex-shrink-0 gap-3">
+            <h2 className="font-brand font-semibold text-sm md:text-base text-base-content/90 truncate">
+              {activeView === VIEW_RECORD ? "New Recording" : "My Projects"}
+            </h2>
+            <button
+              onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
+              className="badge badge-sm bg-base-200/60 border-base-content/10 text-base-content/50 gap-1.5 hover:text-base-content/80 hover:bg-base-200 transition-colors cursor-pointer flex-shrink-0"
+              title={`Flowtake ${version || ""} · MIT License`}
+            >
+              <GitHubIcon className="size-3" />
+              <span className="hidden sm:inline">Open Source</span>
+            </button>
           </div>
 
           {/* Content area - takes remaining space */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <NewRecording isOpen={activeView === VIEW_RECORD} />
             <Projects isOpen={activeView === VIEW_PROJECTS} />
-          </div>
-
-          {/* Bottom bar */}
-          <div className="flex-shrink-0 pt-3 flex items-center justify-between text-[10px] text-base-content/25 pointer-events-none">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1">
-                <kbd className="kbd kbd-xs">Ctrl</kbd>+<kbd className="kbd kbd-xs">,</kbd> Settings
-              </span>
-              <span className="flex items-center gap-1">
-                <kbd className="kbd kbd-xs">Ctrl</kbd>+<kbd className="kbd kbd-xs">/</kbd> Hotkeys
-              </span>
-            </div>
-            <span>Flowtake {version || ""} &middot; MIT License</span>
           </div>
         </div>
       </main>
