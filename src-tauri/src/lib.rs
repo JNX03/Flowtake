@@ -28,6 +28,46 @@ fn debug_log(msg: &str) {
     }
 }
 
+fn cleanup_stale_recording_temp_dirs(temp_dir: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(temp_dir) else {
+        return;
+    };
+    let cutoff = std::time::Duration::from_secs(24 * 60 * 60);
+    let now = std::time::SystemTime::now();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("recording-") {
+            continue;
+        }
+
+        let is_stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|modified| now.duration_since(modified).ok())
+            .map(|age| age > cutoff)
+            .unwrap_or(false);
+
+        if is_stale {
+            match std::fs::remove_dir_all(&path) {
+                Ok(_) => log::info!("[startup] Removed stale recording temp dir: {:?}", path),
+                Err(e) => log::warn!(
+                    "[startup] Failed to remove stale recording temp dir {:?}: {}",
+                    path,
+                    e
+                ),
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -507,6 +547,7 @@ pub fn run() {
 
             std::fs::create_dir_all(&projects_dir).ok();
             std::fs::create_dir_all(&temp_dir).ok();
+            cleanup_stale_recording_temp_dirs(&temp_dir);
 
             // Store paths in state
             {
