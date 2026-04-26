@@ -1,4 +1,4 @@
-import { DropShadowFilter } from "pixi-filters"
+import { DropShadowFilter } from "pixi-filters/drop-shadow"
 import { CanvasSource, Container, Graphics, Sprite, Texture } from "pixi.js"
 import { shallowEqual } from "react-redux"
 import CanvasWrapper from "./CanvasWrapper"
