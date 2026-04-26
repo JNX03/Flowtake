@@ -8,11 +8,16 @@ import {
     XCircleIcon
 } from "@heroicons/react/24/outline"
 import { CloudArrowUpIcon } from "@heroicons/react/24/solid"
-import { useQuery } from "@tanstack/react-query"
+import {
+    useQuery,
+    useQueryClient
+} from "@tanstack/react-query"
 import PropTypes from "prop-types"
 import {
     useCallback,
     useEffect,
+    useMemo,
+    useRef,
     useState
 } from "react"
 import {
@@ -44,21 +49,30 @@ import UploadStatus from "./UploadStatus"
 
 export default function Row({ id, onProcessed, onPreview, onUpload }) {
     const dispatch = useDispatch()
+    const queryClient = useQueryClient()
 
     const render = useSelector(state => selectRenderById(state, id))
     const progress = useSelector(selectProgress)
 
     const [uploadProgress, setUploadProgress] = useState(0)
+    const onProcessedRef = useRef(onProcessed)
+    const managerQueryKey = useMemo(() => ['manager', render.id, onProcessedRef], [render.id, onProcessedRef])
+    const projectName = render.projectName ?? render.state?.undoableState?.present?.project?.name ?? "Recording"
+
+    useEffect(() => {
+        onProcessedRef.current = onProcessed
+    }, [onProcessed])
 
     const { data: manager } = useQuery({
-        queryKey: ['manager', render.id, onProcessed],
+        queryKey: managerQueryKey,
         queryFn: async () => {
             const manager = new RenderWorkerManager(render)
-            await manager.start(onProcessed)
+            await manager.start(() => onProcessedRef.current())
             return manager
         },
         staleTime: Infinity,
-        enabled: render.status !== RENDER_PENDING
+        gcTime: 0,
+        enabled: isRenderRendering(render) && !!render.state
     })
 
     const remove = useCallback(() => dispatch(removeRender(id)), [dispatch, id])
@@ -90,12 +104,16 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
             case RENDER_COMPLETED:
             case RENDER_CANCELED:
                 manager?.terminate()
+                queryClient.removeQueries({ queryKey: managerQueryKey, exact: true })
+                if (render.state) {
+                    dispatch(updateRender({ id, changes: { state: null } }))
+                }
                 break
             case RENDER_CANCELING:
                 manager?.cancel()
                 break
         }
-    }, [render.status, manager])
+    }, [dispatch, id, manager, managerQueryKey, queryClient, render.state, render.status])
 
     useEffect(() => {
         window.electron.ipcRenderer.on('upload-progress', (_e, progress) => setUploadProgress(progress))
@@ -147,7 +165,7 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate">
-                        {render.state.undoableState.present.project.name}
+                        {projectName}
                     </div>
                     <div className="text-[11px] opacity-40 mt-0.5">
                         {render.config.resolution.x}x{render.config.resolution.y}
@@ -205,14 +223,14 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
                 {render.status === RENDER_COMPLETED && (
                     <div className="flex items-center gap-0.5 w-full">
                         <button
-                            onClick={() => onPreview(id, render.state.undoableState.present.project.name)}
+                            onClick={() => onPreview(id, projectName)}
                             className="text-[11px] font-medium text-primary/70 hover:text-primary flex items-center gap-1 transition-all"
                         >
                             <EyeIcon className="size-3.5" /> Preview
                         </button>
                         <span className="opacity-20 mx-1">&middot;</span>
                         <button
-                            onClick={() => onUpload(id, render.state.undoableState.present.project.name)}
+                            onClick={() => onUpload(id, projectName)}
                             className="text-[11px] opacity-40 hover:opacity-70 flex items-center gap-1 transition-all"
                         >
                             <ArrowUpTrayIcon className="size-3.5" /> Upload

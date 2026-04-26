@@ -18,6 +18,7 @@ import {
 import Button from "../../../../components/Button"
 import { openProject } from "@shared/helpers"
 import { addErrorToast } from "@shared/errorToastHelper"
+import { withPreventUndo } from "@shared/redux/actionEnhancers"
 import { setLoaderMessage } from "@shared/redux/appSlice"
 import { selectTargetScale as selectCameraZoomTargetScale } from "@shared/redux/cameraZoomSlice"
 import {
@@ -76,7 +77,7 @@ export default function ProjectRow({ project, refetch }) {
         const actions = await openProject(project.id, false, layout, microphoneAudioVolume, systemAudioVolume,
             zoomBlurStrength, cameraZoomTargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
             maskFill, intro, outro, zoomTargetScale, refetch)
-        actions.forEach(action => dispatch(action))
+        actions.forEach(action => dispatch(withPreventUndo(action)))
         setIsOpenProcessing(false)
     }, [dispatch, project.id, layout, microphoneAudioVolume, systemAudioVolume, zoomBlurStrength, cameraZoomTargetScale,
         playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius, maskFill, intro, outro, zoomTargetScale, refetch])

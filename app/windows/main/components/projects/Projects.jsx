@@ -15,6 +15,7 @@ import {
 } from "react-redux"
 import Button from "../../../../components/Button"
 import { openProject } from "@shared/helpers"
+import { withPreventUndo } from "@shared/redux/actionEnhancers"
 import { selectTargetScale as selectCameraZoomTargetScale } from "@shared/redux/cameraZoomSlice"
 import {
     selectLayout,
@@ -69,7 +70,7 @@ export default function Projects({ isOpen }) {
             const actions = await openProject(id, false, layout, microphoneAudioVolume, systemAudioVolume,
                 zoomBlurStrength, cameraZoomTargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
                 maskFill, intro, outro, zoomTargetScale)
-            actions.forEach(action => dispatch(action))
+            actions.forEach(action => dispatch(withPreventUndo(action)))
         }
         setIsOpening(false)
     }, [layout, microphoneAudioVolume, systemAudioVolume, zoomBlurStrength, cameraZoomTargetScale, playbackRate,

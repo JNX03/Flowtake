@@ -12,7 +12,7 @@ import {
 } from "@heroicons/react/24/outline"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import PropTypes from "prop-types"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   useDispatch,
   useSelector
@@ -98,26 +98,57 @@ export default function NewRecording({ isOpen }) {
 
   const prevPreviewRef = useRef(null)
   const [screenPermissionDenied, setScreenPermissionDenied] = useState(false)
+  const [previewUnavailable, setPreviewUnavailable] = useState(false)
+
+  const previewSource = useMemo(() => source ? {
+    id: source.id,
+    type: source.type,
+    name: source.name,
+    x: source.x,
+    y: source.y,
+    width: source.width,
+    height: source.height,
+    monitorX: source.monitorX,
+    monitorY: source.monitorY,
+    monitorWidth: source.monitorWidth,
+    monitorHeight: source.monitorHeight,
+    monitorIndex: source.monitorIndex,
+    physicalX: source.physicalX,
+    physicalY: source.physicalY,
+    physicalWidth: source.physicalWidth,
+    physicalHeight: source.physicalHeight,
+    scaleFactor: source.scaleFactor,
+  } : null, [source])
+
+  useEffect(() => {
+    prevPreviewRef.current = null
+    setPreviewUnavailable(false)
+    setScreenPermissionDenied(false)
+  }, [previewSource])
 
   const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError } = useQuery({
-    queryKey: ['captureSourcePreview', source?.id, source?.type, source?.name, source],
+    queryKey: ['captureSourcePreview', previewSource],
     queryFn: async () => {
       try {
-        const result = await window.electron.ipcRenderer.invoke("get-source-screenshot", source)
+        const result = await window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource)
         if (screenPermissionDenied) setScreenPermissionDenied(false)
+        if (previewUnavailable) setPreviewUnavailable(false)
         return result
       } catch (e) {
         const msg = typeof e === 'string' ? e : e?.message || String(e)
         if (msg.includes("ScreenPermissionDenied")) {
           setScreenPermissionDenied(true)
         }
+        setPreviewUnavailable(true)
         throw e
       }
     },
+    enabled: isOpen && !!previewSource && !screenPermissionDenied && !previewUnavailable,
     gcTime: 0,
-    retry: 1,
-    // Stop polling when screen permission is denied to avoid spamming OS dialogs
-    refetchInterval: screenPermissionDenied ? false : 500,
+    retry: false,
+    // Keep preview fresh without creating a screenshot retry storm on macOS.
+    refetchInterval: 2000,
+    refetchIntervalInBackground: false,
   })
 
   // Keep previous frame visible during transitions for smooth crossfade
@@ -310,9 +341,8 @@ export default function NewRecording({ isOpen }) {
                 />
               )}
               {/* Current frame crossfades on top */}
-              {!isPendingCaptureSourcePreview && captureSourcePreview && !isPreviewError && (
+              {!isPendingCaptureSourcePreview && captureSourcePreview && !isPreviewError && !previewUnavailable && (
                 <img
-                  key={captureSourcePreview}
                   src={captureSourcePreview}
                   className="absolute inset-0 w-full h-full object-contain animate-[fadeIn_150ms_ease-out]"
                   onError={(e) => { e.target.style.display = 'none' }}
@@ -325,7 +355,7 @@ export default function NewRecording({ isOpen }) {
                   <span className="text-xs text-base-content/30">Loading preview</span>
                 </div>
               )}
-              {!isPendingCaptureSourcePreview && isPreviewError && !prevPreviewRef.current && (
+              {!isPendingCaptureSourcePreview && (isPreviewError || previewUnavailable) && !prevPreviewRef.current && (
                 <div className="flex flex-col items-center gap-2 z-10">
                   <ComputerDesktopIcon className="size-10 md:size-12 text-base-content/15" />
                   {screenPermissionDenied ? (
