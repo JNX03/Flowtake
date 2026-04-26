@@ -35,6 +35,7 @@ export const postAsync = (recipient, type, payload, id = crypto.randomUUID(), tr
                 else {
                     const e = new Error(error.message)
                     e.name = error.name
+                    e.stack = error.stack
                     e.isCaptured = true
                     reject(e)
                 }

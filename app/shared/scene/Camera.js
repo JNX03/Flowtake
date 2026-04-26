@@ -1,4 +1,4 @@
-import { DropShadowFilter } from "pixi-filters"
+import { DropShadowFilter } from "pixi-filters/drop-shadow"
 import {
     BlurFilter,
     CanvasSource,

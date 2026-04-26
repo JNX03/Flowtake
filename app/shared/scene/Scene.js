@@ -22,6 +22,7 @@ import {
     SCREEN_VIDEO
 } from "../constants"
 import Roboto from "../assets/fonts/Roboto-Regular.ttf"
+import { createPixiAppOptions } from "./pixiAppOptions"
 import {
     CREATE_CURSORS,
     postAsync
@@ -72,15 +73,7 @@ export default class Scene {
         console.log("[Scene] createApp: creating Application")
         this.app = new Application()
         console.log("[Scene] createApp: calling app.init (preference=webgl)", { hasCanvas: !!canvas, canvasType: canvas?.constructor?.name })
-        await this.app.init({
-            canvas,
-            background: '#000',
-            autoStart: false,
-            antialias: true,
-            accessibilityOptions: { activateOnTab: false },
-            preference: "webgl", // TODO: at the moment webgl is faster in web workers. Do benchmarking after electron updates
-            useBackBuffer: true
-        })
+        await this.app.init(createPixiAppOptions(canvas))
         console.log("[Scene] createApp: app.init resolved")
 
         this.app.stage.sortableChildren = true

@@ -1,3 +1,8 @@
+import "pixi.js/webworker"
+import "pixi.js/graphics"
+import "pixi.js/mesh"
+import "pixi.js/text"
+
 import { Mp4OutputFormat } from "mediabunny"
 import throttle from "throttleit"
 import {

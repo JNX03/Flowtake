@@ -237,9 +237,11 @@ export default function Preview() {
 
     const createManager = useCallback(async () => {
         console.log("[Preview] createManager start", { duration, hasCameraVideo, projectId: id })
+        let phase = "construct preview worker manager"
         try {
             const manager = new PreviewWorkerManager(screenVideoRef.current, cameraVideoRef.current)
             console.log("[Preview] awaiting manager.init()")
+            phase = "initialize preview worker manager"
             await manager.init(
                 canvasRef.current,
                 duration,
@@ -249,6 +251,7 @@ export default function Preview() {
             setManager(manager)
             dispatch(setIsInitialized(true))
         } catch (e) {
+            e.message = `${e?.message || String(e)} (during ${phase})`
             console.error("[Preview] createManager failed:", e?.stack || e?.message || String(e))
             dispatch(addErrorToast("Failed to initialize preview: " + (e?.message || String(e))))
             // Allow re-entry so a retry (project reopen) can run createManager again.

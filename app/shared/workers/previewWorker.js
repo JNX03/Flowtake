@@ -1,4 +1,7 @@
 import "pixi.js/webworker"
+import "pixi.js/graphics"
+import "pixi.js/mesh"
+import "pixi.js/text"
 
 import PreviewScene from "../scene/PreviewScene"
 import {
@@ -11,7 +14,6 @@ import {
     workerConsole
 } from "./helpers"
 
-// eslint-disable-next-line no-console
 console.log("[previewWorker:boot] deps imported, replacing console")
 
 // Replace console methods with worker console
@@ -34,26 +36,36 @@ class PreviewRenderer {
     async init({ canvas, args, duration, screenFrame, screenVideoDims, cameraFrame, cameraVideoDims }) {
 
         console.log("[previewWorker] PreviewRenderer.init start", { screenVideoDims, hasCameraVideo: args.hasCameraVideo, duration })
+        let phase = "construct scene"
 
-        this.scene = new PreviewScene()
-        console.log("[previewWorker] PreviewScene constructed, calling createApp")
+        try {
+            this.scene = new PreviewScene()
+            console.log("[previewWorker] PreviewScene constructed, calling createApp")
 
-        await this.scene.createApp(canvas)
-        console.log("[previewWorker] createApp resolved")
+            phase = "create Pixi app"
+            await this.scene.createApp(canvas)
+            console.log("[previewWorker] createApp resolved")
 
-        this.scene.initScreenVideo(screenVideoDims, screenFrame)
-        console.log("[previewWorker] initScreenVideo done")
+            phase = "initialize screen video"
+            this.scene.initScreenVideo(screenVideoDims, screenFrame)
+            console.log("[previewWorker] initScreenVideo done")
 
-        if (args.hasCameraVideo) {
-            this.scene.initCameraVideo(cameraVideoDims, cameraFrame)
-            console.log("[previewWorker] initCameraVideo done")
+            if (args.hasCameraVideo) {
+                phase = "initialize camera video"
+                this.scene.initCameraVideo(cameraVideoDims, cameraFrame)
+                console.log("[previewWorker] initCameraVideo done")
+            }
+
+            phase = "initialize scene animators"
+            await this.scene.init(args, duration)
+            console.log("[previewWorker] scene.init resolved")
+
+            this.isInitialized = true
+            console.log("[previewWorker] PreviewRenderer.init DONE")
+        } catch (e) {
+            e.message = `${e?.message || String(e)} (during ${phase})`
+            throw e
         }
-
-        await this.scene.init(args, duration)
-        console.log("[previewWorker] scene.init resolved")
-
-        this.isInitialized = true
-        console.log("[previewWorker] PreviewRenderer.init DONE")
     }
 
     async setVideoFrame({ type, frame, mask, landmarks }) {
@@ -135,7 +147,11 @@ self.addEventListener('message', async (event) => {
         // via workerConsole, then propagate it back through the response so
         // postAsync rejects instead of hanging forever.
         console.error('[previewWorker] handler threw for type=' + type, e?.stack || e?.message || String(e))
-        error = { name: e?.name || 'Error', message: e?.message || String(e) }
+        error = {
+            name: e?.name || 'Error',
+            message: e?.message || String(e),
+            stack: e?.stack
+        }
     }
 
     if (expectsResponse) {

@@ -56,31 +56,47 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     async init(canvas, duration, args) {
-        const screenVideoDims = await this.getDimensions(PROJECT_SCREEN_VIDEO, args.projectId)
+        let phase = "read screen video dimensions"
 
-        let cameraVideoDims
-        if (args.hasCameraVideo) {
-            cameraVideoDims = await this.getDimensions(PROJECT_CAMERA_VIDEO, args.projectId)
-            await this.createSegmenter(cameraVideoDims)
+        try {
+            const screenVideoDims = await this.getDimensions(PROJECT_SCREEN_VIDEO, args.projectId)
+
+            let cameraVideoDims
+            if (args.hasCameraVideo) {
+                phase = "read camera video dimensions"
+                cameraVideoDims = await this.getDimensions(PROJECT_CAMERA_VIDEO, args.projectId)
+                phase = "create camera segmenter"
+                await this.createSegmenter(cameraVideoDims)
+            }
+            phase = "transfer preview canvas"
+            const offscreenCanvas = canvas.transferControlToOffscreen()
+
+            phase = "create initial screen frame"
+            const screenFrame = new VideoFrame(this.screenVideo)
+
+            let cameraFrame = null
+            if (args.hasCameraVideo) {
+                phase = "create initial camera frame"
+                cameraFrame = new VideoFrame(this.cameraVideo)
+            }
+
+            const transferList = [offscreenCanvas, screenFrame]
+            if (cameraFrame) transferList.push(cameraFrame)
+
+            phase = "initialize preview worker"
+            await this.postAsync(
+                INIT_PREVIEW,
+                { args, canvas: offscreenCanvas, duration, screenFrame, screenVideoDims, cameraFrame, cameraVideoDims },
+                undefined,
+                transferList
+            )
+
+            phase = "setup preview frame callbacks"
+            this.setupVideoFrameCallbacks(args.hasCameraVideo)
+        } catch (e) {
+            e.message = `${e?.message || String(e)} (during ${phase})`
+            throw e
         }
-        const offscreenCanvas = canvas.transferControlToOffscreen()
-
-        const screenFrame = new VideoFrame(this.screenVideo)
-
-        let cameraFrame = null
-        if (args.hasCameraVideo) cameraFrame = new VideoFrame(this.cameraVideo)
-
-        const transferList = [offscreenCanvas, screenFrame]
-        if (cameraFrame) transferList.push(cameraFrame)
-
-        await this.postAsync(
-            INIT_PREVIEW,
-            { args, canvas: offscreenCanvas, duration, screenFrame, screenVideoDims, cameraFrame, cameraVideoDims },
-            undefined,
-            transferList
-        )
-
-        this.setupVideoFrameCallbacks(args.hasCameraVideo)
     }
 
     setupVideoFrameCallbacks(hasCameraVideo) {
