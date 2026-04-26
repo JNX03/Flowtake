@@ -1141,8 +1141,6 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                 }
                 Err(e) => {
                     log::error!("Failed to spawn FFmpeg: {}", e);
-                    #[cfg(target_os = "macos")]
-                    crate::mouse_tracker::restore_macos_cursor();
                     app.emit("recording-error", "CaptureError").ok();
                     if let Some(win) = app.get_webview_window("recorder") {
                         win.close().ok();
@@ -1223,10 +1221,6 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         state.is_recording = false;
 
         state.mouse_tracker.stop();
-
-        // Defensive: ensure macOS system cursor is restored even if the Drop guard didn't fire
-        #[cfg(target_os = "macos")]
-        crate::mouse_tracker::restore_macos_cursor();
 
         let start_ts = state.recording_start_timestamp.unwrap_or(stop_timestamp);
         let events = state.mouse_tracker.get_events(start_ts);
@@ -1777,9 +1771,6 @@ fn kill_ffmpeg(app: &AppHandle) {
         let pid_val = pid.unwrap_or(0);
 
         if !is_window_capture {
-            #[cfg(target_os = "macos")]
-            crate::mouse_tracker::restore_macos_cursor();
-
             use std::io::Write;
             // Send "q\n" to FFmpeg stdin for graceful shutdown
             if let Some(ref mut stdin) = process.stdin.take() {
