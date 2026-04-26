@@ -150,6 +150,57 @@ fn platform_ffmpeg_sidecar_names() -> Vec<String> {
     names
 }
 
+#[cfg(target_os = "macos")]
+fn ffmpeg_encoder_available(encoder: &str) -> bool {
+    let Some(ffmpeg) = find_ffmpeg_path() else {
+        return false;
+    };
+
+    std::process::Command::new(&ffmpeg)
+        .args(["-hide_banner", "-encoders"])
+        .output()
+        .map(|output| {
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout).contains(encoder)
+        })
+        .unwrap_or(false)
+}
+
+fn recording_video_output_args() -> Vec<String> {
+    #[cfg(target_os = "macos")]
+    {
+        if ffmpeg_encoder_available("h264_videotoolbox") {
+            return vec![
+                "-c:v".to_string(),
+                "h264_videotoolbox".to_string(),
+                "-b:v".to_string(),
+                "9000k".to_string(),
+                "-maxrate".to_string(),
+                "12000k".to_string(),
+                "-bufsize".to_string(),
+                "18000k".to_string(),
+                "-allow_sw".to_string(),
+                "1".to_string(),
+                "-realtime".to_string(),
+                "1".to_string(),
+                "-pix_fmt".to_string(),
+                "yuv420p".to_string(),
+            ];
+        }
+    }
+
+    vec![
+        "-c:v".to_string(),
+        "libx264".to_string(),
+        "-crf".to_string(),
+        "25".to_string(),
+        "-preset".to_string(),
+        "ultrafast".to_string(),
+        "-pix_fmt".to_string(),
+        "yuv420p".to_string(),
+    ]
+}
+
 /// Detect the avfoundation device index for screen capture on macOS.
 /// Camera devices come first (e.g. [0] FaceTime HD Camera), then screens (e.g. [1] Capture screen 0).
 /// Returns the device index for the requested monitor, falling back to first screen device.
@@ -503,6 +554,8 @@ pub async fn init_recording(
                 "avfoundation".to_string(),
                 "-framerate".to_string(),
                 "30".to_string(),
+                "-pixel_format".to_string(),
+                "nv12".to_string(),
                 "-capture_cursor".to_string(),
                 "0".to_string(),
                 "-i".to_string(),
@@ -624,6 +677,8 @@ pub async fn init_recording(
                     // avfoundation: capture screen device, then crop
                     let screen_dev = macos_screen_device_index(0);
                     ffmpeg_args.extend([
+                        "-pixel_format".to_string(),
+                        "nv12".to_string(),
                         "-capture_cursor".to_string(),
                         "0".to_string(),
                         "-i".to_string(),
@@ -722,6 +777,8 @@ pub async fn init_recording(
                         .unwrap_or(0);
                     let screen_dev = macos_screen_device_index(monitor_idx);
                     ffmpeg_args.extend([
+                        "-pixel_format".to_string(),
+                        "nv12".to_string(),
                         "-capture_cursor".to_string(),
                         "0".to_string(),
                         "-i".to_string(),
@@ -794,17 +851,8 @@ pub async fn init_recording(
     }
 
     // Output settings
-    ffmpeg_args.extend([
-        "-c:v".to_string(),
-        "libx264".to_string(),
-        "-crf".to_string(),
-        "25".to_string(),
-        "-preset".to_string(),
-        "ultrafast".to_string(),
-        "-pix_fmt".to_string(),
-        "yuv420p".to_string(),
-        screen_video_path,
-    ]);
+    ffmpeg_args.extend(recording_video_output_args());
+    ffmpeg_args.push(screen_video_path);
 
     // Store config for start_recording
     {
@@ -1035,182 +1083,74 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
             // Screen/Area capture
             use std::process::{Command, Stdio};
 
-            #[cfg(target_os = "macos")]
+            let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
+                AppError::General("FFmpeg binary not found. Please install FFmpeg.".to_string())
+            })?;
+
+            log::info!(
+                "[start_recording] Screen/area capture, FFmpeg: {:?}, args: {:?}",
+                ffmpeg_path, args
+            );
+
+            let mut cmd = Command::new(&ffmpeg_path);
+            cmd.args(&args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped());
+
+            #[cfg(target_os = "windows")]
             {
-                // On macOS, use native `screencapture -v` which has system-level
-                // entitlements and works without screen recording permission.
-                // Records to MOV; we convert to MP4 after stopping.
-                let screen_video_path = args.last().cloned().unwrap_or_default();
-                let mov_path = screen_video_path.replace(".mp4", ".mov");
-
-                // Build region from the stored source config
-                let config = {
-                    let s = state.lock().unwrap();
-                    s.camera_mic_config.clone()
-                };
-                let mut sc_args = vec!["-v".to_string(), "-x".to_string()];
-
-                if let Some(ref cfg) = config {
-                    let source_type = cfg.get("sourceType").and_then(|v| v.as_str()).unwrap_or("screen");
-                    let (sw, sh) = if let Some(main_win) = app.get_webview_window("main") {
-                        if let Ok(Some(monitor)) = main_win.current_monitor() {
-                            let size = monitor.size();
-                            let scale = monitor.scale_factor();
-                            (size.width as f64 / scale, size.height as f64 / scale)
-                        } else { (1920.0, 1080.0) }
-                    } else { (1920.0, 1080.0) };
-                    let src = cfg.get("source");
-
-                    if source_type == "area" {
-                        if let Some(src) = src {
-                            let x_pct = src.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                            let y_pct = src.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                            let w_pct = src.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
-                            let h_pct = src.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
-                            let x = (x_pct / 100.0 * sw) as i64;
-                            let y = (y_pct / 100.0 * sh) as i64;
-                            let w = ((w_pct / 100.0 * sw) as i64).max(2);
-                            let h = ((h_pct / 100.0 * sh) as i64).max(2);
-                            sc_args.extend(["-R".to_string(), format!("{},{},{},{}", x, y, w, h)]);
-                        }
-                    } else if source_type == "window" {
-                        if let Some(src) = src {
-                            let x = src.get("x").and_then(|v| v.as_i64()).unwrap_or(0);
-                            let y = src.get("y").and_then(|v| v.as_i64()).unwrap_or(0);
-                            let w = src.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
-                            let h = src.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
-                            sc_args.extend(["-R".to_string(), format!("{},{},{},{}", x, y, w, h)]);
-                        }
-                    }
-                    // For "screen" type, no -R needed (captures full screen)
-                }
-
-                sc_args.push(mov_path.clone());
-
-                log::info!("[start_recording] macOS screencapture args: {:?}", sc_args);
-
-                let mut cmd = Command::new("screencapture");
-                cmd.args(&sc_args)
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped());
-
-                match cmd.spawn() {
-                    Ok(mut process) => {
-                        let pid = process.id();
-                        let stderr = process.stderr.take();
-                        let app_clone = app.clone();
-                        if let Some(stderr) = stderr {
-                            std::thread::spawn(move || {
-                                use std::io::BufRead;
-                                let reader = std::io::BufReader::new(stderr);
-                                for line in reader.lines() {
-                                    match line {
-                                        Ok(msg) => {
-                                            log::info!("[screencapture] {}", msg);
-                                            if msg.contains("Permission denied")
-                                                || msg.contains("not granted")
-                                            {
-                                                app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
-                                            }
-                                        }
-                                        Err(_) => break,
-                                    }
-                                }
-                            });
-                        }
-                        {
-                            let mut state = state.lock().unwrap();
-                            state.ffmpeg_child_id = Some(pid);
-                            state.ffmpeg_process = Some(process);
-                        }
-                        log::info!("[start_recording] screencapture started with PID: {}", pid);
-                    }
-                    Err(e) => {
-                        log::error!("Failed to spawn screencapture: {}", e);
-                        // Restore system cursor since recording failed to start
-                        crate::mouse_tracker::restore_macos_cursor();
-                        app.emit("recording-error", "CaptureError").ok();
-                        if let Some(win) = app.get_webview_window("recorder") {
-                            win.close().ok();
-                        }
-                        if let Some(main_win) = app.get_webview_window("main") {
-                            main_win.unminimize().ok();
-                        }
-                        return Err(AppError::General(format!("Failed to start recording: {}", e)));
-                    }
-                }
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000);
             }
 
-            #[cfg(not(target_os = "macos"))]
-            {
-                let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
-                    AppError::General("FFmpeg binary not found. Please install FFmpeg.".to_string())
-                })?;
-
-                log::info!(
-                    "[start_recording] Screen/area capture, FFmpeg: {:?}, args: {:?}",
-                    ffmpeg_path, args
-                );
-
-                let mut cmd = Command::new(&ffmpeg_path);
-                cmd.args(&args)
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped());
-
-                #[cfg(target_os = "windows")]
-                {
-                    use std::os::windows::process::CommandExt;
-                    cmd.creation_flags(0x08000000);
-                }
-
-                match cmd.spawn() {
-                    Ok(mut process) => {
-                        let pid = process.id();
-                        let stderr = process.stderr.take();
-                        let app_clone = app.clone();
-                        if let Some(stderr) = stderr {
-                            std::thread::spawn(move || {
-                                use std::io::BufRead;
-                                let reader = std::io::BufReader::new(stderr);
-                                for line in reader.lines() {
-                                    match line {
-                                        Ok(msg) => {
-                                            log::info!("[FFmpeg] {}", msg);
-                                            if msg.contains("Could not find video device")
-                                                || msg.contains("Permission denied")
-                                                || msg.contains("not granted")
-                                                || msg.contains("No screens found")
-                                                || msg.contains("unable to open device")
-                                                || msg.contains("Input/output error")
-                                            {
-                                                app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
-                                            }
+            match cmd.spawn() {
+                Ok(mut process) => {
+                    let pid = process.id();
+                    let stderr = process.stderr.take();
+                    let app_clone = app.clone();
+                    if let Some(stderr) = stderr {
+                        std::thread::spawn(move || {
+                            use std::io::BufRead;
+                            let reader = std::io::BufReader::new(stderr);
+                            for line in reader.lines() {
+                                match line {
+                                    Ok(msg) => {
+                                        log::info!("[FFmpeg] {}", msg);
+                                        if msg.contains("Could not find video device")
+                                            || msg.contains("Permission denied")
+                                            || msg.contains("not granted")
+                                            || msg.contains("No screens found")
+                                            || msg.contains("unable to open device")
+                                            || msg.contains("Input/output error")
+                                        {
+                                            app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
                                         }
-                                        Err(_) => break,
                                     }
+                                    Err(_) => break,
                                 }
-                            });
-                        }
-                        {
-                            let mut state = state.lock().unwrap();
-                            state.ffmpeg_child_id = Some(pid);
-                            state.ffmpeg_process = Some(process);
-                        }
-                        log::info!("[start_recording] FFmpeg started with PID: {}", pid);
+                            }
+                        });
                     }
-                    Err(e) => {
-                        log::error!("Failed to spawn FFmpeg: {}", e);
-                        app.emit("recording-error", "CaptureError").ok();
-                        if let Some(win) = app.get_webview_window("recorder") {
-                            win.close().ok();
-                        }
-                        if let Some(main_win) = app.get_webview_window("main") {
-                            main_win.unminimize().ok();
-                        }
-                        return Err(AppError::General(format!("Failed to start recording: {}", e)));
+                    {
+                        let mut state = state.lock().unwrap();
+                        state.ffmpeg_child_id = Some(pid);
+                        state.ffmpeg_process = Some(process);
                     }
+                    log::info!("[start_recording] FFmpeg started with PID: {}", pid);
+                }
+                Err(e) => {
+                    log::error!("Failed to spawn FFmpeg: {}", e);
+                    #[cfg(target_os = "macos")]
+                    crate::mouse_tracker::restore_macos_cursor();
+                    app.emit("recording-error", "CaptureError").ok();
+                    if let Some(win) = app.get_webview_window("recorder") {
+                        win.close().ok();
+                    }
+                    if let Some(main_win) = app.get_webview_window("main") {
+                        main_win.unminimize().ok();
+                    }
+                    return Err(AppError::General(format!("Failed to start recording: {}", e)));
                 }
             }
         }
@@ -1235,7 +1175,7 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
             })
             .unwrap_or((0, 0));
         state.mouse_tracker.set_offset(offset_x, offset_y);
-        // On macOS, CGEvent reports logical points but screencapture records physical pixels.
+        // On macOS, CGEvent reports logical points while AVFoundation records physical pixels.
         // Scale mouse coordinates to match video resolution on Retina displays.
         #[cfg(target_os = "macos")]
         {
@@ -1318,51 +1258,6 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
     }
 
     app.emit_to("main", "load", "Creating project...").ok();
-
-    // On macOS, screencapture produces MOV; convert to MP4 using FFmpeg
-    #[cfg(target_os = "macos")]
-    if let Some(ref rid) = recording_id {
-        let (mov_path, mp4_path) = {
-            let s = state.lock().unwrap();
-            (s.project_temp_dir(rid).join("screen.mov"), s.project_temp_dir(rid).join("screen.mp4"))
-        };
-
-        if mov_path.exists() && mov_path.metadata().map(|m| m.len() > 0).unwrap_or(false) {
-            log::info!("[stop_recording] Converting MOV to MP4: {:?}", mov_path);
-            let mov_str = mov_path.to_string_lossy().to_string();
-            let mp4_str = mp4_path.to_string_lossy().to_string();
-            let mov_path_clone = mov_path.clone();
-            let mp4_path_clone = mp4_path.clone();
-            // Fast remux without re-encoding (run in blocking thread)
-            let convert_result = tokio::task::spawn_blocking(move || {
-                if let Some(ffmpeg) = find_ffmpeg_path() {
-                    let output = std::process::Command::new(&ffmpeg)
-                        .args(["-y", "-i", &mov_str, "-c", "copy", &mp4_str])
-                        .stdin(std::process::Stdio::null())
-                        .stdout(std::process::Stdio::piped())
-                        .stderr(std::process::Stdio::piped())
-                        .output();
-                    match output {
-                        Ok(o) if o.status.success() => {
-                            log::info!("[stop_recording] MOV→MP4 conversion done");
-                            std::fs::remove_file(&mov_path_clone).ok();
-                        }
-                        _ => {
-                            log::warn!("[stop_recording] MOV→MP4 failed, falling back to rename");
-                            std::fs::rename(&mov_path_clone, &mp4_path_clone).ok();
-                        }
-                    }
-                } else {
-                    log::warn!("[stop_recording] FFmpeg not found for conversion, renaming MOV→MP4");
-                    std::fs::rename(&mov_path_clone, &mp4_path_clone).ok();
-                }
-            }).await;
-            if let Err(e) = convert_result {
-                log::warn!("[stop_recording] MOV→MP4 task error: {}", e);
-                std::fs::rename(&mov_path, &mp4_path).ok();
-            }
-        }
-    }
 
     // Check if we have a valid recording
     let recording_video_path = if let Some(ref rid) = recording_id {
@@ -1882,30 +1777,18 @@ fn kill_ffmpeg(app: &AppHandle) {
         let pid_val = pid.unwrap_or(0);
 
         if !is_window_capture {
-            // Screen/area capture: graceful shutdown
             #[cfg(target_os = "macos")]
-            {
-                // Restore system cursor before stopping screencapture
-                crate::mouse_tracker::restore_macos_cursor();
-                // On macOS with screencapture, send SIGINT for graceful stop
-                std::process::Command::new("kill")
-                    .args(["-INT", &pid_val.to_string()])
-                    .output()
-                    .ok();
-                log::info!("[kill_ffmpeg] Sent SIGINT to screencapture PID: {}", pid_val);
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                use std::io::Write;
-                // Send "q\n" to FFmpeg stdin for graceful shutdown
-                if let Some(ref mut stdin) = process.stdin.take() {
-                    match stdin.write_all(b"q\n").and_then(|_| stdin.flush()) {
-                        Ok(_) => {
-                            log::info!("[kill_ffmpeg] Sent 'q' to FFmpeg PID: {}", pid_val);
-                        }
-                        Err(e) => {
-                            log::warn!("[kill_ffmpeg] Failed to write to stdin: {}", e);
-                        }
+            crate::mouse_tracker::restore_macos_cursor();
+
+            use std::io::Write;
+            // Send "q\n" to FFmpeg stdin for graceful shutdown
+            if let Some(ref mut stdin) = process.stdin.take() {
+                match stdin.write_all(b"q\n").and_then(|_| stdin.flush()) {
+                    Ok(_) => {
+                        log::info!("[kill_ffmpeg] Sent 'q' to FFmpeg PID: {}", pid_val);
+                    }
+                    Err(e) => {
+                        log::warn!("[kill_ffmpeg] Failed to write to stdin: {}", e);
                     }
                 }
             }
@@ -2456,7 +2339,8 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
         let screen_dev = macos_screen_device_index(0);
         let mut args: Vec<String> = vec![
             "-y".into(), "-f".into(), "avfoundation".into(),
-            "-framerate".into(), "30".into(), "-capture_cursor".into(), "0".into(),
+            "-framerate".into(), "30".into(), "-pixel_format".into(), "nv12".into(),
+            "-capture_cursor".into(), "0".into(),
             "-i".into(), format!("{}:none", screen_dev),
             "-frames:v".into(), "1".into(),
         ];
@@ -2510,7 +2394,13 @@ pub async fn init_camera_file(app: AppHandle) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn enqueue_camera_chunk(app: AppHandle, chunk: Vec<u8>) -> AppResult<()> {
+pub async fn enqueue_camera_chunk(app: AppHandle, chunk_base64: String) -> AppResult<()> {
+    use base64::Engine;
+
+    let chunk = base64::engine::general_purpose::STANDARD
+        .decode(chunk_base64)
+        .map_err(|e| AppError::General(format!("Invalid camera chunk: {}", e)))?;
+
     let state = app.state::<Mutex<AppState>>();
     let mut state = state.lock().unwrap();
     // Write chunk directly to disk instead of accumulating in memory

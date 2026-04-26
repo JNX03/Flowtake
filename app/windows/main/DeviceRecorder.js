@@ -2,7 +2,9 @@ export default class DeviceRecorder {
 
     constructor() {
         this.mediaRecorder = null
-        this.promise = null
+        this.enqueuePromise = Promise.resolve()
+        this.enqueueError = null
+        this.previewEl = null
     }
 
     async init(cameraMicConfig, videoEl = null) {
@@ -20,7 +22,10 @@ export default class DeviceRecorder {
                 stream.removeTrack(track)
         })
 
-        if (videoEl && cameraMicConfig.videoTrack) videoEl.srcObject = stream
+        if (videoEl && cameraMicConfig.videoTrack) {
+            videoEl.srcObject = stream
+            this.previewEl = videoEl
+        }
 
         try {
             // Create MediaRecorder
@@ -36,9 +41,15 @@ export default class DeviceRecorder {
             // Handle data chunks
             this.mediaRecorder.addEventListener('dataavailable', ({ data }) => {
                 // This event listener needs to be non-async to make sure it completes before the dataavailable callback in 
-                // stop. this.promise just makes sure the chunk is enqueued on the main process. finalize-camera-file 
+                // stop. enqueuePromise makes sure chunks are written in order. finalize-camera-file
                 // ensures the queue is completed.
-                if (data.size > 0) this.promise = enqueue(data)
+                if (data.size > 0) {
+                    this.enqueuePromise = this.enqueuePromise
+                        .then(() => enqueue(data))
+                        .catch(error => {
+                            this.enqueueError = this.enqueueError || error
+                        })
+                }
             })
         } catch {
             stream.getTracks().forEach(track => track.stop())
@@ -51,8 +62,8 @@ export default class DeviceRecorder {
     }
 
     async start() {
-        // Start recording with 5-second chunks
-        this.mediaRecorder.start(5000)
+        // Smaller chunks avoid large renderer/IPC spikes during longer recordings.
+        this.mediaRecorder.start(1000)
     }
 
     async stop() {
@@ -62,13 +73,17 @@ export default class DeviceRecorder {
                 this.mediaRecorder.addEventListener('dataavailable', resolve, { once: true })
                 this.mediaRecorder.stop()
             })
-            await this.promise
+            await this.enqueuePromise
+            if (this.enqueueError) throw this.enqueueError
         }
 
         await window.electron.ipcRenderer.invoke("finalize-camera-file")
     }
 
     destroy() {
-        this.mediaRecorder.stream.getTracks().forEach(track => track.stop())
+        this.mediaRecorder?.stream?.getTracks().forEach(track => track.stop())
+        if (this.previewEl) this.previewEl.srcObject = null
+        this.mediaRecorder = null
+        this.previewEl = null
     }
 }
