@@ -1742,8 +1742,9 @@ fn kill_ffmpeg(app: &AppHandle) {
             .and_then(|v| v.as_bool())
             .unwrap_or(false)
     };
+    let uses_stdin_pipe = is_window_capture && cfg!(target_os = "windows");
 
-    if is_window_capture {
+    if uses_stdin_pipe {
         // Signal the capture thread to stop
         {
             let s = state.lock().unwrap();
@@ -1770,7 +1771,7 @@ fn kill_ffmpeg(app: &AppHandle) {
     if let Some(ref mut process) = process {
         let pid_val = pid.unwrap_or(0);
 
-        if !is_window_capture {
+        if !uses_stdin_pipe {
             use std::io::Write;
             // Send "q\n" to FFmpeg stdin for graceful shutdown
             if let Some(ref mut stdin) = process.stdin.take() {
