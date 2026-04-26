@@ -449,44 +449,6 @@ impl MouseTracker {
     }
 }
 
-// macOS: hide/show system cursor during recording so screencapture doesn't bake it into the video
-#[cfg(target_os = "macos")]
-extern "C" {
-    fn CGMainDisplayID() -> u32;
-    fn CGDisplayHideCursor(display: u32) -> i32;
-    fn CGDisplayShowCursor(display: u32) -> i32;
-}
-
-#[cfg(target_os = "macos")]
-struct CursorHider {
-    hidden: bool,
-}
-
-#[cfg(target_os = "macos")]
-impl CursorHider {
-    fn hide() -> Self {
-        unsafe { CGDisplayHideCursor(CGMainDisplayID()); }
-        log::info!("[CursorHider] System cursor hidden");
-        Self { hidden: true }
-    }
-}
-
-#[cfg(target_os = "macos")]
-impl Drop for CursorHider {
-    fn drop(&mut self) {
-        if self.hidden {
-            unsafe { CGDisplayShowCursor(CGMainDisplayID()); }
-            log::info!("[CursorHider] System cursor restored");
-        }
-    }
-}
-
-/// Restore the system cursor (defensive call for error paths)
-#[cfg(target_os = "macos")]
-pub fn restore_macos_cursor() {
-    unsafe { CGDisplayShowCursor(CGMainDisplayID()); }
-}
-
 /// Detect the current macOS cursor type via NSCursor
 #[cfg(target_os = "macos")]
 fn detect_macos_cursor_type() -> &'static str {
@@ -543,10 +505,6 @@ impl MouseTracker {
             "[MouseTracker] macOS mouse tracking started (offset: {}, {}, scale: {})",
             offset_x, offset_y, scale_factor
         );
-
-        // Hide system cursor so screencapture records without it.
-        // The Drop impl restores cursor when this loop exits (including panics).
-        let _cursor_hider = CursorHider::hide();
 
         let poll_interval = std::time::Duration::from_millis(16); // ~60Hz polling
         let mut last_x: i32 = -1;
@@ -642,7 +600,6 @@ impl MouseTracker {
         }
 
         log::info!("[MouseTracker] macOS mouse tracking stopped");
-        // _cursor_hider drops here, restoring system cursor
     }
 }
 
