@@ -30,6 +30,10 @@ import {
 import { buildGitHubIssueUrl } from "@shared/errorReporting"
 import { EXPORT_PRESETS } from "@shared/exportPresets"
 import {
+    createRenderableProjectState,
+    getRenderProjectName
+} from "@shared/renderState"
+import {
     addRender,
     addToast,
     selectProjectState,
@@ -171,16 +175,14 @@ export default function Form({ onAdd, onCancel, isVisible }) {
 
     const onAddClicked = async () => {
         setIsInitializing(true)
-        const state = structuredClone(projectState)
 
         const [x, y] = resolutionString.split("x")
         const resolution = { x: Number(x), y: Number(y) }
+        const state = createRenderableProjectState(projectState, resolution)
 
-        state.animator.rendererDims = resolution
-        delete state.undoableState.past
-        delete state.undoableState.future
         const render = {
             state,
+            projectName: getRenderProjectName(projectState),
             status: RENDER_PENDING,
             config: { resolution, fps, aspectRatio, quality },
             upload: { isRequested: useShareableUrl && !!presignedUrl, presignedUrl, objectId },

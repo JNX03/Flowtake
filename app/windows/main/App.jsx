@@ -20,6 +20,7 @@ import {
 } from "@shared/helpers"
 import { addErrorToast } from "@shared/errorToastHelper"
 import { initSystemInfo } from "@shared/errorReporting"
+import { withPreventUndo } from "@shared/redux/actionEnhancers"
 import {
     addToast,
     selectCapturers,
@@ -226,7 +227,7 @@ export default function App() {
                     zoomBlurStrength, cameraZoomtargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
                     maskFill, intro, outro, zoomTargetScale)
                 console.log("[Flowtake] openProject returned", actions.length, "actions")
-                actions.forEach(action => dispatch(action))
+                actions.forEach(action => dispatch(withPreventUndo(action)))
             } catch (e) {
                 console.error("[Flowtake] Project creation error:", e)
                 dispatch(addErrorToast("Failed to open recording: " + (e?.message || String(e))))

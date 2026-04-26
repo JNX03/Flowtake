@@ -8,9 +8,9 @@ import {
 import Toast from "../../../../components/toasts/Toast"
 import {
     EXPORTER_SECTION_QUEUE,
-    getProjectState,
     TOAST_EXPORT_COMPLETED
 } from "@shared/helpers"
+import { createRenderableProjectState } from "@shared/renderState"
 import {
     dismissToastsByType,
     selectHasProject
@@ -25,7 +25,7 @@ export default function ExportCompletedToast({ text, id, dismiss }) {
     const handleShowQueue = useCallback(async () => {
         await window.electron.ipcRenderer.invoke(
             "open-export-window",
-            hasProject ? getProjectState(entireState) : null,
+            hasProject ? createRenderableProjectState(entireState) : null,
             EXPORTER_SECTION_QUEUE
         )
         dispatch(dismissToastsByType(TOAST_EXPORT_COMPLETED))

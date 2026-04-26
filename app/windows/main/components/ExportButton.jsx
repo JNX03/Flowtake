@@ -17,9 +17,9 @@ import Button from "../../../components/Button"
 import {
     EXPORTER_SECTION_NEW_RENDER,
     EXPORTER_SECTION_QUEUE,
-    getProjectState,
     TOAST_EXPORT_COMPLETED
 } from "@shared/helpers"
+import { createRenderableProjectState } from "@shared/renderState"
 import {
     dismissToastsByType,
     selectHasExports,
@@ -50,7 +50,7 @@ export default function ExportButton() {
         try {
             await window.electron.ipcRenderer.invoke(
                 "open-export-window",
-                hasProject ? getProjectState(currentState) : null,
+                hasProject ? createRenderableProjectState(currentState) : null,
                 section
             )
         } catch (e) {

@@ -110,6 +110,7 @@ const filterSlices = isAnyOf(
 // Set of excluded action types for O(1) lookup
 const EXCLUDED_ACTION_TYPES = new Set([
     projectSlice.actions.setVideoDetails.type,
+    projectSlice.actions.setMouseEvents.type,
     clipSlice.actions.setClips.type,
     zoomSlice.actions.setZooms.type,
     cameraSlice.actions.setCameraZooms.type,
