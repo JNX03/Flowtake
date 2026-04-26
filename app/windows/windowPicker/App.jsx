@@ -1,11 +1,26 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { XMarkIcon } from "@heroicons/react/20/solid"
+import { loadPickerImageSrc, releasePickerImageSrc } from "../pickerImage"
 import WindowOutline from "./components/WindowOutline"
 
 export default function App() {
     const [activeWindow, setActiveWindow] = useState(null)
+    const [bgImage, setBgImage] = useState(null)
     const lastCallTime = useRef(0)
     const pendingCall = useRef(false)
+
+    useEffect(() => {
+        let imageSrc
+        window.electron.ipcRenderer.invoke("get-picker-screenshot")
+            .then(loadPickerImageSrc)
+            .then(src => {
+                imageSrc = src
+                if (src) setBgImage(src)
+            })
+            .catch(e => console.warn("[WindowPicker] Screenshot failed:", e))
+
+        return () => releasePickerImageSrc(imageSrc)
+    }, [])
 
     // Throttled call to get_window_at_point (every 100ms)
     const handleMouseMove = useCallback((e) => {
@@ -15,10 +30,10 @@ export default function App() {
         pendingCall.current = true
         lastCallTime.current = now
 
-        // Convert logical screen coords to physical (matching Rust GetWindowRect)
+        // Convert logical overlay coords to physical pixels for Rust hit-testing.
         const dpr = window.devicePixelRatio || 1
-        const screenX = Math.round(e.screenX * dpr)
-        const screenY = Math.round(e.screenY * dpr)
+        const screenX = Math.round(e.clientX * dpr)
+        const screenY = Math.round(e.clientY * dpr)
 
         window.electron.ipcRenderer.invoke("get-window-at-point", screenX, screenY)
             .then(win => {
@@ -47,11 +62,26 @@ export default function App() {
 
     return (
         <div
-            className="h-full w-full relative overflow-hidden"
+            className="h-screen w-screen relative overflow-hidden"
             style={{ background: 'transparent' }}
             onMouseMove={handleMouseMove}
             onClick={onSelect}
         >
+            {bgImage
+                ? (
+                <img
+                    src={bgImage}
+                    className="w-screen h-screen object-cover select-none pointer-events-none"
+                    alt=""
+                    draggable={false}
+                />
+                )
+                : (
+                <div className="w-screen h-screen bg-base-300 flex items-center justify-center">
+                    <span className="loading loading-spinner loading-lg"></span>
+                </div>
+                )}
+
             {/* Cancel bar + active window name */}
             <div className="absolute z-10 w-full top-0 flex justify-center pt-1 pointer-events-none">
                 <div className="flex items-center gap-3 px-4 py-2 bg-base-300 rounded-xl shadow-lg pointer-events-auto">
