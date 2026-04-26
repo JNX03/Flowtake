@@ -129,6 +129,16 @@ const COMMAND_MAP = {
     'youtube-upload-video': 'youtube_upload_video',
 };
 
+const arrayBufferToBase64 = (buffer) => {
+    const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+    let binary = ''
+    const chunkSize = 0x8000
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSize, bytes.length)))
+    }
+    return btoa(binary)
+}
+
 // Map IPC arguments from positional to named for Tauri invoke
 const ARGS_MAP = {
     'store_get': (args) => ({ key: args[0] }),
@@ -142,7 +152,7 @@ const ARGS_MAP = {
     'pause_recording': (args) => ({ pause: args[0] }),
     'cancel_recording': (args) => ({ error: args[0] }),
     'get_source_screenshot': (args) => ({ source: args[0] }),
-    'enqueue_camera_chunk': (args) => ({ chunk: Array.from(new Uint8Array(args[0])) }),
+    'enqueue_camera_chunk': (args) => ({ chunkBase64: arrayBufferToBase64(args[0]) }),
     'update_background': (args) => ({ type: args[0], relativePath: args[1] }),
     'sync_background': (args) => ({ background: args[0] }),
     'select_window': (args) => ({ window: args[0] }),
