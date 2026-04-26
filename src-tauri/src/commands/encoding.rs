@@ -2,8 +2,21 @@ use crate::error::{AppError, AppResult};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
+fn fallback_encoders() -> Vec<Value> {
+    vec![serde_json::json!({
+        "name": "libx264",
+        "displayName": "H.264 (CPU)",
+        "available": true,
+        "isSelected": true
+    })]
+}
+
 #[tauri::command]
-pub async fn get_encoders(app: AppHandle, _force: Option<bool>) -> AppResult<Value> {
+pub async fn get_encoders(app: AppHandle, force: Option<bool>) -> AppResult<Value> {
+    if force != Some(true) {
+        return Ok(Value::Array(fallback_encoders()));
+    }
+
     // Query FFmpeg for available encoders
     let output = super::ffmpeg_from_app(&app)?
         .args(["-encoders", "-hide_banner"])
@@ -16,31 +29,32 @@ pub async fn get_encoders(app: AppHandle, _force: Option<bool>) -> AppResult<Val
 
     // Parse encoder list - look for video encoders
     let relevant_encoders = [
-        "libx264",
-        "libx265",
-        "h264_nvenc",
-        "hevc_nvenc",
-        "h264_amf",
-        "hevc_amf",
-        "h264_qsv",
-        "hevc_qsv",
+        ("libx264", "H.264 (CPU)"),
+        ("libx265", "H.265 (CPU)"),
+        ("h264_videotoolbox", "H.264 (VideoToolbox)"),
+        ("hevc_videotoolbox", "HEVC (VideoToolbox)"),
+        ("h264_nvenc", "H.264 (NVIDIA)"),
+        ("hevc_nvenc", "HEVC (NVIDIA)"),
+        ("h264_amf", "H.264 (AMD)"),
+        ("hevc_amf", "HEVC (AMD)"),
+        ("h264_qsv", "H.264 (Intel QSV)"),
+        ("hevc_qsv", "HEVC (Intel QSV)"),
     ];
 
-    for encoder in &relevant_encoders {
+    for (encoder, display_name) in &relevant_encoders {
         if stdout.contains(encoder) {
             encoders.push(serde_json::json!({
                 "name": encoder,
-                "available": true
+                "displayName": display_name,
+                "available": true,
+                "isSelected": *encoder == "libx264",
             }));
         }
     }
 
     // Always include libx264 as fallback
     if encoders.is_empty() {
-        encoders.push(serde_json::json!({
-            "name": "libx264",
-            "available": true
-        }));
+        encoders = fallback_encoders();
     }
 
     Ok(Value::Array(encoders))

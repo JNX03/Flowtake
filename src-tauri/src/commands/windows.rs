@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
+use base64::Engine as _;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_store::StoreExt;
@@ -52,7 +53,7 @@ use windows::Win32::Foundation::RECT;
 #[cfg(target_os = "macos")]
 use core_foundation::array::{CFArray, CFArrayRef};
 #[cfg(target_os = "macos")]
-use core_foundation::base::TCFType;
+use core_foundation::base::{TCFType, ToVoid};
 #[cfg(target_os = "macos")]
 use core_foundation::dictionary::{CFDictionaryGetValueIfPresent, CFDictionaryRef};
 #[cfg(target_os = "macos")]
@@ -137,6 +138,11 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
         }
     };
 
+    // Use the same desktop snapshot as area mode so the picker remains usable on
+    // platforms where transparent webview windows render opaque.
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    capture_desktop_screenshot(&app).await.ok();
+
     log::info!("[window_picker] Overlay area: {}x{} at ({}, {})", overlay_w, overlay_h, overlay_x, overlay_y);
 
     // Transparent overlay with window outlines (excludes taskbar)
@@ -153,7 +159,6 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
-    .content_protected(is_content_protection_enabled(&app))
     .build()
     .map_err(AppError::Tauri)?;
 
@@ -311,23 +316,34 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
             .map_err(AppError::General);
     }
 
-    // FFmpeg-based capture for macOS and Linux
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        let screenshot_path = temp_dir.join("picker_bg.png");
+        let screenshot_str = screenshot_path.to_string_lossy().to_string();
+        let output = tokio::process::Command::new("screencapture")
+            .args(["-x", &screenshot_str])
+            .output()
+            .await
+            .map_err(|e| AppError::General(format!("screencapture error: {}", e)))?;
+
+        if !output.status.success() {
+            return Err(AppError::General(format!(
+                "screencapture failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )));
+        }
+
+        return Ok(());
+    }
+
+    // FFmpeg-based capture for Linux
+    #[cfg(target_os = "linux")]
     {
         let screenshot_path = temp_dir.join("picker_bg.png");
         let screenshot_str = screenshot_path.to_string_lossy().to_string();
 
-        #[cfg(target_os = "macos")]
-        let args = vec![
-            "-y", "-f", "avfoundation", "-framerate", "1", "-capture_cursor", "0",
-            "-i", "0:none", "-frames:v", "1", "-update", "true", &screenshot_str,
-        ];
-
-        #[cfg(target_os = "linux")]
         let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
-        #[cfg(target_os = "linux")]
         let display_input = format!("{}+0,0", display);
-        #[cfg(target_os = "linux")]
         let args = vec![
             "-y", "-f", "x11grab", "-framerate", "1", "-draw_mouse", "0",
             "-i", &display_input, "-frames:v", "1", "-update", "true", &screenshot_str,
@@ -354,19 +370,22 @@ pub async fn get_picker_screenshot(app: AppHandle) -> AppResult<String> {
         s.temp_dir.clone()
     };
 
-    // Return file path for asset protocol loading (BMP on Windows, PNG elsewhere)
+    // Return a data URL so picker overlays do not depend on asset-protocol
+    // image loading while their custom CSP and transparent windows are active.
     let bmp_path = temp_dir.join("picker_bg.bmp");
     let png_path = temp_dir.join("picker_bg.png");
 
-    let screenshot_path = if bmp_path.exists() {
-        bmp_path
+    let (screenshot_path, mime_type) = if bmp_path.exists() {
+        (bmp_path, "image/bmp")
     } else if png_path.exists() {
-        png_path
+        (png_path, "image/png")
     } else {
         return Err(AppError::General("No picker screenshot available".into()));
     };
 
-    Ok(screenshot_path.to_string_lossy().to_string())
+    let bytes = std::fs::read(&screenshot_path)?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    Ok(format!("data:{};base64,{}", mime_type, encoded))
 }
 
 #[tauri::command]

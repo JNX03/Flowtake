@@ -63,8 +63,8 @@ export default function RecorderSettings() {
 
     const onSelectCapturer = useCallback(async ({ target }) => {
         setUserCapturer(target.value)
-        dispatch(setCapturers(await window.electron.ipcRenderer.invoke("set-capturer", target.value) || []))
-    }, [dispatch])
+        await window.electron.ipcRenderer.invoke("set-capturer", target.value)
+    }, [])
 
     const refreshEncoders = useCallback(async () => {
         setUserEncoder("")
@@ -74,8 +74,8 @@ export default function RecorderSettings() {
 
     const onSelectEncoder = useCallback(async ({ target }) => {
         setUserEncoder(target.value)
-        dispatch(setEncoders(await window.electron.ipcRenderer.invoke("set-encoder", target.value) || []))
-    }, [dispatch])
+        await window.electron.ipcRenderer.invoke("set-encoder", target.value)
+    }, [])
 
     const onSelectFps = async newFps => {
         setIsFpsLoading(true)

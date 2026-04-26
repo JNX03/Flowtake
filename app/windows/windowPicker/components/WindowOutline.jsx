@@ -1,32 +1,35 @@
-import { useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 
 export default function WindowOutline({ activeWindow }) {
     const dpr = window.devicePixelRatio || 1
-    const hasPrevious = useRef(false)
-    const lastPos = useRef({ left: 0, top: 0, width: 0, height: 0 })
+    const [hasPrevious, setHasPrevious] = useState(false)
+    const [lastPos, setLastPos] = useState({ left: 0, top: 0, width: 0, height: 0 })
 
-    if (activeWindow) {
-        lastPos.current = {
+    const activePos = useMemo(() => {
+        if (!activeWindow) return null
+        return {
             left: activeWindow.x / dpr,
             top: activeWindow.y / dpr,
             width: activeWindow.width / dpr,
             height: activeWindow.height / dpr,
         }
-    }
+    }, [activeWindow, dpr])
 
-    const { left, top, width, height } = lastPos.current
+    useEffect(() => {
+        if (!activePos) return
+        setLastPos(activePos)
+        setHasPrevious(true)
+    }, [activePos])
+
+    const { left, top, width, height } = activePos ?? lastPos
     const visible = !!activeWindow
 
     // First appearance: fade in only (no position slide from 0,0)
     // Subsequent switches: animate position + size + opacity
-    const transition = !hasPrevious.current
+    const transition = !hasPrevious
         ? 'opacity 150ms ease-out'
         : 'left 200ms ease-out, top 200ms ease-out, width 200ms ease-out, height 200ms ease-out, opacity 150ms ease-out'
-
-    if (visible && !hasPrevious.current) {
-        hasPrevious.current = true
-    }
 
     return (
         <div
