@@ -19,6 +19,7 @@
   },
   "scripts": {
     "lint": "eslint --cache .",
+    "test": "node --test",
     "dev:frontend": "vite --config vite.config.mjs",
     "build:frontend": "vite build --config vite.config.mjs",
     "dev": "tauri dev",
