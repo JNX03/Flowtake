@@ -1,7 +1,7 @@
 {
   "name": "flowtake",
   "productName": "Flowtake",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Screen recorder with automatic zoom animations",
   "type": "module",
   "author": {
