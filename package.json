@@ -89,7 +89,7 @@
     "moment": "^2.30.1",
     "moment-duration-format": "^2.3.2",
     "pixi-filters": "^6.1.4",
-    "pixi.js": "^8.17.1",
+    "pixi.js": "^8.18.1",
     "prop-types": "^15.8.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
