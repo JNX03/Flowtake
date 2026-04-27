@@ -44,6 +44,8 @@ import SubtitleAnimator from "./subtitle/SubtitleAnimator"
 import TransitionAnimator from "./transition/TransitionAnimator"
 import ZoomAnimator from "./zoom/ZoomAnimator"
 
+const SUBTITLE_FONT_FALLBACK = "Arial, Helvetica, sans-serif"
+
 export default class Scene {
     constructor() {
         DOMAdapter.set(WebWorkerAdapter)
@@ -118,10 +120,7 @@ export default class Scene {
 
         this.zoomAnimator = new ZoomAnimator(this.screen.fg, this.screen.container, this.zoomBlur, this.screen.dims)
 
-        console.log("[Scene] init: awaiting Assets.load('roboto')")
-        const { family } = await Assets.load("roboto")
-        console.log("[Scene] init: roboto loaded, family=", family)
-        this.subtitleAnimator = new SubtitleAnimator(this.subtitleContainer, family)
+        this.subtitleAnimator = new SubtitleAnimator(this.subtitleContainer, await this.loadSubtitleFontFamily())
 
         this.cursorTypeAnimator = new CursorTypeAnimator(this.cursorImageContainer)
 
@@ -143,6 +142,18 @@ export default class Scene {
         console.log("[Scene] init: awaiting createCursorSprites")
         await this.createCursorSprites()
         console.log("[Scene] init: createCursorSprites done")
+    }
+
+    async loadSubtitleFontFamily() {
+        console.log("[Scene] init: awaiting Assets.load('roboto')")
+        try {
+            const { family } = await Assets.load("roboto")
+            console.log("[Scene] init: roboto loaded, family=", family)
+            return family || SUBTITLE_FONT_FALLBACK
+        } catch (e) {
+            console.warn("[Scene] init: roboto failed to load; using fallback font", e?.message || String(e))
+            return SUBTITLE_FONT_FALLBACK
+        }
     }
 
     initScreenVideo(dims, content = null) {
