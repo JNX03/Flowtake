@@ -255,6 +255,11 @@ fn recording_video_output_args() -> Vec<String> {
                 "1".to_string(),
                 "-pix_fmt".to_string(),
                 "yuv420p".to_string(),
+                // Some static macOS FFmpeg builds report AVFoundation screen
+                // capture as 1000k fps. Clamp output to a normal frame rate so
+                // stop/finalization can complete and the MP4 gets its moov atom.
+                "-r".to_string(),
+                "30".to_string(),
             ];
         }
     }
@@ -268,6 +273,8 @@ fn recording_video_output_args() -> Vec<String> {
         "ultrafast".to_string(),
         "-pix_fmt".to_string(),
         "yuv420p".to_string(),
+        "-r".to_string(),
+        "30".to_string(),
     ]
 }
 
@@ -1353,7 +1360,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         None
     };
 
-    let has_video = recording_video_path
+    let has_non_empty_video = recording_video_path
         .as_ref()
         .map(|p| {
             let exists = p.exists();
@@ -1367,6 +1374,24 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
             exists && size > 0
         })
         .unwrap_or(false);
+
+    let has_video = if has_non_empty_video {
+        if let Some(ref path) = recording_video_path {
+            if recording_video_is_readable(&app, path).await {
+                true
+            } else {
+                log::error!(
+                    "[stop_recording] Recording video exists but is not readable: {:?}",
+                    path
+                );
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
 
     if has_video {
         if let (Some(ref rid), Some(ref pid)) = (&recording_id, &project_id) {
@@ -1634,18 +1659,33 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         }
     } else {
         log::warn!(
-            "[stop_recording] No video file found at: {:?}",
+            "[stop_recording] No valid video file found at: {:?}",
             recording_video_path
         );
         // Emit specific error so the UI can show a helpful message
+        let error_code = if has_non_empty_video {
+            "CaptureError"
+        } else {
+            #[cfg(target_os = "macos")]
+            {
+                macos_recording_error_code_for_empty_output()
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                "CaptureError"
+            }
+        };
+        app.emit("recording-error", error_code).ok();
+
         #[cfg(target_os = "macos")]
         {
-            app.emit("recording-error", "ScreenPermissionDenied").ok();
-            log::error!("[stop_recording] No frames captured. Screen recording permission may not be granted. Go to System Settings > Privacy & Security > Screen Recording.");
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            app.emit("recording-error", "CaptureError").ok();
+            if error_code == "ScreenPermissionDenied" {
+                log::error!("[stop_recording] No frames captured and macOS screen recording permission check failed. Go to System Settings > Privacy & Security > Screen Recording.");
+            } else if has_non_empty_video {
+                log::error!("[stop_recording] Frames were captured, but FFmpeg did not produce a readable MP4.");
+            } else {
+                log::error!("[stop_recording] No frames captured, but macOS screen recording permission check passed. Treating as a capture startup failure.");
+            }
         }
         app.emit_to("main", "recording-canceled", "").ok();
         app.emit_to("main", "load", serde_json::Value::Null).ok();
@@ -1824,6 +1864,14 @@ async fn get_video_dimensions(
         }
     }
     Err("Could not parse video dimensions".to_string())
+}
+
+async fn recording_video_is_readable(
+    app: &AppHandle,
+    video_path: &std::path::Path,
+) -> bool {
+    get_video_duration_ms(app, video_path).await.is_ok()
+        && get_video_dimensions(video_path).await.is_ok()
 }
 
 /// Stop the FFmpeg process gracefully by writing "q" to stdin and waiting for exit.
