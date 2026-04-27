@@ -604,56 +604,75 @@ export const EASING_OPTIONS = [
 
 export const getEasingFunction = (name) => EASING_MAP[name] || easeExpOut
 
-export const applyInertia = (coords, duration, inertia = 400) => {
+const normalizeCursorCoords = (coords = []) => coords
+    .filter(event => event && Number.isFinite(event.x) && Number.isFinite(event.y) && Number.isFinite(event.timestamp))
+    .map(({ x, y, timestamp }) => ({ x, y, timestamp }))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .reduce((events, event) => {
+        if (events.at(-1)?.timestamp === event.timestamp) events[events.length - 1] = event
+        else events.push(event)
+        return events
+    }, [])
 
+export const applyInertia = (coords, duration, inertia = 400) => {
     const coordsWithInertia = []
     const frameDuration = 1000 / INERTIA_FPS
+    const input = normalizeCursorCoords(coords)
 
-    if (coords.length > 0) {
-        // Exponential moving average smoothing with velocity-aware adaptation.
-        // tau controls the time constant: higher inertia = more smoothing.
-        // alpha = 1 - exp(-frameDuration / tau) gives framerate-independent decay.
-        const SMOOTHING_SCALE = 0.5
-        const tau = inertia * SMOOTHING_SCALE
+    if (input.length > 0) {
+        // Interpolate between captured mouse events before applying inertia.
+        // This keeps motion smooth even when OS tracking delivers uneven samples.
+        const SMOOTHING_SCALE = 0.25
+        const tau = Math.max(inertia * SMOOTHING_SCALE, frameDuration)
         const baseAlpha = 1 - Math.exp(-frameDuration / tau)
 
-        let position = { x: coords[0].x, y: coords[0].y }
-        let velocity = { x: 0, y: 0 }
-        let c = [...coords]
-        let current = c.shift()
-        let prevCurrent = current
+        let position = { x: input[0].x, y: input[0].y }
+        const velocity = { x: 0, y: 0 }
+        let nextIndex = 1
+        let prevTarget = input[0]
 
         for (let timestamp = 0; timestamp <= duration / frameDuration; timestamp += 1) {
-            // Advance to the latest mouse event at or before this frame
-            prevCurrent = current
-            while (c.length > 0 && c[0].timestamp <= timestamp * frameDuration) { current = c.shift() }
+            const frameTime = timestamp * frameDuration
 
-            const dx = current.x - position.x
-            const dy = current.y - position.y
+            while (nextIndex < input.length - 1 && input[nextIndex].timestamp < frameTime) {
+                nextIndex += 1
+            }
+
+            let target
+            if (frameTime <= input[0].timestamp) target = input[0]
+            else if (frameTime >= input.at(-1).timestamp) target = input.at(-1)
+            else {
+                const from = input[nextIndex - 1]
+                const to = input[nextIndex]
+                const span = Math.max(to.timestamp - from.timestamp, 1)
+                const interpolator = (frameTime - from.timestamp) / span
+                target = {
+                    x: from.x + (to.x - from.x) * interpolator,
+                    y: from.y + (to.y - from.y) * interpolator,
+                    timestamp: frameTime,
+                }
+            }
+
+            const dx = target.x - position.x
+            const dy = target.y - position.y
             const dist = Math.sqrt(dx * dx + dy * dy)
 
-            // Compute raw mouse velocity from input events
-            const inputDx = current.x - prevCurrent.x
-            const inputDy = current.y - prevCurrent.y
+            const inputDx = target.x - prevTarget.x
+            const inputDy = target.y - prevTarget.y
             const inputSpeed = Math.sqrt(inputDx * inputDx + inputDy * inputDy)
 
-            // Adaptive alpha: blends distance-based and velocity-based factors.
-            // Distance factor prevents falling behind on large movements.
-            // Velocity factor makes the cursor more responsive during fast motion.
-            const MAX_DIST = 150
+            const MAX_DIST = 180
             const distFactor = Math.min(dist / MAX_DIST, 1.0)
-            const MAX_SPEED = 100
+            const MAX_SPEED = 60
             const speedFactor = Math.min(inputSpeed / MAX_SPEED, 1.0)
             const adaptiveFactor = Math.max(distFactor, speedFactor)
-            const alpha = baseAlpha + (1 - baseAlpha) * adaptiveFactor * 0.6
+            const alpha = baseAlpha + (1 - baseAlpha) * adaptiveFactor * 0.45
 
-            // Velocity-blended smoothing: mix EMA with a small velocity prediction
-            // to reduce lag when the cursor changes direction quickly.
-            const VELOCITY_DECAY = 0.8
+            const VELOCITY_DECAY = 0.72
             velocity.x = velocity.x * VELOCITY_DECAY + dx * alpha * (1 - VELOCITY_DECAY)
             velocity.y = velocity.y * VELOCITY_DECAY + dy * alpha * (1 - VELOCITY_DECAY)
 
-            const predictFactor = Math.min(adaptiveFactor * 0.3, 0.25)
+            const predictFactor = Math.min(adaptiveFactor * 0.18, 0.16)
 
             position = {
                 x: position.x + dx * alpha + velocity.x * predictFactor,
@@ -662,13 +681,14 @@ export const applyInertia = (coords, duration, inertia = 400) => {
 
             // Snap when very close to avoid infinite asymptotic approach
             if (dist < 1.0) {
-                position.x = current.x
-                position.y = current.y
+                position.x = target.x
+                position.y = target.y
             }
 
             position.timestamp = timestamp * frameDuration
             position.t = timestamp
             coordsWithInertia.push(position)
+            prevTarget = target
         }
     } else {
         for (let timestamp = 0; timestamp <= duration / frameDuration; timestamp += 1) {
@@ -687,6 +707,21 @@ export const applyInertia = (coords, duration, inertia = 400) => {
     return map
 }
 
+export const getInertiaCoords = (timestamp, map) => {
+    const frameTime = Math.max(timestamp, 0) / (1000 / INERTIA_FPS)
+    const f0 = Math.max(0, Math.floor(frameTime))
+    const interpolator = frameTime - f0
+
+    let a = map.get(f0)
+    if (!a) a = map.get("last")
+    const b = map.get(f0 + 1) || a
+
+    return {
+        x: a.x + (b.x - a.x) * interpolator,
+        y: a.y + (b.y - a.y) * interpolator,
+    }
+}
+
 export const serializeEntitySlice = (slice, serializeEntities = true, selector = selectAll) => {
     const serialized = { ...slice }
     delete serialized.ids
@@ -699,17 +734,8 @@ export const getCoords = (screenVideoDimensions, videoDetails, timestamp, map, n
     // Linearly interpolate between adjacent cursor frames instead of rounding to
     // the nearest one. Rounding quantizes the output to 16.67ms steps which
     // shows up as horizontal stepping under zoom magnification.
-    const clamped = Math.min(timestamp, videoDetails.end)
-    const frameTime = clamped / (1000 / INERTIA_FPS)
-    const f0 = Math.max(0, Math.floor(frameTime))
-    const t = frameTime - f0
-
-    let a = map.get(f0)
-    if (!a) a = map.get("last")
-    const b = map.get(f0 + 1) || a
-
-    const x = a.x + (b.x - a.x) * t
-    const y = a.y + (b.y - a.y) * t
+    const clamped = Math.max(0, Math.min(timestamp, videoDetails.end))
+    const { x, y } = getInertiaCoords(clamped, map)
 
     if (normalize) return { x: x / screenVideoDimensions.x, y: y / screenVideoDimensions.y }
     return { x, y }

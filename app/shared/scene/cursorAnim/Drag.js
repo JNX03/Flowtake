@@ -1,5 +1,8 @@
-import { interpolateCoords } from "../../sceneHelpers"
-import Animation from "../Animation"
+import {
+    getInertiaCoords,
+    interpolateCoords
+} from "../../sceneHelpers.js"
+import Animation from "../Animation.js"
 
 export default class Drag extends Animation {
     constructor(config, cursorCoordsMap) {
@@ -7,9 +10,10 @@ export default class Drag extends Animation {
         this.intro = this.getAdjustedIntro(500)
         this.outro = this.getAdjustedOutro(500)
         this.events = config.events
+        this.cursorCoordsMap = cursorCoordsMap
 
-        this.introFrom = cursorCoordsMap.get(Math.floor(this.start / (1000 / 60)))
-        this.outroTo = cursorCoordsMap.get(Math.floor(this.end / (1000 / 60)))
+        this.introFrom = getInertiaCoords(this.start, cursorCoordsMap)
+        this.outroTo = getInertiaCoords(this.end, cursorCoordsMap)
     }
 
     onIntro(interpolator, timestamp) {
@@ -28,7 +32,6 @@ export default class Drag extends Animation {
     }
 
     getCoords(timestamp) {
-        return this.events.reduce(
-            (prev, curr) => curr.timestamp > prev.timestamp && curr.timestamp <= timestamp ? curr : prev)
+        return getInertiaCoords(timestamp, this.cursorCoordsMap)
     }
 }
