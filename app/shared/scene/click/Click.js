@@ -1,6 +1,12 @@
-import { easeSinInOut } from "d3-ease"
-import { interpolate } from "../../sceneHelpers"
-import Animation from "../Animation"
+import {
+    easeBackOut,
+    easeCubicIn,
+    easeCubicOut
+} from "d3-ease"
+import { interpolate } from "../../sceneHelpers.js"
+import Animation from "../Animation.js"
+
+const clamp01 = value => Math.min(Math.max(value, 0), 1)
 
 export default class Click extends Animation {
     constructor(config, deps) {
@@ -8,48 +14,39 @@ export default class Click extends Animation {
         this.configure(config, deps)
     }
 
-    onIntro(interpolator) {
-        const scaleAmount = this.config.scaleAmount ?? 0.75
-        if (this.config.isActive)
-            return {
-                scale: interpolate(this.deps.cursorScale, this.deps.cursorScale * scaleAmount, interpolator, easeSinInOut),
-                ringProgress: interpolator,
-                ringConfig: this.getRingConfig()
-            }
-        else
-            return { scale: this.deps.cursorScale, ringProgress: 0 }
+    computeFrame(timestamp) {
+        if (!this.config.isActive || timestamp < this.start || timestamp > this.end)
+            return this.computeIdleFrame()
+
+        const elapsed = timestamp - this.start
+        const scaleAmount = this.config.scaleAmount ?? 0.82
+        const pressedScale = this.deps.cursorScale * scaleAmount
+        const releaseProgress = clamp01((elapsed - this.pressDuration) / this.releaseDuration)
+        const ringProgress = clamp01(elapsed / this.ringDuration)
+
+        const scale = elapsed < this.pressDuration
+            ? interpolate(this.deps.cursorScale, pressedScale, clamp01(elapsed / this.pressDuration), easeCubicOut)
+            : interpolate(pressedScale, this.deps.cursorScale, releaseProgress, easeBackOut)
+
+        return {
+            scale,
+            ringProgress,
+            ringConfig: this.getRingConfig(ringProgress)
+        }
     }
 
-    onOutro(interpolator) {
-        const scaleAmount = this.config.scaleAmount ?? 0.75
-        if (this.config.isActive)
-            return {
-                scale: interpolate(this.deps.cursorScale * scaleAmount, this.deps.cursorScale, interpolator, easeSinInOut),
-                ringProgress: 1 - interpolator,
-                ringConfig: this.getRingConfig()
-            }
-        else
-            return { scale: this.deps.cursorScale, ringProgress: 0 }
+    computeIdleFrame() {
+        return { scale: this.deps.cursorScale, ringProgress: 0 }
     }
 
-    onBetweenIntroAndOutro() {
-        const scaleAmount = this.config.scaleAmount ?? 0.75
-        if (this.config.isActive)
-            return {
-                scale: this.deps.cursorScale * scaleAmount,
-                ringProgress: 1,
-                ringConfig: this.getRingConfig()
-            }
-        else
-            return { scale: this.deps.cursorScale, ringProgress: 0 }
-    }
-
-    getRingConfig() {
+    getRingConfig(progress) {
         return {
             enabled: this.config.ringEnabled ?? true,
             color: this.config.ringColor ?? "#FFCC00",
-            size: this.config.ringSize ?? 40,
-            opacity: this.config.ringOpacity ?? 0.6,
+            size: this.config.ringSize ?? 52,
+            opacity: this.config.ringOpacity ?? 0.72,
+            radiusProgress: easeCubicOut(progress),
+            alphaProgress: 1 - easeCubicIn(progress),
         }
     }
 
@@ -60,5 +57,9 @@ export default class Click extends Animation {
         this.end = config.end
         this.intro = this.getAdjustedIntro(config.intro)
         this.outro = this.getAdjustedOutro(config.outro)
+        const duration = Math.max(this.end - this.start, 1)
+        this.pressDuration = Math.min(this.intro || 80, duration * 0.45)
+        this.releaseDuration = Math.min(this.outro || 180, Math.max(duration - this.pressDuration, 1))
+        this.ringDuration = Math.max(this.end - this.start, 1)
     }
 }

@@ -1,6 +1,6 @@
 import { Graphics } from "pixi.js"
-import Animator from "../Animator"
-import Click from "./Click"
+import Animator from "../Animator.js"
+import Click from "./Click.js"
 
 export default class ClickAnimator extends Animator {
     constructor(cursor, cursorContainer) {
@@ -20,15 +20,18 @@ export default class ClickAnimator extends Animator {
 
         // Render click ring (respects global toggle)
         if (this.showClickRing && frame.ringProgress > 0 && frame.ringConfig?.enabled) {
-            const { color, size, opacity } = frame.ringConfig
+            const { color, size, opacity, radiusProgress, alphaProgress } = frame.ringConfig
             const progress = frame.ringProgress
-            const radius = size * progress
-            const alpha = opacity * (1 - progress * 0.5)
+            const radius = size * (radiusProgress ?? progress)
+            const alpha = opacity * (alphaProgress ?? (1 - progress))
+            const strokeWidth = Math.max(1.5, 4 * (1 - progress))
 
             this.ringGraphic.clear()
             this.ringGraphic.circle(0, 0, radius)
-            this.ringGraphic.stroke({ color, width: 3, alpha })
-            this.ringGraphic.visible = true
+            this.ringGraphic.stroke({ color, width: strokeWidth, alpha })
+            this.ringGraphic.circle(0, 0, Math.max(2, size * 0.08) * (1 - progress))
+            this.ringGraphic.fill({ color, alpha: alpha * 0.22 })
+            this.ringGraphic.visible = alpha > 0.01
         } else {
             this.ringGraphic.visible = false
         }

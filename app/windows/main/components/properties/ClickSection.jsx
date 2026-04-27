@@ -47,9 +47,9 @@ export default function ClickSection() {
 
     const ringEnabled = configs[0]?.ringEnabled ?? true
     const ringColor = configs[0]?.ringColor ?? "#FFCC00"
-    const ringSize = configs[0]?.ringSize ?? 40
-    const ringOpacity = configs[0]?.ringOpacity ?? 0.6
-    const scaleAmount = configs[0]?.scaleAmount ?? 0.75
+    const ringSize = configs[0]?.ringSize ?? 52
+    const ringOpacity = configs[0]?.ringOpacity ?? 0.72
+    const scaleAmount = configs[0]?.scaleAmount ?? 0.82
 
     return (<Card icon={<CursorArrowRaysIcon className="w-6 h-6" />} title="Click" showClose={true}>
         <Fieldset legend="Behavior" description="Deactivated clicks are ignored by Follow Cursor Zooms.">
