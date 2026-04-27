@@ -168,6 +168,20 @@ impl MouseTracker {
     }
 }
 
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn CGMainDisplayID() -> u32;
+    fn CGDisplayShowCursor(display: u32) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+pub fn restore_macos_cursor() {
+    let result = unsafe { CGDisplayShowCursor(CGMainDisplayID()) };
+    if result != 0 {
+        log::warn!("[MouseTracker] CGDisplayShowCursor returned {}", result);
+    }
+}
+
 // Windows-specific hook implementation
 // Use atomics for values accessed in the time-critical hook callback to avoid mutex overhead.
 // Windows LL hooks have a ~300ms timeout; exceeding it causes the hook to be silently removed.

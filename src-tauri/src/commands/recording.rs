@@ -453,6 +453,9 @@ pub async fn init_recording(
     camera_mic_config: Value,
     system_audio: Value,
 ) -> AppResult<()> {
+    #[cfg(target_os = "macos")]
+    crate::mouse_tracker::restore_macos_cursor();
+
     let state = app.state::<Mutex<AppState>>();
 
     // Create new recording ID and project temp dir
@@ -968,6 +971,9 @@ pub async fn init_recording(
 
 #[tauri::command]
 pub async fn start_recording(app: AppHandle) -> AppResult<()> {
+    #[cfg(target_os = "macos")]
+    crate::mouse_tracker::restore_macos_cursor();
+
     let state = app.state::<Mutex<AppState>>();
 
     // Get config from stored state
@@ -1141,6 +1147,8 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                 }
                 Err(e) => {
                     log::error!("Failed to spawn FFmpeg: {}", e);
+                    #[cfg(target_os = "macos")]
+                    crate::mouse_tracker::restore_macos_cursor();
                     app.emit("recording-error", "CaptureError").ok();
                     if let Some(win) = app.get_webview_window("recorder") {
                         win.close().ok();
@@ -1153,6 +1161,9 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
             }
         }
     }
+
+    #[cfg(target_os = "macos")]
+    crate::mouse_tracker::restore_macos_cursor();
 
     // Start mouse tracking with recording area offset
     {
@@ -1213,6 +1224,9 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         move || kill_ffmpeg(&app)
     }).await.ok();
 
+    #[cfg(target_os = "macos")]
+    crate::mouse_tracker::restore_macos_cursor();
+
     // Restore any muted audio sessions
     crate::commands::audio::unmute_all_sessions(&app);
 
@@ -1221,6 +1235,9 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         state.is_recording = false;
 
         state.mouse_tracker.stop();
+
+        #[cfg(target_os = "macos")]
+        crate::mouse_tracker::restore_macos_cursor();
 
         let start_ts = state.recording_start_timestamp.unwrap_or(stop_timestamp);
         let events = state.mouse_tracker.get_events(start_ts);
@@ -1591,6 +1608,9 @@ pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
         move || kill_ffmpeg(&app)
     }).await.ok();
 
+    #[cfg(target_os = "macos")]
+    crate::mouse_tracker::restore_macos_cursor();
+
     let state = app.state::<Mutex<AppState>>();
     let recording_id = {
         let mut state = state.lock().unwrap();
@@ -1623,6 +1643,9 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
         move || kill_ffmpeg(&app)
     }).await.ok();
 
+    #[cfg(target_os = "macos")]
+    crate::mouse_tracker::restore_macos_cursor();
+
     let recording_id = {
         let mut state = state.lock().unwrap();
         state.is_recording = false;
@@ -1630,6 +1653,8 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
         state.ffmpeg_child = None;
         state.ffmpeg_process = None;
         state.mouse_tracker.stop();
+        #[cfg(target_os = "macos")]
+        crate::mouse_tracker::restore_macos_cursor();
         state.recording_start_timestamp = None;
         state.recording_id.take()
     };
