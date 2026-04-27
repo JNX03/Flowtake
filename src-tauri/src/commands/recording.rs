@@ -2,8 +2,10 @@ use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use serde_json::Value;
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+
+static FFMPEG_PATH_CACHE: OnceLock<Option<std::path::PathBuf>> = OnceLock::new();
 
 #[tauri::command]
 pub async fn get_camera_mic_config(app: AppHandle) -> AppResult<Value> {
@@ -21,6 +23,10 @@ pub async fn get_camera_mic_config(app: AppHandle) -> AppResult<Value> {
 
 /// Find the FFmpeg binary path (for std::process::Command usage)
 fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
+    FFMPEG_PATH_CACHE.get_or_init(resolve_ffmpeg_path).clone()
+}
+
+fn resolve_ffmpeg_path() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
 
@@ -29,12 +35,12 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
 
     for name in &sidecar_names {
         let sidecar = dir.join(name);
-        if sidecar.exists() {
+        if ffmpeg_binary_is_usable(&sidecar) {
             return Some(sidecar);
         }
         // Try binaries subdirectory (dev mode)
         let binaries = dir.join("binaries").join(name);
-        if binaries.exists() {
+        if ffmpeg_binary_is_usable(&binaries) {
             return Some(binaries);
         }
     }
@@ -42,7 +48,7 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
     // Try plain name (with extension on Windows)
     let plain_name = if cfg!(target_os = "windows") { "ffmpeg.exe" } else { "ffmpeg" };
     let plain = dir.join(plain_name);
-    if plain.exists() {
+    if ffmpeg_binary_is_usable(&plain) {
         return Some(plain);
     }
 
@@ -55,7 +61,7 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
             "/usr/local/bin/ffmpeg",       // Intel Homebrew
         ] {
             let p = std::path::PathBuf::from(path);
-            if p.exists() {
+            if ffmpeg_binary_is_usable(&p) {
                 return Some(p);
             }
         }
@@ -68,7 +74,7 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
             "/snap/bin/ffmpeg",
         ] {
             let p = std::path::PathBuf::from(path);
-            if p.exists() {
+            if ffmpeg_binary_is_usable(&p) {
                 return Some(p);
             }
         }
@@ -81,7 +87,10 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !path.is_empty() {
-                    return Some(std::path::PathBuf::from(path));
+                    let p = std::path::PathBuf::from(path);
+                    if ffmpeg_binary_is_usable(&p) {
+                        return Some(p);
+                    }
                 }
             }
         }
@@ -94,7 +103,10 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
                 // `where` may return multiple lines; take the first
                 if let Some(first) = path.lines().next() {
                     if !first.is_empty() {
-                        return Some(std::path::PathBuf::from(first));
+                        let p = std::path::PathBuf::from(first);
+                        if ffmpeg_binary_is_usable(&p) {
+                            return Some(p);
+                        }
                     }
                 }
             }
@@ -102,6 +114,33 @@ fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
     }
 
     None
+}
+
+fn ffmpeg_binary_is_usable(path: &std::path::Path) -> bool {
+    if !path.exists() {
+        return false;
+    }
+
+    let output = std::process::Command::new(path)
+        .args(["-hide_banner", "-version"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => true,
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let reason = stderr.lines().next().unwrap_or("unknown error");
+            log::warn!("[ffmpeg] Skipping unusable candidate {:?}: {}", path, reason);
+            false
+        }
+        Err(err) => {
+            log::warn!("[ffmpeg] Skipping unusable candidate {:?}: {}", path, err);
+            false
+        }
+    }
 }
 
 /// Get platform-specific FFmpeg sidecar binary names

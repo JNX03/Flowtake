@@ -8,6 +8,38 @@ set -e
 BINARIES_DIR="$(cd "$(dirname "$0")/../src-tauri/binaries" && pwd)"
 mkdir -p "$BINARIES_DIR"
 
+FORCE="${FLOWTAKE_FFMPEG_FORCE:-0}"
+if [ "${1:-}" = "--force" ]; then
+  FORCE=1
+fi
+
+ffmpeg_is_usable() {
+  local candidate="$1"
+  [ -x "$candidate" ] && "$candidate" -hide_banner -version >/dev/null 2>&1
+}
+
+use_existing_if_valid() {
+  local dest="$1"
+  if [ ! -f "$dest" ]; then
+    return 1
+  fi
+
+  if [ "$FORCE" = "1" ]; then
+    echo "[download-ffmpeg] Replacing existing FFmpeg because force mode is enabled"
+    rm -f "$dest"
+    return 1
+  fi
+
+  if ffmpeg_is_usable "$dest"; then
+    echo "[download-ffmpeg] FFmpeg already exists and launches at $dest"
+    return 0
+  fi
+
+  echo "[download-ffmpeg] Existing FFmpeg is unusable, downloading a fresh copy: $dest"
+  rm -f "$dest"
+  return 1
+}
+
 # Detect platform and architecture
 OS="$(uname -s)"
 ARCH="$(uname -m)"
@@ -19,11 +51,11 @@ case "$OS" in
     case "$ARCH" in
       x86_64)
         TARGET="x86_64-apple-darwin"
-        FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/zip"
+        FFMPEG_URL="https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-x64.gz"
         ;;
       arm64)
         TARGET="aarch64-apple-darwin"
-        FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/zip"
+        FFMPEG_URL="https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-arm64.gz"
         ;;
       *)
         echo "[download-ffmpeg] Unsupported macOS architecture: $ARCH"
@@ -33,18 +65,24 @@ case "$OS" in
 
     DEST="$BINARIES_DIR/ffmpeg-$TARGET"
 
-    if [ -f "$DEST" ]; then
-      echo "[download-ffmpeg] FFmpeg already exists at $DEST"
+    if use_existing_if_valid "$DEST"; then
       exit 0
     fi
 
     echo "[download-ffmpeg] Downloading FFmpeg for macOS ($TARGET)..."
     TMPDIR=$(mktemp -d)
-    curl -L "$FFMPEG_URL" -o "$TMPDIR/ffmpeg.zip"
-    unzip -o "$TMPDIR/ffmpeg.zip" -d "$TMPDIR"
+    curl -L --fail "$FFMPEG_URL" -o "$TMPDIR/ffmpeg.gz"
+    gunzip -f "$TMPDIR/ffmpeg.gz"
     mv "$TMPDIR/ffmpeg" "$DEST"
     chmod +x "$DEST"
     rm -rf "$TMPDIR"
+
+    if ! ffmpeg_is_usable "$DEST"; then
+      echo "[download-ffmpeg] ERROR: downloaded FFmpeg does not launch"
+      rm -f "$DEST"
+      exit 1
+    fi
+
     echo "[download-ffmpeg] Installed FFmpeg to $DEST"
     ;;
 
@@ -66,8 +104,7 @@ case "$OS" in
 
     DEST="$BINARIES_DIR/ffmpeg-$TARGET"
 
-    if [ -f "$DEST" ]; then
-      echo "[download-ffmpeg] FFmpeg already exists at $DEST"
+    if use_existing_if_valid "$DEST"; then
       exit 0
     fi
 
@@ -85,6 +122,13 @@ case "$OS" in
     mv "$FFMPEG_BIN" "$DEST"
     chmod +x "$DEST"
     rm -rf "$TMPDIR"
+
+    if ! ffmpeg_is_usable "$DEST"; then
+      echo "[download-ffmpeg] ERROR: downloaded FFmpeg does not launch"
+      rm -f "$DEST"
+      exit 1
+    fi
+
     echo "[download-ffmpeg] Installed FFmpeg to $DEST"
     ;;
 
@@ -95,6 +139,9 @@ case "$OS" in
       echo "[download-ffmpeg] WARNING: FFmpeg not found! Download it manually."
       echo "  https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
       exit 1
+    fi
+    if ! ffmpeg_is_usable "$BINARIES_DIR/ffmpeg-x86_64-pc-windows-msvc.exe"; then
+      echo "[download-ffmpeg] WARNING: FFmpeg exists but could not be validated in this shell."
     fi
     ;;
 
