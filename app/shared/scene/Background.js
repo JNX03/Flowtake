@@ -4,8 +4,8 @@ import {
     Sprite,
     Texture
 } from "pixi.js"
-import { shallowEqual } from "react-redux"
 import { drawGradient } from "../sceneHelpers"
+import shallowEqual from "../shallowEqual"
 import { IMAGE_SCHEME_PREFIX } from "../constants"
 import { LOAD_IMAGE, postAsync } from "../workers/helpers"
 

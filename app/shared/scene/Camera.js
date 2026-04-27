@@ -13,7 +13,7 @@ import {
     Texture,
     UniformGroup
 } from "pixi.js"
-import { shallowEqual } from "react-redux"
+import shallowEqual from "../shallowEqual"
 import CanvasWrapper from "./CanvasWrapper"
 import { applyEyeContactCorrection } from "./spatial/eyeContact"
 import fragment from "./shaders/selfieSegmentation.frag?raw"

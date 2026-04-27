@@ -1,4 +1,4 @@
-import { shallowEqual } from "react-redux"
+import shallowEqual from "../../shallowEqual"
 import Animator from "../Animator"
 import CursorType from "./CursorType"
 import CursorTypeConfig from "./CursorTypeConfig"

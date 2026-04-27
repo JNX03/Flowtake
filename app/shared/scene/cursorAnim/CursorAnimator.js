@@ -1,4 +1,3 @@
-import { shallowEqual } from "react-redux"
 import {
     applyInertia,
     getCoords,
@@ -6,6 +5,7 @@ import {
     INERTIA_FPS,
     interpolateCoords
 } from "../../sceneHelpers"
+import shallowEqual from "../../shallowEqual"
 import Animator from "../Animator"
 import Drag from "./Drag"
 

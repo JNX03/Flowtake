@@ -1,5 +1,5 @@
 import { isEqual } from "lodash-es"
-import { shallowEqual } from "react-redux"
+import shallowEqual from "../shallowEqual"
 
 export default class Animator {
 

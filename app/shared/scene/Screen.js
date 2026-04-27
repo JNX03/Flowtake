@@ -1,6 +1,6 @@
 import { DropShadowFilter } from "pixi-filters/drop-shadow"
 import { CanvasSource, Container, Graphics, Sprite, Texture } from "pixi.js"
-import { shallowEqual } from "react-redux"
+import shallowEqual from "../shallowEqual"
 import CanvasWrapper from "./CanvasWrapper"
 
 export default class Screen extends CanvasWrapper {

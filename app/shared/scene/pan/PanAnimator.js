@@ -1,5 +1,5 @@
-import { shallowEqual } from "react-redux"
 import { applyInertia } from "../../sceneHelpers"
+import shallowEqual from "../../shallowEqual"
 import Animator from "../Animator"
 import Pan from "./Pan"
 
