@@ -105,6 +105,6 @@
     "slash": "4.0.0",
     "throttleit": "^2.1.0",
     "unused-filename": "^4.0.1",
-    "use-debounce": "^10.0.6"
+    "use-debounce": "^10.1.1"
   }
 }
