@@ -21,7 +21,11 @@ test("Pixi workers import the worker-safe rendering modules", async () => {
         const source = await readFile(path.join(rootDir, workerFile), "utf8")
 
         for (const specifier of requiredPixiImports) {
-            assert.match(source, new RegExp(`import "${specifier}"`), `${workerFile} should import ${specifier}`)
+            assert.match(
+                source,
+                new RegExp(`import(?:\\(|\\s+)["']${specifier}["']`),
+                `${workerFile} should import ${specifier}`
+            )
         }
     }
 })

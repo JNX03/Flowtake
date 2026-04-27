@@ -9,9 +9,10 @@ const source = await readFile(
 
 test("source preview polling avoids screenshot retry storms", () => {
     assert.match(source, /retry:\s*false/)
-    assert.match(source, /refetchInterval:\s*2000/)
+    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 5000 : 2000/)
     assert.match(source, /refetchIntervalInBackground:\s*false/)
     assert.match(source, /previewUnavailable/)
+    assert.match(source, /refetch:\s*refetchCaptureSourcePreview/)
     assert.doesNotMatch(source, /key=\{captureSourcePreview\}/)
     assert.doesNotMatch(source, /queryKey:\s*\[[^\n]*source\?\.[^\n]*source\]/)
 })
