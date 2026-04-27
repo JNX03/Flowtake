@@ -1,9 +1,3 @@
-import "pixi.js/webworker"
-import "pixi.js/graphics"
-import "pixi.js/mesh"
-import "pixi.js/text"
-
-import PreviewScene from "../scene/PreviewScene"
 import {
     FRAME,
     INIT_PREVIEW,
@@ -14,15 +8,28 @@ import {
     workerConsole
 } from "./helpers"
 
-console.log("[previewWorker:boot] deps imported, replacing console")
-
 // Replace console methods with worker console
 Object.assign(console, workerConsole)
 
-// Post a handshake so the main thread knows the worker actually reached
-// post-import setup and can install its message listener.
-post(self, "PREVIEW_WORKER_READY", { t: Date.now() })
-console.log("[previewWorker:boot] posted PREVIEW_WORKER_READY")
+const previewSceneClassPromise = (async () => {
+    console.log("[previewWorker:boot] loading worker-safe Pixi deps")
+    await import("pixi.js/webworker")
+    await import("pixi.js/graphics")
+    await import("pixi.js/mesh")
+    await import("pixi.js/text")
+
+    const { default: PreviewScene } = await import("../scene/PreviewScene")
+
+    // Post a handshake so the main thread knows the worker reached post-import
+    // setup and can install its message listener.
+    post(self, "PREVIEW_WORKER_READY", { t: Date.now() })
+    console.log("[previewWorker:boot] posted PREVIEW_WORKER_READY")
+
+    return PreviewScene
+})().catch(error => {
+    console.error("[previewWorker:boot] failed", error?.stack || error?.message || String(error))
+    throw error
+})
 
 const MIN_RENDER_INTERVAL = 16 // ~60fps cap
 
@@ -39,6 +46,7 @@ class PreviewRenderer {
         let phase = "construct scene"
 
         try {
+            const PreviewScene = await previewSceneClassPromise
             this.scene = new PreviewScene()
             console.log("[previewWorker] PreviewScene constructed, calling createApp")
 
