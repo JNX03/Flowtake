@@ -151,6 +151,37 @@ fn platform_ffmpeg_sidecar_names() -> Vec<String> {
 }
 
 #[cfg(target_os = "macos")]
+fn macos_recording_error_code_for_empty_output() -> &'static str {
+    if crate::commands::app::macos_has_screen_recording_permission() {
+        "CaptureError"
+    } else {
+        "ScreenPermissionDenied"
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_ffmpeg_stderr_is_permission_error(msg: &str) -> bool {
+    let lower = msg.to_ascii_lowercase();
+    let looks_like_permission_error = lower.contains("permission denied")
+        || lower.contains("not granted")
+        || lower.contains("not authorized")
+        || lower.contains("operation not permitted")
+        || lower.contains("screen recording")
+        || lower.contains("no screens found")
+        || lower.contains("input/output error");
+
+    looks_like_permission_error && !crate::commands::app::macos_has_screen_recording_permission()
+}
+
+fn ffmpeg_stderr_is_capture_error(msg: &str) -> bool {
+    let lower = msg.to_ascii_lowercase();
+    lower.contains("could not find video device")
+        || lower.contains("unable to open device")
+        || lower.contains("no screens found")
+        || lower.contains("input/output error")
+}
+
+#[cfg(target_os = "macos")]
 fn ffmpeg_encoder_available(encoder: &str) -> bool {
     let Some(ffmpeg) = find_ffmpeg_path() else {
         return false;
@@ -1123,14 +1154,17 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                                 match line {
                                     Ok(msg) => {
                                         log::info!("[FFmpeg] {}", msg);
-                                        if msg.contains("Could not find video device")
-                                            || msg.contains("Permission denied")
-                                            || msg.contains("not granted")
-                                            || msg.contains("No screens found")
-                                            || msg.contains("unable to open device")
-                                            || msg.contains("Input/output error")
-                                        {
+                                        #[cfg(target_os = "macos")]
+                                        let is_permission_error =
+                                            macos_ffmpeg_stderr_is_permission_error(&msg);
+                                        #[cfg(not(target_os = "macos"))]
+                                        let is_permission_error = msg.contains("Permission denied")
+                                            || msg.contains("not granted");
+
+                                        if is_permission_error {
                                             app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
+                                        } else if ffmpeg_stderr_is_capture_error(&msg) {
+                                            app_clone.emit("recording-error", "CaptureError").ok();
                                         }
                                     }
                                     Err(_) => break,
@@ -1983,23 +2017,8 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
             #[cfg(target_os = "macos")]
             {
-                // Check screen permission in an inner block so the non-Send CGImage
-                // is dropped before we hit any .await points.
-                {
-                    use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
-                    use core_graphics::window::{
-                        kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
-                    };
-                    let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
-                    let image = CGDisplay::screenshot(
-                        rect,
-                        kCGWindowListOptionOnScreenOnly,
-                        kCGNullWindowID,
-                        kCGWindowImageDefault,
-                    );
-                    if image.is_none() {
-                        return Err(AppError::General("ScreenPermissionDenied".to_string()));
-                    }
+                if !crate::commands::app::macos_has_screen_recording_permission() {
+                    return Err(AppError::General("ScreenPermissionDenied".to_string()));
                 }
                 let region = format!("{},{},{},{}", x, y, w64, h64);
                 let screenshot_str_clone = screenshot_str.clone();
@@ -2043,19 +2062,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
     // to avoid spamming the permission dialog on macOS Sequoia+
     #[cfg(target_os = "macos")]
     {
-        use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
-        use core_graphics::window::{
-            kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
-        };
-        let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
-        let has_permission = CGDisplay::screenshot(
-            rect,
-            kCGWindowListOptionOnScreenOnly,
-            kCGNullWindowID,
-            kCGWindowImageDefault,
-        )
-        .is_some();
-        if !has_permission {
+        if !crate::commands::app::macos_has_screen_recording_permission() {
             return Err(AppError::General("ScreenPermissionDenied".to_string()));
         }
         let (x, y, w, h) = match source_type {

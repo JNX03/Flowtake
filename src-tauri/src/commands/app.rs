@@ -77,6 +77,23 @@ pub async fn get_is_sentry_enabled() -> AppResult<bool> {
     Ok(false)
 }
 
+#[cfg(target_os = "macos")]
+pub fn macos_has_screen_recording_permission() -> bool {
+    use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
+    use core_graphics::window::{
+        kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
+    };
+
+    let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
+    CGDisplay::screenshot(
+        rect,
+        kCGWindowListOptionOnScreenOnly,
+        kCGNullWindowID,
+        kCGWindowImageDefault,
+    )
+    .is_some()
+}
+
 #[tauri::command]
 pub async fn check_permissions() -> AppResult<Value> {
     // Returns array format expected by PermissionsModal.jsx
@@ -93,22 +110,8 @@ pub async fn check_permissions() -> AppResult<Value> {
 
     #[cfg(target_os = "macos")]
     {
-        // On macOS, check screen recording permission using CGWindowListCreateImage
-        // Returns None when screen recording permission is denied
-        let screen_capture_ok = {
-            use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
-            use core_graphics::window::{
-                kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
-            };
-            let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
-            let image = CGDisplay::screenshot(
-                rect,
-                kCGWindowListOptionOnScreenOnly,
-                kCGNullWindowID,
-                kCGWindowImageDefault,
-            );
-            image.is_some()
-        };
+        // Returns false when screen recording permission is denied.
+        let screen_capture_ok = macos_has_screen_recording_permission();
 
         Ok(serde_json::json!([
             {

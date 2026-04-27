@@ -89,7 +89,7 @@ export default function RecorderSettings() {
         <span className="block">
             <Hint>
                 <span className="font-bold">Having issues recording or can&apos;t see any encoders below?</span> Flowtake tries to detect available recording options for your hardware automatically.
-                Make sure your GPU drivers are up-to-date and
+                Check screen recording permission and
                 click <ArrowPathIconSmall className="size-3 inline-block" /> to refresh available capturers and
                 encoders.
             </Hint>

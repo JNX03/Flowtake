@@ -237,7 +237,7 @@ export default function App() {
         const handleRecordingError = async (_e, error) => {
             const errorStr = typeof error === 'string' ? error : error?.message || String(error)
             if (errorStr === "TargetError") dispatch(addErrorToast("The selected window couldn't be found. Make sure it isn't minimized and try again."))
-            else if (errorStr === "ScreenPermissionDenied") dispatch(addErrorToast("Screen recording permission denied. Go to System Settings → Privacy & Security → Screen Recording and enable this app."))
+            else if (errorStr === "ScreenPermissionDenied") dispatch(addErrorToast("Screen recording is still unavailable to this app. Enable this exact Flowtake app in System Settings → Privacy & Security → Screen Recording, then quit and reopen Flowtake."))
             else if (errorStr === "CaptureError") dispatch(addToast({ type: TOAST_ERROR_CAPTURE }))
             else dispatch(addErrorToast(errorStr))
 

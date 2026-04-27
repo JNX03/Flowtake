@@ -9,6 +9,7 @@ import {
   MicrophoneIcon,
   ChevronUpIcon,
   AdjustmentsHorizontalIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import PropTypes from "prop-types"
@@ -126,30 +127,34 @@ export default function NewRecording({ isOpen }) {
     setScreenPermissionDenied(false)
   }, [previewSource])
 
-  const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError } = useQuery({
+  const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError, refetch: refetchCaptureSourcePreview } = useQuery({
     queryKey: ['captureSourcePreview', previewSource],
     queryFn: async () => {
       try {
         const result = await window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource)
-        if (screenPermissionDenied) setScreenPermissionDenied(false)
-        if (previewUnavailable) setPreviewUnavailable(false)
+        setScreenPermissionDenied(false)
+        setPreviewUnavailable(false)
         return result
       } catch (e) {
         const msg = typeof e === 'string' ? e : e?.message || String(e)
-        if (msg.includes("ScreenPermissionDenied")) {
-          setScreenPermissionDenied(true)
-        }
+        setScreenPermissionDenied(msg.includes("ScreenPermissionDenied"))
         setPreviewUnavailable(true)
         throw e
       }
     },
-    enabled: isOpen && !!previewSource && !screenPermissionDenied && !previewUnavailable,
+    enabled: isOpen && !!previewSource,
     gcTime: 0,
     retry: false,
-    // Keep preview fresh without creating a screenshot retry storm on macOS.
-    refetchInterval: 2000,
+    // Keep preview fresh; permission failures use the cheap native permission probe before screencapture.
+    refetchInterval: screenPermissionDenied || previewUnavailable ? 5000 : 2000,
     refetchIntervalInBackground: false,
   })
+
+  const retryPreview = useCallback(() => {
+    setScreenPermissionDenied(false)
+    setPreviewUnavailable(false)
+    refetchCaptureSourcePreview()
+  }, [refetchCaptureSourcePreview])
 
   // Keep previous frame visible during transitions for smooth crossfade
   if (captureSourcePreview) prevPreviewRef.current = captureSourcePreview
@@ -362,8 +367,12 @@ export default function NewRecording({ isOpen }) {
                     <>
                       <span className="text-xs text-warning/80 font-medium">Screen recording permission required</span>
                       <span className="text-xs text-base-content/40 text-center max-w-xs">
-                        Go to System Settings &rarr; Privacy &amp; Security &rarr; Screen Recording and enable this app, then restart.
+                        Enable this exact Flowtake app in System Settings &rarr; Privacy &amp; Security &rarr; Screen Recording, then quit and reopen Flowtake if macOS still blocks it.
                       </span>
+                      <button type="button" className="btn btn-xs btn-outline mt-1" onClick={retryPreview}>
+                        <ArrowPathIcon className="size-3.5" />
+                        Retry
+                      </button>
                     </>
                   ) : (
                     <span className="text-xs text-base-content/30">Preview unavailable</span>

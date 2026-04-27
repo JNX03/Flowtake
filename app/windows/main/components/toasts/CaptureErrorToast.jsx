@@ -12,9 +12,9 @@ export default function CaptureErrorToast({ id, dismiss }) {
             dismiss={dismiss}
             type="alert-error"
             icon={<ExclamationCircleIcon className="size-6" />}
-            actions={[{ label: "Report", url: buildGitHubIssueUrl("Screen capture failed - GPU driver or encoder issue") }]}>
-            <span>There was a problem recording the screen. Please make sure your GPU drivers are up-to-date or select a
-                different encoder in the settings <Cog6ToothIcon className="inline-block size-4" />.</span>
+            actions={[{ label: "Report", url: buildGitHubIssueUrl("Screen capture failed") }]}>
+            <span>There was a problem starting screen recording. Check Screen Recording permission and try again. If it keeps failing,
+                choose another encoder in settings <Cog6ToothIcon className="inline-block size-4" />.</span>
         </Toast>
     )
 }
