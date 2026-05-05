@@ -64,6 +64,8 @@ test("macOS recording errors only report permission denial after probing TCC", a
     const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
 
     assert.match(appCommands, /pub fn macos_has_screen_recording_permission/)
+    assert.match(appCommands, /ScreenCaptureAccess::default\(\)\.preflight\(\)/)
+    assert.doesNotMatch(appCommands, /CGDisplay::screenshot/)
     assert.match(recording, /macos_ffmpeg_stderr_is_permission_error/)
     assert.match(recording, /macos_recording_error_code_for_empty_output/)
     assert.match(recording, /macos_has_screen_recording_permission\(\)/)
@@ -82,6 +84,21 @@ test("new recording preview retries after transient permission failures", async 
     assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 5000 : 2000/)
     assert.match(source, /Enable this exact Flowtake app/)
     assert.doesNotMatch(source, /enable this app, then restart/)
+})
+
+test("macOS screencapture previews time out instead of hanging permission checks", async () => {
+    const commands = await readRepoFile("src-tauri/src/commands/mod.rs")
+    const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
+    const windows = await readRepoFile("src-tauri/src/commands/windows.rs")
+
+    assert.match(commands, /pub async fn run_macos_screencapture/)
+    assert.match(commands, /tokio::time::timeout\(timeout, child\.wait_with_output\(\)\)/)
+    assert.match(commands, /\.kill_on_drop\(true\)/)
+    assert.match(commands, /ScreenCaptureTimedOut/)
+    assert.match(recording, /super::run_macos_screencapture/)
+    assert.match(windows, /super::run_macos_screencapture/)
+    assert.doesNotMatch(recording, /Command::new\("screencapture"\)[\s\S]{0,200}\.output\(\)/)
+    assert.doesNotMatch(windows, /Command::new\("screencapture"\)[\s\S]{0,200}\.output\(\)/)
 })
 
 test("recording skips bundled ffmpeg binaries that fail to launch", async () => {

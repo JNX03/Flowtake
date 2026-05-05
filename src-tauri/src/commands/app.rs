@@ -1,11 +1,11 @@
-use crate::error::AppResult;
 #[cfg(not(target_os = "windows"))]
 use crate::error::AppError;
-use serde::{Serialize, Deserialize};
+use crate::error::AppResult;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::DialogExt;
 
 #[derive(Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -61,13 +61,23 @@ pub struct SystemInfo {
 pub async fn get_system_info(app: AppHandle) -> AppResult<SystemInfo> {
     use sysinfo::System;
 
-    let version = app.config().version.clone().unwrap_or_else(|| "0.0.0".to_string());
+    let version = app
+        .config()
+        .version
+        .clone()
+        .unwrap_or_else(|| "0.0.0".to_string());
     let os = std::env::consts::OS.to_string();
     let arch = std::env::consts::ARCH.to_string();
     let os_version = System::os_version().unwrap_or_else(|| "unknown".to_string());
     let ram_gb = System::new_all().total_memory() as f64 / 1_073_741_824.0;
 
-    Ok(SystemInfo { version, os, os_version, arch, ram_gb })
+    Ok(SystemInfo {
+        version,
+        os,
+        os_version,
+        arch,
+        ram_gb,
+    })
 }
 
 #[tauri::command]
@@ -79,19 +89,7 @@ pub async fn get_is_sentry_enabled() -> AppResult<bool> {
 
 #[cfg(target_os = "macos")]
 pub fn macos_has_screen_recording_permission() -> bool {
-    use core_graphics::display::{CGDisplay, CGPoint, CGRect, CGSize};
-    use core_graphics::window::{
-        kCGNullWindowID, kCGWindowImageDefault, kCGWindowListOptionOnScreenOnly,
-    };
-
-    let rect = CGRect::new(&CGPoint::new(0.0, 0.0), &CGSize::new(1.0, 1.0));
-    CGDisplay::screenshot(
-        rect,
-        kCGWindowListOptionOnScreenOnly,
-        kCGNullWindowID,
-        kCGWindowImageDefault,
-    )
-    .is_some()
+    core_graphics::access::ScreenCaptureAccess::default().preflight()
 }
 
 #[tauri::command]
@@ -189,8 +187,12 @@ fn is_newer_version(latest: &str, current: &str) -> bool {
     for i in 0..l.len().max(c.len()) {
         let lv = l.get(i).copied().unwrap_or(0);
         let cv = c.get(i).copied().unwrap_or(0);
-        if lv > cv { return true; }
-        if lv < cv { return false; }
+        if lv > cv {
+            return true;
+        }
+        if lv < cv {
+            return false;
+        }
     }
     false
 }
@@ -207,7 +209,11 @@ fn platform_asset_patterns() -> Vec<&'static str> {
 
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle) -> AppResult<Value> {
-    let current_version = app.config().version.clone().unwrap_or_else(|| "0.0.0".to_string());
+    let current_version = app
+        .config()
+        .version
+        .clone()
+        .unwrap_or_else(|| "0.0.0".to_string());
 
     let client = reqwest::Client::new();
     let response = client
@@ -244,22 +250,44 @@ pub async fn check_for_updates(app: AppHandle) -> AppResult<Value> {
         }
     };
 
-    let tag = json.get("tag_name").and_then(|v| v.as_str()).unwrap_or("0.0.0");
+    let tag = json
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0.0.0");
     let latest_version = tag.trim_start_matches('v').to_string();
-    let release_notes = json.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let published_at = json.get("published_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let html_url = json.get("html_url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let release_notes = json
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let published_at = json
+        .get("published_at")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let html_url = json
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
 
     // Find platform-specific download asset
     let patterns = platform_asset_patterns();
-    let download_url = json.get("assets")
+    let download_url = json
+        .get("assets")
         .and_then(|a| a.as_array())
         .and_then(|assets| {
             assets.iter().find_map(|asset| {
                 let name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("");
                 let name_lower = name.to_lowercase();
-                if patterns.iter().any(|p| name_lower.ends_with(&p.to_lowercase())) {
-                    asset.get("browser_download_url").and_then(|u| u.as_str()).map(|s| s.to_string())
+                if patterns
+                    .iter()
+                    .any(|p| name_lower.ends_with(&p.to_lowercase()))
+                {
+                    asset
+                        .get("browser_download_url")
+                        .and_then(|u| u.as_str())
+                        .map(|s| s.to_string())
                 } else {
                     None
                 }
@@ -311,9 +339,10 @@ pub async fn download_update(app: AppHandle, download_url: String) -> AppResult<
         .map_err(|e| crate::error::AppError::General(format!("Download failed: {}", e)))?;
 
     if !response.status().is_success() {
-        return Err(crate::error::AppError::General(
-            format!("Download returned HTTP {}", response.status()),
-        ));
+        return Err(crate::error::AppError::General(format!(
+            "Download returned HTTP {}",
+            response.status()
+        )));
     }
 
     let total_bytes = response.content_length().unwrap_or(0);
@@ -323,12 +352,19 @@ pub async fn download_update(app: AppHandle, download_url: String) -> AppResult<
         .rsplit('/')
         .next()
         .and_then(|name| {
-            if name.to_lowercase().ends_with(".exe") { Some("exe") }
-            else if name.to_lowercase().ends_with(".msi") { Some("msi") }
-            else if name.to_lowercase().ends_with(".dmg") { Some("dmg") }
-            else if name.to_lowercase().ends_with(".appimage") { Some("AppImage") }
-            else if name.to_lowercase().ends_with(".deb") { Some("deb") }
-            else { None }
+            if name.to_lowercase().ends_with(".exe") {
+                Some("exe")
+            } else if name.to_lowercase().ends_with(".msi") {
+                Some("msi")
+            } else if name.to_lowercase().ends_with(".dmg") {
+                Some("dmg")
+            } else if name.to_lowercase().ends_with(".appimage") {
+                Some("AppImage")
+            } else if name.to_lowercase().ends_with(".deb") {
+                Some("deb")
+            } else {
+                None
+            }
         })
         .unwrap_or("bin");
 
@@ -366,11 +402,16 @@ pub async fn download_update(app: AppHandle, download_url: String) -> AppResult<
         // Emit progress every 1% to avoid flooding events
         if (percent - last_emitted_percent) >= 1.0 || bytes_downloaded == total_bytes {
             last_emitted_percent = percent;
-            app.emit_to("main", "update-download-progress", DownloadProgress {
-                bytes_downloaded,
-                total_bytes,
-                percent,
-            }).ok();
+            app.emit_to(
+                "main",
+                "update-download-progress",
+                DownloadProgress {
+                    bytes_downloaded,
+                    total_bytes,
+                    percent,
+                },
+            )
+            .ok();
         }
     }
 
@@ -409,7 +450,9 @@ pub async fn launch_installer(installer_path: String) -> AppResult<()> {
                 .arg("/S")
                 .creation_flags(0x08000000) // CREATE_NO_WINDOW
                 .spawn()
-                .map_err(|e| crate::error::AppError::General(format!("Failed to launch installer: {}", e)))?;
+                .map_err(|e| {
+                    crate::error::AppError::General(format!("Failed to launch installer: {}", e))
+                })?;
         }
         #[cfg(target_os = "windows")]
         "msi" => {
@@ -418,7 +461,9 @@ pub async fn launch_installer(installer_path: String) -> AppResult<()> {
                 .args(["/i", &installer_path, "/quiet", "/norestart"])
                 .creation_flags(0x08000000)
                 .spawn()
-                .map_err(|e| crate::error::AppError::General(format!("Failed to launch MSI: {}", e)))?;
+                .map_err(|e| {
+                    crate::error::AppError::General(format!("Failed to launch MSI: {}", e))
+                })?;
         }
         #[cfg(target_os = "macos")]
         "dmg" => {
@@ -430,21 +475,28 @@ pub async fn launch_installer(installer_path: String) -> AppResult<()> {
         "appimage" => {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = std::fs::metadata(&installer_path)
-                .map_err(|e| crate::error::AppError::General(format!("Failed to get permissions: {}", e)))?
+                .map_err(|e| {
+                    crate::error::AppError::General(format!("Failed to get permissions: {}", e))
+                })?
                 .permissions();
             perms.set_mode(0o755);
-            std::fs::set_permissions(&installer_path, perms)
-                .map_err(|e| crate::error::AppError::General(format!("Failed to set permissions: {}", e)))?;
+            std::fs::set_permissions(&installer_path, perms).map_err(|e| {
+                crate::error::AppError::General(format!("Failed to set permissions: {}", e))
+            })?;
             std::process::Command::new(&installer_path)
                 .spawn()
-                .map_err(|e| crate::error::AppError::General(format!("Failed to launch AppImage: {}", e)))?;
+                .map_err(|e| {
+                    crate::error::AppError::General(format!("Failed to launch AppImage: {}", e))
+                })?;
         }
         #[cfg(target_os = "linux")]
         "deb" => {
             std::process::Command::new("pkexec")
                 .args(["dpkg", "-i", &installer_path])
                 .spawn()
-                .map_err(|e| crate::error::AppError::General(format!("Failed to install deb: {}", e)))?;
+                .map_err(|e| {
+                    crate::error::AppError::General(format!("Failed to install deb: {}", e))
+                })?;
         }
         _ => {
             // Fallback: open with default handler
@@ -476,15 +528,26 @@ pub async fn get_changelog() -> AppResult<Value> {
         Err(_) => return Ok(serde_json::json!([])),
     };
 
-    let entries: Vec<ChangelogEntry> = json.as_array()
+    let entries: Vec<ChangelogEntry> = json
+        .as_array()
         .unwrap_or(&vec![])
         .iter()
-        .map(|release| {
-            ChangelogEntry {
-                version: release.get("tag_name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                release_notes: release.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                published_at: release.get("published_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            }
+        .map(|release| ChangelogEntry {
+            version: release
+                .get("tag_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            release_notes: release
+                .get("body")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            published_at: release
+                .get("published_at")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
         })
         .collect();
 
@@ -554,15 +617,13 @@ pub async fn check_dependencies(app: AppHandle) -> AppResult<Value> {
     };
 
     #[allow(unused_mut)]
-    let mut deps = vec![
-        serde_json::json!({
-            "name": "FFmpeg",
-            "command": "ffmpeg",
-            "installed": has_ffmpeg,
-            "required": true,
-            "description": "Required for screen recording and video processing"
-        }),
-    ];
+    let mut deps = vec![serde_json::json!({
+        "name": "FFmpeg",
+        "command": "ffmpeg",
+        "installed": has_ffmpeg,
+        "required": true,
+        "description": "Required for screen recording and video processing"
+    })];
 
     #[cfg(target_os = "linux")]
     {
@@ -627,7 +688,8 @@ pub async fn check_dependencies(app: AppHandle) -> AppResult<Value> {
 
 /// Generate a platform-specific install command for missing dependencies
 fn get_install_command(deps: &[Value]) -> String {
-    let missing: Vec<&str> = deps.iter()
+    let missing: Vec<&str> = deps
+        .iter()
         .filter(|d| {
             let installed = d.get("installed").and_then(|v| v.as_bool()).unwrap_or(true);
             !installed
@@ -643,7 +705,7 @@ fn get_install_command(deps: &[Value]) -> String {
 
     #[cfg(target_os = "macos")]
     {
-        return format!("brew install {}", _packages);
+        format!("brew install {}", _packages)
     }
 
     #[cfg(target_os = "linux")]
@@ -678,7 +740,10 @@ fn get_install_command(deps: &[Value]) -> String {
 #[tauri::command]
 pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
     let deps = check_dependencies(app.clone()).await?;
-    let all_installed = deps.get("allInstalled").and_then(|v| v.as_bool()).unwrap_or(true);
+    let all_installed = deps
+        .get("allInstalled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
 
     if all_installed {
         return Ok(serde_json::json!({
@@ -687,7 +752,8 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
         }));
     }
 
-    let install_cmd = deps.get("installCommand")
+    let install_cmd = deps
+        .get("installCommand")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
@@ -711,7 +777,7 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-        return Ok(serde_json::json!({
+        Ok(serde_json::json!({
             "success": output.status.success(),
             "message": if output.status.success() {
                 "Dependencies installed successfully. Please restart Flowtake."
@@ -721,7 +787,7 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
             "stdout": stdout,
             "stderr": stderr,
             "command": install_cmd
-        }));
+        }))
     }
 
     #[cfg(target_os = "linux")]

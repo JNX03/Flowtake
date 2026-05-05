@@ -22,9 +22,7 @@ pub async fn set_content_protection(app: AppHandle, enabled: bool) -> AppResult<
         .store("store.json")
         .map_err(|e| AppError::General(e.to_string()))?;
     store.set("contentProtectionEnabled", Value::Bool(enabled));
-    store
-        .save()
-        .map_err(|e| AppError::General(e.to_string()))?;
+    store.save().map_err(|e| AppError::General(e.to_string()))?;
 
     // Apply to every existing window except drawingOverlay
     for (label, window) in app.webview_windows() {
@@ -38,17 +36,16 @@ pub async fn set_content_protection(app: AppHandle, enabled: bool) -> AppResult<
 }
 
 #[cfg(target_os = "windows")]
-use windows::Win32::Foundation::{HWND, LPARAM};
-#[cfg(target_os = "windows")]
 use windows::core::BOOL;
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextW, GetWindowTextLengthW,
-    GetWindowThreadProcessId,
-    SystemParametersInfoW, SPI_GETWORKAREA,
-};
-#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::RECT;
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::{HWND, LPARAM};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, SystemParametersInfoW,
+    SPI_GETWORKAREA,
+};
 
 #[cfg(target_os = "macos")]
 use core_foundation::array::{CFArray, CFArrayRef};
@@ -120,7 +117,12 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
             } else {
                 if let Some(monitor) = monitors.first() {
                     let size = monitor.size();
-                    (0.0, 0.0, size.width as f64 / scale, size.height as f64 / scale)
+                    (
+                        0.0,
+                        0.0,
+                        size.width as f64 / scale,
+                        size.height as f64 / scale,
+                    )
                 } else {
                     (0.0, 0.0, 1920.0, 1080.0)
                 }
@@ -131,7 +133,12 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
         {
             if let Some(monitor) = monitors.first() {
                 let size = monitor.size();
-                (0.0, 0.0, size.width as f64 / scale, size.height as f64 / scale)
+                (
+                    0.0,
+                    0.0,
+                    size.width as f64 / scale,
+                    size.height as f64 / scale,
+                )
             } else {
                 (0.0, 0.0, 1920.0, 1080.0)
             }
@@ -143,7 +150,13 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     capture_desktop_screenshot(&app).await.ok();
 
-    log::info!("[window_picker] Overlay area: {}x{} at ({}, {})", overlay_w, overlay_h, overlay_x, overlay_y);
+    log::info!(
+        "[window_picker] Overlay area: {}x{} at ({}, {})",
+        overlay_w,
+        overlay_h,
+        overlay_x,
+        overlay_y
+    );
 
     // Transparent overlay with window outlines (excludes taskbar)
     let _window = WebviewWindowBuilder::new(
@@ -230,7 +243,17 @@ fn capture_desktop_to_bmp(screenshot_path: &std::path::Path) -> Result<(), Strin
         let hbmp = CreateCompatibleBitmap(hdc_screen, width, height);
         let old_obj = SelectObject(hdc_mem, hbmp.into());
 
-        let _ = BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_screen), 0, 0, SRCCOPY);
+        let _ = BitBlt(
+            hdc_mem,
+            0,
+            0,
+            width,
+            height,
+            Some(hdc_screen),
+            0,
+            0,
+            SRCCOPY,
+        );
 
         // Extract 24-bit BGR pixel data in bottom-up order (native BMP layout)
         let row_stride = ((width as usize * 3) + 3) & !3usize;
@@ -255,9 +278,13 @@ fn capture_desktop_to_bmp(screenshot_path: &std::path::Path) -> Result<(), Strin
         };
 
         GetDIBits(
-            hdc_mem, hbmp, 0, height as u32,
+            hdc_mem,
+            hbmp,
+            0,
+            height as u32,
             Some(pixels.as_mut_ptr() as *mut _),
-            &mut bmi, DIB_RGB_COLORS,
+            &mut bmi,
+            DIB_RGB_COLORS,
         );
 
         SelectObject(hdc_mem, old_obj);
@@ -291,8 +318,7 @@ fn capture_desktop_to_bmp(screenshot_path: &std::path::Path) -> Result<(), Strin
 
         bmp.extend_from_slice(&pixels);
 
-        std::fs::write(screenshot_path, &bmp)
-            .map_err(|e| format!("Write BMP failed: {e}"))?;
+        std::fs::write(screenshot_path, &bmp).map_err(|e| format!("Write BMP failed: {e}"))?;
 
         Ok(())
     }
@@ -320,11 +346,11 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
     {
         let screenshot_path = temp_dir.join("picker_bg.png");
         let screenshot_str = screenshot_path.to_string_lossy().to_string();
-        let output = tokio::process::Command::new("screencapture")
-            .args(["-x", &screenshot_str])
-            .output()
-            .await
-            .map_err(|e| AppError::General(format!("screencapture error: {}", e)))?;
+        let output = super::run_macos_screencapture(
+            &["-x", &screenshot_str],
+            std::time::Duration::from_secs(5),
+        )
+        .await?;
 
         if !output.status.success() {
             return Err(AppError::General(format!(
@@ -333,7 +359,7 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
             )));
         }
 
-        return Ok(());
+        Ok(())
     }
 
     // FFmpeg-based capture for Linux
@@ -345,8 +371,20 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
         let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
         let display_input = format!("{}+0,0", display);
         let args = vec![
-            "-y", "-f", "x11grab", "-framerate", "1", "-draw_mouse", "0",
-            "-i", &display_input, "-frames:v", "1", "-update", "true", &screenshot_str,
+            "-y",
+            "-f",
+            "x11grab",
+            "-framerate",
+            "1",
+            "-draw_mouse",
+            "0",
+            "-i",
+            &display_input,
+            "-frames:v",
+            "1",
+            "-update",
+            "true",
+            &screenshot_str,
         ];
 
         let output = super::ffmpeg_from_app(app)?
@@ -356,7 +394,10 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
             .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))?;
 
         if !output.status.success() {
-            log::warn!("[FFmpeg picker bg] stderr: {}", String::from_utf8_lossy(&output.stderr));
+            log::warn!(
+                "[FFmpeg picker bg] stderr: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
         Ok(())
     }
@@ -445,11 +486,9 @@ pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
     let our_pid = std::process::id();
 
     // Platform-specific window enumeration
-    let output = tauri::async_runtime::spawn(async move {
-        enumerate_windows_platform(our_pid)
-    })
-    .await
-    .unwrap_or(Value::Array(vec![]));
+    let output = tauri::async_runtime::spawn(async move { enumerate_windows_platform(our_pid) })
+        .await
+        .unwrap_or(Value::Array(vec![]));
 
     // Ensure it's always an array
     let windows = match output {
@@ -646,16 +685,19 @@ pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
 pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<Value> {
     #[cfg(target_os = "windows")]
     {
+        use std::sync::Mutex as StdMutex;
         use windows::Win32::UI::WindowsAndMessaging::{
             EnumWindows, GetWindowRect, IsWindowVisible as WinIsVisible,
         };
-        use std::sync::Mutex as StdMutex;
 
         let our_pid = std::process::id();
         let flowtake_titles: Vec<String> = vec![
-            "flowtake".into(), "select window - flowtake".into(),
-            "window picker - flowtake".into(), "recording - flowtake".into(),
-            "select area".into(), "select area - flowtake".into(),
+            "flowtake".into(),
+            "select window - flowtake".into(),
+            "window picker - flowtake".into(),
+            "recording - flowtake".into(),
+            "select area".into(),
+            "select area - flowtake".into(),
         ];
 
         // Shared result - first matching window found
@@ -671,7 +713,11 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
         }
 
         let data = Box::new(CallbackData {
-            x, y, our_pid, flowtake_titles, result: result.clone(),
+            x,
+            y,
+            our_pid,
+            flowtake_titles,
+            result: result.clone(),
         });
         let data_ptr = Box::into_raw(data);
 
@@ -697,7 +743,9 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
 
             // Get title
             let len = GetWindowTextLengthW(hwnd);
-            if len == 0 { return BOOL(1); }
+            if len == 0 {
+                return BOOL(1);
+            }
             let mut buf = vec![0u16; (len + 1) as usize];
             GetWindowTextW(hwnd, &mut buf);
             let title = String::from_utf16_lossy(&buf[..len as usize]);
@@ -716,11 +764,16 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
             let _ = GetWindowRect(hwnd, &mut rect);
             let w = rect.right - rect.left;
             let h = rect.bottom - rect.top;
-            if w <= 0 || h <= 0 { return BOOL(1); }
+            if w <= 0 || h <= 0 {
+                return BOOL(1);
+            }
 
             // Check if point is inside this window's rect
-            if data.x >= rect.left && data.x < rect.right &&
-               data.y >= rect.top && data.y < rect.bottom {
+            if data.x >= rect.left
+                && data.x < rect.right
+                && data.y >= rect.top
+                && data.y < rect.bottom
+            {
                 // Clamp to avoid negative coords (invisible window borders)
                 let cx = rect.left.max(0);
                 let cy = rect.top.max(0);
@@ -743,10 +796,7 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
         }
 
         unsafe {
-            let _ = EnumWindows(
-                Some(enum_callback),
-                LPARAM(data_ptr as isize),
-            );
+            let _ = EnumWindows(Some(enum_callback), LPARAM(data_ptr as isize));
             // Clean up
             drop(Box::from_raw(data_ptr));
         }
@@ -824,7 +874,10 @@ fn enumerate_windows_platform(our_pid: u32) -> Value {
 #[cfg(target_os = "windows")]
 fn enumerate_windows_windows(our_pid: u32) -> Value {
     let pid_line = format!("$appPid = [uint32]{}", our_pid);
-    let ps_script = format!("{}\n{}", pid_line, r#"
+    let ps_script = format!(
+        "{}\n{}",
+        pid_line,
+        r#"
 $allPids = New-Object 'System.Collections.Generic.HashSet[uint32]'
 [void]$allPids.Add($appPid)
 $procs = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId 2>$null
@@ -908,7 +961,8 @@ public class WinEnum {
 $windows = [WinEnum]::GetVisibleWindows($pidArray)
 if ($windows -eq $null) { $windows = @() }
 ConvertTo-Json -InputObject @($windows) -Depth 3
-"#);
+"#
+    );
 
     use std::os::windows::process::CommandExt;
     let output = std::process::Command::new("powershell")
@@ -936,7 +990,10 @@ ConvertTo-Json -InputObject @($windows) -Depth 3
 }
 
 #[cfg(target_os = "macos")]
-fn cf_dict_raw_lookup(dict: CFDictionaryRef, key: &'static str) -> Option<*const core::ffi::c_void> {
+fn cf_dict_raw_lookup(
+    dict: CFDictionaryRef,
+    key: &'static str,
+) -> Option<*const core::ffi::c_void> {
     let cf_key = CFString::from_static_string(key);
     let mut value: *const core::ffi::c_void = core::ptr::null();
     let present = unsafe { CFDictionaryGetValueIfPresent(dict, cf_key.to_void(), &mut value) };
@@ -1119,9 +1176,7 @@ fn enumerate_windows_macos(our_pid: u32) -> Value {
 fn enumerate_windows_linux(our_pid: u32) -> Value {
     // Use wmctrl -lGp for window enumeration (widely available on X11)
     // Format: <wid> <desktop> <pid> <x> <y> <w> <h> <hostname> <title>
-    let output = std::process::Command::new("wmctrl")
-        .args(["-lGp"])
-        .output();
+    let output = std::process::Command::new("wmctrl").args(["-lGp"]).output();
 
     match output {
         Ok(out) => {
@@ -1170,7 +1225,10 @@ fn enumerate_windows_linux(our_pid: u32) -> Value {
             Value::Array(windows)
         }
         Err(e) => {
-            log::warn!("[get_windows] wmctrl not available: {}. Trying xdotool...", e);
+            log::warn!(
+                "[get_windows] wmctrl not available: {}. Trying xdotool...",
+                e
+            );
             // Fallback: try xdotool
             enumerate_windows_linux_xdotool(our_pid)
         }
