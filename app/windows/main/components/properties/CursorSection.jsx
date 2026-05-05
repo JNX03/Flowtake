@@ -7,7 +7,8 @@ import {
 import {
     formatFixed,
     formatMs,
-    formatPercent
+    formatPercent,
+    formatPx
 } from "@shared/helpers"
 import { withGroup } from "@shared/redux/actionEnhancers"
 import {
@@ -16,11 +17,19 @@ import {
     selectInertia,
     selectIsLoop,
     selectShowClickRing,
+    selectShowSpotlight,
+    selectSpotlightFeather,
+    selectSpotlightOpacity,
+    selectSpotlightRadius,
     setBlurStrength,
     setCutOff,
     setInertia,
     setIsLoop,
-    setShowClickRing
+    setShowClickRing,
+    setShowSpotlight,
+    setSpotlightFeather,
+    setSpotlightOpacity,
+    setSpotlightRadius
 } from "@shared/redux/cursorCoordsSlice"
 import { selectIsStatic, setIsStatic } from "@shared/redux/cursorTypeSlice"
 import {
@@ -53,6 +62,10 @@ export default function CursorSection() {
     const cursorShadowAlpha = useSelector(selectCursorShadowAlpha)
     const cursorMovementRotation = useSelector(selectCursorMovementRotation)
     const showClickRing = useSelector(selectShowClickRing)
+    const showSpotlight = useSelector(selectShowSpotlight)
+    const spotlightRadius = useSelector(selectSpotlightRadius)
+    const spotlightOpacity = useSelector(selectSpotlightOpacity)
+    const spotlightFeather = useSelector(selectSpotlightFeather)
 
     const onChangeCursorScale = useCallback((value, group) => dispatch(withGroup(setCursorScale(value), group)), [dispatch])
 
@@ -77,6 +90,14 @@ export default function CursorSection() {
 
     const onChangeShowClickRing = useCallback(event => dispatch(setShowClickRing(event.target.checked)), [dispatch])
 
+    const onChangeShowSpotlight = useCallback(event => dispatch(setShowSpotlight(event.target.checked)), [dispatch])
+
+    const onChangeSpotlightRadius = useCallback((value, group) => dispatch(withGroup(setSpotlightRadius(value), group)), [dispatch])
+
+    const onChangeSpotlightOpacity = useCallback((value, group) => dispatch(withGroup(setSpotlightOpacity(value), group)), [dispatch])
+
+    const onChangeSpotlightFeather = useCallback((value, group) => dispatch(withGroup(setSpotlightFeather(value), group)), [dispatch])
+
     return (
         <Card icon={<CursorArrowRippleIcon className="w-6 h-6" />} title="Cursor">
             <>
@@ -90,6 +111,18 @@ export default function CursorSection() {
 
                 <Fieldset legend="Click Ring" description="Show a yellow ring effect around the cursor on mouse clicks. Individual click rings can be further customized in the timeline.">
                     <Toggle leftLabel="Click Ring" value={showClickRing} onChange={onChangeShowClickRing} />
+                </Fieldset>
+
+                <Fieldset legend="Spotlight Effect" description="Darkens the screen while keeping a circular area around the cursor visible.">
+                    <Toggle leftLabel="Spotlight" value={showSpotlight} onChange={onChangeShowSpotlight} />
+                    {showSpotlight && <>
+                        <Slider min={60} max={360} value={spotlightRadius} onChange={onChangeSpotlightRadius}
+                            label="Radius" format={formatPx} />
+                        <Slider value={spotlightOpacity} onChange={onChangeSpotlightOpacity}
+                            label="Opacity" format={formatPercent} />
+                        <Slider min={0} max={180} value={spotlightFeather} onChange={onChangeSpotlightFeather}
+                            label="Feather" format={formatPx} />
+                    </>}
                 </Fieldset>
 
                 <Fieldset legend="Smoothing" description="Cursor Smoothing removes jittery movements but can also remove some fidelity, e.g. near mouse clicks.">

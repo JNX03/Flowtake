@@ -40,6 +40,7 @@ import OverlayAnimator from "./overlay/OverlayAnimator"
 import PanAnimator from "./pan/PanAnimator"
 import Screen from "./Screen"
 import SpatialAnimator from "./spatial/SpatialAnimator"
+import SpotlightAnimator from "./spotlight/SpotlightAnimator"
 import SubtitleAnimator from "./subtitle/SubtitleAnimator"
 import TransitionAnimator from "./transition/TransitionAnimator"
 import ZoomAnimator from "./zoom/ZoomAnimator"
@@ -115,6 +116,8 @@ export default class Scene {
         this.clickAnimator = new ClickAnimator(this.cursorImageContainer, this.cursorContainer)
 
         this.cursorAnimator = new CursorAnimator(this.cursorContainer, this.motionBlur, mouseEvents, this.screen.dims, duration)
+
+        this.spotlightAnimator = new SpotlightAnimator(this.screen.spotlightContainer, this.cursorContainer, this.screen.dims)
 
         this.panAnimator = new PanAnimator(this.screen.container, this.zoomBlur, this.screen.dims, duration)
 
@@ -240,6 +243,7 @@ export default class Scene {
 
         this.clickAnimator?.update(this.time)
         this.cursorAnimator?.update(this.time)
+        this.spotlightAnimator?.update()
         this.subtitleAnimator?.update(this.time)
         this.cursorTypeAnimator?.update(this.time)
         const clipFrame = this.clipAnimator?.update(this.time)

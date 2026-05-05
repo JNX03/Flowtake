@@ -73,24 +73,29 @@ export default class PreviewScene extends Scene {
                 this.screen.setState({ leftTrim: payload })
                 this.zoomAnimator.setState({ leftTrim: payload })
                 this.panAnimator.setState({ leftTrim: payload })
+                this.spotlightAnimator.setState({ leftTrim: payload })
                 break
             case 'project.rightTrim':
                 this.screen.setState({ rightTrim: payload })
                 this.zoomAnimator.setState({ rightTrim: payload })
                 this.panAnimator.setState({ rightTrim: payload })
+                this.spotlightAnimator.setState({ rightTrim: payload })
                 break
             case 'project.topTrim':
                 this.screen.setState({ topTrim: payload })
                 this.zoomAnimator.setState({ topTrim: payload })
                 this.panAnimator.setState({ topTrim: payload })
+                this.spotlightAnimator.setState({ topTrim: payload })
                 break
             case 'project.bottomTrim':
                 this.screen.setState({ bottomTrim: payload })
                 this.zoomAnimator.setState({ bottomTrim: payload })
                 this.panAnimator.setState({ bottomTrim: payload })
+                this.spotlightAnimator.setState({ bottomTrim: payload })
                 break
             case 'project.borderRadius':
                 this.screen.setState({ borderRadius: payload })
+                this.spotlightAnimator.setState({ borderRadius: payload })
                 break
             case 'cursorCoords.inertia':
                 this.cursorAnimator.setState({ inertia: payload })
@@ -107,6 +112,18 @@ export default class PreviewScene extends Scene {
                 break
             case 'cursorCoords.showClickRing':
                 this.clickAnimator.setState({ showClickRing: payload })
+                break
+            case 'cursorCoords.showSpotlight':
+                this.spotlightAnimator.setState({ showSpotlight: payload })
+                break
+            case 'cursorCoords.spotlightRadius':
+                this.spotlightAnimator.setState({ radius: payload })
+                break
+            case 'cursorCoords.spotlightOpacity':
+                this.spotlightAnimator.setState({ opacity: payload })
+                break
+            case 'cursorCoords.spotlightFeather':
+                this.spotlightAnimator.setState({ feather: payload })
                 break
             case 'project.cursorMovementRotation':
                 this.cursorAnimator.setState({ rotationStrength: payload })
