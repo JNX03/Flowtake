@@ -624,11 +624,18 @@ export default function Preview() {
     }, [manager, isPlaying])
 
     return (
-        <div ref={ref} data-drop-zone="preview" className="flex-1 min-w-[320px] flex items-center justify-center flex-col relative group">
-            <canvas ref={canvasRef} className="rounded-md shadow-lg overflow-hidden cursor-none" />
-            <OverlayCanvas canvasRect={canvasRect} />
-            <div className={`absolute flex items-center px-2 py-1.5 sm:px-3 sm:py-2 bg-base-300/50 backdrop-blur-xs rounded-xl shadow-lg ${isPlaying ? "opacity-0 bottom-0" : "opacity-100 bottom-2"} transition-all group-hover:opacity-100 group-hover:bottom-2`}>
-                <div className="join">
+        <div className="flowtake-preview flex-1 min-w-[320px] min-h-0 flex flex-col relative">
+            <div className="flowtake-preview__chrome h-10 shrink-0 flex items-center justify-center">
+                <div className="flowtake-preview__toolbar inline-flex items-center gap-2 px-2 py-1 rounded-full bg-base-100/90">
+                    <AspectRatioDropdown />
+                </div>
+            </div>
+            <div ref={ref} data-drop-zone="preview" className="flowtake-preview__stage flex-1 min-h-0 flex items-center justify-center relative group px-4 py-3">
+                <canvas ref={canvasRef} className="flowtake-preview__canvas rounded-xl overflow-hidden cursor-none bg-black" />
+                <OverlayCanvas canvasRect={canvasRect} />
+            </div>
+            <div className="flowtake-preview__controls h-12 shrink-0 flex items-center justify-center gap-2">
+                <div className="join shadow-sm">
                     {!isPlaying && <button onClick={onPlay} disabled={!videoDetails || time >= videoDetails.end}
                         className="btn btn-sm join-item">
                         <PlayIcon className="h-5 w-5" />
@@ -642,13 +649,10 @@ export default function Preview() {
                 </div>
                 {(hasMicrophoneAudio || hasSystemAudio) &&
                     <button onClick={onToggleSound}
-                        className={`btn btn-sm ml-2 swap swap-flip ${isMuted ? "swap-active" : ""}`}>
+                        className={`btn btn-sm swap swap-flip shadow-sm ${isMuted ? "swap-active" : ""}`}>
                         <SpeakerXMarkIcon className="size-4 swap-on" />
                         <SpeakerWaveIcon className="size-4 swap-off" />
                     </button>}
-
-                <AspectRatioDropdown />
-
             </div>
             <VideoWrapper screenVideoRef={screenVideoRef} cameraVideoRef={cameraVideoRef} />
         </div>

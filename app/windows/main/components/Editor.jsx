@@ -40,8 +40,8 @@ import SettingsButton from "./titleBar/SettingsButton"
 import UndoButton from "./titleBar/UndoButton"
 
 function getViewport(w) {
-    if (w >= 1280) return { propertiesMode: "docked", propertiesWidth: 320 }
-    if (w >= 900) return { propertiesMode: "docked", propertiesWidth: 280 }
+    if (w >= 1280) return { propertiesMode: "docked", propertiesWidth: 332 }
+    if (w >= 900) return { propertiesMode: "docked", propertiesWidth: 292 }
     return { propertiesMode: "drawer", propertiesWidth: 320 }
 }
 
@@ -54,7 +54,7 @@ export default function Editor() {
     const duration = useSelector(selectDuration)
     const mouseEvents = useSelector(selectMouseEvents)
     const name = useSelector(selectName)
-    const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(true)
+    const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(false)
     const [isFileDragOver, setIsFileDragOver] = useState(false)
     const [viewport, setViewport] = useState(() => getViewport(typeof window !== "undefined" ? window.innerWidth : 1280))
     const [isPropertiesDrawerOpen, setIsPropertiesDrawerOpen] = useState(false)
@@ -148,8 +148,9 @@ export default function Editor() {
         })
     }, [])
 
-    return (<>
-        <TitleBar overlayButtons={3} subtitle={name} >
+    return (
+        <div data-theme="flowtake-studio" className="flowtake-editor h-full text-base-content">
+        <TitleBar overlayButtons={3} subtitle={name} variant="studio" >
             <div className="flex items-center gap-0.5">
                 <SaveIndicator />
                 <UndoButton />
@@ -170,22 +171,22 @@ export default function Editor() {
                 <SettingsButton />
             </div>
         </TitleBar>
-        <div className="bg-base-300 flex flex-col h-full relative overflow-hidden"
+        <div className="flowtake-editor__workspace bg-base-300 flex flex-col h-full relative overflow-hidden"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}>
-            {/* Top section: Assets | Preview | Properties */}
-            <div className="pt-1 px-1.5 flex gap-1.5 flex-1 overflow-hidden min-h-0 relative">
-                <AssetPanel
-                    isOpen={isAssetPanelOpen}
-                    onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
-                />
-                <Preview />
+            {/* Top section: Properties | Preview | Assets */}
+            <div className="flowtake-editor__main pt-2 px-2 pb-1 flex gap-2 flex-1 overflow-hidden min-h-0 relative">
                 <Properties
                     mode={viewport.propertiesMode}
                     panelWidth={viewport.propertiesWidth}
                     isDrawerOpen={isPropertiesDrawerOpen}
                     onDrawerChange={setIsPropertiesDrawerOpen}
+                />
+                <Preview />
+                <AssetPanel
+                    isOpen={isAssetPanelOpen}
+                    onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
                 />
             </div>
             {/* Bottom section: Timeline */}
@@ -196,13 +197,14 @@ export default function Editor() {
 
             {/* File drag-and-drop overlay */}
             {isFileDragOver && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-base-300/80 backdrop-blur-sm pointer-events-none">
-                    <div className="border-2 border-dashed border-primary/60 rounded-2xl p-12 bg-primary/5">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-base-300/75 backdrop-blur-sm pointer-events-none">
+                    <div className="border-2 border-dashed border-primary/50 rounded-xl p-12 bg-base-100/85 shadow-xl">
                         <p className="text-lg font-semibold text-primary">Drop media files here</p>
                         <p className="text-sm opacity-50 mt-1">Audio, images, and video files supported</p>
                     </div>
                 </div>
             )}
         </div>
-    </>)
+        </div>
+    )
 }

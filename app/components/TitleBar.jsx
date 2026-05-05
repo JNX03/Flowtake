@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import { useCallback } from 'react'
 import icon from "../shared/assets/logo.svg"
 
-function WindowControls() {
+function WindowControls({ variant = "default" }) {
     const minimize = useCallback(async () => {
         try { await getCurrentWindow().minimize() } catch (e) { console.warn('minimize failed', e) }
     }, [])
@@ -13,6 +13,34 @@ function WindowControls() {
     const close = useCallback(async () => {
         try { await getCurrentWindow().close() } catch (e) { console.warn('close failed', e) }
     }, [])
+
+    if (variant === "traffic") {
+        return (
+            <div className="flex items-center h-8 gap-2 px-3 flex-none">
+                <button
+                    type="button"
+                    onClick={close}
+                    aria-label="Close window"
+                    title="Close"
+                    className="size-3 rounded-full bg-[#ff5f57] border border-black/10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)]"
+                />
+                <button
+                    type="button"
+                    onClick={minimize}
+                    aria-label="Minimize window"
+                    title="Minimize"
+                    className="size-3 rounded-full bg-[#ffbd2e] border border-black/10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)]"
+                />
+                <button
+                    type="button"
+                    onClick={toggleMaximize}
+                    aria-label="Maximize window"
+                    title="Maximize"
+                    className="size-3 rounded-full bg-[#28c840] border border-black/10 shadow-[inset_0_-1px_0_rgba(0,0,0,0.12)]"
+                />
+            </div>
+        )
+    }
 
     return (
         <div className="flex items-center h-8 flex-none">
@@ -39,7 +67,30 @@ function WindowControls() {
     )
 }
 
-export default function TitleBar({ children, overlayButtons, title, subtitle, hideControls }) {
+WindowControls.propTypes = {
+    variant: PropTypes.oneOf(["default", "traffic"])
+}
+
+export default function TitleBar({ children, overlayButtons: _overlayButtons, title, subtitle, hideControls, variant = "default" }) {
+    if (variant === "studio") {
+        const displayTitle = subtitle || title || "Flowtake"
+
+        return (
+            <div className="fixed w-full top-0 z-10 h-8 flowtake-titlebar bg-base-100/95 text-base-content flex items-center">
+                {!hideControls ? <WindowControls variant="traffic" /> : <div className="w-24 flex-none" />}
+                <div className="flex-1 min-w-0 h-full flex items-center justify-center px-3" data-tauri-drag-region>
+                    <h1 className="font-brand text-sm font-semibold max-w-full truncate">
+                        <span>{displayTitle}</span>
+                        <span className="font-normal text-base-content/40 ml-1">.flowtake</span>
+                    </h1>
+                </div>
+                <div className="flex items-center gap-0.5 pr-2 relative z-10">
+                    {children}
+                </div>
+            </div>
+        )
+    }
+
     return (
         <>
             <div className="fixed w-full top-0 z-10 bg-base-300 flex gap-2 h-8">
@@ -74,5 +125,6 @@ TitleBar.propTypes = {
     overlayButtons: PropTypes.oneOf([1, 2, 3]),
     title: PropTypes.string,
     subtitle: PropTypes.string,
-    hideControls: PropTypes.bool
+    hideControls: PropTypes.bool,
+    variant: PropTypes.oneOf(["default", "studio"])
 }

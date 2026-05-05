@@ -288,7 +288,7 @@ export default function TimelineToolbar({ zoomSteps, onFitToView }) {
     useHotkeys('mod+d', handleDuplicate, { enabled: areHotkeysEnabled && hasSelection && !isPlaying, preventDefault: true }, [handleDuplicate])
 
     return (
-        <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-base-content/10 shrink-0">
+        <div className="flowtake-timeline-toolbar flex items-center gap-0.5 px-2 py-1.5 border-b border-base-content/10 shrink-0">
             {/* Undo / Redo */}
             <button onClick={handleUndo}
                 className="btn btn-ghost btn-xs btn-square tooltip tooltip-bottom" data-tip="Undo">

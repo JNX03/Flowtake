@@ -76,7 +76,7 @@ function SidebarButton({ active, onClick, label, children }) {
             onClick={onClick}
             aria-label={label}
             data-tip={label}
-            className={`tooltip tooltip-left relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
+            className={`flowtake-sidebar-button tooltip tooltip-right relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
                 ${active
                     ? "bg-base-content/10 text-primary"
                     : "text-base-content/70 hover:bg-base-content/5 hover:text-base-content"}`}
@@ -163,7 +163,7 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
     }, [isDrawer, isDrawerOpen, onDrawerChange])
 
     const iconBar = (
-        <nav className="w-11 shrink-0 bg-base-100 rounded-lg flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar">
+        <nav className="flowtake-icon-rail w-12 shrink-0 bg-base-100 rounded-xl flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar">
             <SidebarButton label="Screen Recording" active={openSection === SCREEN_RECORDING} onClick={() => open(SCREEN_RECORDING)}>
                 <ComputerDesktopIcon className={ICON_CLS} />
             </SidebarButton>
@@ -229,7 +229,7 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
     )
 
     const contentPanel = (
-        <div className="h-full min-h-0 flex flex-col">
+        <div className="flowtake-properties-panel h-full min-h-0 flex flex-col">
             {isDrawer && (
                 <div className="flex items-center justify-between px-2 pt-2 shrink-0">
                     <span className="text-[11px] uppercase tracking-wider text-base-content/50 px-2">Properties</span>
@@ -270,11 +270,11 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
                 {isDrawerOpen && (
                     <>
                         <div
-                            className="absolute inset-0 bg-black/30 backdrop-blur-[1px] z-10 transition-opacity"
+                            className="absolute inset-0 bg-base-content/20 backdrop-blur-[1px] z-10 transition-opacity"
                             onClick={() => onDrawerChange?.(false)}
                         />
                         <div
-                            className="absolute right-0 top-0 bottom-0 z-20 shadow-2xl bg-base-100 rounded-l-lg overflow-hidden"
+                            className="flowtake-panel absolute left-14 top-0 bottom-0 z-20 bg-base-100 rounded-xl overflow-hidden"
                             style={{ width: `min(${panelWidth}px, calc(100vw - 60px))` }}
                         >
                             {contentPanel}
@@ -287,8 +287,8 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
 
     return (
         <div
-            className="shrink-0 relative h-full flex flex-row gap-1.5 transition-[width] duration-200"
-            style={{ width: `calc(${panelWidth}px + 2.75rem + 0.375rem)` }}
+            className="shrink-0 relative h-full flex flex-row gap-2 transition-[width] duration-200"
+            style={{ width: `calc(${panelWidth}px + 3rem + 0.5rem)` }}
         >
             {iconBar}
             <div className="flex-1 min-w-0 h-full">

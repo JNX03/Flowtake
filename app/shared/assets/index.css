@@ -212,6 +212,23 @@
     --color-error: "#ef4444";
 }
 
+/* === Flowtake Studio === */
+@plugin "daisyui/theme" {
+    name: "flowtake-studio";
+    preferslight: true;
+    --color-primary: "#2f64f5";
+    --color-accent: "#12a89a";
+    --color-secondary: "#7c5bd6";
+    --color-base-100: "#ffffff";
+    --color-base-200: "#f5f7fb";
+    --color-base-300: "#eaf0f7";
+    --color-base-content: "#222a37";
+    --color-info: "#2673e8";
+    --color-success: "#1f9f73";
+    --color-warning: "#c98213";
+    --color-error: "#d84c4c";
+}
+
 /* === Catppuccin Latte === */
 @plugin "daisyui/theme" {
     name: "catppuccin-latte";
@@ -338,6 +355,108 @@
     ::backdrop,
     ::file-selector-button {
         border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+@layer components {
+    .flowtake-editor {
+        color-scheme: light;
+        --editor-border: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+        --editor-soft-border: color-mix(in oklab, var(--color-base-content) 7%, transparent);
+        --editor-shadow-soft: 0 14px 34px rgba(34, 42, 55, 0.08);
+        --editor-shadow-lift: 0 24px 55px rgba(34, 42, 55, 0.12);
+    }
+
+    .flowtake-editor__workspace {
+        background:
+            linear-gradient(180deg, #f8faff 0%, #eef3f8 100%);
+    }
+
+    .flowtake-titlebar {
+        border-bottom: 1px solid var(--editor-soft-border);
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .flowtake-panel,
+    .flowtake-icon-rail,
+    .flowtake-asset-rail,
+    .flowtake-properties-card,
+    .flowtake-timeline-surface {
+        border: 1px solid var(--editor-soft-border);
+        box-shadow: var(--editor-shadow-soft);
+    }
+
+    .flowtake-icon-rail,
+    .flowtake-asset-rail {
+        background: rgba(255, 255, 255, 0.92);
+    }
+
+    .flowtake-sidebar-button {
+        min-width: 2.25rem;
+        min-height: 2.25rem;
+    }
+
+    .flowtake-sidebar-button:hover {
+        box-shadow: inset 0 0 0 1px var(--editor-soft-border);
+    }
+
+    .flowtake-properties-card {
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .flowtake-fieldset {
+        background: color-mix(in oklab, var(--color-base-200) 70%, transparent);
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+    }
+
+    .flowtake-preview__chrome {
+        color: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+    }
+
+    .flowtake-preview__toolbar {
+        border: 1px solid var(--editor-soft-border);
+        box-shadow: 0 8px 24px rgba(34, 42, 55, 0.06);
+    }
+
+    .flowtake-preview__stage {
+        border: 1px solid color-mix(in oklab, var(--color-base-content) 6%, transparent);
+        border-radius: 1rem;
+        background: color-mix(in oklab, var(--color-base-100) 62%, var(--color-base-200));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+
+    .flowtake-preview__canvas {
+        box-shadow: var(--editor-shadow-lift);
+    }
+
+    .flowtake-preview__controls {
+        color: color-mix(in oklab, var(--color-base-content) 80%, transparent);
+    }
+
+    .flowtake-timeline-surface {
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .flowtake-timeline-toolbar {
+        background: rgba(255, 255, 255, 0.86);
+    }
+
+    .flowtake-timeline-scroll {
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(245, 247, 251, 0.82));
+    }
+
+    .flowtake-editor .btn {
+        border-radius: 0.5rem;
+    }
+
+    .flowtake-editor .btn-square {
+        border-radius: 0.5rem;
+    }
+
+    .flowtake-editor .range {
+        accent-color: var(--color-primary);
     }
 }
 

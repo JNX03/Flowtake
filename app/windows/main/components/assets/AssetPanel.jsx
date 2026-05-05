@@ -148,12 +148,12 @@ export default function AssetPanel({ isOpen, onToggle }) {
 
     if (!isOpen) {
         return (
-            <div className="flex flex-col items-center gap-1 py-2 bg-base-100 rounded-lg shrink-0">
+            <div className="flowtake-asset-rail w-12 flex flex-col items-center gap-1 py-2 bg-base-100 rounded-xl shrink-0">
                 {TABS.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => { onToggle(); setActiveTab(tab.id) }}
-                        className="btn btn-ghost btn-xs btn-square tooltip tooltip-right"
+                        className="btn btn-ghost btn-xs btn-square tooltip tooltip-left"
                         data-tip={tab.label}
                     >
                         <tab.icon className="size-4" />
@@ -164,14 +164,14 @@ export default function AssetPanel({ isOpen, onToggle }) {
     }
 
     return (
-        <div className="w-56 bg-base-100 rounded-lg flex flex-col h-full shrink-0 overflow-hidden relative"
+        <div className="flowtake-panel w-60 bg-base-100 rounded-xl flex flex-col h-full shrink-0 overflow-hidden relative"
             onDragEnter={handlePanelDragEnter}
             onDragLeave={handlePanelDragLeave}
             onDragOver={handlePanelDragOver}
             onDrop={handlePanelDrop}
         >
             {isDraggingOver && (
-                <div className="absolute inset-0 z-50 bg-info/10 border-2 border-dashed border-info rounded-lg flex flex-col items-center justify-center gap-2 pointer-events-none">
+                <div className="absolute inset-0 z-50 bg-info/10 border-2 border-dashed border-info rounded-xl flex flex-col items-center justify-center gap-2 pointer-events-none">
                     <ArrowDownTrayIcon className="size-8 text-info animate-bounce" />
                     <span className="text-xs font-medium text-info">Drop files here</span>
                 </div>

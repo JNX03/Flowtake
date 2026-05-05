@@ -49,7 +49,7 @@ export default function Card({ icon, title, children, showClose }) {
     }
 
     return (
-        <div className="card card-sm bg-base-100 rounded-lg h-full overflow-hidden">
+        <div className="flowtake-properties-card bg-base-100 rounded-xl h-full overflow-hidden">
             <div className="flex flex-col h-full min-h-0">
                 <div className="flex items-center gap-2 px-4 pt-4 pb-2 shrink-0">
                     {icon && <span className={`shrink-0 ${accentColor()}`}>{icon}</span>}

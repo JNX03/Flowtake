@@ -385,8 +385,8 @@ export default function Timeline() {
     const mini = isMaskingModeEnabled
 
     return (
-        <div className="w-full p-2 flex-1 min-h-48 select-none">
-            <div className="flex flex-col h-full bg-base-100 rounded-lg relative z-0">
+        <div className="w-full px-2 pb-2 pt-1 shrink-0 h-[30vh] min-h-48 max-h-72 select-none">
+            <div className="flowtake-timeline-surface flex flex-col h-full bg-base-100 rounded-xl relative z-0 overflow-hidden">
 
                 {/* Toolbar */}
                 <TimelineToolbar zoomSteps={zoomSteps} onFitToView={handleFitToView} />
@@ -465,7 +465,7 @@ export default function Timeline() {
                     {/* Timeline tracks content */}
                     <div ref={container}
                         data-drop-zone="timeline"
-                        className={`flex-1 px-8 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar relative`}>
+                        className={`flowtake-timeline-scroll flex-1 px-8 ${isPlaying ? "overflow-x-hidden" : "overflow-x-auto scroll-smooth"} overflow-y-auto no-scrollbar relative`}>
                         {duration && <div ref={timeline} onClick={handleTimelineClick}
                             className="grid grid-cols-1 gap-1 relative bg-size-[100%_100%] z-0 min-h-full"
                             style={{ width: `${timelineWidth}px`, backgroundImage: getGridBackgroundImage(gridSpacing) }}>

@@ -35,15 +35,14 @@ export default function AspectRatioDropdown() {
         }
     }
 
-    return (<div className="ml-2 dropdown dropdown-top dropdown-center">
-        <div ref={aspectRatioButtonRef} tabIndex={0} role="button" className="btn btn-sm w-28">
+    return (<div className="dropdown dropdown-bottom dropdown-center">
+        <button ref={aspectRatioButtonRef} type="button" className="btn btn-sm w-28">
             {buttonContent(aspectRatio)}
-        </div>
-        <ul tabIndex={0} className="dropdown-content menu menu-sm bg-base-300 text-base-content rounded-lg z-1 w-28 shadow-sm">
+        </button>
+        <ul tabIndex={0} className="dropdown-content menu menu-sm bg-base-100 text-base-content rounded-lg z-50 w-28 shadow-xl border border-base-content/10">
             <li><button onClick={e => onClick(e, "16x9")}>{menuItemContent("16x9")}</button></li>
             <li><button onClick={e => onClick(e, "9x16")}>{menuItemContent("9x16")}</button></li>
             <li><button onClick={e => onClick(e, "1x1")}>{menuItemContent("1x1")}</button></li>
         </ul>
     </div>)
 }
-

@@ -2,7 +2,7 @@ import PropTypes from 'prop-types'
 
 export default function Fieldset({ legend, description, children }) {
     return (
-        <section className="flex flex-col">
+        <section className="flowtake-fieldset flex flex-col">
             {legend && (
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-base-content/60 mb-2">
                     {legend}
