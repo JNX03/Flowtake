@@ -45,7 +45,11 @@ import {
     selectCutOff,
     selectInertia,
     selectIsLoop,
-    selectShowClickRing
+    selectShowClickRing,
+    selectShowSpotlight,
+    selectSpotlightFeather,
+    selectSpotlightOpacity,
+    selectSpotlightRadius
 } from "@shared/redux/cursorCoordsSlice"
 import {
     selectAllCursorTypes,
@@ -195,6 +199,10 @@ export default function Preview() {
     const cursorIsLoop = useSelector(selectIsLoop)
     const clickAnims = useSelector(selectAllClicks)
     const showClickRing = useSelector(selectShowClickRing)
+    const showSpotlight = useSelector(selectShowSpotlight)
+    const spotlightRadius = useSelector(selectSpotlightRadius)
+    const spotlightOpacity = useSelector(selectSpotlightOpacity)
+    const spotlightFeather = useSelector(selectSpotlightFeather)
     const cursorScale = useSelector(selectCursorScale)
     const hasCameraVideo = useSelector(selectHasCameraVideo)
     const padding = useSelector(selectPadding)
@@ -498,6 +506,22 @@ export default function Preview() {
     useEffect(() => {
         manager?.postUpdate({ type: 'cursorCoords.showClickRing', payload: showClickRing })
     }, [manager, showClickRing])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'cursorCoords.showSpotlight', payload: showSpotlight })
+    }, [manager, showSpotlight])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'cursorCoords.spotlightRadius', payload: spotlightRadius })
+    }, [manager, spotlightRadius])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'cursorCoords.spotlightOpacity', payload: spotlightOpacity })
+    }, [manager, spotlightOpacity])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'cursorCoords.spotlightFeather', payload: spotlightFeather })
+    }, [manager, spotlightFeather])
 
     useEffect(() => {
         manager?.postUpdate({ type: 'project.cursorMovementRotation', payload: cursorRotationStrength })

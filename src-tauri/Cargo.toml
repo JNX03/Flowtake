@@ -71,6 +71,11 @@ cocoa = "0.26"
 x11 = { version = "2.21", features = ["xlib", "xrandr", "xrecord", "xinput"] }
 libpulse-binding = "2.28"
 
+[patch.crates-io]
+# tauri-utils still pulls kuchikiki -> selectors -> phf_generator 0.8.
+# Keep that old PHF API but move its RNG dependency onto patched rand 0.8.6.
+phf_generator = { path = "vendor/phf_generator-0.8.0" }
+
 [profile.release]
 opt-level = "z"
 lto = true

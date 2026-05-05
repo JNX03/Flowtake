@@ -25,7 +25,11 @@ import {
     selectCutOff,
     selectInertia,
     selectIsLoop,
-    selectShowClickRing
+    selectShowClickRing,
+    selectShowSpotlight,
+    selectSpotlightFeather,
+    selectSpotlightOpacity,
+    selectSpotlightRadius
 } from "../redux/cursorCoordsSlice"
 import {
     selectAllCursorTypes,
@@ -165,6 +169,10 @@ class WorkerRenderer {
                 cursorBlurStrength: selectBlurStrength(this.render.state),
                 cursorMovementRotation: selectCursorMovementRotation(this.render.state),
                 cursorScale: selectCursorScale(this.render.state),
+                showSpotlight: selectShowSpotlight(this.render.state),
+                spotlightRadius: selectSpotlightRadius(this.render.state),
+                spotlightOpacity: selectSpotlightOpacity(this.render.state),
+                spotlightFeather: selectSpotlightFeather(this.render.state),
                 padding: selectPadding(this.render.state),
                 shadowAlpha: selectShadowAlpha(this.render.state),
                 cameraVideoShadowAlpha: selectCameraVideoShadowAlpha(this.render.state),

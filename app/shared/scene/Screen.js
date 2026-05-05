@@ -30,9 +30,11 @@ export default class Screen extends CanvasWrapper {
         this.container.filters = [this.shadow]
         
         this.maskContainer = new Container()
+        this.spotlightContainer = new Container()
 
         this.container.addChild(this.fg)
         this.container.addChild(this.maskContainer)
+        this.container.addChild(this.spotlightContainer)
         this.container.addChild(cursorContainer)
         this.container.addChild(this.fg.mask)
     }

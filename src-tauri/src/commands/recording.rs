@@ -46,7 +46,11 @@ fn resolve_ffmpeg_path() -> Option<std::path::PathBuf> {
     }
 
     // Try plain name (with extension on Windows)
-    let plain_name = if cfg!(target_os = "windows") { "ffmpeg.exe" } else { "ffmpeg" };
+    let plain_name = if cfg!(target_os = "windows") {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
     let plain = dir.join(plain_name);
     if ffmpeg_binary_is_usable(&plain) {
         return Some(plain);
@@ -57,8 +61,8 @@ fn resolve_ffmpeg_path() -> Option<std::path::PathBuf> {
     #[cfg(target_os = "macos")]
     {
         for path in [
-            "/opt/homebrew/bin/ffmpeg",    // Apple Silicon Homebrew
-            "/usr/local/bin/ffmpeg",       // Intel Homebrew
+            "/opt/homebrew/bin/ffmpeg", // Apple Silicon Homebrew
+            "/usr/local/bin/ffmpeg",    // Intel Homebrew
         ] {
             let p = std::path::PathBuf::from(path);
             if ffmpeg_binary_is_usable(&p) {
@@ -133,7 +137,11 @@ fn ffmpeg_binary_is_usable(path: &std::path::Path) -> bool {
         Ok(output) => {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let reason = stderr.lines().next().unwrap_or("unknown error");
-            log::warn!("[ffmpeg] Skipping unusable candidate {:?}: {}", path, reason);
+            log::warn!(
+                "[ffmpeg] Skipping unusable candidate {:?}: {}",
+                path,
+                reason
+            );
             false
         }
         Err(err) => {
@@ -230,8 +238,7 @@ fn ffmpeg_encoder_available(encoder: &str) -> bool {
         .args(["-hide_banner", "-encoders"])
         .output()
         .map(|output| {
-            output.status.success()
-                && String::from_utf8_lossy(&output.stdout).contains(encoder)
+            output.status.success() && String::from_utf8_lossy(&output.stdout).contains(encoder)
         })
         .unwrap_or(false)
 }
@@ -315,7 +322,12 @@ fn macos_screen_device_index(monitor_index: i64) -> i64 {
                 } else {
                     screen_devices[0]
                 };
-                log::info!("[avfoundation] Screen device index {} for monitor {} (found {} screens)", idx, monitor_index, screen_devices.len());
+                log::info!(
+                    "[avfoundation] Screen device index {} for monitor {} (found {} screens)",
+                    idx,
+                    monitor_index,
+                    screen_devices.len()
+                );
                 return idx;
             }
         }
@@ -351,7 +363,17 @@ fn capture_window_frame(hwnd_raw: isize, width: i32, height: i32, buffer: &mut [
 
         if !success.as_bool() {
             // Fallback to BitBlt from window DC (works for most GDI windows)
-            let _ = BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_window), 0, 0, SRCCOPY);
+            let _ = BitBlt(
+                hdc_mem,
+                0,
+                0,
+                width,
+                height,
+                Some(hdc_window),
+                0,
+                0,
+                SRCCOPY,
+            );
         }
 
         // Extract bitmap data as BGRA (top-down)
@@ -410,7 +432,9 @@ fn window_capture_loop(
 
     log::info!(
         "[capture_loop] Starting window capture: hwnd={} {}x{}",
-        hwnd, width, height
+        hwnd,
+        width,
+        height
     );
 
     while !stop_flag.load(Ordering::Relaxed) {
@@ -453,7 +477,17 @@ fn screenshot_window_printwindow(hwnd_raw: isize, width: i32, height: i32) -> Op
 
         let success = PrintWindow(hwnd, hdc_mem, PRINT_WINDOW_FLAGS(2));
         if !success.as_bool() {
-            let _ = BitBlt(hdc_mem, 0, 0, width, height, Some(hdc_window), 0, 0, SRCCOPY);
+            let _ = BitBlt(
+                hdc_mem,
+                0,
+                0,
+                width,
+                height,
+                Some(hdc_window),
+                0,
+                0,
+                SRCCOPY,
+            );
         }
 
         // Extract as BMP-style BGRA data (top-down)
@@ -574,7 +608,8 @@ pub async fn init_recording(
         let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
         if session_type == "wayland" && std::env::var("DISPLAY").is_err() {
             return Err(AppError::General(
-                "Screen recording requires X11 or XWayland. Pure Wayland is not yet supported.".into(),
+                "Screen recording requires X11 or XWayland. Pure Wayland is not yet supported."
+                    .into(),
             ));
         }
     }
@@ -586,7 +621,10 @@ pub async fn init_recording(
         let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
         let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
         let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
-        let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
+        let h = source
+            .get("height")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(1080);
         let w = (w - (w % 2)).max(2);
         let h = (h - (h % 2)).max(2);
 
@@ -600,7 +638,11 @@ pub async fn init_recording(
 
             log::info!(
                 "[recording] window PrintWindow capture: hwnd={} x={} y={} w={} h={}",
-                hwnd_str, x, y, w, h
+                hwnd_str,
+                x,
+                y,
+                w,
+                h
             );
 
             // FFmpeg reads raw BGRA frames from stdin pipe (Windows PrintWindow API)
@@ -623,7 +665,10 @@ pub async fn init_recording(
         {
             log::info!(
                 "[recording] window capture via avfoundation+crop: x={} y={} w={} h={}",
-                x, y, w, h
+                x,
+                y,
+                w,
+                h
             );
 
             // Use avfoundation screen capture + crop to window region
@@ -651,7 +696,10 @@ pub async fn init_recording(
 
             log::info!(
                 "[recording] window capture via x11grab: x={} y={} w={} h={}",
-                x, y, w, h
+                x,
+                y,
+                w,
+                h
             );
 
             // Use x11grab with offset+video_size to capture window region
@@ -719,8 +767,14 @@ pub async fn init_recording(
             "area" => {
                 let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
-                let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let w_pct = source
+                    .get("width")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(100.0);
+                let h_pct = source
+                    .get("height")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(100.0);
 
                 let x = (x_pct / 100.0 * screen_w) as i64;
                 let y = (y_pct / 100.0 * screen_h) as i64;
@@ -787,13 +841,23 @@ pub async fn init_recording(
                 // On Windows, use physical pixels for gdigrab; on other platforms use logical
                 #[cfg(target_os = "windows")]
                 let (monitor_x, monitor_y, monitor_w, monitor_h) = {
-                    let mx = source.get("physicalX").or_else(|| source.get("monitorX"))
-                        .and_then(|v| v.as_i64()).unwrap_or(0);
-                    let my = source.get("physicalY").or_else(|| source.get("monitorY"))
-                        .and_then(|v| v.as_i64()).unwrap_or(0);
-                    let mw = source.get("physicalWidth").or_else(|| source.get("monitorWidth"))
+                    let mx = source
+                        .get("physicalX")
+                        .or_else(|| source.get("monitorX"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                    let my = source
+                        .get("physicalY")
+                        .or_else(|| source.get("monitorY"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                    let mw = source
+                        .get("physicalWidth")
+                        .or_else(|| source.get("monitorWidth"))
                         .and_then(|v| v.as_i64());
-                    let mh = source.get("physicalHeight").or_else(|| source.get("monitorHeight"))
+                    let mh = source
+                        .get("physicalHeight")
+                        .or_else(|| source.get("monitorHeight"))
                         .and_then(|v| v.as_i64());
                     (mx, my, mw, mh)
                 };
@@ -825,7 +889,9 @@ pub async fn init_recording(
                         let h = (h - (h % 2)).max(2);
                         log::info!(
                             "[recording] monitor capture (ddagrab): idx={} w={} h={}",
-                            monitor_idx, w, h
+                            monitor_idx,
+                            w,
+                            h
                         );
                         filter.push_str(&format!(":video_size={}x{}", w, h));
                     } else {
@@ -887,12 +953,12 @@ pub async fn init_recording(
                         let h = (h - (h % 2)).max(2);
                         log::info!(
                             "[recording] monitor capture: x={} y={} w={} h={}",
-                            monitor_x, monitor_y, w, h
+                            monitor_x,
+                            monitor_y,
+                            w,
+                            h
                         );
-                        ffmpeg_args.extend([
-                            "-video_size".to_string(),
-                            format!("{}x{}", w, h),
-                        ]);
+                        ffmpeg_args.extend(["-video_size".to_string(), format!("{}x{}", w, h)]);
                     }
 
                     ffmpeg_args.extend([
@@ -958,18 +1024,14 @@ pub async fn init_recording(
 
         // Store window handle info for the capture thread
         if is_window_capture {
-            config["windowHwnd"] = serde_json::json!(
-                source
-                    .get("id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("0")
-            );
-            config["windowWidth"] = serde_json::json!(
-                source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920)
-            );
-            config["windowHeight"] = serde_json::json!(
-                source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080)
-            );
+            config["windowHwnd"] =
+                serde_json::json!(source.get("id").and_then(|v| v.as_str()).unwrap_or("0"));
+            config["windowWidth"] =
+                serde_json::json!(source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920));
+            config["windowHeight"] = serde_json::json!(source
+                .get("height")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(1080));
         }
 
         state.camera_mic_config = Some(config);
@@ -980,7 +1042,7 @@ pub async fn init_recording(
         main_win.minimize().ok();
     }
 
-// Create recorder overlay window (centered at top of screen)
+    // Create recorder overlay window (centered at top of screen)
     let monitor = app
         .get_webview_window("main")
         .and_then(|w| w.current_monitor().ok().flatten());
@@ -1096,9 +1158,8 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
 
         if use_stdin_pipe {
             // Window capture: spawn FFmpeg via std::process::Command for stdin pipe access
-            let ffmpeg_path = find_ffmpeg_path().ok_or_else(|| {
-                AppError::General("FFmpeg binary not found".to_string())
-            })?;
+            let ffmpeg_path = find_ffmpeg_path()
+                .ok_or_else(|| AppError::General("FFmpeg binary not found".to_string()))?;
 
             log::info!(
                 "[start_recording] Window capture mode, FFmpeg: {:?}",
@@ -1120,7 +1181,8 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                 cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
             }
 
-            let mut process = cmd.spawn()
+            let mut process = cmd
+                .spawn()
                 .map_err(|e| AppError::General(format!("Failed to spawn FFmpeg: {}", e)))?;
 
             let pid = process.id();
@@ -1161,7 +1223,10 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                 state.window_capture_thread = Some(capture_thread);
             }
 
-            log::info!("[start_recording] Window capture started, FFmpeg PID: {}", pid);
+            log::info!(
+                "[start_recording] Window capture started, FFmpeg PID: {}",
+                pid
+            );
         } else {
             // Screen/Area capture
             use std::process::{Command, Stdio};
@@ -1172,7 +1237,8 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
 
             log::info!(
                 "[start_recording] Screen/area capture, FFmpeg: {:?}, args: {:?}",
-                ffmpeg_path, args
+                ffmpeg_path,
+                args
             );
 
             let mut cmd = Command::new(&ffmpeg_path);
@@ -1208,7 +1274,9 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                                             || msg.contains("not granted");
 
                                         if is_permission_error {
-                                            app_clone.emit("recording-error", "ScreenPermissionDenied").ok();
+                                            app_clone
+                                                .emit("recording-error", "ScreenPermissionDenied")
+                                                .ok();
                                         } else if ffmpeg_stderr_is_capture_error(&msg) {
                                             app_clone.emit("recording-error", "CaptureError").ok();
                                         }
@@ -1236,7 +1304,10 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
                     if let Some(main_win) = app.get_webview_window("main") {
                         main_win.unminimize().ok();
                     }
-                    return Err(AppError::General(format!("Failed to start recording: {}", e)));
+                    return Err(AppError::General(format!(
+                        "Failed to start recording: {}",
+                        e
+                    )));
                 }
             }
         }
@@ -1268,7 +1339,8 @@ pub async fn start_recording(app: AppHandle) -> AppResult<()> {
         // Scale mouse coordinates to match video resolution on Retina displays.
         #[cfg(target_os = "macos")]
         {
-            let scale = app.get_webview_window("main")
+            let scale = app
+                .get_webview_window("main")
                 .and_then(|w| w.current_monitor().ok().flatten())
                 .map(|m| m.scale_factor())
                 .unwrap_or(1.0);
@@ -1302,7 +1374,9 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
     tokio::task::spawn_blocking({
         let app = app.clone();
         move || kill_ffmpeg(&app)
-    }).await.ok();
+    })
+    .await
+    .ok();
 
     #[cfg(target_os = "macos")]
     crate::mouse_tracker::restore_macos_cursor();
@@ -1451,11 +1525,15 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     let state_lock = state.lock().unwrap();
                     state_lock.camera_video_file(rid)
                 };
-                if camera_src.exists() && camera_src.metadata().map(|m| m.len() > 0).unwrap_or(false) {
+                if camera_src.exists()
+                    && camera_src.metadata().map(|m| m.len() > 0).unwrap_or(false)
+                {
                     let camera_dest = project_temp.join("camera.webm");
                     log::info!(
                         "[stop_recording] Copying camera file: {:?} -> {:?} (size={})",
-                        camera_src, camera_dest, camera_src.metadata().map(|m| m.len()).unwrap_or(0)
+                        camera_src,
+                        camera_dest,
+                        camera_src.metadata().map(|m| m.len()).unwrap_or(0)
                     );
                     if std::fs::rename(&camera_src, &camera_dest).is_err() {
                         log::warn!("[stop_recording] camera rename failed, trying copy");
@@ -1470,7 +1548,10 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                         true
                     }
                 } else {
-                    log::warn!("[stop_recording] Camera file not found or empty at {:?}", camera_src);
+                    log::warn!(
+                        "[stop_recording] Camera file not found or empty at {:?}",
+                        camera_src
+                    );
                     false
                 }
             } else {
@@ -1574,10 +1655,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
 
                 if let Ok(video_meta) = dest_video.metadata() {
                     let video_size = video_meta.len();
-                    log::info!(
-                        "[stop_recording] Adding video to zip, size={}",
-                        video_size
-                    );
+                    log::info!("[stop_recording] Adding video to zip, size={}", video_size);
                     if let Ok(mut video_file) = std::fs::File::open(&dest_video) {
                         zip.start_file("screen.mp4", options).ok();
                         std::io::copy(&mut video_file, &mut zip).ok();
@@ -1631,10 +1709,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     );
 
                     store.set("projects", Value::Object(projects));
-                    store.set(
-                        format!("projects.{}.path", pid),
-                        serde_json::json!(zip_str),
-                    );
+                    store.set(format!("projects.{}.path", pid), serde_json::json!(zip_str));
                     store.save().ok();
                     log::info!("[stop_recording] Project stored: {}", pid);
                 } else {
@@ -1719,7 +1794,9 @@ pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
     tokio::task::spawn_blocking({
         let app = app.clone();
         move || kill_ffmpeg(&app)
-    }).await.ok();
+    })
+    .await
+    .ok();
 
     #[cfg(target_os = "macos")]
     crate::mouse_tracker::restore_macos_cursor();
@@ -1754,7 +1831,9 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
     tokio::task::spawn_blocking({
         let app = app.clone();
         move || kill_ffmpeg(&app)
-    }).await.ok();
+    })
+    .await
+    .ok();
 
     #[cfg(target_os = "macos")]
     crate::mouse_tracker::restore_macos_cursor();
@@ -1835,9 +1914,7 @@ async fn get_video_duration_ms(
 }
 
 /// Get video dimensions (width, height) using FFmpeg
-async fn get_video_dimensions(
-    video_path: &std::path::Path,
-) -> Result<(i64, i64), String> {
+async fn get_video_dimensions(video_path: &std::path::Path) -> Result<(i64, i64), String> {
     let path_str = video_path.to_string_lossy().to_string();
     let output = run_ffmpeg(&["-i", &path_str, "-f", "null", "-"])
         .await
@@ -1849,7 +1926,7 @@ async fn get_video_dimensions(
     for line in stderr.lines() {
         if line.contains("Video:") {
             // Look for WxH pattern like "1280x720" in the Video stream line
-            for part in line.split(|c: char| c == ',' || c == ' ') {
+            for part in line.split([',', ' ']) {
                 let part = part.trim();
                 if let Some(x_pos) = part.find('x') {
                     let w_str = &part[..x_pos];
@@ -1866,10 +1943,7 @@ async fn get_video_dimensions(
     Err("Could not parse video dimensions".to_string())
 }
 
-async fn recording_video_is_readable(
-    app: &AppHandle,
-    video_path: &std::path::Path,
-) -> bool {
+async fn recording_video_is_readable(app: &AppHandle, video_path: &std::path::Path) -> bool {
     get_video_duration_ms(app, video_path).await.is_ok()
         && get_video_dimensions(video_path).await.is_ok()
 }
@@ -1958,7 +2032,10 @@ fn kill_ffmpeg(app: &AppHandle) {
             }
         }
     } else if let Some(pid) = pid {
-        log::warn!("[kill_ffmpeg] No process handle, force killing PID: {}", pid);
+        log::warn!(
+            "[kill_ffmpeg] No process handle, force killing PID: {}",
+            pid
+        );
         force_kill_ffmpeg(pid);
     }
 }
@@ -2031,7 +2108,10 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
             let w = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920) as i32;
-            let h = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080) as i32;
+            let h = source
+                .get("height")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(1080) as i32;
 
             if hwnd != 0 {
                 if let Some(bmp_data) = screenshot_window_printwindow(hwnd, w, h) {
@@ -2055,8 +2135,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                         let data = std::fs::read(&screenshot_path)?;
                         std::fs::remove_file(&screenshot_path).ok();
                         if !data.is_empty() {
-                            let b64 =
-                                base64::engine::general_purpose::STANDARD.encode(&data);
+                            let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
                             return Ok(format!("data:image/png;base64,{}", b64));
                         }
                     }
@@ -2067,14 +2146,19 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w64 = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
-            let h64 = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
+            let h64 = source
+                .get("height")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(1080);
             let w64 = w64.min(screen_w as i64 - x);
             let h64 = h64.min(screen_h as i64 - y);
             let w64 = (w64 - (w64 % 2)).max(2);
             let h64 = (h64 - (h64 % 2)).max(2);
 
             if let Some(main_win) = app.get_webview_window("main") {
-                main_win.set_content_protected(super::windows::is_content_protection_enabled(&app)).ok();
+                main_win
+                    .set_content_protected(super::windows::is_content_protection_enabled(&app))
+                    .ok();
             }
 
             let args = build_screenshot_args(x, y, w64, h64, &screenshot_str);
@@ -2100,7 +2184,10 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             let x = source.get("x").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let y = source.get("y").and_then(|v| v.as_i64()).unwrap_or(0).max(0);
             let w64 = source.get("width").and_then(|v| v.as_i64()).unwrap_or(1920);
-            let h64 = source.get("height").and_then(|v| v.as_i64()).unwrap_or(1080);
+            let h64 = source
+                .get("height")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(1080);
 
             #[cfg(target_os = "macos")]
             {
@@ -2108,15 +2195,17 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                     return Err(AppError::General("ScreenPermissionDenied".to_string()));
                 }
                 let region = format!("{},{},{},{}", x, y, w64, h64);
-                let screenshot_str_clone = screenshot_str.clone();
-                let _output = tokio::task::spawn_blocking(move || {
-                    std::process::Command::new("screencapture")
-                        .args(["-x", "-R", &region, &screenshot_str_clone])
-                        .output()
-                })
-                .await
-                .map_err(|e| AppError::General(format!("Screenshot task error: {}", e)))?
-                .map_err(|e| AppError::General(format!("Screenshot error: {}", e)))?;
+                let output = super::run_macos_screencapture(
+                    &["-x", "-R", &region, &screenshot_str],
+                    std::time::Duration::from_secs(5),
+                )
+                .await?;
+                if !output.status.success() {
+                    log::warn!(
+                        "[screenshot] screencapture stderr: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                }
             }
             #[cfg(not(target_os = "macos"))]
             {
@@ -2142,7 +2231,9 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
 
     // Screen/Area screenshot using platform-specific capture
     if let Some(main_win) = app.get_webview_window("main") {
-        main_win.set_content_protected(super::windows::is_content_protection_enabled(&app)).ok();
+        main_win
+            .set_content_protected(super::windows::is_content_protection_enabled(&app))
+            .ok();
     }
 
     // On macOS, check screen recording permission before calling screencapture
@@ -2156,8 +2247,14 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             "area" => {
                 let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
-                let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let w_pct = source
+                    .get("width")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(100.0);
+                let h_pct = source
+                    .get("height")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(100.0);
                 let x = (x_pct / 100.0 * screen_w) as i64;
                 let y = (y_pct / 100.0 * screen_h) as i64;
                 let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
@@ -2178,18 +2275,17 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
         };
 
         let region = format!("{},{},{},{}", x, y, w, h);
-        let screenshot_str_clone = screenshot_str.clone();
-        let output = tokio::task::spawn_blocking(move || {
-            std::process::Command::new("screencapture")
-                .args(["-x", "-R", &region, &screenshot_str_clone])
-                .output()
-        })
-        .await
-        .map_err(|e| AppError::General(format!("Screenshot task error: {}", e)))?
-        .map_err(|e| AppError::General(format!("Screenshot error: {}", e)))?;
+        let output = super::run_macos_screencapture(
+            &["-x", "-R", &region, &screenshot_str],
+            std::time::Duration::from_secs(5),
+        )
+        .await?;
 
         if !output.status.success() {
-            log::warn!("[screenshot] screencapture stderr: {}", String::from_utf8_lossy(&output.stderr));
+            log::warn!(
+                "[screenshot] screencapture stderr: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         if screenshot_path.exists() {
@@ -2200,7 +2296,7 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
                 return Ok(format!("data:image/png;base64,{}", b64));
             }
         }
-        return Err(AppError::General("Screenshot capture failed".to_string()));
+        Err(AppError::General("Screenshot capture failed".to_string()))
     }
 
     // Windows/Linux: use FFmpeg for screenshots
@@ -2210,8 +2306,14 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             "area" => {
                 let x_pct = source.get("x").and_then(|v| v.as_f64()).unwrap_or(0.0);
                 let y_pct = source.get("y").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let w_pct = source.get("width").and_then(|v| v.as_f64()).unwrap_or(100.0);
-                let h_pct = source.get("height").and_then(|v| v.as_f64()).unwrap_or(100.0);
+                let w_pct = source
+                    .get("width")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(100.0);
+                let h_pct = source
+                    .get("height")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(100.0);
                 let x = (x_pct / 100.0 * screen_w) as i64;
                 let y = (y_pct / 100.0 * screen_h) as i64;
                 let w = ((w_pct / 100.0 * screen_w) as i64).max(2);
@@ -2223,13 +2325,23 @@ pub async fn get_source_screenshot(app: AppHandle, source: Value) -> AppResult<S
             _ => {
                 #[cfg(target_os = "windows")]
                 let (monitor_x, monitor_y, monitor_w, monitor_h) = {
-                    let mx = source.get("physicalX").or_else(|| source.get("monitorX"))
-                        .and_then(|v| v.as_i64()).unwrap_or(0);
-                    let my = source.get("physicalY").or_else(|| source.get("monitorY"))
-                        .and_then(|v| v.as_i64()).unwrap_or(0);
-                    let mw = source.get("physicalWidth").or_else(|| source.get("monitorWidth"))
+                    let mx = source
+                        .get("physicalX")
+                        .or_else(|| source.get("monitorX"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                    let my = source
+                        .get("physicalY")
+                        .or_else(|| source.get("monitorY"))
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+                    let mw = source
+                        .get("physicalWidth")
+                        .or_else(|| source.get("monitorWidth"))
                         .and_then(|v| v.as_i64());
-                    let mh = source.get("physicalHeight").or_else(|| source.get("monitorHeight"))
+                    let mh = source
+                        .get("physicalHeight")
+                        .or_else(|| source.get("monitorHeight"))
                         .and_then(|v| v.as_i64());
                     (mx, my, mw, mh)
                 };
@@ -2294,11 +2406,16 @@ pub async fn take_recording_screenshot(app: AppHandle) -> AppResult<String> {
         if let Ok(Some(monitor)) = main_win.current_monitor() {
             let size = monitor.size();
             #[cfg(target_os = "windows")]
-            { (size.width as i64, size.height as i64) }
+            {
+                (size.width as i64, size.height as i64)
+            }
             #[cfg(not(target_os = "windows"))]
             {
                 let scale = monitor.scale_factor();
-                ((size.width as f64 / scale) as i64, (size.height as f64 / scale) as i64)
+                (
+                    (size.width as f64 / scale) as i64,
+                    (size.height as f64 / scale) as i64,
+                )
             }
         } else {
             (1920i64, 1080i64)
@@ -2345,17 +2462,25 @@ pub async fn take_recording_screenshot(app: AppHandle) -> AppResult<String> {
 #[cfg(not(target_os = "windows"))]
 fn platform_capture_format() -> &'static str {
     #[cfg(target_os = "macos")]
-    { "avfoundation" }
+    {
+        "avfoundation"
+    }
     #[cfg(target_os = "linux")]
-    { "x11grab" }
+    {
+        "x11grab"
+    }
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    { "x11grab" }
+    {
+        "x11grab"
+    }
 }
 
 /// Get the platform default audio capture device name
 fn platform_default_audio_device() -> String {
     #[cfg(target_os = "windows")]
-    { "virtual-audio-capturer".to_string() }
+    {
+        "virtual-audio-capturer".to_string()
+    }
     #[cfg(target_os = "macos")]
     {
         // Try to detect available virtual audio devices via FFmpeg
@@ -2368,7 +2493,12 @@ fn platform_default_audio_device() -> String {
                 .output()
             {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                for name in ["BlackHole 2ch", "BlackHole 16ch", "Soundflower (2ch)", "Background Music"] {
+                for name in [
+                    "BlackHole 2ch",
+                    "BlackHole 16ch",
+                    "Soundflower (2ch)",
+                    "Background Music",
+                ] {
                     if stderr.contains(name) {
                         log::info!("[audio] Found macOS virtual audio device: {}", name);
                         return name.to_string();
@@ -2380,9 +2510,13 @@ fn platform_default_audio_device() -> String {
         "BlackHole 2ch".to_string()
     }
     #[cfg(target_os = "linux")]
-    { "default".to_string() }
+    {
+        "default".to_string()
+    }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    { "default".to_string() }
+    {
+        "default".to_string()
+    }
 }
 
 /// Get platform-specific audio capture FFmpeg args (format, input)
@@ -2425,7 +2559,8 @@ async fn run_ffmpeg(args: &[&str]) -> AppResult<std::process::Output> {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
         }
-        cmd.output().map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))
+        cmd.output()
+            .map_err(|e| AppError::General(format!("FFmpeg error: {}", e)))
     })
     .await
     .map_err(|e| AppError::General(format!("FFmpeg task error: {}", e)))?
@@ -2436,12 +2571,25 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
     #[cfg(target_os = "windows")]
     {
         vec![
-            "-y".into(), "-f".into(), "gdigrab".into(),
-            "-framerate".into(), "1".into(), "-draw_mouse".into(), "0".into(),
-            "-offset_x".into(), x.to_string(), "-offset_y".into(), y.to_string(),
-            "-video_size".into(), format!("{}x{}", w, h),
-            "-i".into(), "desktop".into(),
-            "-frames:v".into(), "1".into(), "-update".into(), "true".into(),
+            "-y".into(),
+            "-f".into(),
+            "gdigrab".into(),
+            "-framerate".into(),
+            "1".into(),
+            "-draw_mouse".into(),
+            "0".into(),
+            "-offset_x".into(),
+            x.to_string(),
+            "-offset_y".into(),
+            y.to_string(),
+            "-video_size".into(),
+            format!("{}x{}", w, h),
+            "-i".into(),
+            "desktop".into(),
+            "-frames:v".into(),
+            "1".into(),
+            "-update".into(),
+            "true".into(),
             output_path.into(),
         ]
     }
@@ -2449,11 +2597,19 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
     {
         let screen_dev = macos_screen_device_index(0);
         let mut args: Vec<String> = vec![
-            "-y".into(), "-f".into(), "avfoundation".into(),
-            "-framerate".into(), "30".into(), "-pixel_format".into(), "nv12".into(),
-            "-capture_cursor".into(), "0".into(),
-            "-i".into(), format!("{}:none", screen_dev),
-            "-frames:v".into(), "1".into(),
+            "-y".into(),
+            "-f".into(),
+            "avfoundation".into(),
+            "-framerate".into(),
+            "30".into(),
+            "-pixel_format".into(),
+            "nv12".into(),
+            "-capture_cursor".into(),
+            "0".into(),
+            "-i".into(),
+            format!("{}:none", screen_dev),
+            "-frames:v".into(),
+            "1".into(),
         ];
         // Crop to the requested region (works for all cases including x=0,y=0)
         args.extend(["-vf".into(), format!("crop={}:{}:{}:{}", w, h, x, y)]);
@@ -2464,22 +2620,38 @@ fn build_screenshot_args(x: i64, y: i64, w: i64, h: i64, output_path: &str) -> V
     {
         let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
         vec![
-            "-y".into(), "-f".into(), "x11grab".into(),
-            "-framerate".into(), "1".into(), "-draw_mouse".into(), "0".into(),
-            "-video_size".into(), format!("{}x{}", w, h),
-            "-i".into(), format!("{}+{},{}", display, x, y),
-            "-frames:v".into(), "1".into(), "-update".into(), "true".into(),
+            "-y".into(),
+            "-f".into(),
+            "x11grab".into(),
+            "-framerate".into(),
+            "1".into(),
+            "-draw_mouse".into(),
+            "0".into(),
+            "-video_size".into(),
+            format!("{}x{}", w, h),
+            "-i".into(),
+            format!("{}+{},{}", display, x, y),
+            "-frames:v".into(),
+            "1".into(),
+            "-update".into(),
+            "true".into(),
             output_path.into(),
         ]
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         vec![
-            "-y".into(), "-f".into(), "x11grab".into(),
-            "-framerate".into(), "1".into(),
-            "-video_size".into(), format!("{}x{}", w, h),
-            "-i".into(), format!(":0+{},{}", x, y),
-            "-frames:v".into(), "1".into(),
+            "-y".into(),
+            "-f".into(),
+            "x11grab".into(),
+            "-framerate".into(),
+            "1".into(),
+            "-video_size".into(),
+            format!("{}x{}", w, h),
+            "-i".into(),
+            format!(":0+{},{}", x, y),
+            "-frames:v".into(),
+            "1".into(),
             output_path.into(),
         ]
     }

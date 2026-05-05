@@ -45,6 +45,10 @@ export default class RenderScene extends Scene {
             cursorBlurStrength,
             cursorMovementRotation,
             cursorScale,
+            showSpotlight,
+            spotlightRadius,
+            spotlightOpacity,
+            spotlightFeather,
             padding,
             shadowAlpha,
             cameraVideoShadowAlpha,
@@ -65,6 +69,18 @@ export default class RenderScene extends Scene {
             blurStrength: cursorBlurStrength,
             rotationStrength: cursorMovementRotation,
             isLoop: cursorIsLoop
+        })
+
+        this.spotlightAnimator.setState({
+            showSpotlight,
+            radius: spotlightRadius,
+            opacity: spotlightOpacity,
+            feather: spotlightFeather,
+            leftTrim: trim.left,
+            rightTrim: trim.right,
+            topTrim: trim.top,
+            bottomTrim: trim.bottom,
+            borderRadius
         })
 
         this.panAnimator.setState({
