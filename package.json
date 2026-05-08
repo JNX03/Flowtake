@@ -24,7 +24,8 @@
     "build:frontend": "vite build --config vite.config.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "generate:launch-assets": "node scripts/generate-launch-assets.mjs"
   },
   "keywords": [
     "screen-recorder",

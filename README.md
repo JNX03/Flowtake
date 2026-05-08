@@ -24,17 +24,22 @@
   <a href="#features">Features</a> &bull;
   <a href="#why-flowtake">Why Flowtake?</a> &bull;
   <a href="#screenshots">Screenshots</a> &bull;
+  <a href="PRESS.md">Press Kit</a> &bull;
   <a href="#development">Development</a> &bull;
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 ---
 
-<!-- DEMO GIF -->
-<!-- TODO: Record with Flowtake itself, save to docs/demos/demo.gif, then uncomment below -->
-<!-- <p align="center">
-  <img src="docs/demos/demo.gif" alt="Flowtake demo — record, auto-zoom, export" width="800">
-</p> -->
+<p align="center">
+  <img src="docs/demos/demo.gif" alt="Flowtake demo - record, auto-zoom, edit, and export" width="800">
+</p>
+
+<p align="center">
+  <a href="docs/demos/flowtake-demo.mp4">Watch the MP4 demo</a> &bull;
+  <a href="docs/launch/README.md">Launch kit</a> &bull;
+  <a href="docs/launch/outreach-posts.md">Outreach drafts</a>
+</p>
 
 ## Download
 
@@ -110,24 +115,22 @@ Flowtake gives you the polish of Screen Studio, the flexibility of OBS, and the 
 
 ## Screenshots
 
-<!-- TODO: Replace placeholders with real screenshots -->
-<!-- Save to docs/screenshots/ and uncomment below -->
-<!-- <p align="center">
-  <img src="docs/screenshots/editor.png" alt="Flowtake editor" width="800">
-  <br><em>The timeline editor — clips, effects, overlays, subtitles.</em>
+<p align="center">
+  <img src="docs/screenshots/recording.png" alt="Flowtake recording screen" width="800">
+  <br><em>Native recorder for screen, window, or region capture with camera, mic, and system audio controls.</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/recording.png" alt="Flowtake recording overlay" width="800">
-  <br><em>Native recorder with area picker and camera overlay.</em>
+  <img src="docs/screenshots/editor.png" alt="Flowtake editor" width="800">
+  <br><em>The timeline editor - automatic zooms, smooth pans, cursor motion, captions, and export-ready edits.</em>
 </p>
 
 <p align="center">
   <img src="docs/screenshots/effects.png" alt="Flowtake effects panel" width="800">
-  <br><em>Masks, blur, custom backgrounds, redaction.</em>
-</p> -->
+  <br><em>Effects and overlays - blur/redaction masks, captions, backgrounds, and polish in one app.</em>
+</p>
 
-_Screenshots coming soon — see [docs/launch](docs/launch/) for marketing materials._
+For launch materials, see [docs/launch/README.md](docs/launch/README.md), [docs/launch/outreach-posts.md](docs/launch/outreach-posts.md), and the share image at [docs/launch/social-card.png](docs/launch/social-card.png).
 
 ## Architecture
 
@@ -227,6 +230,7 @@ npm run dev
 | `npm run build` | Build production installer (NSIS/MSI) |
 | `npm run build:frontend` | Build frontend assets only |
 | `npm run lint` | Run ESLint on the codebase |
+| `npm run generate:launch-assets` | Regenerate README demo media, screenshots, and launch card |
 
 ### Project structure
 
@@ -312,6 +316,16 @@ This project is licensed under the [MIT License](LICENSE).
 ## Press & media
 
 For press inquiries, logos, screenshots, and product descriptions, see [PRESS.md](PRESS.md).
+
+Launch media:
+- [Demo GIF](docs/demos/demo.gif)
+- [Demo MP4](docs/demos/flowtake-demo.mp4)
+- [Recording screenshot](docs/screenshots/recording.png)
+- [Editor screenshot](docs/screenshots/editor.png)
+- [Effects screenshot](docs/screenshots/effects.png)
+- [Social card](docs/launch/social-card.png)
+- [Launch plan](docs/launch/README.md)
+- [Outreach drafts](docs/launch/outreach-posts.md)
 
 ## Acknowledgments
 

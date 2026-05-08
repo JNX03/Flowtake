@@ -106,3 +106,15 @@ src-tauri/gen/
 
 distribute.md
 docs
+!docs/
+!docs/demos/
+!docs/demos/demo.gif
+!docs/demos/flowtake-demo.mp4
+!docs/launch/
+!docs/launch/README.md
+!docs/launch/outreach-posts.md
+!docs/launch/social-card.png
+!docs/screenshots/
+!docs/screenshots/editor.png
+!docs/screenshots/effects.png
+!docs/screenshots/recording.png
