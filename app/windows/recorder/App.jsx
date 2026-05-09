@@ -19,6 +19,8 @@ import { emit, listen } from "@tauri-apps/api/event"
 import moment from "moment"
 import momentDurationFormatSetup from "moment-duration-format"
 import {
+    lazy,
+    Suspense,
     useCallback,
     useEffect,
     useMemo,
@@ -28,6 +30,8 @@ import {
 import DeviceRecorder from "../main/DeviceRecorder"
 import useAudioMeter from "@shared/hooks/useAudioMeter"
 import VolumeMeter from "../../components/VolumeMeter"
+
+const RecorderTutorial = lazy(() => import("./components/RecorderTutorial"))
 
 const StyleTag = () => (
     <style>{`
@@ -94,12 +98,13 @@ const pillBg = {
 }
 
 // Icon button component — uses relative positioning + z-index to ensure clickability over drag region
-const Btn = ({ onClick, title, children, className = "" }) => (
+const Btn = ({ onClick, title, children, className = "", dataTutorial }) => (
     <button
         onClick={onClick}
         title={title}
         className={`relative z-10 flex items-center justify-center transition-all duration-100 cursor-pointer flex-shrink-0 active:scale-90 ${className}`}
         style={{ WebkitUserSelect: "none" }}
+        data-tutorial={dataTutorial}
     >
         {children}
     </button>
@@ -123,6 +128,7 @@ export default function App() {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isDrawing, setIsDrawing] = useState(false)
     const [audioStream, setAudioStream] = useState(null)
+    const [tutorialActive, setTutorialActive] = useState(false)
 
     // ── Live streaming mode ──
     const [mode, setMode] = useState("record")           // "record" | "live"
@@ -483,7 +489,7 @@ export default function App() {
         </span>
     )
 
-    if (!isExpanded) {
+    if (!isExpanded && !tutorialActive) {
         // ── COMPACT: just centered dot + timer ──
         return (
             <div
@@ -512,6 +518,9 @@ export default function App() {
                     {hasMic && <VolumeMeter level={isMicMuted ? 0 : level} compact />}
                     {timer}
                 </div>
+                <Suspense fallback={null}>
+                    <RecorderTutorial onActiveChange={setTutorialActive} />
+                </Suspense>
             </div>
         )
     }
@@ -526,7 +535,7 @@ export default function App() {
             <div
                 className="island-pill mt-1"
                 data-tauri-drag-region
-                onMouseLeave={() => setIsExpanded(false)}
+                onMouseLeave={() => { if (!tutorialActive) setIsExpanded(false) }}
                 style={{
                     ...pillBg,
                     width: 440,
@@ -574,15 +583,15 @@ export default function App() {
                             </Btn>
                         )}
                         <div className="w-px h-3.5 mx-1 bg-white/[0.04]" />
-                        <Btn onClick={openTeleprompter} title="Teleprompter"
+                        <Btn onClick={openTeleprompter} title="Teleprompter" dataTutorial="rec-teleprompter"
                             className="w-8 h-8 rounded-lg text-white/40 hover:text-indigo-300 hover:bg-indigo-500/10">
                             <DocumentTextIcon className="size-4" />
                         </Btn>
-                        <Btn onClick={takeScreenshot} title="Screenshot"
+                        <Btn onClick={takeScreenshot} title="Screenshot" dataTutorial="rec-screenshot"
                             className="w-8 h-8 rounded-lg text-white/40 hover:text-amber-300 hover:bg-amber-500/10">
                             <CameraIcon className="size-4" />
                         </Btn>
-                        <Btn onClick={toggleDrawing} title="Draw on screen"
+                        <Btn onClick={toggleDrawing} title="Draw on screen" dataTutorial="rec-draw"
                             className={`relative w-8 h-8 rounded-lg ${isDrawing ? "text-indigo-400 bg-indigo-500/15" : "text-white/40 hover:text-emerald-300 hover:bg-emerald-500/10"}`}>
                             <PencilIcon className="size-4" />
                             {isDrawing && (
@@ -607,24 +616,27 @@ export default function App() {
                         </Btn>
 
                         {!isPaused ? (
-                            <Btn onClick={onClickPause} title="Pause"
+                            <Btn onClick={onClickPause} title="Pause" dataTutorial="rec-pause"
                                 className="w-9 h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white/60 hover:text-white/90">
                                 <PauseIcon className="size-[18px]" />
                             </Btn>
                         ) : (
-                            <Btn onClick={onClickResume} title="Resume"
+                            <Btn onClick={onClickResume} title="Resume" dataTutorial="rec-pause"
                                 className="w-9 h-9 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400">
                                 <PlayIcon className="size-[18px]" />
                             </Btn>
                         )}
 
-                        <Btn onClick={onClickStop} title="Stop & save"
+                        <Btn onClick={onClickStop} title="Stop & save" dataTutorial="rec-stop"
                             className="w-9 h-9 rounded-xl bg-red-500 hover:bg-red-400 active:bg-red-600 text-white ml-0.5">
                             <StopIcon className="size-[18px]" />
                         </Btn>
                     </div>
                 </div>
             </div>
+            <Suspense fallback={null}>
+                <RecorderTutorial onActiveChange={setTutorialActive} />
+            </Suspense>
         </div>
     )
 }
