@@ -4,11 +4,10 @@ import {
     PuzzlePieceIcon,
     RectangleGroupIcon,
 } from "@heroicons/react/24/outline"
-import { Cog6ToothIcon, FolderOpenIcon } from "@heroicons/react/20/solid"
+import { FolderOpenIcon } from "@heroicons/react/20/solid"
 import PropTypes from "prop-types"
 import { useEffect } from "react"
 import { useDispatch, useSelector } from "react-redux"
-import { setOpenSettings } from "@shared/redux/appSlice"
 import {
     FEATURE_IDS,
     selectAllEnabled,
@@ -18,7 +17,6 @@ import {
     setFeatureEnabled,
     setPluginsDir,
 } from "@shared/redux/pluginSlice"
-import { SETTINGS_PLUGINS } from "../settings/constants"
 import Toggle from "../properties/Toggle"
 
 const BUILT_IN_PLUGINS = [
@@ -77,21 +75,12 @@ export default function Plugins({ isOpen }) {
 
     return (
         <div className="h-full flex flex-col gap-4 overflow-y-auto">
-            <header className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    <PuzzlePieceIcon className="size-5 text-primary" />
-                    <h2 className="font-brand font-semibold text-base">Plugins & Extensions</h2>
-                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
-                        Research Preview
-                    </span>
-                </div>
-                <button
-                    type="button"
-                    onClick={() => dispatch(setOpenSettings(SETTINGS_PLUGINS))}
-                    className="btn btn-xs btn-ghost gap-1.5">
-                    <Cog6ToothIcon className="size-3.5" />
-                    Configure in Settings
-                </button>
+            <header className="flex items-center gap-2">
+                <PuzzlePieceIcon className="size-5 text-primary" />
+                <h2 className="font-brand font-semibold text-base">Plugins & Extensions</h2>
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
+                    Research Preview
+                </span>
             </header>
 
             <p className="text-xs text-base-content/55 leading-relaxed -mt-2">

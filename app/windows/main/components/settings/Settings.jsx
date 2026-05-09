@@ -4,9 +4,7 @@ import {
     Cog6ToothIcon,
     ComputerDesktopIcon,
     LanguageIcon,
-    PuzzlePieceIcon,
     QueueListIcon,
-    SignalIcon,
     SwatchIcon
 } from "@heroicons/react/20/solid"
 import { useQuery } from "@tanstack/react-query"
@@ -27,14 +25,12 @@ import AppearanceSettings from "./AppearanceSettings"
 import ExporterSettings from "./ExporterSettings"
 import GeneralSettings from "./GeneralSettings"
 import HotkeysSettings from "./HotkeysSettings"
-import LiveStreamingSettings from "./LiveStreamingSettings"
-import PluginSettings from "./plugin/PluginSettings"
 import RecorderSettings from "./RecorderSettings"
 import SpeechToTextSettings from "./SpeechToTextSettings"
 import UpdatesSettings from "./UpdatesSettings"
 
-import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_HOTKEYS, SETTINGS_STT, SETTINGS_UPDATES, SETTINGS_LIVE, SETTINGS_PLUGINS } from "./constants"
-export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_HOTKEYS, SETTINGS_STT, SETTINGS_UPDATES, SETTINGS_LIVE, SETTINGS_PLUGINS }
+import { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_HOTKEYS, SETTINGS_STT, SETTINGS_UPDATES } from "./constants"
+export { SETTINGS_GENERAL, SETTINGS_APPEARANCE, SETTINGS_RECORDER, SETTINGS_EXPORTER, SETTINGS_HOTKEYS, SETTINGS_STT, SETTINGS_UPDATES }
 
 export default function Settings() {
     const dispatch = useDispatch()
@@ -69,11 +65,6 @@ export default function Settings() {
                     <NavItem icon={ComputerDesktopIcon} label="Recorder"
                         active={openSettings === SETTINGS_RECORDER}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_RECORDER))} />
-                    <NavItem icon={SignalIcon} label="Live Streaming"
-                        active={openSettings === SETTINGS_LIVE}
-                        onClick={() => dispatch(setOpenSettings(SETTINGS_LIVE))}
-                        badge={<span className="ml-auto px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[8px] font-bold uppercase tracking-wider">Beta</span>}
-                    />
                     <NavItem icon={QueueListIcon} label="Exporter"
                         active={openSettings === SETTINGS_EXPORTER}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_EXPORTER))} />
@@ -88,11 +79,6 @@ export default function Settings() {
                     <NavItem icon={ArrowPathIcon} label="Updates"
                         active={openSettings === SETTINGS_UPDATES}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_UPDATES))} />
-                    <NavItem icon={PuzzlePieceIcon} label="Plugin & Extension"
-                        active={openSettings === SETTINGS_PLUGINS}
-                        onClick={() => dispatch(setOpenSettings(SETTINGS_PLUGINS))}
-                        badge={<span className="ml-auto px-1 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[8px] font-bold uppercase tracking-wider">Preview</span>}
-                    />
                 </div>
 
                 {/* Footer */}
@@ -120,12 +106,10 @@ export default function Settings() {
                     {openSettings === SETTINGS_GENERAL && <GeneralSettings />}
                     {openSettings === SETTINGS_APPEARANCE && <AppearanceSettings />}
                     {openSettings === SETTINGS_RECORDER && <RecorderSettings />}
-                    {openSettings === SETTINGS_LIVE && <LiveStreamingSettings />}
                     {openSettings === SETTINGS_EXPORTER && <ExporterSettings />}
                     {openSettings === SETTINGS_STT && <SpeechToTextSettings />}
                     {openSettings === SETTINGS_HOTKEYS && <HotkeysSettings />}
                     {openSettings === SETTINGS_UPDATES && <UpdatesSettings />}
-                    {openSettings === SETTINGS_PLUGINS && <PluginSettings />}
                 </div>
             </div>
         </div>

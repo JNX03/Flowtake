@@ -2,6 +2,7 @@ import {
   Cog6ToothIcon,
   FolderOpenIcon,
   PuzzlePieceIcon,
+  SignalIcon,
   VideoCameraIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline"
@@ -15,6 +16,7 @@ import { useQuery } from "@tanstack/react-query"
 import logo from "@shared/assets/logo.svg"
 import TitleBar from "../../../components/TitleBar"
 import ExportButton from "./ExportButton"
+import Live from "./live/Live"
 import NewRecording from "./newRecording/NewRecording"
 import Plugins from "./plugins/Plugins"
 import Projects from "./projects/Projects"
@@ -24,6 +26,7 @@ import { SETTINGS_GENERAL } from "./settings/constants"
 const VIEW_RECORD = "record"
 const VIEW_PROJECTS = "projects"
 const VIEW_PLUGINS = "plugins"
+const VIEW_LIVE = "live"
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -87,6 +90,12 @@ export default function Launcher() {
           onClick={() => setActiveView(VIEW_PROJECTS)}
         />
         <SidebarItem
+          icon={SignalIcon}
+          label="Live Stream"
+          active={activeView === VIEW_LIVE}
+          onClick={() => setActiveView(VIEW_LIVE)}
+        />
+        <SidebarItem
           icon={PuzzlePieceIcon}
           label="Plugins"
           active={activeView === VIEW_PLUGINS}
@@ -135,7 +144,9 @@ export default function Launcher() {
                   ? (isFirstRun ? "Capture your first recording" : "Ready to record")
                   : activeView === VIEW_PROJECTS
                     ? "My projects"
-                    : "Plugins & Extensions"}
+                    : activeView === VIEW_LIVE
+                      ? "Go live"
+                      : "Plugins & Extensions"}
               </h1>
               <p className="text-xs text-base-content/50 mt-1 truncate">
                 {activeView === VIEW_RECORD
@@ -144,7 +155,9 @@ export default function Launcher() {
                     ? (totalProjects > 0
                       ? `${totalProjects} ${totalProjects === 1 ? "project" : "projects"} saved locally`
                       : "Your recordings will appear here")
-                    : "Toggle built-in extensions and drop in your own (research preview)"}
+                    : activeView === VIEW_LIVE
+                      ? "Stream Flowtake's smoothed cursor straight to YouTube, Twitch, or any RTMP target"
+                      : "Toggle built-in extensions and drop in your own (research preview)"}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -152,6 +165,7 @@ export default function Launcher() {
                 items={[
                   { id: VIEW_RECORD, label: "Record", icon: VideoCameraIcon },
                   { id: VIEW_PROJECTS, label: "Projects", icon: FolderOpenIcon },
+                  { id: VIEW_LIVE, label: "Live", icon: SignalIcon },
                   { id: VIEW_PLUGINS, label: "Plugins", icon: PuzzlePieceIcon },
                 ]}
                 active={activeView}
@@ -185,6 +199,7 @@ export default function Launcher() {
           <section className="flex-1 min-h-0 overflow-hidden rounded-2xl border border-base-content/5 bg-base-100/60 backdrop-blur-sm shadow-sm p-3 md:p-4">
             <NewRecording isOpen={activeView === VIEW_RECORD} />
             <Projects isOpen={activeView === VIEW_PROJECTS} />
+            <Live isOpen={activeView === VIEW_LIVE} />
             <Plugins isOpen={activeView === VIEW_PLUGINS} />
           </section>
         </div>
