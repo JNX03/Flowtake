@@ -33,6 +33,12 @@ import {
 } from "@shared/redux/appSlice"
 import { selectTargetScale as selectCameraZoomTargetScale } from "@shared/redux/cameraZoomSlice"
 import {
+    PLUGIN_STORE_KEY,
+    hydrate as hydratePlugins,
+    selectIsHydrated as selectArePluginsHydrated,
+    selectPersistedShape as selectPluginPersistedShape
+} from "@shared/redux/pluginSlice"
+import {
     selectLayout,
     selectMicrophoneAudioVolume,
     selectPlaybackRate,
@@ -276,6 +282,35 @@ export default function App() {
     useEffect(() => {
         if (!hasProject) queryClient.invalidateQueries()
     }, [hasProject, queryClient])
+
+    // Hydrate plugin slice from persisted store so overlay/cursor plugins apply
+    // in the editor preview without requiring the user to visit Settings first.
+    const arePluginsHydrated = useSelector(selectArePluginsHydrated)
+    const pluginPersisted = useSelector(selectPluginPersistedShape)
+    const pluginPersistRef = useRef(true)
+
+    useEffect(() => {
+        if (arePluginsHydrated) return
+        let cancelled = false
+        ;(async () => {
+            try {
+                const stored = await window.electron.ipcRenderer.invoke("store-get", PLUGIN_STORE_KEY)
+                if (!cancelled) dispatch(hydratePlugins(stored || {}))
+            } catch {
+                if (!cancelled) dispatch(hydratePlugins({}))
+            }
+        })()
+        return () => { cancelled = true }
+    }, [arePluginsHydrated, dispatch])
+
+    useEffect(() => {
+        if (!arePluginsHydrated) return
+        if (pluginPersistRef.current) {
+            pluginPersistRef.current = false
+            return
+        }
+        window.electron.ipcRenderer.invoke("store-set", PLUGIN_STORE_KEY, pluginPersisted).catch(() => {})
+    }, [arePluginsHydrated, pluginPersisted])
 
     return (
         <Suspense fallback={null}>

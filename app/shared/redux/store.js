@@ -85,6 +85,7 @@ import zoomAnimsReducer, {
     zoomSlice
 } from './zoomSlice'
 import liveReducer from './liveSlice'
+import pluginReducer from './pluginSlice'
 
 // Create the middleware instance and methods
 const saveListenerMiddleware = createListenerMiddleware()
@@ -200,6 +201,7 @@ export default configureStore({
         contextMenu: contextMenuReducer,
         assets: assetReducer,
         live: liveReducer,
+        plugin: pluginReducer,
         undoableState: undoable(
             combineReducers({
                 project: projectReducer,

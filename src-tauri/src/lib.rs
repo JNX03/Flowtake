@@ -539,6 +539,10 @@ pub fn run() {
             commands::live::get_cursor_position,
             commands::windows::open_live_composer,
             commands::windows::close_live_composer,
+            // Plugins
+            commands::plugins::ensure_plugins_dir,
+            commands::plugins::list_plugins,
+            commands::plugins::open_plugins_folder,
             // Social Upload
             commands::social_upload::youtube_set_credentials,
             commands::social_upload::youtube_auth_start,
@@ -556,9 +560,11 @@ pub fn run() {
                 .expect("Failed to get app data dir");
             let projects_dir = app_data_dir.join("projects");
             let temp_dir = app_data_dir.join("temp");
+            let plugins_dir = app_data_dir.join("plugins");
 
             std::fs::create_dir_all(&projects_dir).ok();
             std::fs::create_dir_all(&temp_dir).ok();
+            std::fs::create_dir_all(&plugins_dir).ok();
             cleanup_stale_recording_temp_dirs(&temp_dir);
 
             // Store paths in state

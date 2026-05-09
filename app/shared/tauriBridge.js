@@ -122,6 +122,10 @@ const COMMAND_MAP = {
     'get-audio-sessions': 'get_audio_sessions',
     'mute-audio-sessions': 'mute_audio_sessions',
     'unmute-audio-sessions': 'unmute_audio_sessions',
+    // Plugins
+    'ensure-plugins-dir': 'ensure_plugins_dir',
+    'list-plugins': 'list_plugins',
+    'open-plugins-folder': 'open_plugins_folder',
     // Social Upload
     'youtube-set-credentials': 'youtube_set_credentials',
     'youtube-auth-start': 'youtube_auth_start',
