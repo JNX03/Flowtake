@@ -38,6 +38,7 @@ import FilterAnimator from "./filter/FilterAnimator"
 import MaskAnimator from "./mask/MaskAnimator"
 import OverlayAnimator from "./overlay/OverlayAnimator"
 import KeyboardOverlay from "./overlays/KeyboardOverlay"
+import ExtraVideo from "./ExtraVideo"
 import PanAnimator from "./pan/PanAnimator"
 import Screen from "./Screen"
 import SpatialAnimator from "./spatial/SpatialAnimator"
@@ -110,6 +111,34 @@ export default class Scene {
 
         // Plugin overlays
         this.keyboardOverlay = new KeyboardOverlay(this.app.stage)
+
+        // Extra videos for the individual app recording plugin (lazy-allocated)
+        this.extraVideos = []
+    }
+
+    initExtraVideo(index, dims) {
+        if (this.extraVideos[index]) return this.extraVideos[index]
+        const ev = new ExtraVideo(dims, index)
+        this.app.stage.addChild(ev.outerContainer)
+        if (this.rendererDims) ev.setRendererDims(this.rendererDims)
+        this.extraVideos[index] = ev
+        return ev
+    }
+
+    setExtraFrame(index, content) {
+        const ev = this.extraVideos[index]
+        if (!ev) return
+        ev.content = content
+        ev.drawFrame()
+    }
+
+    setExtraVisibility(index, visible) {
+        this.extraVideos[index]?.setVisible(visible)
+    }
+
+    destroyExtraVideos() {
+        for (const ev of this.extraVideos) ev?.destroy()
+        this.extraVideos = []
     }
 
     async init({ mouseEvents, hasCameraVideo, cursorFill, cursorStroke }, duration) {
@@ -185,6 +214,12 @@ export default class Scene {
                 this.camera.content = drawable
                 this.camera.blurMask = blurMask
                 this.camera.drawFrame()
+                break
+            default:
+                if (typeof type === "string" && type.startsWith("extra-")) {
+                    const idx = parseInt(type.slice(6), 10)
+                    if (Number.isFinite(idx)) this.setExtraFrame(idx, drawable)
+                }
                 break
         }
     }
@@ -292,6 +327,8 @@ export default class Scene {
         this.spatialAnimator?.setState({ rendererDims: this.rendererDims })
 
         this.keyboardOverlay?.setDims(this.rendererDims.x, this.rendererDims.y)
+
+        for (const ev of this.extraVideos) ev?.setRendererDims(this.rendererDims)
 
         this.transitionAnimator?.setState({ rendererDims: this.rendererDims })
 

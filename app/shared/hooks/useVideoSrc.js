@@ -22,7 +22,10 @@ export default function useVideoSrc(videoType, projectId) {
     // Windows: use existing video:// protocol (works with WebView2)
     const windowsSrc = useMemo(() => {
         if (!isWindows || !projectId) return null
-        const type = VIDEO_TYPE_MAP[videoType] || SCREEN_VIDEO
+        // Pass through extra-N as-is so the Rust video:// handler can match.
+        const type = videoType.startsWith?.("extra-")
+            ? videoType
+            : (VIDEO_TYPE_MAP[videoType] || SCREEN_VIDEO)
         return `${VIDEO_SCHEME_PREFIX}${type}?projectId=${projectId}`
     }, [videoType, projectId])
 

@@ -105,6 +105,7 @@ import {
     selectId,
     selectIsCameraVideoMirrored,
     selectLeftTrim,
+    selectExtraTracks,
     selectKeyboardEvents,
     selectMouseEvents,
     selectPadding,
@@ -244,6 +245,8 @@ export default function Preview() {
     const keyboardEvents = useSelector(selectKeyboardEvents)
     const keyboardLayoutEntities = useSelector(selectAllKeyboardLayouts, shallowEqual)
     const keyboardLayoutDefaults = useSelector(selectKeyboardLayoutDefaults, shallowEqual)
+    const extraTracks = useSelector(selectExtraTracks)
+    const appRecordingConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.APP_RECORDING), shallowEqual)
 
     const [manager, setManager] = useState(null)
 
@@ -254,6 +257,8 @@ export default function Preview() {
     const canvasRef = useRef(null)
     const screenVideoRef = useRef(null)
     const cameraVideoRef = useRef(null)
+    const extraVideoRefs = useRef([])
+    const registeredExtrasRef = useRef(new Set())
     const hasManagerRef = useRef(false)
 
     const [canvasRect, setCanvasRect] = useState(null)
@@ -655,6 +660,38 @@ export default function Preview() {
         manager?.postUpdate({ type: 'plugin.keyboardLayout.entities', payload: keyboardLayoutEntities })
     }, [manager, keyboardLayoutEntities])
 
+    // Register extra-app videos with the worker once their <video> elements are ready.
+    // Polls briefly because Media's onReady fires asynchronously after src is set.
+    useEffect(() => {
+        if (!manager || !Array.isArray(extraTracks) || extraTracks.length === 0) return
+        let cancelled = false
+        const tryRegister = () => {
+            if (cancelled) return
+            extraTracks.forEach((track, i) => {
+                if (registeredExtrasRef.current.has(i)) return
+                const el = extraVideoRefs.current[i]
+                if (el && el.readyState >= HTMLMediaElement.HAVE_METADATA) {
+                    manager.registerExtraVideo(i, el, { x: track.width || el.videoWidth, y: track.height || el.videoHeight })
+                    registeredExtrasRef.current.add(i)
+                }
+            })
+            if (registeredExtrasRef.current.size < extraTracks.length) {
+                setTimeout(tryRegister, 200)
+            }
+        }
+        tryRegister()
+        return () => { cancelled = true }
+    }, [manager, extraTracks])
+
+    // Sync visibility toggles from the Sources panel into the Pixi PiPs.
+    useEffect(() => {
+        if (!manager || !Array.isArray(extraTracks)) return
+        const hidden = new Set(appRecordingConfig?.hiddenTrackIds || [])
+        extraTracks.forEach((track, i) => {
+            manager.setExtraVisibility(i, !hidden.has(track.id))
+        })
+    }, [manager, extraTracks, appRecordingConfig])
+
     useEffect(() => {
         if (isCleaningUpScene) manager?.postUpdate({ type: 'isCleaningUpScene', payload: isCleaningUpScene })
     }, [manager, isCleaningUpScene])
@@ -694,7 +731,7 @@ export default function Preview() {
                         <SpeakerWaveIcon className="size-4 swap-off" />
                     </button>}
             </div>
-            <VideoWrapper screenVideoRef={screenVideoRef} cameraVideoRef={cameraVideoRef} />
+            <VideoWrapper screenVideoRef={screenVideoRef} cameraVideoRef={cameraVideoRef} extraVideoRefs={extraVideoRefs} />
         </div>
     )
 }

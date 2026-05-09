@@ -1690,6 +1690,22 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     }
                 }
 
+                // Add extra-N.mp4 files captured by the individual app recording plugin.
+                for (idx, _track) in extra_tracks.iter().enumerate() {
+                    let extra_path = project_temp.join(format!("extra-{}.mp4", idx));
+                    if extra_path.exists() {
+                        if let Ok(mut f) = std::fs::File::open(&extra_path) {
+                            let sz = extra_path.metadata().map(|m| m.len()).unwrap_or(0);
+                            log::info!(
+                                "[stop_recording] Adding extra-{}.mp4 to zip, size={}",
+                                idx, sz
+                            );
+                            zip.start_file(format!("extra-{}.mp4", idx), options).ok();
+                            std::io::copy(&mut f, &mut zip).ok();
+                        }
+                    }
+                }
+
                 zip.finish().ok();
                 true
             } else {

@@ -1,8 +1,10 @@
 import {
     FRAME,
+    INIT_EXTRA_VIDEO,
     INIT_PREVIEW,
     IS_PLAYING,
     post,
+    SET_EXTRA_VISIBILITY,
     TIME,
     UPDATE,
     workerConsole
@@ -144,6 +146,16 @@ self.addEventListener('message', async (event) => {
 
             case FRAME: {
                 await renderer?.setVideoFrame(payload)
+                break
+            }
+
+            case INIT_EXTRA_VIDEO: {
+                renderer?.scene?.initExtraVideo(payload.index, payload.dims)
+                break
+            }
+
+            case SET_EXTRA_VISIBILITY: {
+                renderer?.scene?.setExtraVisibility(payload.index, payload.visible)
                 break
             }
 

@@ -27,6 +27,7 @@ import {
     setIsCleaningUpVideosDone
 } from "@shared/redux/editorSlice"
 import {
+    selectExtraTracks,
     selectId,
     selectHasCameraVideo,
     selectHasMicrophoneAudio
@@ -36,13 +37,14 @@ import { selectTime } from "@shared/redux/timelineSlice"
 // TODO: Might be nice to replace video elements with mediafox maybe
 // https://mediafox.pages.dev/?t=0JMb25X2iFm5BbeTa4ZGNA&s=09
 
-export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
+export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVideoRefs }) {
 
     const dispatch = useDispatch()
 
     const projectId = useSelector(selectId)
     const hasCameraVideo = useSelector(selectHasCameraVideo)
     const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
+    const extraTracks = useSelector(selectExtraTracks)
 
     const screenVideo = useVideoSrc("screen", projectId)
     const cameraVideo = useVideoSrc("camera", projectId)
@@ -122,6 +124,41 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
         if (isPlaying) play(screenVideoRef.current)
         else screenVideoRef.current.pause()
     }, [isPlaying, screenVideoRef])
+
+    // Mirror screen play/pause + seek onto every extra-app video so PiPs stay in sync.
+    useEffect(() => {
+        const screen = screenVideoRef.current
+        if (!screen || !extraVideoRefs?.current?.length) return
+
+        const onPlay = () => extraVideoRefs.current.forEach(v => v && play(v))
+        const onPause = () => extraVideoRefs.current.forEach(v => v?.pause())
+        const onSeeked = () => extraVideoRefs.current.forEach(v => {
+            if (v) v.currentTime = screen.currentTime
+        })
+        const onRateChange = () => extraVideoRefs.current.forEach(v => {
+            if (v) v.playbackRate = screen.playbackRate
+        })
+        const onTimeUpdate = throttle(() => {
+            for (const v of extraVideoRefs.current) {
+                if (v && Math.abs(v.currentTime - screen.currentTime) > 0.15) {
+                    v.currentTime = screen.currentTime
+                }
+            }
+        }, 200)
+
+        screen.addEventListener("play", onPlay)
+        screen.addEventListener("pause", onPause)
+        screen.addEventListener("seeked", onSeeked)
+        screen.addEventListener("ratechange", onRateChange)
+        screen.addEventListener("timeupdate", onTimeUpdate)
+        return () => {
+            screen.removeEventListener("play", onPlay)
+            screen.removeEventListener("pause", onPause)
+            screen.removeEventListener("seeked", onSeeked)
+            screen.removeEventListener("ratechange", onRateChange)
+            screen.removeEventListener("timeupdate", onTimeUpdate)
+        }
+    }, [screenVideoRef, extraVideoRefs, extraTracks])
 
     // TODO: screen video has variable frame rate. synching really only matters when new frames are available.
     // instead of looking at currenttime, only sync when new frames are available with requestVideoFrameCallback
@@ -214,10 +251,55 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef }) {
             muted={isMuted}
             onError={onError}
             onReady={onCameraVideoReady} />}
+        {Array.isArray(extraTracks) && extraTracks.map((track, i) => (
+            <ExtraTrackMedia
+                key={track.id ?? `extra-${i}`}
+                index={i}
+                projectId={projectId}
+                isMuted={isMuted}
+                onError={onError}
+                onRefMount={(el) => {
+                    if (extraVideoRefs?.current) extraVideoRefs.current[i] = el
+                }}
+            />
+        ))}
     </div>)
 }
 
 VideoWrapper.propTypes = {
     screenVideoRef: PropTypes.object.isRequired,
-    cameraVideoRef: PropTypes.object.isRequired
+    cameraVideoRef: PropTypes.object.isRequired,
+    extraVideoRefs: PropTypes.object,
+}
+
+function ExtraTrackMedia({ index, projectId, isMuted, onError, onRefMount }) {
+    const src = useVideoSrc(`extra-${index}`, projectId)
+    const ref = useRef(null)
+
+    useEffect(() => {
+        onRefMount?.(ref.current)
+        return () => onRefMount?.(null)
+    }, [onRefMount, src.src])
+
+    if (!src.src) return null
+    return (
+        <Media
+            isVideo={true}
+            ref={ref}
+            src={src.src}
+            isResolved={true}
+            controls={false}
+            muted={true}
+            onError={onError}
+            onReady={() => {}}
+        />
+    )
+}
+
+ExtraTrackMedia.propTypes = {
+    index: PropTypes.number.isRequired,
+    projectId: PropTypes.string,
+    isMuted: PropTypes.bool,
+    onError: PropTypes.func,
+    onRefMount: PropTypes.func,
 }

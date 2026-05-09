@@ -9,9 +9,11 @@ import RendererInputReader from "../RendererInputReader"
 import { getWebWorkerIntegration } from "../sentryHelpers"
 import {
     FRAME,
+    INIT_EXTRA_VIDEO,
     INIT_PREVIEW,
     IS_PLAYING,
     REDUX_DISPATCH,
+    SET_EXTRA_VISIBILITY,
     TIME,
     UPDATE
 } from "./helpers"
@@ -53,6 +55,42 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.stopped = false
         this.eyeContactEnabled = false
         this.faceLandmarkerReady = false
+
+        // Extra videos (multi-app plugin) — index → { video, isPending }
+        this.extraVideos = []
+    }
+
+    /**
+     * Register an extra-N video element + its native dims, set up frame pumping,
+     * and tell the worker to allocate a Pixi PiP for it.
+     */
+    registerExtraVideo(index, videoEl, dims) {
+        if (!videoEl) return
+        this.extraVideos[index] = { video: videoEl, isPending: false }
+
+        // Tell the worker to allocate the ExtraVideo Pixi sprite.
+        this.post(INIT_EXTRA_VIDEO, { index, dims })
+
+        const cb = async () => {
+            if (this.stopped) return
+            const slot = this.extraVideos[index]
+            if (!slot || slot.video !== videoEl) return        // unregistered
+            if (!slot.isPending) {
+                slot.isPending = true
+                try {
+                    await this.postFrame(`extra-${index}`, new VideoFrame(videoEl))
+                } catch (e) {
+                    console.warn(`[PreviewWorkerManager] extra-${index} frame post failed:`, e)
+                }
+                slot.isPending = false
+            }
+            if (!this.stopped) videoEl.requestVideoFrameCallback(cb)
+        }
+        videoEl.requestVideoFrameCallback(cb)
+    }
+
+    setExtraVisibility(index, visible) {
+        this.post(SET_EXTRA_VISIBILITY, { index, visible })
     }
 
     async init(canvas, duration, args) {

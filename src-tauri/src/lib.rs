@@ -149,6 +149,10 @@ pub fn run() {
                 match video_type {
                     "screen" => state.screen_video_file(pid),
                     "camera" | "microphone" => state.camera_video_file(pid),
+                    v if v.starts_with("extra-") => {
+                        let idx: usize = v.trim_start_matches("extra-").parse().unwrap_or(0);
+                        state.project_temp_dir(pid).join(format!("extra-{}.mp4", idx))
+                    }
                     _ => state.screen_video_file(pid),
                 }
             };
