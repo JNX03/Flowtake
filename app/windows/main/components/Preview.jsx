@@ -148,6 +148,9 @@ import {
     selectAllMouseStyles,
     selectMouseStyleDefaults
 } from "@shared/redux/mouseStyleAnimSlice"
+import {
+    selectAllAppScenes
+} from "@shared/redux/appSceneAnimSlice"
 import CameraZoomConfig from "@shared/scene/cameraZoom/CameraZoomConfig"
 import ClickConfig from "@shared/scene/click/ClickConfig"
 import CursorTypeConfig from "@shared/scene/cursorType/CursorTypeConfig"
@@ -252,6 +255,7 @@ export default function Preview() {
     const keyboardLayoutDefaults = useSelector(selectKeyboardLayoutDefaults, shallowEqual)
     const extraTracks = useSelector(selectExtraTracks)
     const appRecordingConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.APP_RECORDING), shallowEqual)
+    const appScenes = useSelector(selectAllAppScenes, shallowEqual)
 
     const [manager, setManager] = useState(null)
 
@@ -701,6 +705,17 @@ export default function Preview() {
             manager.setExtraVisibility(i, !hidden.has(track.id))
         })
     }, [manager, extraTracks, appRecordingConfig])
+
+    // Push the active scene-block list + track ordering into the worker so the
+    // Pixi compositor can resolve which app is "main" + where the others sit.
+    useEffect(() => {
+        if (!manager) return
+        const trackOrder = (extraTracks || []).map(t => t.id)
+        manager.postUpdate({
+            type: 'plugin.appScene.blocks',
+            payload: { blocks: appScenes, trackOrder }
+        })
+    }, [manager, appScenes, extraTracks])
 
     useEffect(() => {
         if (isCleaningUpScene) manager?.postUpdate({ type: 'isCleaningUpScene', payload: isCleaningUpScene })

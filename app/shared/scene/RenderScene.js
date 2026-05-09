@@ -77,6 +77,13 @@ export default class RenderScene extends Scene {
             this.cursorAnimator.setStyleDefaults(ms.defaults || null)
             this.cursorAnimator.setStyleEntities(ms.entities || [])
         }
+        if (args.pluginAppScene) {
+            this.setSceneBlocks(
+                args.pluginAppScene.blocks || [],
+                args.pluginAppScene.trackOrder || []
+            )
+        }
+
         if (args.pluginKeyboardOverlay && this.keyboardOverlay) {
             this.keyboardOverlay.setEnabled(!!args.pluginKeyboardOverlay.enabled)
             this.keyboardOverlay.setDefaults(args.pluginKeyboardOverlay.defaults || {})

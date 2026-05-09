@@ -106,6 +106,9 @@ export default class PreviewScene extends Scene {
             case 'plugin.mouseStyle.entities':
                 this.cursorAnimator?.setStyleEntities(payload)
                 break
+            case 'plugin.appScene.blocks':
+                this.setSceneBlocks(payload?.blocks || [], payload?.trackOrder || [])
+                break
             case 'plugin.keyboardOverlay.enabled':
                 this.keyboardOverlay?.setEnabled(payload)
                 break

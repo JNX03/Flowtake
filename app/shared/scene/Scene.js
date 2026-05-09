@@ -114,6 +114,8 @@ export default class Scene {
 
         // Extra videos for the individual app recording plugin (lazy-allocated)
         this.extraVideos = []
+        this.sceneBlocks = []
+        this.sceneTrackOrder = []
     }
 
     initExtraVideo(index, dims) {
@@ -123,6 +125,58 @@ export default class Scene {
         if (this.rendererDims) ev.setRendererDims(this.rendererDims)
         this.extraVideos[index] = ev
         return ev
+    }
+
+    /** Provide the scene block list and the track ordering so applySceneAtTime works. */
+    setSceneBlocks(blocks, trackOrder) {
+        this.sceneBlocks = Array.isArray(blocks) ? blocks : []
+        this.sceneTrackOrder = Array.isArray(trackOrder) ? trackOrder : []
+        this._lastSceneFingerprint = null
+    }
+
+    /** Resolve which scene applies at `time`, returning {mainTrackId, slots} or null. */
+    resolveSceneAt(time) {
+        if (!this.sceneBlocks || this.sceneBlocks.length === 0) return null
+        for (let i = this.sceneBlocks.length - 1; i >= 0; i--) {
+            const b = this.sceneBlocks[i]
+            if (time >= b.start && time <= b.end) return b
+        }
+        return null
+    }
+
+    /** Apply scene roles to all extras based on the active block at `time`. */
+    applySceneAtTime(time) {
+        if (!this.extraVideos.length) return
+        const active = this.resolveSceneAt(time)
+        // Cheap fingerprint to avoid re-laying-out every frame.
+        const fp = active
+            ? `${active.id}|${active.mainTrackId || ''}|${JSON.stringify(active.slots || {})}`
+            : "default"
+        if (fp === this._lastSceneFingerprint) return
+        this._lastSceneFingerprint = fp
+
+        if (!active) {
+            // No scene active → legacy stack layout.
+            for (const ev of this.extraVideos) ev?.setSceneRole("default")
+            return
+        }
+        // Scene active. Map each extra index → its trackId, then assign role.
+        for (let i = 0; i < this.extraVideos.length; i++) {
+            const ev = this.extraVideos[i]
+            if (!ev) continue
+            const trackId = this.sceneTrackOrder[i]
+            if (!trackId) { ev.setSceneRole("default"); continue }
+            if (trackId === active.mainTrackId) {
+                ev.setSceneRole("main")
+                continue
+            }
+            const slot = (active.slots || {})[trackId]
+            if (!slot || slot === "hidden") {
+                ev.setSceneRole("hidden")
+            } else {
+                ev.setSceneRole("corner", { corner: slot })
+            }
+        }
     }
 
     setExtraFrame(index, content) {
@@ -286,6 +340,7 @@ export default class Scene {
         this.subtitleAnimator?.update(this.time)
         this.cursorTypeAnimator?.update(this.time)
         this.keyboardOverlay?.update(this.time)
+        this.applySceneAtTime?.(this.time)
         const clipFrame = this.clipAnimator?.update(this.time)
         this.panAnimator?.update(this.time, clipFrame)
         this.zoomAnimator?.update(this.time, clipFrame)

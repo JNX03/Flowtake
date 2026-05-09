@@ -18,6 +18,7 @@ import {
 } from "@shared/redux/pluginSlice"
 import { addKeyboardLayout, selectKeyboardLayoutIds } from "@shared/redux/keyboardLayoutSlice"
 import { addMouseStyle, selectMouseStyleIds } from "@shared/redux/mouseStyleAnimSlice"
+import { addAppScene, selectAppSceneIds } from "@shared/redux/appSceneAnimSlice"
 import { selectExtraTracks } from "@shared/redux/projectSlice"
 import {
     selectDuration,
@@ -39,6 +40,7 @@ export default function PluginsSection() {
     const extraTracks = useSelector(selectExtraTracks)
     const mouseIds = useSelector(selectMouseStyleIds)
     const keyboardIds = useSelector(selectKeyboardLayoutIds)
+    const sceneIds = useSelector(selectAppSceneIds)
 
     const setEnabled = (id, val) => dispatch(setFeatureEnabled({ id, enabled: val }))
 
@@ -54,6 +56,18 @@ export default function PluginsSection() {
             dispatch(addKeyboardLayout({ id: `kb-${crypto.randomUUID()}`, start, end }))
             dispatch(setSelectedRow(KEYBOARD_LAYOUTS))
             dispatch(setOpenSection(KEYBOARD_LAYOUTS))
+        } else if (kind === "scene") {
+            const main = extraTracks?.[0]?.id || null
+            const slots = {}
+            for (let i = 1; i < (extraTracks?.length || 0); i++) {
+                slots[extraTracks[i].id] = "tr"
+            }
+            dispatch(addAppScene({
+                id: `scn-${crypto.randomUUID()}`, start, end,
+                mainTrackId: main, slots,
+            }))
+            dispatch(setSelectedRow(APP_SCENES))
+            dispatch(setOpenSection(APP_SCENES))
         }
     }
 
@@ -95,13 +109,16 @@ export default function PluginsSection() {
                 icon={RectangleGroupIcon}
                 title="Individual App Recording"
                 enabled={!!enabled[FEATURE_IDS.APP_RECORDING]}
-                onToggle={(v) => setEnabled(FEATURE_IDS.APP_RECORDING, v)}>
+                onToggle={(v) => setEnabled(FEATURE_IDS.APP_RECORDING, v)}
+                blockCount={sceneIds.length}
+                onAddBlock={Array.isArray(extraTracks) && extraTracks.length > 0
+                    ? () => addBlock("scene")
+                    : null}>
                 {Array.isArray(extraTracks) && extraTracks.length > 0 ? (
                     <div className="flex flex-col gap-1">
                         <p className="text-[11px] text-base-content/55">
-                            {extraTracks.length} captured app{extraTracks.length === 1 ? "" : "s"}.
-                            Open the <span className="font-semibold">Sources</span> panel to toggle visibility,
-                            or scene-block control coming next.
+                            {extraTracks.length} captured app{extraTracks.length === 1 ? "" : "s"}. Add a Scene
+                            block to set which is the main view + where the others appear (corner PiPs or hidden).
                         </p>
                         <ul className="rounded-md border border-base-content/10 divide-y divide-base-content/5">
                             {extraTracks.map((t) => (

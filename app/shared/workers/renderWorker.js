@@ -90,6 +90,10 @@ import {
     selectAllMouseStyles,
     selectMouseStyleDefaults
 } from "../redux/mouseStyleAnimSlice"
+import {
+    selectAllAppScenes
+} from "../redux/appSceneAnimSlice"
+import { selectExtraTracks } from "../redux/projectSlice"
 import RenderScene from "../scene/RenderScene"
 import {
     CANCEL_RENDER,
@@ -200,6 +204,10 @@ class WorkerRenderer {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state),
                     defaults: selectMouseStyleDefaults(this.render.state),
                     entities: selectAllMouseStyles(this.render.state),
+                },
+                pluginAppScene: {
+                    blocks: selectAllAppScenes(this.render.state),
+                    trackOrder: (selectExtraTracks(this.render.state) || []).map(t => t.id),
                 },
                 pluginKeyboardOverlay: {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY)(this.render.state),

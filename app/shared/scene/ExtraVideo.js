@@ -8,6 +8,8 @@ import {
 import CanvasWrapper from "./CanvasWrapper"
 
 const PIP_WIDTH_RATIO = 0.25       // each extra video ~25% of stage width
+const CORNER_PIP_RATIO = 0.22      // PiP size when used as a corner secondary in a scene
+const MAIN_WIDTH_RATIO = 0.78      // main app fills ~78% of canvas width
 const MARGIN = 16                  // px from edges
 const STACK_GAP = 12               // px between stacked PiPs
 
@@ -21,6 +23,15 @@ export default class ExtraVideo extends CanvasWrapper {
         super(dims)
         this.index = index
         this.rendererDims = null
+
+        // Scene role for the multi-app plugin's scene-block system.
+        //   "default" — legacy top-right stack (positioned by index)
+        //   "main"    — centered, large
+        //   "corner"  — small PiP in one of 4 corners
+        //   "hidden"  — visible = false
+        this.role = "default"
+        this.corner = "tr"
+        this.userVisible = true   // global Sources panel toggle
 
         // Canvas → Pixi texture pipeline
         this.texture = new Texture({ source: new CanvasSource({ resource: this.canvas }) })
@@ -51,22 +62,65 @@ export default class ExtraVideo extends CanvasWrapper {
     }
 
     setVisible(visible) {
-        this.outerContainer.visible = !!visible
+        this.userVisible = !!visible
+        this.applyVisibility()
     }
 
-    /** Lay this PiP out in the top-right of the renderer. */
+    applyVisibility() {
+        // Either the user hid the track via Sources panel, or the active scene
+        // block marked it hidden — in both cases hide the container.
+        const sceneVisible = this.role !== "hidden"
+        this.outerContainer.visible = this.userVisible && sceneVisible
+    }
+
+    setSceneRole(role, opts = {}) {
+        this.role = role || "default"
+        if (opts.corner) this.corner = opts.corner
+        // Higher zIndex when "main" so it sits above corners.
+        if (this.role === "main") this.outerContainer.zIndex = 80 + this.index
+        else if (this.role === "corner") this.outerContainer.zIndex = 60 + this.index
+        else this.outerContainer.zIndex = 50 + this.index
+        this.layout()
+        this.applyVisibility()
+    }
+
     setRendererDims(rendererDims) {
         this.rendererDims = rendererDims
-        if (!rendererDims) return
-        const targetWidth = rendererDims.x * PIP_WIDTH_RATIO
-        const scale = targetWidth / this.dims.x
-        const scaledHeight = this.dims.y * scale
+        this.layout()
+    }
 
-        this.inner.scale.set(scale)
-
-        const x = rendererDims.x - targetWidth - MARGIN
-        const y = MARGIN + this.index * (scaledHeight + STACK_GAP)
-        this.outerContainer.position.set(x, y)
+    layout() {
+        const r = this.rendererDims
+        if (!r) return
+        const role = this.role
+        if (role === "main") {
+            const targetWidth = r.x * MAIN_WIDTH_RATIO
+            const scale = targetWidth / this.dims.x
+            const scaledHeight = this.dims.y * scale
+            this.inner.scale.set(scale)
+            const x = (r.x - targetWidth) / 2
+            const y = (r.y - scaledHeight) / 2
+            this.outerContainer.position.set(x, y)
+        } else if (role === "corner") {
+            const targetWidth = r.x * CORNER_PIP_RATIO
+            const scale = targetWidth / this.dims.x
+            const scaledHeight = this.dims.y * scale
+            this.inner.scale.set(scale)
+            const left = this.corner.endsWith("l")
+            const top = this.corner.startsWith("t")
+            const x = left ? MARGIN : r.x - targetWidth - MARGIN
+            const y = top ? MARGIN : r.y - scaledHeight - MARGIN
+            this.outerContainer.position.set(x, y)
+        } else {
+            // default: legacy top-right stack
+            const targetWidth = r.x * PIP_WIDTH_RATIO
+            const scale = targetWidth / this.dims.x
+            const scaledHeight = this.dims.y * scale
+            this.inner.scale.set(scale)
+            const x = r.x - targetWidth - MARGIN
+            const y = MARGIN + this.index * (scaledHeight + STACK_GAP)
+            this.outerContainer.position.set(x, y)
+        }
     }
 
     destroy() {

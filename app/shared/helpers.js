@@ -107,6 +107,10 @@ import {
     applyProperties as applyMouseStyleProperties,
     setMouseStyles
 } from "./redux/mouseStyleAnimSlice"
+import {
+    applyProperties as applyAppSceneProperties,
+    setAppScenes
+} from "./redux/appSceneAnimSlice"
 
 // Lazy-loaded heavy scene modules (Pixi.js, configs, etc.)
 // These are only needed when opening/editing a project, not at startup.
@@ -239,6 +243,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         if (json.overlayAnims) actions.push(applyOverlayAnimsProperties(json.overlayAnims))
         if (json.keyboardLayoutAnims) actions.push(applyKeyboardLayoutProperties(json.keyboardLayoutAnims))
         if (json.mouseStyleAnims) actions.push(applyMouseStyleProperties(json.mouseStyleAnims))
+        if (json.appSceneAnims) actions.push(applyAppSceneProperties(json.appSceneAnims))
 
         try {
             if (json.project?.background) {
@@ -306,6 +311,12 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         // covered by an override.
         if (json.mouseStyleAnims?.entities) {
             actions.push(setMouseStyles(json.mouseStyleAnims.entities))
+        }
+
+        // Plugin: app scenes. Each entity defines main app + secondary corner
+        // placements for a time span.
+        if (json.appSceneAnims?.entities) {
+            actions.push(setAppScenes(json.appSceneAnims.entities))
         }
 
         // Plugin: keyboard layout. Load saved entities, then auto-seed one full-video span
