@@ -360,21 +360,26 @@
 
 @layer components {
     .flowtake-editor {
-        color-scheme: light;
         --editor-border: color-mix(in oklab, var(--color-base-content) 10%, transparent);
         --editor-soft-border: color-mix(in oklab, var(--color-base-content) 7%, transparent);
-        --editor-shadow-soft: 0 14px 34px rgba(34, 42, 55, 0.08);
-        --editor-shadow-lift: 0 24px 55px rgba(34, 42, 55, 0.12);
+        --editor-shadow-soft: 0 14px 34px color-mix(in oklab, var(--color-base-content) 8%, transparent);
+        --editor-shadow-lift: 0 24px 55px color-mix(in oklab, var(--color-base-content) 14%, transparent);
+        --editor-surface: color-mix(in oklab, var(--color-base-100) 92%, transparent);
+        --editor-surface-strong: color-mix(in oklab, var(--color-base-100) 96%, transparent);
+        --editor-surface-soft: color-mix(in oklab, var(--color-base-100) 86%, transparent);
+        --editor-highlight: color-mix(in oklab, var(--color-base-100) 60%, white 40%);
     }
 
     .flowtake-editor__workspace {
         background:
-            linear-gradient(180deg, #f8faff 0%, #eef3f8 100%);
+            linear-gradient(180deg,
+                color-mix(in oklab, var(--color-base-200) 70%, var(--color-base-100)) 0%,
+                var(--color-base-300) 100%);
     }
 
     .flowtake-titlebar {
         border-bottom: 1px solid var(--editor-soft-border);
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+        box-shadow: 0 1px 0 color-mix(in oklab, var(--editor-highlight) 80%, transparent);
     }
 
     .flowtake-panel,
@@ -388,7 +393,7 @@
 
     .flowtake-icon-rail,
     .flowtake-asset-rail {
-        background: rgba(255, 255, 255, 0.92);
+        background: var(--editor-surface);
     }
 
     .flowtake-sidebar-button {
@@ -401,7 +406,7 @@
     }
 
     .flowtake-properties-card {
-        background: rgba(255, 255, 255, 0.96);
+        background: var(--editor-surface-strong);
     }
 
     .flowtake-fieldset {
@@ -416,14 +421,14 @@
 
     .flowtake-preview__toolbar {
         border: 1px solid var(--editor-soft-border);
-        box-shadow: 0 8px 24px rgba(34, 42, 55, 0.06);
+        box-shadow: 0 8px 24px color-mix(in oklab, var(--color-base-content) 6%, transparent);
     }
 
     .flowtake-preview__stage {
         border: 1px solid color-mix(in oklab, var(--color-base-content) 6%, transparent);
         border-radius: 1rem;
         background: color-mix(in oklab, var(--color-base-100) 62%, var(--color-base-200));
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        box-shadow: inset 0 1px 0 color-mix(in oklab, var(--editor-highlight) 90%, transparent);
     }
 
     .flowtake-preview__canvas {
@@ -435,16 +440,18 @@
     }
 
     .flowtake-timeline-surface {
-        background: rgba(255, 255, 255, 0.96);
+        background: var(--editor-surface-strong);
     }
 
     .flowtake-timeline-toolbar {
-        background: rgba(255, 255, 255, 0.86);
+        background: var(--editor-surface-soft);
     }
 
     .flowtake-timeline-scroll {
         background:
-            linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(245, 247, 251, 0.82));
+            linear-gradient(180deg,
+                color-mix(in oklab, var(--color-base-100) 72%, transparent),
+                color-mix(in oklab, var(--color-base-200) 82%, transparent));
     }
 
     .flowtake-editor .btn {

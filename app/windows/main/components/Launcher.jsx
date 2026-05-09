@@ -2,14 +2,16 @@ import {
   Cog6ToothIcon,
   FolderOpenIcon,
   VideoCameraIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline"
 import {
   CodeBracketSquareIcon,
 } from "@heroicons/react/16/solid"
 import PropTypes from 'prop-types'
 import { useState } from "react"
-import { useDispatch, useSelector } from "react-redux"
+import { useDispatch } from "react-redux"
 import { useQuery } from "@tanstack/react-query"
+import logo from "@shared/assets/logo.svg"
 import TitleBar from "../../../components/TitleBar"
 import ExportButton from "./ExportButton"
 import NewRecording from "./newRecording/NewRecording"
@@ -20,6 +22,14 @@ import { SETTINGS_GENERAL } from "./settings/constants"
 const VIEW_RECORD = "record"
 const VIEW_PROJECTS = "projects"
 
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 5) return "Working late"
+  if (h < 12) return "Good morning"
+  if (h < 18) return "Good afternoon"
+  return "Good evening"
+}
+
 export default function Launcher() {
 
   const [activeView, setActiveView] = useState(VIEW_RECORD)
@@ -29,15 +39,37 @@ export default function Launcher() {
     queryFn: () => window.electron.ipcRenderer.invoke("get-version"),
     staleTime: Infinity
   })
+  const { data: launchCount } = useQuery({
+    queryKey: ['launchCount'],
+    queryFn: () => window.electron.ipcRenderer.invoke("store-get", "launchCount"),
+    staleTime: Infinity
+  })
+  const { data: projectsMeta } = useQuery({
+    queryKey: ['projects-meta'],
+    queryFn: async () => {
+      const raw = await window.electron.ipcRenderer.invoke("store-get", "projects")
+      if (!raw || typeof raw !== "object") return { count: 0 }
+      const count = Object.values(raw).filter(p => p && p.lastSaved != null).length
+      return { count }
+    },
+    staleTime: 60_000,
+  })
+
+  const totalProjects = projectsMeta?.count ?? 0
+  const isFirstRun = (launchCount ?? 0) <= 1
+  const greeting = getGreeting()
 
   return (<>
     <TitleBar>
       <ExportButton />
     </TitleBar>
 
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full overflow-hidden bg-base-100">
       {/* Sidebar */}
-      <aside className="w-[52px] flex-shrink-0 bg-base-200/40 border-r border-base-content/5 flex flex-col items-center py-3 gap-1">
+      <aside className="w-[60px] flex-shrink-0 bg-base-200/40 border-r border-base-content/5 flex flex-col items-center py-3 gap-1">
+        <div className="size-9 rounded-xl flex items-center justify-center mb-2 overflow-hidden">
+          <img src={logo} alt="Flowtake" className="size-7" />
+        </div>
         <SidebarItem
           icon={VideoCameraIcon}
           label="Record"
@@ -48,6 +80,7 @@ export default function Launcher() {
           icon={FolderOpenIcon}
           label="Projects"
           active={activeView === VIEW_PROJECTS}
+          badge={totalProjects > 0 ? totalProjects : null}
           onClick={() => setActiveView(VIEW_PROJECTS)}
         />
 
@@ -71,28 +104,74 @@ export default function Launcher() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
-        <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-4 md:px-5 py-2.5 flex flex-col overflow-hidden">
-          {/* Compact header */}
-          <div className="flex items-center justify-between mb-2.5 flex-shrink-0 gap-3">
-            <h2 className="font-brand font-semibold text-sm md:text-base text-base-content/90 truncate">
-              {activeView === VIEW_RECORD ? "New Recording" : "My Projects"}
-            </h2>
-            <button
-              onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
-              className="badge badge-sm bg-base-200/60 border-base-content/10 text-base-content/50 gap-1.5 hover:text-base-content/80 hover:bg-base-200 transition-colors cursor-pointer flex-shrink-0"
-              title={`Flowtake ${version || ""} · MIT License`}
-            >
-              <GitHubIcon className="size-3" />
-              <span className="hidden sm:inline">Open Source</span>
-            </button>
-          </div>
+      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative">
+        {/* Subtle theme-aware backdrop */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-60"
+          style={{
+            background: "radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 60%)"
+          }}
+        />
 
-          {/* Content area - takes remaining space */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="relative flex-1 min-h-0 w-full max-w-6xl mx-auto px-5 md:px-7 pt-3 pb-3 flex flex-col overflow-hidden">
+          {/* Hero header */}
+          <header className="flex-shrink-0 mb-3 flex items-end justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-base-content/40 mb-0.5">
+                {greeting}
+              </p>
+              <h1 className="font-brand font-semibold text-xl md:text-2xl text-base-content leading-tight truncate">
+                {activeView === VIEW_RECORD
+                  ? (isFirstRun ? "Capture your first recording" : "Ready to record")
+                  : "My projects"}
+              </h1>
+              <p className="text-xs text-base-content/50 mt-1 truncate">
+                {activeView === VIEW_RECORD
+                  ? "Pick a source, set up audio, then hit record. Auto-zoom does the rest."
+                  : totalProjects > 0
+                    ? `${totalProjects} ${totalProjects === 1 ? "project" : "projects"} saved locally`
+                    : "Your recordings will appear here"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <SegmentedTab
+                items={[
+                  { id: VIEW_RECORD, label: "Record", icon: VideoCameraIcon },
+                  { id: VIEW_PROJECTS, label: "Projects", icon: FolderOpenIcon },
+                ]}
+                active={activeView}
+                onChange={setActiveView}
+              />
+              <button
+                onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
+                className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-base-content/45 hover:text-base-content/80 transition-colors px-2 py-1 rounded-md hover:bg-base-content/5"
+                title={`Flowtake ${version || ""} · MIT License`}
+              >
+                <GitHubIcon className="size-3.5" />
+                <span>v{version || "—"}</span>
+              </button>
+            </div>
+          </header>
+
+          {/* First-run tip card */}
+          {isFirstRun && activeView === VIEW_RECORD && (
+            <div className="flex-shrink-0 mb-3 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5">
+              <SparklesIcon className="size-4 text-primary mt-0.5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-base-content/85">Welcome to Flowtake</p>
+                <p className="text-[11px] text-base-content/55 mt-0.5">
+                  Tip: enable system audio and a microphone for tutorials. Cursor zoom, masks, and click effects are added automatically.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Content area */}
+          <section className="flex-1 min-h-0 overflow-hidden rounded-2xl border border-base-content/5 bg-base-100/60 backdrop-blur-sm shadow-sm p-3 md:p-4">
             <NewRecording isOpen={activeView === VIEW_RECORD} />
             <Projects isOpen={activeView === VIEW_PROJECTS} />
-          </div>
+          </section>
         </div>
       </main>
     </div>
@@ -111,11 +190,11 @@ GitHubIcon.propTypes = {
   className: PropTypes.string
 }
 
-function SidebarItem({ onClick, active, icon: Icon, label }) {
+function SidebarItem({ onClick, active, icon: Icon, label, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`tooltip tooltip-right w-10 h-10 rounded-lg flex items-center justify-center transition-all
+      className={`relative tooltip tooltip-right w-10 h-10 rounded-lg flex items-center justify-center transition-all
         ${active
           ? "bg-primary/15 text-primary"
           : "text-base-content/40 hover:text-base-content/70 hover:bg-base-content/5"
@@ -123,6 +202,14 @@ function SidebarItem({ onClick, active, icon: Icon, label }) {
       data-tip={label}
     >
       <Icon className="size-5" />
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
+      )}
+      {badge != null && (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-base-content/15 text-base-content/80 text-[9px] font-semibold flex items-center justify-center leading-none">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </button>
   )
 }
@@ -131,5 +218,41 @@ SidebarItem.propTypes = {
   onClick: PropTypes.func.isRequired,
   active: PropTypes.bool,
   icon: PropTypes.elementType.isRequired,
-  label: PropTypes.string.isRequired
+  label: PropTypes.string.isRequired,
+  badge: PropTypes.number,
+}
+
+function SegmentedTab({ items, active, onChange }) {
+  return (
+    <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-base-200/60 border border-base-content/5">
+      {items.map(item => {
+        const Icon = item.icon
+        const isActive = active === item.id
+        return (
+          <button
+            key={item.id}
+            onClick={() => onChange(item.id)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all
+              ${isActive
+                ? "bg-base-100 text-base-content shadow-sm"
+                : "text-base-content/55 hover:text-base-content/85"
+              }`}
+          >
+            <Icon className="size-3.5" />
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+SegmentedTab.propTypes = {
+  items: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    label: PropTypes.string.isRequired,
+    icon: PropTypes.elementType.isRequired,
+  })).isRequired,
+  active: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
 }

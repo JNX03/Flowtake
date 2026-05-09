@@ -17,7 +17,8 @@ const [
 ])
 
 test("editor opts into the clean studio shell", () => {
-    assert.match(editorSource, /data-theme="flowtake-studio"/)
+    // Editor must NOT pin a data-theme — it inherits the user's appearance theme.
+    assert.doesNotMatch(editorSource, /data-theme="flowtake-studio"/)
     assert.match(editorSource, /className="flowtake-editor h-full text-base-content"/)
     assert.match(editorSource, /variant="studio"/)
     assert.match(editorSource, /flowtake-editor__workspace/)

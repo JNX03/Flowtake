@@ -149,7 +149,7 @@ export default function Editor() {
     }, [])
 
     return (
-        <div data-theme="flowtake-studio" className="flowtake-editor h-full text-base-content">
+        <div className="flowtake-editor h-full text-base-content">
         <TitleBar overlayButtons={3} subtitle={name} variant="studio" >
             <div className="flex items-center gap-0.5">
                 <SaveIndicator />
