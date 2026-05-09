@@ -1,6 +1,7 @@
 import {
   Cog6ToothIcon,
   FolderOpenIcon,
+  PuzzlePieceIcon,
   VideoCameraIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline"
@@ -15,12 +16,14 @@ import logo from "@shared/assets/logo.svg"
 import TitleBar from "../../../components/TitleBar"
 import ExportButton from "./ExportButton"
 import NewRecording from "./newRecording/NewRecording"
+import Plugins from "./plugins/Plugins"
 import Projects from "./projects/Projects"
 import { setOpenSettings } from "@shared/redux/appSlice"
 import { SETTINGS_GENERAL } from "./settings/constants"
 
 const VIEW_RECORD = "record"
 const VIEW_PROJECTS = "projects"
+const VIEW_PLUGINS = "plugins"
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -83,6 +86,12 @@ export default function Launcher() {
           badge={totalProjects > 0 ? totalProjects : null}
           onClick={() => setActiveView(VIEW_PROJECTS)}
         />
+        <SidebarItem
+          icon={PuzzlePieceIcon}
+          label="Plugins"
+          active={activeView === VIEW_PLUGINS}
+          onClick={() => setActiveView(VIEW_PLUGINS)}
+        />
 
         <div className="flex-1" />
 
@@ -124,14 +133,18 @@ export default function Launcher() {
               <h1 className="font-brand font-semibold text-xl md:text-2xl text-base-content leading-tight truncate">
                 {activeView === VIEW_RECORD
                   ? (isFirstRun ? "Capture your first recording" : "Ready to record")
-                  : "My projects"}
+                  : activeView === VIEW_PROJECTS
+                    ? "My projects"
+                    : "Plugins & Extensions"}
               </h1>
               <p className="text-xs text-base-content/50 mt-1 truncate">
                 {activeView === VIEW_RECORD
                   ? "Pick a source, set up audio, then hit record. Auto-zoom does the rest."
-                  : totalProjects > 0
-                    ? `${totalProjects} ${totalProjects === 1 ? "project" : "projects"} saved locally`
-                    : "Your recordings will appear here"}
+                  : activeView === VIEW_PROJECTS
+                    ? (totalProjects > 0
+                      ? `${totalProjects} ${totalProjects === 1 ? "project" : "projects"} saved locally`
+                      : "Your recordings will appear here")
+                    : "Toggle built-in extensions and drop in your own (research preview)"}
               </p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -139,6 +152,7 @@ export default function Launcher() {
                 items={[
                   { id: VIEW_RECORD, label: "Record", icon: VideoCameraIcon },
                   { id: VIEW_PROJECTS, label: "Projects", icon: FolderOpenIcon },
+                  { id: VIEW_PLUGINS, label: "Plugins", icon: PuzzlePieceIcon },
                 ]}
                 active={activeView}
                 onChange={setActiveView}
@@ -171,6 +185,7 @@ export default function Launcher() {
           <section className="flex-1 min-h-0 overflow-hidden rounded-2xl border border-base-content/5 bg-base-100/60 backdrop-blur-sm shadow-sm p-3 md:p-4">
             <NewRecording isOpen={activeView === VIEW_RECORD} />
             <Projects isOpen={activeView === VIEW_PROJECTS} />
+            <Plugins isOpen={activeView === VIEW_PLUGINS} />
           </section>
         </div>
       </main>
