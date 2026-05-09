@@ -76,7 +76,7 @@ pub async fn start_multi_app_capture(
             idx, w.name, w.width, w.height, w.x, w.y, out_path
         );
 
-        let mut child = match spawn_window_capture(&ffmpeg_path, w, &out_path) {
+        let mut child = match spawn_window_capture(&app, &ffmpeg_path, w, &out_path) {
             Ok(c) => c,
             Err(e) => {
                 log::warn!("[multi_app] failed to spawn capture for '{}': {}", w.name, e);
@@ -157,6 +157,7 @@ pub fn graceful_shutdown(mut children: Vec<std::process::Child>) {
 
 #[cfg(target_os = "windows")]
 fn spawn_window_capture(
+    app: &AppHandle,
     ffmpeg: &PathBuf,
     spec: &WindowSpec,
     out_path: &PathBuf,
@@ -165,50 +166,70 @@ fn spawn_window_capture(
     // CREATE_NO_WINDOW (0x08000000) so FFmpeg doesn't flash a console per child.
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Prefer title-based gdigrab capture so the window can move/occlude without
-    // breaking the recording. Falls back to a desktop region if the title is
-    // empty (e.g. Explorer panes).
-    let input = if spec.name.trim().is_empty() {
-        "desktop".to_string()
-    } else {
-        format!("title={}", spec.name)
-    };
+    // Use ddagrab (DXGI Desktop Duplication) instead of gdigrab. Reasons:
+    //  - GPU-accelerated, ~10x lower CPU than gdigrab BitBlt
+    //  - Captures the *composited* desktop, so hardware-accelerated apps
+    //    (Chrome, VSCode, modern Win32, UWP) appear correctly. gdigrab title=
+    //    capture returns black frames for those apps.
+    //  - Doesn't cause the hardware cursor to flicker on screen.
+    // Tradeoff: ddagrab captures a fixed monitor region, so if the user moves
+    // the window during recording it will capture whatever is at the original
+    // position. Acceptable for demos.
+    let (mon_idx, mon_x, mon_y) = monitor_for(app, spec.x, spec.y, spec.width, spec.height);
 
-    // libx264 requires even dimensions; round down.
+    // libx264 requires even dimensions.
     let w = (spec.width as i32) & !1;
     let h = (spec.height as i32) & !1;
+    let off_x = (spec.x - mon_x).max(0);
+    let off_y = (spec.y - mon_y).max(0);
+
+    let ddagrab = format!(
+        "ddagrab=output_idx={}:framerate=15:draw_mouse=0:offset_x={}:offset_y={}:video_size={}x{}",
+        mon_idx, off_x, off_y, w, h
+    );
 
     let mut cmd = std::process::Command::new(ffmpeg);
-    // -draw_mouse 0 is critical: gdigrab's BitBlt-based capture causes the
-    // hardware cursor to flicker visibly on screen at the capture framerate.
-    // Mirror the rest of the codebase, which always disables it. Cursor is
-    // drawn by the Pixi animator on top during preview/render.
-    cmd.args(["-y", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "0"]);
-    if input == "desktop" {
-        cmd.args([
-            "-offset_x", &spec.x.to_string(),
-            "-offset_y", &spec.y.to_string(),
-            "-video_size", &format!("{}x{}", w, h),
-        ]);
-    }
-    cmd.args(["-i", &input])
-        .args([
-            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",  // ensure even dims even if window resizes
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-        ])
-        .arg(out_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .creation_flags(CREATE_NO_WINDOW);
+    cmd.args([
+        "-y",
+        "-f", "lavfi",
+        "-i", &ddagrab,
+        "-vf", "hwdownload,format=bgra,format=yuv420p",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+    ])
+    .arg(out_path)
+    .stdin(Stdio::piped())
+    .stdout(Stdio::null())
+    .stderr(Stdio::piped())
+    .creation_flags(CREATE_NO_WINDOW);
     cmd.spawn()
+}
+
+#[cfg(target_os = "windows")]
+fn monitor_for(app: &AppHandle, win_x: i32, win_y: i32, win_w: u32, win_h: u32) -> (usize, i32, i32) {
+    let cx = win_x + (win_w as i32) / 2;
+    let cy = win_y + (win_h as i32) / 2;
+    if let Ok(monitors) = app.available_monitors() {
+        for (i, m) in monitors.iter().enumerate() {
+            let pos = m.position();
+            let size = m.size();
+            let mx = pos.x;
+            let my = pos.y;
+            let mw = size.width as i32;
+            let mh = size.height as i32;
+            if cx >= mx && cx < mx + mw && cy >= my && cy < my + mh {
+                return (i, mx, my);
+            }
+        }
+    }
+    (0, 0, 0)
 }
 
 #[cfg(target_os = "macos")]
 fn spawn_window_capture(
+    _app: &AppHandle,
     ffmpeg: &PathBuf,
     spec: &WindowSpec,
     out_path: &PathBuf,
@@ -236,6 +257,7 @@ fn spawn_window_capture(
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn spawn_window_capture(
+    _app: &AppHandle,
     ffmpeg: &PathBuf,
     spec: &WindowSpec,
     out_path: &PathBuf,
