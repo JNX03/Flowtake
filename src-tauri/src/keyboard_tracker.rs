@@ -66,6 +66,15 @@ impl KeyboardTracker {
     }
 
     pub fn stop(&mut self) {
+        // Idempotent: bail silently if already stopped (and never started).
+        // Avoids the duplicate "[KeyboardTracker] Stopped" log when both the
+        // recorder JS and stop_recording defensively call us.
+        {
+            let running = self.is_running.lock().unwrap();
+            if !*running && self.hook_thread.is_none() {
+                return;
+            }
+        }
         {
             let mut running = self.is_running.lock().unwrap();
             *running = false;
