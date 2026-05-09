@@ -7,11 +7,8 @@ import {
 } from "pixi.js"
 import CanvasWrapper from "./CanvasWrapper"
 
-const PIP_WIDTH_RATIO = 0.25       // each extra video ~25% of stage width
 const CORNER_PIP_RATIO = 0.22      // PiP size when used as a corner secondary in a scene
-const MAIN_WIDTH_RATIO = 0.78      // main app fills ~78% of canvas width
 const MARGIN = 16                  // px from edges
-const STACK_GAP = 12               // px between stacked PiPs
 
 /**
  * A picture-in-picture overlay for one extra-N.mp4 captured by the individual
@@ -25,10 +22,10 @@ export default class ExtraVideo extends CanvasWrapper {
         this.rendererDims = null
 
         // Scene role for the multi-app plugin's scene-block system.
-        //   "default" — legacy top-right stack (positioned by index)
-        //   "main"    — centered, large
-        //   "corner"  — small PiP in one of 4 corners
-        //   "hidden"  — visible = false
+        //   "default" — hidden (no scene block active = show only the main screen recording)
+        //   "main"    — fills the canvas (focus-record mode)
+        //   "corner"  — small PiP in one of 4 corners (for hybrid scenes)
+        //   "hidden"  — explicitly hidden by a scene block
         this.role = "default"
         this.corner = "tr"
         this.userVisible = true   // global Sources panel toggle
@@ -67,9 +64,9 @@ export default class ExtraVideo extends CanvasWrapper {
     }
 
     applyVisibility() {
-        // Either the user hid the track via Sources panel, or the active scene
-        // block marked it hidden — in both cases hide the container.
-        const sceneVisible = this.role !== "hidden"
+        // Either the user hid the track via Sources panel, or the role is
+        // hidden/default — in both cases hide the container.
+        const sceneVisible = this.role === "main" || this.role === "corner"
         this.outerContainer.visible = this.userVisible && sceneVisible
     }
 
@@ -94,13 +91,15 @@ export default class ExtraVideo extends CanvasWrapper {
         if (!r) return
         const role = this.role
         if (role === "main") {
-            const targetWidth = r.x * MAIN_WIDTH_RATIO
-            const scale = targetWidth / this.dims.x
-            const scaledHeight = this.dims.y * scale
+            // Focus-record: fill the entire canvas, preserving aspect ratio
+            // (letterbox or pillarbox). Centered.
+            const scaleX = r.x / this.dims.x
+            const scaleY = r.y / this.dims.y
+            const scale = Math.min(scaleX, scaleY)
+            const w = this.dims.x * scale
+            const h = this.dims.y * scale
             this.inner.scale.set(scale)
-            const x = (r.x - targetWidth) / 2
-            const y = (r.y - scaledHeight) / 2
-            this.outerContainer.position.set(x, y)
+            this.outerContainer.position.set((r.x - w) / 2, (r.y - h) / 2)
         } else if (role === "corner") {
             const targetWidth = r.x * CORNER_PIP_RATIO
             const scale = targetWidth / this.dims.x
@@ -111,16 +110,8 @@ export default class ExtraVideo extends CanvasWrapper {
             const x = left ? MARGIN : r.x - targetWidth - MARGIN
             const y = top ? MARGIN : r.y - scaledHeight - MARGIN
             this.outerContainer.position.set(x, y)
-        } else {
-            // default: legacy top-right stack
-            const targetWidth = r.x * PIP_WIDTH_RATIO
-            const scale = targetWidth / this.dims.x
-            const scaledHeight = this.dims.y * scale
-            this.inner.scale.set(scale)
-            const x = r.x - targetWidth - MARGIN
-            const y = MARGIN + this.index * (scaledHeight + STACK_GAP)
-            this.outerContainer.position.set(x, y)
         }
+        // role === "default" or "hidden": no positioning needed, container is hidden
     }
 
     destroy() {

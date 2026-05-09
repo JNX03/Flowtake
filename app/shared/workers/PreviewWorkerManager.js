@@ -63,6 +63,10 @@ export default class PreviewWorkerManager extends WorkerManager {
     /**
      * Register an extra-N video element + its native dims, set up frame pumping,
      * and tell the worker to allocate a Pixi PiP for it.
+     *
+     * Critical: posts an INITIAL frame right after registration. Without this
+     * the PiP stays blank until the user hits play, because requestVideoFrameCallback
+     * only fires when a *new* frame is presented and the extra video is paused on load.
      */
     registerExtraVideo(index, videoEl, dims) {
         if (!videoEl) return
@@ -70,6 +74,17 @@ export default class PreviewWorkerManager extends WorkerManager {
 
         // Tell the worker to allocate the ExtraVideo Pixi sprite.
         this.post(INIT_EXTRA_VIDEO, { index, dims })
+
+        // Post an initial frame so the PiP shows the current still even when
+        // the video is paused (which it is on first load).
+        try {
+            const initialFrame = new VideoFrame(videoEl)
+            this.postFrame(`extra-${index}`, initialFrame).catch(e => {
+                console.warn(`[PreviewWorkerManager] extra-${index} initial frame post failed:`, e)
+            })
+        } catch (e) {
+            console.warn(`[PreviewWorkerManager] extra-${index} initial VideoFrame() failed:`, e)
+        }
 
         const cb = async () => {
             if (this.stopped) return
@@ -87,6 +102,14 @@ export default class PreviewWorkerManager extends WorkerManager {
             if (!this.stopped) videoEl.requestVideoFrameCallback(cb)
         }
         videoEl.requestVideoFrameCallback(cb)
+
+        // Also seek the extra video to currentTime to ensure it has a frame
+        // ready (cold-loaded videos sometimes have HAVE_METADATA but no frame
+        // until they're scrubbed).
+        if (videoEl.currentTime === 0 && videoEl.duration > 0) {
+            // Tiny seek to force a frame to be decoded
+            try { videoEl.currentTime = 0.001 } catch { /* ignore */ }
+        }
     }
 
     setExtraVisibility(index, visible) {
