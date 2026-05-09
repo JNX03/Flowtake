@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window and all sub-windows",
-  "windows": ["main", "recorder", "exporter", "areaPicker", "windowPicker", "note-*", "drawingOverlay"],
+  "windows": ["main", "recorder", "exporter", "areaPicker", "windowPicker", "note-*", "drawingOverlay", "liveComposer"],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -114,6 +114,11 @@
     "notification:allow-notify",
     "notification:allow-is-permission-granted",
     "notification:allow-request-permission",
-    "window-state:default"
+    "window-state:default",
+    "global-shortcut:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "global-shortcut:allow-is-registered"
   ]
 }
