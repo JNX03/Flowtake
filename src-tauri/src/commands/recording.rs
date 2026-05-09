@@ -22,7 +22,7 @@ pub async fn get_camera_mic_config(app: AppHandle) -> AppResult<Value> {
 }
 
 /// Find the FFmpeg binary path (for std::process::Command usage)
-fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
+pub fn find_ffmpeg_path() -> Option<std::path::PathBuf> {
     FFMPEG_PATH_CACHE.get_or_init(resolve_ffmpeg_path).clone()
 }
 

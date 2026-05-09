@@ -3,7 +3,7 @@ use std::process::Stdio;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -41,15 +41,29 @@ pub async fn start_multi_app_capture(
         return Ok(Vec::new());
     }
 
-    let (project_temp, ffmpeg_path) = {
+    let project_temp = {
         let s = state.lock().unwrap();
         let pid = s
             .project_id
             .clone()
             .ok_or(AppError::NoProjectOpen)?;
-        (s.project_temp_dir(&pid), resolve_ffmpeg(&app))
+        s.project_temp_dir(&pid)
     };
     std::fs::create_dir_all(&project_temp).ok();
+
+    // Reuse the same path-resolution as the main recorder so we find the
+    // bundled sidecar in dev AND in production.
+    let ffmpeg_path = match crate::commands::recording::find_ffmpeg_path() {
+        Some(p) => p,
+        None => {
+            log::error!("[multi_app] FFmpeg binary not found; multi-app capture skipped");
+            return Err(AppError::General(
+                "FFmpeg binary not found for multi-app capture".to_string(),
+            ));
+        }
+    };
+    log::info!("[multi_app] using ffmpeg at {:?}", ffmpeg_path);
+    let _ = &app; // app no longer needed but kept for API stability
 
     let mut tracks = Vec::with_capacity(windows.len());
     let mut children = Vec::with_capacity(windows.len());
@@ -57,14 +71,33 @@ pub async fn start_multi_app_capture(
     for (idx, w) in windows.iter().enumerate() {
         let filename = format!("extra-{}.mp4", idx);
         let out_path = project_temp.join(&filename);
+        log::info!(
+            "[multi_app] spawning capture {} for window '{}' ({}x{}) at ({}, {}) -> {:?}",
+            idx, w.name, w.width, w.height, w.x, w.y, out_path
+        );
 
-        let child = match spawn_window_capture(&ffmpeg_path, w, &out_path) {
+        let mut child = match spawn_window_capture(&ffmpeg_path, w, &out_path) {
             Ok(c) => c,
             Err(e) => {
-                log::warn!("[multi_app] failed to spawn capture for {}: {}", w.name, e);
+                log::warn!("[multi_app] failed to spawn capture for '{}': {}", w.name, e);
                 continue;
             }
         };
+
+        // Drain stderr to log so we can see if FFmpeg fails (gdigrab windowing
+        // errors, libx264 errors, etc.) instead of silent /dev/null.
+        if let Some(stderr) = child.stderr.take() {
+            let label = format!("extra-{}-{}", idx, w.name);
+            std::thread::spawn(move || {
+                use std::io::{BufRead, BufReader};
+                let reader = BufReader::new(stderr);
+                for line in reader.lines().map_while(Result::ok) {
+                    if !line.trim().is_empty() {
+                        log::info!("[ffmpeg/{}] {}", label, line);
+                    }
+                }
+            });
+        }
         children.push(child);
         tracks.push(CapturedTrack {
             id: w.id.clone(),
@@ -73,6 +106,10 @@ pub async fn start_multi_app_capture(
             width: w.width,
             height: w.height,
         });
+    }
+
+    if tracks.is_empty() {
+        log::warn!("[multi_app] no extra captures spawned (all failed?)");
     }
 
     {
@@ -118,21 +155,6 @@ pub fn graceful_shutdown(mut children: Vec<std::process::Child>) {
     }
 }
 
-fn resolve_ffmpeg(app: &AppHandle) -> PathBuf {
-    // Prefer the bundled sidecar if present; fall back to PATH `ffmpeg`.
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let sidecar = resource_dir.join("binaries").join(if cfg!(target_os = "windows") {
-            "ffmpeg.exe"
-        } else {
-            "ffmpeg"
-        });
-        if sidecar.exists() {
-            return sidecar;
-        }
-    }
-    PathBuf::from(if cfg!(target_os = "windows") { "ffmpeg.exe" } else { "ffmpeg" })
-}
-
 #[cfg(target_os = "windows")]
 fn spawn_window_capture(
     ffmpeg: &PathBuf,
@@ -143,20 +165,31 @@ fn spawn_window_capture(
     // CREATE_NO_WINDOW (0x08000000) so FFmpeg doesn't flash a console per child.
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    // Use gdigrab with explicit offset + size to capture the window region.
-    // Even values only — odd dimensions break libx264.
+    // Prefer title-based gdigrab capture so the window can move/occlude without
+    // breaking the recording. Falls back to a desktop region if the title is
+    // empty (e.g. Explorer panes).
+    let input = if spec.name.trim().is_empty() {
+        "desktop".to_string()
+    } else {
+        format!("title={}", spec.name)
+    };
+
+    // libx264 requires even dimensions; round down.
     let w = (spec.width as i32) & !1;
     let h = (spec.height as i32) & !1;
 
-    std::process::Command::new(ffmpeg)
-        .args([
-            "-y",
-            "-f", "gdigrab",
-            "-framerate", "30",
+    let mut cmd = std::process::Command::new(ffmpeg);
+    cmd.args(["-y", "-f", "gdigrab", "-framerate", "30"]);
+    if input == "desktop" {
+        cmd.args([
             "-offset_x", &spec.x.to_string(),
             "-offset_y", &spec.y.to_string(),
             "-video_size", &format!("{}x{}", w, h),
-            "-i", "desktop",
+        ]);
+    }
+    cmd.args(["-i", &input])
+        .args([
+            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",  // ensure even dims even if window resizes
             "-c:v", "libx264",
             "-preset", "veryfast",
             "-pix_fmt", "yuv420p",
@@ -165,9 +198,9 @@ fn spawn_window_capture(
         .arg(out_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
+        .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW);
+    cmd.spawn()
 }
 
 #[cfg(target_os = "macos")]
@@ -193,7 +226,7 @@ fn spawn_window_capture(
         .arg(out_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
 }
 
@@ -220,7 +253,7 @@ fn spawn_window_capture(
         .arg(out_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
 }
 

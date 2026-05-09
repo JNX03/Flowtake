@@ -40,10 +40,12 @@ impl KeyboardTracker {
         {
             let mut running = self.is_running.lock().unwrap();
             if *running {
+                log::warn!("[KeyboardTracker] start() called while already running; ignored");
                 return;
             }
             *running = true;
         }
+        log::info!("[KeyboardTracker] start() — installing low-level keyboard hook");
         self.events.lock().unwrap().clear();
 
         let events = self.events.clone();
@@ -161,6 +163,7 @@ impl KeyboardTracker {
                     return;
                 }
             };
+            log::info!("[KeyboardTracker] WH_KEYBOARD_LL installed (tid={})", tid);
 
             let mut msg = MSG::default();
             while GetMessageW(&mut msg, None, 0, 0).into() {
@@ -214,6 +217,13 @@ unsafe extern "system" fn low_level_keyboard_proc(
 
         if let Some(buf) = KB_EVENTS.lock().unwrap().as_ref() {
             let mut events = buf.lock().unwrap();
+            // First captured event — log so we can confirm the hook is alive.
+            if events.is_empty() {
+                log::info!(
+                    "[KeyboardTracker] first event captured: type={} vk={} key={}",
+                    event_type, vk, key_name
+                );
+            }
             // Cap at 50k to avoid runaway memory if the recorder is left on for hours
             if events.len() < 50_000 {
                 events.push(KeyEvent {

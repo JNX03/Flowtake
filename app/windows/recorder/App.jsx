@@ -236,7 +236,7 @@ export default function App() {
             )
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [deviceRecorder, mode, liveSettings])
+    }, [deviceRecorder, mode, liveSettings, isKeyboardOverlayEnabled, isAppRecordingEnabled, appRecordingWindows])
 
     const startLiveSession = useCallback(async () => {
         if (liveStartedRef.current) return
