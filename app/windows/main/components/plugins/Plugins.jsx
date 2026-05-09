@@ -4,9 +4,9 @@ import {
     PuzzlePieceIcon,
     RectangleGroupIcon,
 } from "@heroicons/react/24/outline"
-import { FolderOpenIcon } from "@heroicons/react/20/solid"
+import { ArrowPathIcon, FolderOpenIcon } from "@heroicons/react/20/solid"
 import PropTypes from "prop-types"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import {
     FEATURE_IDS,
@@ -17,7 +17,6 @@ import {
     setFeatureEnabled,
     setPluginsDir,
 } from "@shared/redux/pluginSlice"
-import Toggle from "../properties/Toggle"
 
 const BUILT_IN_PLUGINS = [
     {
@@ -26,7 +25,7 @@ const BUILT_IN_PLUGINS = [
         name: "Individual App Recording",
         short: "Record multiple apps at once",
         description:
-            "Capture each selected app to its own video layer in parallel. After recording, choose which layers to show in the editor before exporting. Useful for picture-in-picture demos and side-by-side comparisons.",
+            "Capture each selected app to its own video layer in parallel. Choose which layers to show in the editor before export.",
     },
     {
         id: FEATURE_IDS.MOUSE_STYLE,
@@ -34,7 +33,7 @@ const BUILT_IN_PLUGINS = [
         name: "Mouse Coloring & Name Tag",
         short: "Recolor cursor and pin a label",
         description:
-            "Tints the rendered cursor in any color and pins a floating label next to it during recording and playback. Great for AI-agent-style demos where the cursor represents an automated user.",
+            "Tints the rendered cursor and pins a floating label next to it during recording and playback. Great for AI-agent demos.",
     },
     {
         id: FEATURE_IDS.KEYBOARD_OVERLAY,
@@ -42,7 +41,7 @@ const BUILT_IN_PLUGINS = [
         name: "Keyboard Typing Layout",
         short: "Show keys being pressed",
         description:
-            "Captures every keystroke during recording and overlays it in your video. Two modes: full typing shows every key, or keybinds-only shows just modifier combos and special keys (F-keys, Backspace, Delete, arrows…).",
+            "Captures keystrokes during recording and overlays them. Two modes: full typing or keybinds-only (Ctrl/Alt/Fn/F1–F12, Backspace, Delete, arrows…).",
     },
 ]
 
@@ -51,59 +50,67 @@ export default function Plugins({ isOpen }) {
     const enabled = useSelector(selectAllEnabled)
     const detected = useSelector(selectDetectedPlugins)
     const pluginsDir = useSelector(selectPluginsDir)
+    const [refreshing, setRefreshing] = useState(false)
 
-    // Refresh the detected plugin list once when the panel becomes visible.
+    const refresh = async () => {
+        setRefreshing(true)
+        try {
+            const path = await window.electron.ipcRenderer.invoke("ensure-plugins-dir")
+            dispatch(setPluginsDir(path))
+            const list = await window.electron.ipcRenderer.invoke("list-plugins")
+            dispatch(setDetectedPlugins(list || []))
+        } catch {
+            /* swallow */
+        } finally {
+            setRefreshing(false)
+        }
+    }
+
     useEffect(() => {
         if (!isOpen) return
-        let cancelled = false
-        ;(async () => {
-            try {
-                const path = await window.electron.ipcRenderer.invoke("ensure-plugins-dir")
-                if (!cancelled) dispatch(setPluginsDir(path))
-                const list = await window.electron.ipcRenderer.invoke("list-plugins")
-                if (!cancelled) dispatch(setDetectedPlugins(list || []))
-            } catch {
-                // ignore
-            }
-        })()
-        return () => { cancelled = true }
-    }, [isOpen, dispatch])
+        refresh()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen])
 
     if (!isOpen) return null
 
     const setEnabled = (id, val) => dispatch(setFeatureEnabled({ id, enabled: val }))
 
     return (
-        <div className="h-full flex flex-col gap-4 overflow-y-auto">
-            <header className="flex items-center gap-2">
-                <PuzzlePieceIcon className="size-5 text-primary" />
-                <h2 className="font-brand font-semibold text-base">Plugins & Extensions</h2>
+        <div className="h-full flex flex-col min-h-0">
+            {/* Header — fixed */}
+            <div className="flex items-center gap-2 mb-2 flex-shrink-0">
+                <PuzzlePieceIcon className="size-5 text-primary flex-shrink-0" />
+                <h2 className="font-brand font-semibold text-sm">Plugins & Extensions</h2>
                 <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
                     Research Preview
                 </span>
-            </header>
-
-            <p className="text-xs text-base-content/55 leading-relaxed -mt-2">
-                Plugins extend Flowtake with new capabilities. The features below are built-in and can be toggled
-                on or off. Third-party plugin files dropped into the folder below are detected but not executed in
-                this preview build.
+            </div>
+            <p className="text-xs text-base-content/55 leading-relaxed mb-4 flex-shrink-0">
+                Built-in extensions can be toggled on or off. Third-party plugin files dropped into the folder
+                below are detected but not executed in this preview build.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {BUILT_IN_PLUGINS.map((p) => (
-                    <PluginCard
-                        key={p.id}
-                        plugin={p}
-                        enabled={!!enabled[p.id]}
-                        onToggle={(v) => setEnabled(p.id, v)}
-                    />
-                ))}
-            </div>
+            {/* Scrollable content */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                    {BUILT_IN_PLUGINS.map((p) => (
+                        <PluginCard
+                            key={p.id}
+                            plugin={p}
+                            enabled={!!enabled[p.id]}
+                            onToggle={(v) => setEnabled(p.id, v)}
+                        />
+                    ))}
+                </div>
 
-            <DetectedPluginsCard
-                pluginsDir={pluginsDir}
-                detected={detected}
-            />
+                <DetectedPluginsCard
+                    pluginsDir={pluginsDir}
+                    detected={detected}
+                    refreshing={refreshing}
+                    onRefresh={refresh}
+                />
+            </div>
         </div>
     )
 }
@@ -115,27 +122,36 @@ Plugins.propTypes = {
 function PluginCard({ plugin, enabled, onToggle }) {
     const Icon = plugin.icon
     return (
-        <article className={`rounded-xl border bg-base-100/60 p-3.5 transition-colors
+        <article className={`rounded-xl border bg-base-100/60 p-3 transition-colors flex flex-col min-w-0
             ${enabled ? "border-primary/40 bg-primary/[0.03]" : "border-base-content/10"}`}>
-            <header className="flex items-start gap-3 mb-2">
-                <div className={`size-9 flex items-center justify-center rounded-lg flex-shrink-0
+            <header className="flex items-start gap-2.5 mb-2 min-w-0">
+                <div className={`size-8 flex items-center justify-center rounded-lg flex-shrink-0
                     ${enabled ? "bg-primary/15 text-primary" : "bg-base-content/5 text-base-content/40"}`}>
-                    <Icon className="size-4.5" />
+                    <Icon className="size-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                        <h3 className="text-sm font-semibold truncate">{plugin.name}</h3>
-                        <span className="px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[8px] font-bold uppercase tracking-wider flex-shrink-0">
-                            Built-in
-                        </span>
-                    </div>
-                    <p className="text-[11px] text-base-content/50">{plugin.short}</p>
+                    <h3 className="text-[13px] font-semibold leading-tight truncate">{plugin.name}</h3>
+                    <p className="text-[11px] text-base-content/50 truncate">{plugin.short}</p>
                 </div>
-                <Toggle value={enabled} onChange={(e) => onToggle(e.target.checked)} />
+                <input
+                    type="checkbox"
+                    className="toggle toggle-sm toggle-primary flex-shrink-0 mt-0.5"
+                    checked={enabled}
+                    onChange={(e) => onToggle(e.target.checked)}
+                    aria-label={`Enable ${plugin.name}`}
+                />
             </header>
-            <p className="text-xs text-base-content/65 leading-relaxed">
+            <p className="text-[11px] text-base-content/65 leading-relaxed">
                 {plugin.description}
             </p>
+            <div className="mt-2 pt-2 border-t border-base-content/5 flex items-center gap-1.5">
+                <span className="px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[8px] font-bold uppercase tracking-wider">
+                    Built-in
+                </span>
+                <span className="text-[10px] text-base-content/40">
+                    {enabled ? "Active" : "Disabled"}
+                </span>
+            </div>
         </article>
     )
 }
@@ -152,38 +168,48 @@ PluginCard.propTypes = {
     onToggle: PropTypes.func.isRequired,
 }
 
-function DetectedPluginsCard({ pluginsDir, detected }) {
+function DetectedPluginsCard({ pluginsDir, detected, refreshing, onRefresh }) {
     return (
-        <article className="rounded-xl border border-base-content/10 bg-base-100/60 p-3.5">
-            <header className="flex items-center justify-between gap-3 mb-2">
-                <div className="min-w-0">
-                    <h3 className="text-sm font-semibold">Drop-in plugins</h3>
-                    <p className="text-[11px] text-base-content/50 font-mono truncate">
+        <article className="rounded-xl border border-base-content/10 bg-base-100/60 p-3">
+            <header className="flex items-center gap-2 mb-2">
+                <div className="flex-1 min-w-0">
+                    <h3 className="text-[13px] font-semibold">Drop-in plugins folder</h3>
+                    <p className="text-[10px] text-base-content/45 font-mono truncate" title={pluginsDir || ""}>
                         {pluginsDir || "Loading folder…"}
                     </p>
                 </div>
                 <button
                     type="button"
+                    className="btn btn-xs btn-ghost btn-square"
+                    onClick={onRefresh}
+                    disabled={refreshing}
+                    title="Refresh">
+                    <ArrowPathIcon className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                </button>
+                <button
+                    type="button"
                     className="btn btn-xs btn-outline gap-1"
                     onClick={() => window.electron.ipcRenderer.invoke("open-plugins-folder")}>
                     <FolderOpenIcon className="size-3.5" />
-                    Open folder
+                    Open
                 </button>
             </header>
 
             {detected.length === 0 ? (
-                <p className="text-xs text-base-content/40 px-1 py-2">
-                    No plugins detected. Drop files into the folder above and reopen this view.
-                </p>
+                <div className="rounded-lg border border-dashed border-base-content/10 px-3 py-4 text-center">
+                    <p className="text-xs text-base-content/40">
+                        No plugins detected. Drop files into the folder and refresh.
+                    </p>
+                </div>
             ) : (
-                <ul className="divide-y divide-base-content/5 rounded-md border border-base-content/10 overflow-hidden">
+                <ul className="divide-y divide-base-content/5 rounded-lg border border-base-content/10 overflow-hidden">
                     {detected.map((p) => (
-                        <li key={p.name} className="flex items-center gap-3 px-3 py-1.5">
-                            <span className="size-6 flex items-center justify-center rounded bg-base-content/5 text-[9px] font-mono text-base-content/50">
+                        <li key={p.name} className="flex items-center gap-3 px-3 py-1.5 min-w-0">
+                            <span className="size-6 flex items-center justify-center rounded bg-base-content/5 text-[9px] font-mono text-base-content/50 flex-shrink-0">
                                 {p.is_dir ? "DIR" : (p.kind || "?").toUpperCase().slice(0, 4)}
                             </span>
-                            <span className="text-xs flex-1 truncate">{p.name}</span>
-                            <span className="px-1.5 py-0.5 rounded bg-base-content/5 text-[9px] font-bold uppercase tracking-wider text-base-content/45">
+                            <span className="text-xs flex-1 min-w-0 truncate">{p.name}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-base-content/5 text-[9px] font-bold uppercase tracking-wider text-base-content/45 flex-shrink-0">
                                 Detected
                             </span>
                         </li>
@@ -192,8 +218,7 @@ function DetectedPluginsCard({ pluginsDir, detected }) {
             )}
 
             <p className="text-[10px] text-base-content/35 mt-2 leading-snug">
-                Detection only — third-party plugin code is not executed in this preview. A sandbox + manifest
-                schema is part of the next milestone.
+                Detection only — third-party plugin code is not executed in this preview build.
             </p>
         </article>
     )
@@ -202,4 +227,6 @@ function DetectedPluginsCard({ pluginsDir, detected }) {
 DetectedPluginsCard.propTypes = {
     pluginsDir: PropTypes.string,
     detected: PropTypes.array.isRequired,
+    refreshing: PropTypes.bool,
+    onRefresh: PropTypes.func.isRequired,
 }
