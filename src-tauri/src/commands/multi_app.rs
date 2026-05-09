@@ -179,7 +179,11 @@ fn spawn_window_capture(
     let h = (spec.height as i32) & !1;
 
     let mut cmd = std::process::Command::new(ffmpeg);
-    cmd.args(["-y", "-f", "gdigrab", "-framerate", "30"]);
+    // -draw_mouse 0 is critical: gdigrab's BitBlt-based capture causes the
+    // hardware cursor to flicker visibly on screen at the capture framerate.
+    // Mirror the rest of the codebase, which always disables it. Cursor is
+    // drawn by the Pixi animator on top during preview/render.
+    cmd.args(["-y", "-f", "gdigrab", "-framerate", "30", "-draw_mouse", "0"]);
     if input == "desktop" {
         cmd.args([
             "-offset_x", &spec.x.to_string(),
