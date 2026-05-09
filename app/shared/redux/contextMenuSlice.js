@@ -20,6 +20,12 @@ const initialState = {
     isKeyboardLayoutMenuOpen: false,
     isNewKeyboardLayoutMenuOpen: false,
     keyboardLayoutId: null,
+    isMouseStyleMenuOpen: false,
+    isNewMouseStyleMenuOpen: false,
+    mouseStyleId: null,
+    isAppSceneMenuOpen: false,
+    isNewAppSceneMenuOpen: false,
+    appSceneId: null,
     selectedMaskRow: null,
 }
 
@@ -49,6 +55,12 @@ export const contextMenuSlice = createSlice({
         setKeyboardLayoutId: (state, action) => {
             state.keyboardLayoutId = action.payload
         },
+        setMouseStyleId: (state, action) => {
+            state.mouseStyleId = action.payload
+        },
+        setAppSceneId: (state, action) => {
+            state.appSceneId = action.payload
+        },
         closeAllContextMenus: state => {
             state.isClipMenuOpen = false
             state.isClickMenuOpen = false
@@ -63,6 +75,10 @@ export const contextMenuSlice = createSlice({
             state.isNewSpatialMenuOpen = false
             state.isKeyboardLayoutMenuOpen = false
             state.isNewKeyboardLayoutMenuOpen = false
+            state.isMouseStyleMenuOpen = false
+            state.isNewMouseStyleMenuOpen = false
+            state.isAppSceneMenuOpen = false
+            state.isNewAppSceneMenuOpen = false
         },
         setIsClipMenuOpen: (state, action) => {
             state.isClipMenuOpen = action.payload
@@ -236,6 +252,22 @@ export const contextMenuSlice = createSlice({
             state.isNewSpatialMenuOpen = false
             state.isKeyboardLayoutMenuOpen = false
             state.isNewKeyboardLayoutMenuOpen = action.payload
+        },
+        setIsMouseStyleMenuOpen: (state, action) => {
+            state.isMouseStyleMenuOpen = action.payload
+            state.isNewMouseStyleMenuOpen = false
+        },
+        setIsNewMouseStyleMenuOpen: (state, action) => {
+            state.isMouseStyleMenuOpen = false
+            state.isNewMouseStyleMenuOpen = action.payload
+        },
+        setIsAppSceneMenuOpen: (state, action) => {
+            state.isAppSceneMenuOpen = action.payload
+            state.isNewAppSceneMenuOpen = false
+        },
+        setIsNewAppSceneMenuOpen: (state, action) => {
+            state.isAppSceneMenuOpen = false
+            state.isNewAppSceneMenuOpen = action.payload
         }
     },
 })
@@ -264,6 +296,12 @@ export const {
     setIsKeyboardLayoutMenuOpen,
     setIsNewKeyboardLayoutMenuOpen,
     setKeyboardLayoutId,
+    setIsMouseStyleMenuOpen,
+    setIsNewMouseStyleMenuOpen,
+    setMouseStyleId,
+    setIsAppSceneMenuOpen,
+    setIsNewAppSceneMenuOpen,
+    setAppSceneId,
 } = contextMenuSlice.actions
 
 export const selectPosition = state => state.contextMenu.position
@@ -286,5 +324,11 @@ export const selectIsNewSpatialMenuOpen = state => state.contextMenu.isNewSpatia
 export const selectIsKeyboardLayoutMenuOpen = state => state.contextMenu.isKeyboardLayoutMenuOpen
 export const selectIsNewKeyboardLayoutMenuOpen = state => state.contextMenu.isNewKeyboardLayoutMenuOpen
 export const selectKeyboardLayoutId = state => state.contextMenu.keyboardLayoutId
+export const selectIsMouseStyleMenuOpen = state => state.contextMenu.isMouseStyleMenuOpen
+export const selectIsNewMouseStyleMenuOpen = state => state.contextMenu.isNewMouseStyleMenuOpen
+export const selectMouseStyleId = state => state.contextMenu.mouseStyleId
+export const selectIsAppSceneMenuOpen = state => state.contextMenu.isAppSceneMenuOpen
+export const selectIsNewAppSceneMenuOpen = state => state.contextMenu.isNewAppSceneMenuOpen
+export const selectAppSceneId = state => state.contextMenu.appSceneId
 
 export default contextMenuSlice.reducer

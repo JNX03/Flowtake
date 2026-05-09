@@ -92,6 +92,7 @@ import { selectAllSubtitles } from "@shared/redux/subtitleSlice"
 import { selectSpatialIds } from "@shared/redux/spatialSlice"
 import { selectAllZooms, selectZoomIds } from "@shared/redux/zoomSlice"
 import { selectKeyboardLayoutIds } from "@shared/redux/keyboardLayoutSlice"
+import { selectMouseStyleIds } from "@shared/redux/mouseStyleAnimSlice"
 import { subscribe, isDragActive } from "../../dragState"
 import AddTrackButton from "./AddTrackButton"
 import AudioTracks from "./AudioTracks"
@@ -100,6 +101,7 @@ import Clips from "./Clips"
 import Cursor from "./Cursor"
 import KeyboardLayouts from "./KeyboardLayouts"
 import Masks from "./Masks"
+import MouseStyles from "./MouseStyles"
 import Minimap from "./Minimap"
 import OverlayTracks from "./OverlayTracks"
 import SpatialClips from "./SpatialClips"
@@ -131,6 +133,7 @@ export default function Timeline() {
     const audioClipIds = useSelector(selectAudioClipIds)
     const overlayIds = useSelector(selectOverlayIds)
     const keyboardLayoutIds = useSelector(selectKeyboardLayoutIds)
+    const mouseStyleIds = useSelector(selectMouseStyleIds)
     const audioTracks = useSelector(selectAudioTracks)
     const overlayTracks = useSelector(selectOverlayTracks)
     const nextOverlayTrackId = useSelector(selectNextOverlayTrackId)
@@ -414,6 +417,7 @@ export default function Timeline() {
                         {totalSubtitles > 0 && <TrackHeader name="Subtitles" color="tertiary" isMinimized={mini} />}
 
                         {keyboardLayoutIds.length > 0 && <TrackHeader name="Keyboard" color="primary" isMinimized={mini} />}
+                        {mouseStyleIds.length > 0 && <TrackHeader name="Cursor" color="primary" isMinimized={mini} />}
 
                         {isMaskingModeEnabled && <TrackHeader name="Masks" color="neutral" isMinimized={false} />}
 
@@ -485,6 +489,7 @@ export default function Timeline() {
                             <SpatialClips />
                             {totalSubtitles > 0 && <Subtitles />}
                             {keyboardLayoutIds.length > 0 && <KeyboardLayouts />}
+                            {mouseStyleIds.length > 0 && <MouseStyles />}
                             {isMaskingModeEnabled && <Masks />}
 
                             {/* Track group separator */}

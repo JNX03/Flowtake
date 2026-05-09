@@ -97,8 +97,14 @@ export default class PreviewScene extends Scene {
                 this.screen.setState({ borderRadius: payload })
                 this.spotlightAnimator.setState({ borderRadius: payload })
                 break
-            case 'plugin.mouseStyle':
-                this.cursorAnimator?.setPluginStyle(payload)
+            case 'plugin.mouseStyle.enabled':
+                this.cursorAnimator?.setStyleEnabled(payload)
+                break
+            case 'plugin.mouseStyle.defaults':
+                this.cursorAnimator?.setStyleDefaults(payload)
+                break
+            case 'plugin.mouseStyle.entities':
+                this.cursorAnimator?.setStyleEntities(payload)
                 break
             case 'plugin.keyboardOverlay.enabled':
                 this.keyboardOverlay?.setEnabled(payload)

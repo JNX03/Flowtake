@@ -144,6 +144,10 @@ import {
     selectAllKeyboardLayouts,
     selectKeyboardLayoutDefaults
 } from "@shared/redux/keyboardLayoutSlice"
+import {
+    selectAllMouseStyles,
+    selectMouseStyleDefaults
+} from "@shared/redux/mouseStyleAnimSlice"
 import CameraZoomConfig from "@shared/scene/cameraZoom/CameraZoomConfig"
 import ClickConfig from "@shared/scene/click/ClickConfig"
 import CursorTypeConfig from "@shared/scene/cursorType/CursorTypeConfig"
@@ -240,7 +244,8 @@ export default function Preview() {
     const filterAnims = useSelector(selectAllFilters)
 
     const isMouseStyleEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE))
-    const mouseStyleConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE), shallowEqual)
+    const mouseStyleDefaults = useSelector(selectMouseStyleDefaults, shallowEqual)
+    const mouseStyleEntities = useSelector(selectAllMouseStyles, shallowEqual)
     const isKeyboardOverlayEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY))
     const keyboardEvents = useSelector(selectKeyboardEvents)
     const keyboardLayoutEntities = useSelector(selectAllKeyboardLayouts, shallowEqual)
@@ -638,11 +643,16 @@ export default function Preview() {
     }, [manager, inertia])
 
     useEffect(() => {
-        manager?.postUpdate({
-            type: 'plugin.mouseStyle',
-            payload: { enabled: isMouseStyleEnabled, ...mouseStyleConfig }
-        })
-    }, [manager, isMouseStyleEnabled, mouseStyleConfig])
+        manager?.postUpdate({ type: 'plugin.mouseStyle.enabled', payload: isMouseStyleEnabled })
+    }, [manager, isMouseStyleEnabled])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.mouseStyle.defaults', payload: mouseStyleDefaults })
+    }, [manager, mouseStyleDefaults])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.mouseStyle.entities', payload: mouseStyleEntities })
+    }, [manager, mouseStyleEntities])
 
     useEffect(() => {
         manager?.postUpdate({ type: 'plugin.keyboardOverlay.enabled', payload: isKeyboardOverlayEnabled })

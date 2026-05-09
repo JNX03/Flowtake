@@ -86,6 +86,10 @@ import {
     selectAllKeyboardLayouts,
     selectKeyboardLayoutDefaults
 } from "../redux/keyboardLayoutSlice"
+import {
+    selectAllMouseStyles,
+    selectMouseStyleDefaults
+} from "../redux/mouseStyleAnimSlice"
 import RenderScene from "../scene/RenderScene"
 import {
     CANCEL_RENDER,
@@ -194,7 +198,8 @@ class WorkerRenderer {
                 showClickRing: selectShowClickRing(this.render.state),
                 pluginMouseStyle: {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state),
-                    ...selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state)
+                    defaults: selectMouseStyleDefaults(this.render.state),
+                    entities: selectAllMouseStyles(this.render.state),
                 },
                 pluginKeyboardOverlay: {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY)(this.render.state),

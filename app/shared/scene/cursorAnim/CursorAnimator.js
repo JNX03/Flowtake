@@ -45,9 +45,13 @@ export default class CursorAnimator extends Animator {
         this.duration = duration
 
         this.pluginStyle = null
+        this.styleEntities = []      // [{id, start, end, color?, showLabel?, label?}]
+        this.styleDefaults = null    // { color, showLabel, label }
+        this.styleEnabled = false    // global plugin toggle
         this.tagContainer = null
         this.tagBg = null
         this.tagText = null
+        this._lastResolvedStyleKey = null
     }
 
 
@@ -81,6 +85,59 @@ export default class CursorAnimator extends Animator {
         if (this.tagContainer && this.tagContainer.visible) {
             this.tagContainer.rotation = -(this.cursor.rotation || 0)
         }
+
+        // Resolve plugin mouse style at the current playback time. Runs every
+        // frame but only re-applies tint/label when the resolved values change.
+        this.applyResolvedStyle(timestamp)
+    }
+
+    /** Mouse style block list (entity adapter entries). */
+    setStyleEntities(entities) {
+        this.styleEntities = Array.isArray(entities) ? entities : []
+        this._lastResolvedStyleKey = null
+    }
+
+    /** Slice-level defaults — used when no entity is active. */
+    setStyleDefaults(defaults) {
+        this.styleDefaults = defaults || null
+        this._lastResolvedStyleKey = null
+    }
+
+    /** Master plugin on/off. When off, the cursor reverts to default. */
+    setStyleEnabled(enabled) {
+        this.styleEnabled = !!enabled
+        this._lastResolvedStyleKey = null
+    }
+
+    /** Resolve which { color, showLabel, label } applies at `time`. */
+    resolveStyleAt(time) {
+        if (!this.styleEnabled) return null
+        // Find active entity by start/end window; entities are sorted by start
+        // (the adapter does this) so a linear scan from the back catches the
+        // last-added overlapping entity if multiple overlap.
+        let active = null
+        for (let i = this.styleEntities.length - 1; i >= 0; i--) {
+            const e = this.styleEntities[i]
+            if (time >= e.start && time <= e.end) { active = e; break }
+        }
+        const d = this.styleDefaults || {}
+        return {
+            color: active?.color ?? d.color ?? "#ffffff",
+            showLabel: active?.showLabel ?? d.showLabel ?? false,
+            label: active?.label ?? d.label ?? "",
+        }
+    }
+
+    applyResolvedStyle(time) {
+        const resolved = this.resolveStyleAt(time)
+        // When disabled, neutralize tint and hide tag.
+        const style = resolved
+            ? { enabled: true, color: resolved.color, showLabel: resolved.showLabel, label: resolved.label }
+            : { enabled: false }
+        const key = `${style.enabled ? 1 : 0}|${style.color || ''}|${style.showLabel ? 1 : 0}|${style.label || ''}`
+        if (key === this._lastResolvedStyleKey) return
+        this._lastResolvedStyleKey = key
+        this.setPluginStyle(style)
     }
 
     setState({ videoDetails, inertia, cutOff, blurStrength, rotationStrength, isLoop }) {

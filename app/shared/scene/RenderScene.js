@@ -72,7 +72,10 @@ export default class RenderScene extends Scene {
         })
 
         if (args.pluginMouseStyle) {
-            this.cursorAnimator.setPluginStyle(args.pluginMouseStyle)
+            const ms = args.pluginMouseStyle
+            this.cursorAnimator.setStyleEnabled(!!ms.enabled)
+            this.cursorAnimator.setStyleDefaults(ms.defaults || null)
+            this.cursorAnimator.setStyleEntities(ms.entities || [])
         }
         if (args.pluginKeyboardOverlay && this.keyboardOverlay) {
             this.keyboardOverlay.setEnabled(!!args.pluginKeyboardOverlay.enabled)

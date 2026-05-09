@@ -103,6 +103,10 @@ import {
     applyProperties as applyKeyboardLayoutProperties,
     setKeyboardLayouts
 } from "./redux/keyboardLayoutSlice"
+import {
+    applyProperties as applyMouseStyleProperties,
+    setMouseStyles
+} from "./redux/mouseStyleAnimSlice"
 
 // Lazy-loaded heavy scene modules (Pixi.js, configs, etc.)
 // These are only needed when opening/editing a project, not at startup.
@@ -171,6 +175,9 @@ export const CURSOR = "cursor"
 export const TRANSCRIPT = "transcript"
 export const SOURCES = "sources"
 export const KEYBOARD_LAYOUTS = "keyboard-layouts"
+export const MOUSE_STYLES = "mouse-styles"
+export const APP_SCENES = "app-scenes"
+export const PLUGINS = "plugins"
 
 export const INERTIA_FPS = 60
 
@@ -231,6 +238,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         if (json.audioTrackAnims) actions.push(applyAudioTrackAnimsProperties(json.audioTrackAnims))
         if (json.overlayAnims) actions.push(applyOverlayAnimsProperties(json.overlayAnims))
         if (json.keyboardLayoutAnims) actions.push(applyKeyboardLayoutProperties(json.keyboardLayoutAnims))
+        if (json.mouseStyleAnims) actions.push(applyMouseStyleProperties(json.mouseStyleAnims))
 
         try {
             if (json.project?.background) {
@@ -292,6 +300,13 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
                     json.spatialAnims.rotateX ?? 15, json.spatialAnims.rotateY ?? 0, json.spatialAnims.rotateZ ?? 0,
                     json.spatialAnims.perspective ?? 800, json.spatialAnims.cameraDistance ?? 1.5,
                     json.spatialAnims.eyeContactEnabled ?? true).serialize())))
+
+        // Plugin: mouse style. Load saved entities (per-span overrides). The
+        // global default color/tag still drives the cursor for spans not
+        // covered by an override.
+        if (json.mouseStyleAnims?.entities) {
+            actions.push(setMouseStyles(json.mouseStyleAnims.entities))
+        }
 
         // Plugin: keyboard layout. Load saved entities, then auto-seed one full-video span
         // if the recording captured key events but no entities exist yet.

@@ -11,6 +11,7 @@ import {
     FilmIcon,
     MusicalNoteIcon,
     PhotoIcon,
+    PuzzlePieceIcon,
     RectangleGroupIcon,
     Square2StackIcon,
     VideoCameraIcon,
@@ -30,7 +31,11 @@ import {
     CLIPS,
     CURSOR,
     MASKS,
+    APP_SCENES,
+    KEYBOARD_LAYOUTS,
+    MOUSE_STYLES,
     OVERLAY_TRACKS,
+    PLUGINS,
     SCREEN_RECORDING,
     SOURCES,
     SPATIALS,
@@ -66,6 +71,7 @@ import CursorSection from "./CursorSection"
 import FilterSection from "./FilterSection"
 import MaskSection from "./MaskSection"
 import OverlaySection from "./OverlaySection"
+import PluginsSection from "./PluginsSection"
 import ScreenRecordingSection from "./ScreenRecordingSection"
 import SourcesSection from "./SourcesSection"
 import SubtitleSection from "./SubtitleSection"
@@ -223,6 +229,10 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
                 </SidebarButton>
             )}
 
+            <SidebarButton label="Plugins" active={openSection === PLUGINS} onClick={() => open(PLUGINS)}>
+                <PuzzlePieceIcon className={ICON_CLS} />
+            </SidebarButton>
+
             {isDrawer && (
                 <>
                     <hr className="w-6 border-t border-base-content/10 my-1" />
@@ -270,6 +280,10 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
                 {openSection === AUDIO_TRACKS && <AudioTrackSection />}
                 {openSection === OVERLAY_TRACKS && <OverlaySection />}
                 {openSection === SOURCES && hasExtraTracks && <SourcesSection />}
+                {(openSection === PLUGINS
+                    || openSection === KEYBOARD_LAYOUTS
+                    || openSection === MOUSE_STYLES
+                    || openSection === APP_SCENES) && <PluginsSection />}
             </div>
         </div>
     )

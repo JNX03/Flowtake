@@ -82,6 +82,8 @@ const SubtitleMenu = lazy(() => import("./components/contextMenus/SubtitleMenu")
 const ZoomMenu = lazy(() => import("./components/contextMenus/ZoomMenu"))
 const KeyboardLayoutMenu = lazy(() => import("./components/contextMenus/KeyboardLayoutMenu"))
 const NewKeyboardLayoutMenu = lazy(() => import("./components/contextMenus/NewKeyboardLayoutMenu"))
+const MouseStyleMenu = lazy(() => import("./components/contextMenus/MouseStyleMenu"))
+const NewMouseStyleMenu = lazy(() => import("./components/contextMenus/NewMouseStyleMenu"))
 
 export default function App() {
 
@@ -344,6 +346,8 @@ export default function App() {
                         <ZoomMenu />
                         <NewKeyboardLayoutMenu />
                         <KeyboardLayoutMenu />
+                        <NewMouseStyleMenu />
+                        <MouseStyleMenu />
                     </Suspense>}
                 </div>
             </TutorialProvider>
