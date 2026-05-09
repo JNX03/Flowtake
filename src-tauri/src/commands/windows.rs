@@ -1326,3 +1326,53 @@ fn enumerate_windows_linux_xdotool(our_pid: u32) -> Value {
         }
     }
 }
+
+/// Open the hidden compositor window that runs the live Pixi.js scene.
+/// Sized to the primary monitor, positioned far off-screen so the user never
+/// sees it, but kept visible so the WebGL context renders frames that
+/// `canvas.captureStream()` can pick up.
+#[tauri::command]
+pub async fn open_live_composer(app: AppHandle) -> AppResult<()> {
+    if app.get_webview_window("liveComposer").is_some() {
+        return Ok(());
+    }
+
+    let (mon_w, mon_h) = {
+        let monitors = app.available_monitors().unwrap_or_default();
+        if let Some(monitor) = monitors.first() {
+            let size = monitor.size();
+            let scale = monitor.scale_factor();
+            ((size.width as f64 / scale), (size.height as f64 / scale))
+        } else {
+            (1920.0, 1080.0)
+        }
+    };
+
+    let _window = WebviewWindowBuilder::new(
+        &app,
+        "liveComposer",
+        WebviewUrl::App("app/windows/liveComposer/index.html".into()),
+    )
+    .title("Flowtake Live")
+    .inner_size(mon_w, mon_h)
+    .position(-32000.0, -32000.0)
+    .decorations(false)
+    .resizable(false)
+    .transparent(true)
+    .skip_taskbar(true)
+    .visible(true)
+    .focused(false)
+    .content_protected(true)
+    .build()
+    .map_err(AppError::Tauri)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_live_composer(app: AppHandle) -> AppResult<()> {
+    if let Some(win) = app.get_webview_window("liveComposer") {
+        win.close().map_err(AppError::Tauri)?;
+    }
+    Ok(())
+}

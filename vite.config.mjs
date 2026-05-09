@@ -87,6 +87,7 @@ export default defineConfig({
         windowPicker: resolve(__dirname, 'app/windows/windowPicker/index.html'),
         exporter: resolve(__dirname, 'app/windows/exporter/index.html'),
         drawing: resolve(__dirname, 'app/windows/drawing/index.html'),
+        liveComposer: resolve(__dirname, 'app/windows/liveComposer/index.html'),
       }
     }
   },
