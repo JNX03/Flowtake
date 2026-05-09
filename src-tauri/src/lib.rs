@@ -83,9 +83,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default()
-            .with_denylist(&["recorder", "drawingOverlay", "areaPicker", "windowPicker"])
+            .with_denylist(&["recorder", "drawingOverlay", "areaPicker", "windowPicker", "liveComposer"])
             .build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Mutex::new(app_state))
         // Register video:// protocol for streaming video files to the editor
         .register_uri_scheme_protocol("video", |ctx, request| {
@@ -527,6 +528,16 @@ pub fn run() {
             commands::audio::get_audio_sessions,
             commands::audio::mute_audio_sessions,
             commands::audio::unmute_audio_sessions,
+            // Live streaming
+            commands::live::start_live_streaming,
+            commands::live::push_live_frame,
+            commands::live::stop_live_streaming,
+            commands::live::get_live_stats,
+            commands::live::register_live_zoom_hotkey,
+            commands::live::unregister_live_zoom_hotkey,
+            commands::live::get_cursor_position,
+            commands::windows::open_live_composer,
+            commands::windows::close_live_composer,
             // Social Upload
             commands::social_upload::youtube_set_credentials,
             commands::social_upload::youtube_auth_start,

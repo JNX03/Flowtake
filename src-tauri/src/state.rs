@@ -3,8 +3,11 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Mutex;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri_plugin_shell::process::CommandChild;
+use tokio::sync::mpsc;
 use crate::mouse_tracker::MouseTracker;
 
 /// Global application state managed by Tauri
@@ -35,6 +38,32 @@ pub struct AppState {
     pub ffmpeg_process: Option<std::process::Child>,
     /// PIDs of audio sessions muted during recording (restored on stop)
     pub muted_audio_pids: Vec<u32>,
+    // ── Live streaming ──────────────────────────────────────────────────
+    /// FFmpeg process handling the live RTMP+local-file pipeline
+    pub live_ffmpeg_process: Option<std::process::Child>,
+    /// Channel for pushing webm/mkv chunks from the JS compositor to FFmpeg stdin
+    pub live_stdin_tx: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    /// Stop flag for the live pipeline pump thread
+    pub live_stop_flag: Arc<AtomicBool>,
+    /// Latest parsed FFmpeg stats (fps, bitrate, dropped frames, …)
+    pub live_stats: Arc<Mutex<LiveStats>>,
+    /// Path to the local mp4 produced by the tee muxer (for the summary toast)
+    pub live_local_path: Option<PathBuf>,
+    /// UTC start timestamp of the current live session (millis)
+    pub live_started_at_ms: Option<i64>,
+    /// Currently registered live-zoom hotkey (so we can unregister on rebind)
+    pub live_zoom_hotkey: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct LiveStats {
+    pub fps: f64,
+    pub bitrate_kbps: f64,
+    pub dropped_frames: u64,
+    pub dup_frames: u64,
+    pub elapsed_ms: i64,
+    pub speed: f64,
+    pub connected: bool,
 }
 
 pub struct RenderState {
@@ -71,6 +100,13 @@ impl AppState {
             window_capture_thread: None,
             ffmpeg_process: None,
             muted_audio_pids: Vec::new(),
+            live_ffmpeg_process: None,
+            live_stdin_tx: None,
+            live_stop_flag: Arc::new(AtomicBool::new(false)),
+            live_stats: Arc::new(Mutex::new(LiveStats::default())),
+            live_local_path: None,
+            live_started_at_ms: None,
+            live_zoom_hotkey: None,
         }
     }
 

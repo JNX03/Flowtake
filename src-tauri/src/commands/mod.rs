@@ -4,6 +4,7 @@ pub mod background;
 pub mod encoding;
 pub mod exporter;
 pub mod files;
+pub mod live;
 pub mod presets;
 pub mod projects;
 pub mod recording;
