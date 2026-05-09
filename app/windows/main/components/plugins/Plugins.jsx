@@ -4,7 +4,7 @@ import {
     PuzzlePieceIcon,
     RectangleGroupIcon,
 } from "@heroicons/react/24/outline"
-import { ArrowPathIcon, FolderOpenIcon } from "@heroicons/react/20/solid"
+import { ArrowPathIcon, ChevronDownIcon, FolderOpenIcon } from "@heroicons/react/20/solid"
 import PropTypes from "prop-types"
 import { useEffect, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
@@ -17,6 +17,15 @@ import {
     setFeatureEnabled,
     setPluginsDir,
 } from "@shared/redux/pluginSlice"
+import AppRecordingFeature from "../settings/plugin/features/AppRecordingFeature"
+import KeyboardOverlayFeature from "../settings/plugin/features/KeyboardOverlayFeature"
+import MouseStyleFeature from "../settings/plugin/features/MouseStyleFeature"
+
+const CONFIG_COMPONENTS = {
+    [FEATURE_IDS.APP_RECORDING]: AppRecordingFeature,
+    [FEATURE_IDS.MOUSE_STYLE]: MouseStyleFeature,
+    [FEATURE_IDS.KEYBOARD_OVERLAY]: KeyboardOverlayFeature,
+}
 
 const BUILT_IN_PLUGINS = [
     {
@@ -121,37 +130,58 @@ Plugins.propTypes = {
 
 function PluginCard({ plugin, enabled, onToggle }) {
     const Icon = plugin.icon
+    const ConfigComponent = CONFIG_COMPONENTS[plugin.id]
+    const [isOpen, setIsOpen] = useState(false)
+
     return (
-        <article className={`rounded-xl border bg-base-100/60 p-3 transition-colors flex flex-col min-w-0
+        <article className={`rounded-xl border bg-base-100/60 transition-colors flex flex-col min-w-0
             ${enabled ? "border-primary/40 bg-primary/[0.03]" : "border-base-content/10"}`}>
-            <header className="flex items-start gap-2.5 mb-2 min-w-0">
-                <div className={`size-8 flex items-center justify-center rounded-lg flex-shrink-0
-                    ${enabled ? "bg-primary/15 text-primary" : "bg-base-content/5 text-base-content/40"}`}>
-                    <Icon className="size-4" />
+            <div className="p-3">
+                <header className="flex items-start gap-2.5 mb-2 min-w-0">
+                    <div className={`size-8 flex items-center justify-center rounded-lg flex-shrink-0
+                        ${enabled ? "bg-primary/15 text-primary" : "bg-base-content/5 text-base-content/40"}`}>
+                        <Icon className="size-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-[13px] font-semibold leading-tight truncate">{plugin.name}</h3>
+                        <p className="text-[11px] text-base-content/50 truncate">{plugin.short}</p>
+                    </div>
+                    <input
+                        type="checkbox"
+                        className="toggle toggle-sm toggle-primary flex-shrink-0 mt-0.5"
+                        checked={enabled}
+                        onChange={(e) => onToggle(e.target.checked)}
+                        aria-label={`Enable ${plugin.name}`}
+                    />
+                </header>
+                <p className="text-[11px] text-base-content/65 leading-relaxed">
+                    {plugin.description}
+                </p>
+                <div className="mt-2 pt-2 border-t border-base-content/5 flex items-center gap-1.5">
+                    <span className="px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[8px] font-bold uppercase tracking-wider">
+                        Built-in
+                    </span>
+                    <span className="text-[10px] text-base-content/40">
+                        {enabled ? "Active" : "Disabled"}
+                    </span>
+                    {ConfigComponent && (
+                        <button
+                            type="button"
+                            onClick={() => setIsOpen(o => !o)}
+                            className="ml-auto inline-flex items-center gap-1 text-[10px] text-base-content/50 hover:text-base-content/80 px-1.5 py-0.5 rounded hover:bg-base-content/5 transition-colors"
+                            aria-label={isOpen ? "Hide settings" : "Show settings"}>
+                            {isOpen ? "Hide settings" : "Settings"}
+                            <ChevronDownIcon className={`size-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                        </button>
+                    )}
                 </div>
-                <div className="flex-1 min-w-0">
-                    <h3 className="text-[13px] font-semibold leading-tight truncate">{plugin.name}</h3>
-                    <p className="text-[11px] text-base-content/50 truncate">{plugin.short}</p>
-                </div>
-                <input
-                    type="checkbox"
-                    className="toggle toggle-sm toggle-primary flex-shrink-0 mt-0.5"
-                    checked={enabled}
-                    onChange={(e) => onToggle(e.target.checked)}
-                    aria-label={`Enable ${plugin.name}`}
-                />
-            </header>
-            <p className="text-[11px] text-base-content/65 leading-relaxed">
-                {plugin.description}
-            </p>
-            <div className="mt-2 pt-2 border-t border-base-content/5 flex items-center gap-1.5">
-                <span className="px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[8px] font-bold uppercase tracking-wider">
-                    Built-in
-                </span>
-                <span className="text-[10px] text-base-content/40">
-                    {enabled ? "Active" : "Disabled"}
-                </span>
             </div>
+            {isOpen && ConfigComponent && (
+                <div className={`px-3 pb-3 pt-1 border-t border-base-content/5
+                    ${enabled ? "" : "opacity-40 pointer-events-none"}`}>
+                    <ConfigComponent />
+                </div>
+            )}
         </article>
     )
 }
