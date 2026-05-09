@@ -107,6 +107,7 @@ export default function UpdatesSettings() {
         if (!installerPath) return
         setIsInstalling(true)
         try {
+            await window.electron.ipcRenderer.invoke("store-set", "lastInstallerLaunchedAt", Date.now())
             await window.electron.ipcRenderer.invoke("launch-installer", installerPath)
             await exit(0)
         } catch (err) {

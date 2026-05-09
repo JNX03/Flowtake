@@ -9,6 +9,7 @@ import {
     completeTutorial,
     selectCurrentStep,
     selectIsTutorialActive,
+    selectTutorialStatus,
     skipTutorial,
     startTutorial,
 } from "@shared/redux/tutorialSlice"
@@ -25,6 +26,7 @@ export function useTutorial() {
 
 export default function TutorialProvider({ children }) {
     const dispatch = useDispatch()
+    const status = useSelector(selectTutorialStatus)
     const isActive = useSelector(selectIsTutorialActive)
     const currentStepIndex = useSelector(selectCurrentStep)
     const source = useSelector(selectSource)
@@ -38,11 +40,27 @@ export default function TutorialProvider({ children }) {
     const autoAdvanceRef = useRef(null)
     const mutationObserverRef = useRef(null)
 
-    // Check on mount whether tutorial should start
+    // Check on mount whether tutorial should start.
+    // Auto-skip if a previous installer-driven update bumped the version since last completion.
     useEffect(() => {
         const check = async () => {
             try {
-                const done = await window.electron.ipcRenderer.invoke("store-get", "hasCompletedTutorial")
+                const ipc = window.electron.ipcRenderer
+                const [done, completedAt, lastInstallerAt, currentVersion] = await Promise.all([
+                    ipc.invoke("store-get", "hasCompletedTutorial"),
+                    ipc.invoke("store-get", "tutorialCompletedAtVersion"),
+                    ipc.invoke("store-get", "lastInstallerLaunchedAt"),
+                    ipc.invoke("get-version").catch(() => null),
+                ])
+
+                // If user has completed the tutorial on a prior version AND launched an installer
+                // since then, treat this launch as a post-update one and don't show the tour again.
+                if (done && completedAt && currentVersion && completedAt !== currentVersion && lastInstallerAt) {
+                    await ipc.invoke("store-set", "tutorialCompletedAtVersion", currentVersion)
+                    setShouldRender(false)
+                    return
+                }
+
                 if (done) {
                     setShouldRender(false)
                 } else {
@@ -55,12 +73,13 @@ export default function TutorialProvider({ children }) {
         check()
     }, [])
 
-    // Start tutorial when shouldRender flips and setup is done
+    // Start tutorial when shouldRender flips and setup is done.
+    // Gate on status === 'idle' so a skipped/completed run cannot self-restart.
     useEffect(() => {
-        if (shouldRender && !isActive && !hasProject && !isRecording) {
+        if (shouldRender && status === 'idle' && !hasProject && !isRecording) {
             dispatch(startTutorial())
         }
-    }, [shouldRender, isActive, hasProject, isRecording, dispatch])
+    }, [shouldRender, status, hasProject, isRecording, dispatch])
 
     const currentStep = TUTORIAL_STEPS[currentStepIndex]
 
@@ -148,15 +167,26 @@ export default function TutorialProvider({ children }) {
         return () => document.removeEventListener('click', handleClick, true)
     }, [isActive, currentStep?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+    const persistCompletion = useCallback(async () => {
+        const ipc = window.electron.ipcRenderer
+        await ipc.invoke("store-set", "hasCompletedTutorial", true)
+        try {
+            const v = await ipc.invoke("get-version")
+            if (v) await ipc.invoke("store-set", "tutorialCompletedAtVersion", v)
+        } catch { /* version is best-effort */ }
+    }, [])
+
     const handleSkip = useCallback(async () => {
+        setShouldRender(false)
         dispatch(skipTutorial())
-        await window.electron.ipcRenderer.invoke("store-set", "hasCompletedTutorial", true)
-    }, [dispatch])
+        await persistCompletion()
+    }, [dispatch, persistCompletion])
 
     const handleComplete = useCallback(async () => {
+        setShouldRender(false)
         dispatch(completeTutorial())
-        await window.electron.ipcRenderer.invoke("store-set", "hasCompletedTutorial", true)
-    }, [dispatch])
+        await persistCompletion()
+    }, [dispatch, persistCompletion])
 
     const handleNext = useCallback(() => {
         const step = TUTORIAL_STEPS[currentStepIndex]

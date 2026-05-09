@@ -80,9 +80,9 @@ export default function TutorialOverlay({ targetSelector, children }) {
             <div className="pointer-events-auto absolute bg-base-300/60 backdrop-blur-sm"
                 style={{ top: rect.top - padding, left: rect.left + rect.width + padding, width: Math.max(0, window.innerWidth - rect.left - rect.width - padding), height: rect.height + padding * 2 }} />
 
-            {/* Spotlight cutout with pulse */}
+            {/* Spotlight cutout with pulse — must NOT block clicks on the highlighted target */}
             <div
-                className="absolute rounded-xl tutorial-spotlight-pulse"
+                className="absolute rounded-xl tutorial-spotlight-pulse pointer-events-none"
                 style={{
                     top: rect.top - padding,
                     left: rect.left - padding,
