@@ -76,6 +76,11 @@ import {
     selectWidth
 } from "../redux/subtitleSlice"
 import { selectAllZooms } from "../redux/zoomSlice"
+import {
+    FEATURE_IDS as PLUGIN_FEATURE_IDS,
+    selectFeatureConfig as selectPluginFeatureConfig,
+    selectIsFeatureEnabled as selectIsPluginFeatureEnabled
+} from "../redux/pluginSlice"
 import RenderScene from "../scene/RenderScene"
 import {
     CANCEL_RENDER,
@@ -182,6 +187,10 @@ class WorkerRenderer {
                 overlayAnims: selectAllOverlays(this.render.state),
                 spatials: selectAllSpatials(this.render.state),
                 showClickRing: selectShowClickRing(this.render.state),
+                pluginMouseStyle: {
+                    enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state),
+                    ...selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state)
+                },
             },
             duration)
 

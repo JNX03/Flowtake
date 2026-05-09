@@ -71,6 +71,10 @@ export default class RenderScene extends Scene {
             isLoop: cursorIsLoop
         })
 
+        if (args.pluginMouseStyle) {
+            this.cursorAnimator.setPluginStyle(args.pluginMouseStyle)
+        }
+
         this.spotlightAnimator.setState({
             showSpotlight,
             radius: spotlightRadius,

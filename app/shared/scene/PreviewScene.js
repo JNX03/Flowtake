@@ -97,6 +97,9 @@ export default class PreviewScene extends Scene {
                 this.screen.setState({ borderRadius: payload })
                 this.spotlightAnimator.setState({ borderRadius: payload })
                 break
+            case 'plugin.mouseStyle':
+                this.cursorAnimator?.setPluginStyle(payload)
+                break
             case 'cursorCoords.inertia':
                 this.cursorAnimator.setState({ inertia: payload })
                 this.panAnimator.setState({ cursorCoords: this.cursorAnimator.coords })

@@ -1,4 +1,10 @@
 import {
+    Container,
+    Graphics,
+    Text,
+    TextStyle
+} from "pixi.js"
+import {
     applyInertia,
     getCoords,
     getGroupedMouseEvents,
@@ -37,6 +43,11 @@ export default class CursorAnimator extends Animator {
         this.mouseEvents = mouseEvents
         this.screenVideoDimensions = screenVideoDimensions
         this.duration = duration
+
+        this.pluginStyle = null
+        this.tagContainer = null
+        this.tagBg = null
+        this.tagText = null
     }
 
 
@@ -63,6 +74,12 @@ export default class CursorAnimator extends Animator {
         if (this.rotationStrength > 0) {
             let rotation = Math.min(this.calculateAveragedStrength(timestamp, coords, MOTION_ROTATION_FRAMES) * MOTION_ROTATION_FACTOR, MOTION_ROTATION_MAX_STRENGTH)
             this.cursor.rotation = rotation * this.rotationStrength
+        }
+
+        // Counter-rotate the plugin tag so it stays axis-aligned even when the
+        // cursor container rotates from motion-based rotation.
+        if (this.tagContainer && this.tagContainer.visible) {
+            this.tagContainer.rotation = -(this.cursor.rotation || 0)
         }
     }
 
@@ -166,6 +183,65 @@ export default class CursorAnimator extends Animator {
         } else return this.cutOffFrom
     }
 
+    /**
+     * Apply plugin-driven cursor styling.
+     * @param {{enabled:boolean, color:string, label:string|null, showLabel:boolean}} style
+     */
+    setPluginStyle(style) {
+        this.pluginStyle = style || null
+
+        const enabled = !!style?.enabled
+        const tintHex = enabled && style.color ? hexStringToInt(style.color) : 0xFFFFFF
+
+        // Tint cursor sprite children only — skip the tag container so its own
+        // colored fill isn't double-multiplied.
+        if (this.cursor?.children) {
+            for (const child of this.cursor.children) {
+                if (child === this.tagContainer) continue
+                if ('tint' in child) child.tint = tintHex
+            }
+        }
+
+        const wantTag = enabled && style?.showLabel && !!style?.label
+        if (wantTag) {
+            this.ensureTag()
+            if (this.tagText.text !== style.label) this.tagText.text = style.label
+            this.tagBg.clear()
+                .roundRect(-6, -3, this.tagText.width + 12, this.tagText.height + 6, 999)
+                .fill({ color: tintHex, alpha: 0.95 })
+            this.tagContainer.visible = true
+        } else if (this.tagContainer) {
+            this.tagContainer.visible = false
+        }
+    }
+
+    ensureTag() {
+        if (this.tagContainer) return
+        const c = new Container()
+        c.label = "plugin-cursor-tag"
+        // Anchor the tag below-right of the cursor hot-spot. Coords are local to cursorContainer
+        // and unaffected by the container's rotation animation since we keep the tag off the
+        // rotated child.
+        c.position.set(28, 24)
+        const bg = new Graphics()
+        const text = new Text({
+            text: "",
+            style: new TextStyle({
+                fontFamily: "Inter, sans-serif",
+                fontSize: 22,
+                fontWeight: "600",
+                fill: 0xFFFFFF,
+            }),
+        })
+        text.position.set(0, 0)
+        c.addChild(bg)
+        c.addChild(text)
+        this.cursor.addChild(c)
+        this.tagContainer = c
+        this.tagBg = bg
+        this.tagText = text
+    }
+
     calculateAveragedStrength(timestamp, coords, numPreviousFrames) {
         let totalStrength = 0
         let prevCoords = coords
@@ -182,4 +258,11 @@ export default class CursorAnimator extends Animator {
 
         return totalStrength / numPreviousFrames
     }
+}
+
+function hexStringToInt(hex) {
+    if (typeof hex !== "string") return 0xFFFFFF
+    const stripped = hex.startsWith("#") ? hex.slice(1) : hex
+    const n = parseInt(stripped, 16)
+    return Number.isFinite(n) ? n : 0xFFFFFF
 }

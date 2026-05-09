@@ -133,6 +133,11 @@ import {
     selectTargetScale as selectZoomTargetScale,
     setZooms
 } from "@shared/redux/zoomSlice"
+import {
+    FEATURE_IDS as PLUGIN_FEATURE_IDS,
+    selectFeatureConfig as selectPluginFeatureConfig,
+    selectIsFeatureEnabled as selectIsPluginFeatureEnabled
+} from "@shared/redux/pluginSlice"
 import CameraZoomConfig from "@shared/scene/cameraZoom/CameraZoomConfig"
 import ClickConfig from "@shared/scene/click/ClickConfig"
 import CursorTypeConfig from "@shared/scene/cursorType/CursorTypeConfig"
@@ -227,6 +232,9 @@ export default function Preview() {
     const maskAnims = useSelector(selectAllMasks)
     const overlayAnims = useSelector(selectAllOverlays)
     const filterAnims = useSelector(selectAllFilters)
+
+    const isMouseStyleEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE))
+    const mouseStyleConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE), shallowEqual)
 
     const [manager, setManager] = useState(null)
 
@@ -614,6 +622,13 @@ export default function Preview() {
     useEffect(() => {
         manager?.postUpdate({ type: 'cursorCoords.inertia', payload: inertia })
     }, [manager, inertia])
+
+    useEffect(() => {
+        manager?.postUpdate({
+            type: 'plugin.mouseStyle',
+            payload: { enabled: isMouseStyleEnabled, ...mouseStyleConfig }
+        })
+    }, [manager, isMouseStyleEnabled, mouseStyleConfig])
 
     useEffect(() => {
         if (isCleaningUpScene) manager?.postUpdate({ type: 'isCleaningUpScene', payload: isCleaningUpScene })
