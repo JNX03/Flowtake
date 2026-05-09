@@ -89,7 +89,11 @@ export default function UpdatesSettings() {
         })
 
         try {
-            const result = await window.electron.ipcRenderer.invoke("download-update", updateInfo.download_url)
+            const result = await window.electron.ipcRenderer.invoke(
+                "download-update",
+                updateInfo.download_url,
+                updateInfo.latest_version
+            )
             setInstallerPath(result?.installerPath || null)
             setDownloadProgress(null)
         } catch (err) {

@@ -131,6 +131,7 @@ async function loadConfigs() {
 }
 
 export const TOAST_UPDATE = "toast-update"
+export const TOAST_UPDATE_READY = "toast-update-ready"
 export const TOAST_EXPORT_COMPLETED = "toast-export-completed"
 export const TOAST_SUCCESS = "toast-success"
 export const TOAST_WARNING = "toast-warning"

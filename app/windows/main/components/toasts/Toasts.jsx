@@ -12,6 +12,7 @@ import {
     TOAST_EXPORT_COMPLETED,
     TOAST_SUCCESS,
     TOAST_UPDATE,
+    TOAST_UPDATE_READY,
     TOAST_WARNING
 } from "@shared/helpers"
 import {
@@ -21,6 +22,7 @@ import {
 import CaptureErrorToast from "./CaptureErrorToast"
 import ExportCompletedToast from "./ExportCompletedToast"
 import UpdateToast from "./UpdateToast"
+import UpdateReadyToast from "./UpdateReadyToast"
 
 export default function Toasts() {
 
@@ -31,10 +33,12 @@ export default function Toasts() {
     const dismiss = useCallback(id => dispatch(dismissToast(id)), [dispatch])
 
     const listToasts = () => {
-        return toasts.map(({ type, id, text, autoDismiss, actions }) => {
+        return toasts.map(({ type, id, text, autoDismiss, actions, installerPath, version }) => {
             switch (type) {
                 case TOAST_UPDATE: return <UpdateToast key={id} id={id}
                     dismiss={dismiss} />
+                case TOAST_UPDATE_READY: return <UpdateReadyToast key={id} id={id}
+                    installerPath={installerPath} version={version} dismiss={dismiss} />
                 case TOAST_EXPORT_COMPLETED: return <ExportCompletedToast key={id} id={id} text={text}
                     dismiss={dismiss} />
                 case TOAST_ERROR_CAPTURE: return <CaptureErrorToast key={id} id={id}

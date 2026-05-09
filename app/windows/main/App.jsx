@@ -16,6 +16,7 @@ import {
     TOAST_ERROR_CAPTURE,
     TOAST_EXPORT_COMPLETED,
     TOAST_UPDATE,
+    TOAST_UPDATE_READY,
     TOAST_WARNING
 } from "@shared/helpers"
 import { addErrorToast } from "@shared/errorToastHelper"
@@ -191,15 +192,31 @@ export default function App() {
     }, [dismissSplash])
 
     useEffect(() => {
-        // Defer update check to not block startup
-        const timer = setTimeout(() => {
-            window.electron.ipcRenderer.invoke("check-for-updates")
-                .then(info => {
-                    if (info?.has_update) {
-                        dispatch(addToast({ type: TOAST_UPDATE }))
-                    }
-                })
-                .catch(e => console.warn("[Flowtake] Update check failed:", e))
+        // Defer update check to not block startup. First, surface a pending installer
+        // (downloaded earlier but not yet installed). Otherwise fall back to a fresh check.
+        const timer = setTimeout(async () => {
+            try {
+                const pending = await window.electron.ipcRenderer.invoke("get-pending-installer")
+                if (pending?.path) {
+                    dispatch(addToast({
+                        type: TOAST_UPDATE_READY,
+                        installerPath: pending.path,
+                        version: pending.version || undefined,
+                        autoDismiss: false,
+                    }))
+                    return
+                }
+            } catch (e) {
+                console.warn("[Flowtake] Pending installer check failed:", e)
+            }
+            try {
+                const info = await window.electron.ipcRenderer.invoke("check-for-updates")
+                if (info?.has_update) {
+                    dispatch(addToast({ type: TOAST_UPDATE }))
+                }
+            } catch (e) {
+                console.warn("[Flowtake] Update check failed:", e)
+            }
         }, 2000)
 
         return () => clearTimeout(timer)
