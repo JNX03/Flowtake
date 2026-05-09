@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri_plugin_shell::process::CommandChild;
 use tokio::sync::mpsc;
+use crate::keyboard_tracker::KeyboardTracker;
 use crate::mouse_tracker::MouseTracker;
 
 /// Global application state managed by Tauri
@@ -27,6 +28,7 @@ pub struct AppState {
     pub ffmpeg_child_id: Option<u32>,
     pub ffmpeg_child: Option<CommandChild>,
     pub mouse_tracker: MouseTracker,
+    pub keyboard_tracker: KeyboardTracker,
     pub recording_start_timestamp: Option<i64>,
     pub export_state_data: Option<Value>,
     pub export_section: Option<String>,
@@ -93,6 +95,7 @@ impl AppState {
             ffmpeg_child_id: None,
             ffmpeg_child: None,
             mouse_tracker: MouseTracker::new(),
+            keyboard_tracker: KeyboardTracker::new(),
             recording_start_timestamp: None,
             export_state_data: None,
             export_section: None,

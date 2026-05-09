@@ -147,6 +147,14 @@ export default function App() {
         staleTime: Infinity
     })
 
+    const { data: pluginSettings } = useQuery({
+        queryKey: ["pluginSettings"],
+        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "plugins.settings"),
+        staleTime: Infinity,
+    })
+
+    const isKeyboardOverlayEnabled = !!pluginSettings?.enabled?.keyboardOverlay
+
     const hasMic = !!cameraMicConfig?.audioTrack
     const hasCam = !!cameraMicConfig?.videoTrack
 
@@ -193,6 +201,9 @@ export default function App() {
         try {
             deviceRecorder?.start()
             setIsRecording(true)
+            if (isKeyboardOverlayEnabled) {
+                try { await window.electron.ipcRenderer.invoke("keyboard-start") } catch (e) { console.warn("[plugin] keyboard-start failed:", e) }
+            }
         } catch {
             await window.electron.ipcRenderer.invoke(
                 "cancel-recording",
@@ -291,6 +302,9 @@ export default function App() {
         }
         await deviceRecorder?.stop()
         deviceRecorder?.destroy()
+        if (isKeyboardOverlayEnabled) {
+            try { await window.electron.ipcRenderer.invoke("keyboard-stop") } catch (e) { console.warn("[plugin] keyboard-stop failed:", e) }
+        }
         window.electron.ipcRenderer.invoke("stop-recording")
     }
 

@@ -56,6 +56,7 @@ import {
     selectHasSystemAudio,
     selectIsCameraVideoMirrored,
     selectLeftTrim,
+    selectKeyboardEvents,
     selectMouseEvents,
     selectPadding,
     selectRightTrim,
@@ -190,6 +191,11 @@ class WorkerRenderer {
                 pluginMouseStyle: {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state),
                     ...selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state)
+                },
+                pluginKeyboardOverlay: {
+                    enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY)(this.render.state),
+                    config: selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY)(this.render.state),
+                    events: selectKeyboardEvents(this.render.state) || [],
                 },
             },
             duration)

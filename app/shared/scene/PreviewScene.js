@@ -100,6 +100,15 @@ export default class PreviewScene extends Scene {
             case 'plugin.mouseStyle':
                 this.cursorAnimator?.setPluginStyle(payload)
                 break
+            case 'plugin.keyboardOverlay.enabled':
+                this.keyboardOverlay?.setEnabled(payload)
+                break
+            case 'plugin.keyboardOverlay.config':
+                this.keyboardOverlay?.setConfig(payload)
+                break
+            case 'plugin.keyboardOverlay.events':
+                this.keyboardOverlay?.setEvents(payload)
+                break
             case 'cursorCoords.inertia':
                 this.cursorAnimator.setState({ inertia: payload })
                 this.panAnimator.setState({ cursorCoords: this.cursorAnimator.coords })

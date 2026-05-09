@@ -37,6 +37,7 @@ import CursorTypeAnimator from "./cursorType/CursorTypeAnimator"
 import FilterAnimator from "./filter/FilterAnimator"
 import MaskAnimator from "./mask/MaskAnimator"
 import OverlayAnimator from "./overlay/OverlayAnimator"
+import KeyboardOverlay from "./overlays/KeyboardOverlay"
 import PanAnimator from "./pan/PanAnimator"
 import Screen from "./Screen"
 import SpatialAnimator from "./spatial/SpatialAnimator"
@@ -106,6 +107,9 @@ export default class Scene {
         this.app.stage.addChild(this.subtitleContainer)
 
         this.cursorContainer.addChild(this.cursorImageContainer)
+
+        // Plugin overlays
+        this.keyboardOverlay = new KeyboardOverlay(this.app.stage)
     }
 
     async init({ mouseEvents, hasCameraVideo, cursorFill, cursorStroke }, duration) {
@@ -246,6 +250,7 @@ export default class Scene {
         this.spotlightAnimator?.update()
         this.subtitleAnimator?.update(this.time)
         this.cursorTypeAnimator?.update(this.time)
+        this.keyboardOverlay?.update(this.time)
         const clipFrame = this.clipAnimator?.update(this.time)
         this.panAnimator?.update(this.time, clipFrame)
         this.zoomAnimator?.update(this.time, clipFrame)
@@ -285,6 +290,8 @@ export default class Scene {
         this.overlayAnimator?.setState({ rendererDims: this.rendererDims })
 
         this.spatialAnimator?.setState({ rendererDims: this.rendererDims })
+
+        this.keyboardOverlay?.setDims(this.rendererDims.x, this.rendererDims.y)
 
         this.transitionAnimator?.setState({ rendererDims: this.rendererDims })
 

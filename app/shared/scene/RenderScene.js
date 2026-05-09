@@ -74,6 +74,12 @@ export default class RenderScene extends Scene {
         if (args.pluginMouseStyle) {
             this.cursorAnimator.setPluginStyle(args.pluginMouseStyle)
         }
+        if (args.pluginKeyboardOverlay && this.keyboardOverlay) {
+            this.keyboardOverlay.setEnabled(!!args.pluginKeyboardOverlay.enabled)
+            this.keyboardOverlay.setConfig(args.pluginKeyboardOverlay.config || {})
+            this.keyboardOverlay.setEvents(args.pluginKeyboardOverlay.events || [])
+            if (rendererDims) this.keyboardOverlay.setDims(rendererDims.x, rendererDims.y)
+        }
 
         this.spotlightAnimator.setState({
             showSpotlight,

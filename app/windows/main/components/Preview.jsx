@@ -105,6 +105,7 @@ import {
     selectId,
     selectIsCameraVideoMirrored,
     selectLeftTrim,
+    selectKeyboardEvents,
     selectMouseEvents,
     selectPadding,
     selectRightTrim,
@@ -235,6 +236,9 @@ export default function Preview() {
 
     const isMouseStyleEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE))
     const mouseStyleConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE), shallowEqual)
+    const isKeyboardOverlayEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY))
+    const keyboardOverlayConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY), shallowEqual)
+    const keyboardEvents = useSelector(selectKeyboardEvents)
 
     const [manager, setManager] = useState(null)
 
@@ -629,6 +633,18 @@ export default function Preview() {
             payload: { enabled: isMouseStyleEnabled, ...mouseStyleConfig }
         })
     }, [manager, isMouseStyleEnabled, mouseStyleConfig])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.keyboardOverlay.enabled', payload: isKeyboardOverlayEnabled })
+    }, [manager, isKeyboardOverlayEnabled])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.keyboardOverlay.config', payload: keyboardOverlayConfig })
+    }, [manager, keyboardOverlayConfig])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.keyboardOverlay.events', payload: keyboardEvents || [] })
+    }, [manager, keyboardEvents])
 
     useEffect(() => {
         if (isCleaningUpScene) manager?.postUpdate({ type: 'isCleaningUpScene', payload: isCleaningUpScene })

@@ -7,6 +7,7 @@ extern crate objc;
 mod commands;
 mod state;
 mod error;
+mod keyboard_tracker;
 mod mouse_tracker;
 
 use state::AppState;
@@ -543,6 +544,10 @@ pub fn run() {
             commands::plugins::ensure_plugins_dir,
             commands::plugins::list_plugins,
             commands::plugins::open_plugins_folder,
+            // Keyboard tracker (plugin: keyboard overlay)
+            commands::keyboard::keyboard_start,
+            commands::keyboard::keyboard_stop,
+            commands::keyboard::keyboard_get_events,
             // Social Upload
             commands::social_upload::youtube_set_credentials,
             commands::social_upload::youtube_auth_start,

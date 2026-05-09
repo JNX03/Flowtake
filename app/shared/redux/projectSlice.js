@@ -4,6 +4,7 @@ const initialState = {
     name: null,
     id: null,
     mouseEvents: null,
+    keyboardEvents: null,
     hasCameraVideo: false,
     hasMicrophoneAudio: false,
     hasSystemAudio: false,
@@ -45,6 +46,9 @@ export const projectSlice = createSlice({
         },
         setMouseEvents: (state, action) => {
             state.mouseEvents = action.payload
+        },
+        setKeyboardEvents: (state, action) => {
+            state.keyboardEvents = action.payload
         },
         setVideoDetails: (state, action) => {
             state.videoDetails = action.payload
@@ -119,6 +123,7 @@ export const {
     setName,
     setId,
     setMouseEvents,
+    setKeyboardEvents,
     setVideoDetails,
     setBackground,
     setPadding,
@@ -147,6 +152,7 @@ export const selectName = state => state.undoableState.present.project.name
 export const selectBackground = state => state.undoableState.present.project.background
 export const selectAspectRatio = state => state.undoableState.present.project.aspectRatio
 export const selectMouseEvents = state => state.undoableState.present.project.mouseEvents
+export const selectKeyboardEvents = state => state.undoableState.present.project.keyboardEvents
 export const selectHasCameraVideo = state => state.undoableState.present.project.hasCameraVideo
 export const selectHasMicrophoneAudio = state => state.undoableState.present.project.hasMicrophoneAudio
 export const selectHasSystemAudio = state => state.undoableState.present.project.hasSystemAudio

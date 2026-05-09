@@ -1384,24 +1384,26 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
     // Restore any muted audio sessions
     crate::commands::audio::unmute_all_sessions(&app);
 
-    let (project_id, recording_id, mouse_events, recording_start_ts) = {
+    let (project_id, recording_id, mouse_events, keyboard_events, recording_start_ts) = {
         let mut state = state.lock().unwrap();
         state.is_recording = false;
 
         state.mouse_tracker.stop();
+        state.keyboard_tracker.stop();
 
         #[cfg(target_os = "macos")]
         crate::mouse_tracker::restore_macos_cursor();
 
         let start_ts = state.recording_start_timestamp.unwrap_or(stop_timestamp);
         let events = state.mouse_tracker.get_events(start_ts);
+        let key_events = state.keyboard_tracker.get_events(start_ts);
 
         let pid = state.project_id.clone();
         let rid = state.recording_id.clone();
         state.ffmpeg_child_id = None;
         state.ffmpeg_child = None;
         state.recording_start_timestamp = None;
-        (pid, rid, events, start_ts)
+        (pid, rid, events, key_events, start_ts)
     };
 
     log::info!(
@@ -1612,6 +1614,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     "padding": 1,
                     "borderRadius": 0,
                     "mouseEvents": mouse_events,
+                    "keyboardEvents": keyboard_events,
                     "leftTrim": left_trim,
                     "rightTrim": right_trim,
                     "topTrim": top_trim,
