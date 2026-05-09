@@ -45,13 +45,15 @@ export default class CursorAnimator extends Animator {
         this.duration = duration
 
         this.pluginStyle = null
-        this.styleEntities = []      // [{id, start, end, color?, showLabel?, label?}]
-        this.styleDefaults = null    // { color, showLabel, label }
+        this.styleEntities = []      // [{id, start, end, color?, showLabel?, label?, preset?}]
+        this.styleDefaults = null    // { color, showLabel, label, preset }
         this.styleEnabled = false    // global plugin toggle
         this.tagContainer = null
         this.tagBg = null
         this.tagText = null
+        this.presetGraphics = null
         this._lastResolvedStyleKey = null
+        this._activePreset = "default"
     }
 
 
@@ -109,7 +111,7 @@ export default class CursorAnimator extends Animator {
         this._lastResolvedStyleKey = null
     }
 
-    /** Resolve which { color, showLabel, label } applies at `time`. */
+    /** Resolve which { color, showLabel, label, preset } applies at `time`. */
     resolveStyleAt(time) {
         if (!this.styleEnabled) return null
         // Find active entity by start/end window; entities are sorted by start
@@ -125,19 +127,95 @@ export default class CursorAnimator extends Animator {
             color: active?.color ?? d.color ?? "#ffffff",
             showLabel: active?.showLabel ?? d.showLabel ?? false,
             label: active?.label ?? d.label ?? "",
+            preset: active?.preset ?? d.preset ?? "default",
         }
     }
 
     applyResolvedStyle(time) {
         const resolved = this.resolveStyleAt(time)
-        // When disabled, neutralize tint and hide tag.
         const style = resolved
-            ? { enabled: true, color: resolved.color, showLabel: resolved.showLabel, label: resolved.label }
-            : { enabled: false }
-        const key = `${style.enabled ? 1 : 0}|${style.color || ''}|${style.showLabel ? 1 : 0}|${style.label || ''}`
+            ? { enabled: true, color: resolved.color, showLabel: resolved.showLabel, label: resolved.label, preset: resolved.preset }
+            : { enabled: false, preset: "default" }
+        const key = `${style.enabled ? 1 : 0}|${style.color || ''}|${style.showLabel ? 1 : 0}|${style.label || ''}|${style.preset || 'default'}`
         if (key === this._lastResolvedStyleKey) return
         this._lastResolvedStyleKey = key
         this.setPluginStyle(style)
+        this.applyPreset(style.preset || "default", style.color || "#ffffff", !!style.enabled)
+    }
+
+    /** Swap the cursor sprite between system bitmap and a built-in preset shape. */
+    applyPreset(preset, colorHex, enabled) {
+        const want = enabled ? preset : "default"
+        if (this._activePreset === want && this.presetGraphics) {
+            // Just retint
+            if (want !== "default") this.redrawPreset(want, colorHex)
+            return
+        }
+        this._activePreset = want
+
+        if (want === "default") {
+            // Show system cursor sprites again, hide preset graphics.
+            if (this.cursorImageContainer) this.cursorImageContainer.visible = true
+            if (this.presetGraphics) this.presetGraphics.visible = false
+            return
+        }
+
+        // Hide the system cursor sprites; render the chosen preset shape.
+        if (this.cursorImageContainer) this.cursorImageContainer.visible = false
+        if (!this.presetGraphics) {
+            this.presetGraphics = new Graphics()
+            this.presetGraphics.label = "plugin-cursor-preset"
+            this.cursor.addChildAt(this.presetGraphics, 0)
+        }
+        this.presetGraphics.visible = true
+        this.redrawPreset(want, colorHex)
+    }
+
+    redrawPreset(preset, colorHex) {
+        const g = this.presetGraphics
+        if (!g) return
+        const color = hexStringToInt(colorHex)
+        g.clear()
+        // Sizes here are in scene-pixel units (the cursorContainer is positioned
+        // in scene coords; we draw small enough that cursorScale still applies).
+        switch (preset) {
+            case "arrow":
+                g.poly([0, 0, 0, 28, 8, 22, 13, 32, 17, 30, 12, 21, 20, 21])
+                    .fill({ color, alpha: 1 })
+                    .stroke({ color: 0xffffff, alpha: 0.85, width: 1.2 })
+                break
+            case "pointer":
+                g.poly([4, 0, 4, 22, 8, 19, 12, 28, 16, 26, 12, 18, 18, 18])
+                    .fill({ color, alpha: 1 })
+                    .stroke({ color: 0xffffff, alpha: 0.85, width: 1.2 })
+                g.circle(11, 11, 3).stroke({ color: 0xffffff, alpha: 0.6, width: 1 })
+                break
+            case "dot":
+                g.circle(0, 0, 8).fill({ color, alpha: 0.9 })
+                g.circle(0, 0, 8).stroke({ color: 0xffffff, alpha: 0.85, width: 1.5 })
+                break
+            case "ring":
+                g.circle(0, 0, 12).stroke({ color, alpha: 1, width: 3 })
+                g.circle(0, 0, 4).fill({ color, alpha: 0.9 })
+                break
+            case "target":
+                g.circle(0, 0, 14).stroke({ color, alpha: 0.9, width: 2 })
+                g.moveTo(-18, 0).lineTo(-6, 0).stroke({ color, alpha: 0.9, width: 2 })
+                g.moveTo(6, 0).lineTo(18, 0).stroke({ color, alpha: 0.9, width: 2 })
+                g.moveTo(0, -18).lineTo(0, -6).stroke({ color, alpha: 0.9, width: 2 })
+                g.moveTo(0, 6).lineTo(0, 18).stroke({ color, alpha: 0.9, width: 2 })
+                g.circle(0, 0, 2).fill({ color, alpha: 1 })
+                break
+            case "agent":
+                // Concentric ring with subtle inner dot — meant to read as
+                // "AI cursor" in screencasts.
+                g.circle(0, 0, 18).stroke({ color, alpha: 0.45, width: 2 })
+                g.circle(0, 0, 12).stroke({ color, alpha: 0.85, width: 2.5 })
+                g.circle(0, 0, 4).fill({ color, alpha: 1 })
+                break
+            default:
+                break
+        }
     }
 
     setState({ videoDetails, inertia, cutOff, blurStrength, rotationStrength, isLoop }) {
@@ -250,11 +328,12 @@ export default class CursorAnimator extends Animator {
         const enabled = !!style?.enabled
         const tintHex = enabled && style.color ? hexStringToInt(style.color) : 0xFFFFFF
 
-        // Tint cursor sprite children only — skip the tag container so its own
-        // colored fill isn't double-multiplied.
+        // Tint cursor sprite children only — skip the tag container AND the
+        // preset graphics so their own colored fills aren't double-multiplied.
         if (this.cursor?.children) {
             for (const child of this.cursor.children) {
                 if (child === this.tagContainer) continue
+                if (child === this.presetGraphics) continue
                 if ('tint' in child) child.tint = tintHex
             }
         }

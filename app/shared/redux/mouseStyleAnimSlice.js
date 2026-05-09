@@ -10,10 +10,12 @@ import {
 } from "./animsAdapter"
 
 // Slice-level defaults — apply when no entity is active for a given time.
+// preset values: 'default' (system cursor sprites) | 'arrow' | 'pointer' | 'dot' | 'ring' | 'target' | 'agent'
 const initialState = animsAdapter.getInitialState({
     color: "#ff3b30",
     showLabel: true,
     label: "FlowTake Agent",
+    preset: "default",
 })
 
 export const mouseStyleAnimSlice = createSlice({
@@ -56,6 +58,7 @@ export const mouseStyleAnimSlice = createSlice({
         setColor: (state, action) => { state.color = action.payload },
         setLabel: (state, action) => { state.label = action.payload },
         setShowLabel: (state, action) => { state.showLabel = action.payload },
+        setPreset: (state, action) => { state.preset = action.payload },
     },
 })
 
@@ -70,6 +73,7 @@ export const {
     setColor,
     setLabel,
     setShowLabel,
+    setPreset,
 } = mouseStyleAnimSlice.actions
 
 const slice = state => state.undoableState.present.mouseStyleAnims
@@ -81,10 +85,12 @@ export const selectMouseStyleIds = state => selectIds(slice(state))
 export const selectMouseStyleColor = state => slice(state).color
 export const selectMouseStyleLabel = state => slice(state).label
 export const selectMouseStyleShowLabel = state => slice(state).showLabel
+export const selectMouseStylePreset = state => slice(state).preset
 export const selectMouseStyleDefaults = state => ({
     color: slice(state).color,
     showLabel: slice(state).showLabel,
     label: slice(state).label,
+    preset: slice(state).preset,
 })
 
 export default mouseStyleAnimSlice.reducer
