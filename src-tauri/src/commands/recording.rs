@@ -1384,7 +1384,16 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
     // Restore any muted audio sessions
     crate::commands::audio::unmute_all_sessions(&app);
 
-    let (project_id, recording_id, mouse_events, keyboard_events, recording_start_ts) = {
+    // Stop any extra multi-app captures (plugin: individual app recording).
+    {
+        let children = {
+            let mut s = state.lock().unwrap();
+            std::mem::take(&mut s.multi_app_children)
+        };
+        crate::commands::multi_app::graceful_shutdown(children);
+    }
+
+    let (project_id, recording_id, mouse_events, keyboard_events, extra_tracks, recording_start_ts) = {
         let mut state = state.lock().unwrap();
         state.is_recording = false;
 
@@ -1397,13 +1406,14 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
         let start_ts = state.recording_start_timestamp.unwrap_or(stop_timestamp);
         let events = state.mouse_tracker.get_events(start_ts);
         let key_events = state.keyboard_tracker.get_events(start_ts);
+        let tracks = std::mem::take(&mut state.multi_app_tracks);
 
         let pid = state.project_id.clone();
         let rid = state.recording_id.clone();
         state.ffmpeg_child_id = None;
         state.ffmpeg_child = None;
         state.recording_start_timestamp = None;
-        (pid, rid, events, key_events, start_ts)
+        (pid, rid, events, key_events, tracks, start_ts)
     };
 
     log::info!(
@@ -1615,6 +1625,7 @@ pub async fn stop_recording(app: AppHandle) -> AppResult<()> {
                     "borderRadius": 0,
                     "mouseEvents": mouse_events,
                     "keyboardEvents": keyboard_events,
+                    "extraTracks": extra_tracks,
                     "leftTrim": left_trim,
                     "rightTrim": right_trim,
                     "topTrim": top_trim,

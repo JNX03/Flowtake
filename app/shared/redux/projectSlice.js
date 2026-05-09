@@ -5,6 +5,7 @@ const initialState = {
     id: null,
     mouseEvents: null,
     keyboardEvents: null,
+    extraTracks: null,
     hasCameraVideo: false,
     hasMicrophoneAudio: false,
     hasSystemAudio: false,
@@ -153,6 +154,7 @@ export const selectBackground = state => state.undoableState.present.project.bac
 export const selectAspectRatio = state => state.undoableState.present.project.aspectRatio
 export const selectMouseEvents = state => state.undoableState.present.project.mouseEvents
 export const selectKeyboardEvents = state => state.undoableState.present.project.keyboardEvents
+export const selectExtraTracks = state => state.undoableState.present.project.extraTracks
 export const selectHasCameraVideo = state => state.undoableState.present.project.hasCameraVideo
 export const selectHasMicrophoneAudio = state => state.undoableState.present.project.hasMicrophoneAudio
 export const selectHasSystemAudio = state => state.undoableState.present.project.hasSystemAudio

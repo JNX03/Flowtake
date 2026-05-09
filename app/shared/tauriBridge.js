@@ -130,6 +130,9 @@ const COMMAND_MAP = {
     'keyboard-start': 'keyboard_start',
     'keyboard-stop': 'keyboard_stop',
     'keyboard-get-events': 'keyboard_get_events',
+    // Multi-app capture
+    'start-multi-app-capture': 'start_multi_app_capture',
+    'stop-multi-app-capture': 'stop_multi_app_capture',
     // Social Upload
     'youtube-set-credentials': 'youtube_set_credentials',
     'youtube-auth-start': 'youtube_auth_start',
@@ -184,6 +187,7 @@ const ARGS_MAP = {
     'get_render_video_path': (args) => ({ renderId: args[0] }),
     'open_url_in_browser': (args) => ({ url: args[0] }),
     'keyboard_get_events': (args) => ({ startTimestamp: args[0] }),
+    'start_multi_app_capture': (args) => ({ windows: args[0] }),
     'install_update': (args) => ({ downloadUrl: args[0] }),
     'download_update': (args) => ({ downloadUrl: args[0], version: args[1] }),
     'launch_installer': (args) => ({ installerPath: args[0] }),

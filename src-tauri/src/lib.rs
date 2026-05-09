@@ -548,6 +548,9 @@ pub fn run() {
             commands::keyboard::keyboard_start,
             commands::keyboard::keyboard_stop,
             commands::keyboard::keyboard_get_events,
+            // Multi-app recording (plugin: individual app recording)
+            commands::multi_app::start_multi_app_capture,
+            commands::multi_app::stop_multi_app_capture,
             // Social Upload
             commands::social_upload::youtube_set_credentials,
             commands::social_upload::youtube_auth_start,

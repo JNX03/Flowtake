@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri_plugin_shell::process::CommandChild;
 use tokio::sync::mpsc;
+use crate::commands::multi_app::CapturedTrack;
 use crate::keyboard_tracker::KeyboardTracker;
 use crate::mouse_tracker::MouseTracker;
 
@@ -29,6 +30,8 @@ pub struct AppState {
     pub ffmpeg_child: Option<CommandChild>,
     pub mouse_tracker: MouseTracker,
     pub keyboard_tracker: KeyboardTracker,
+    pub multi_app_children: Vec<std::process::Child>,
+    pub multi_app_tracks: Vec<CapturedTrack>,
     pub recording_start_timestamp: Option<i64>,
     pub export_state_data: Option<Value>,
     pub export_section: Option<String>,
@@ -96,6 +99,8 @@ impl AppState {
             ffmpeg_child: None,
             mouse_tracker: MouseTracker::new(),
             keyboard_tracker: KeyboardTracker::new(),
+            multi_app_children: Vec::new(),
+            multi_app_tracks: Vec::new(),
             recording_start_timestamp: None,
             export_state_data: None,
             export_section: None,

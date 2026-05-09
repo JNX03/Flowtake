@@ -11,6 +11,7 @@ import {
     FilmIcon,
     MusicalNoteIcon,
     PhotoIcon,
+    RectangleGroupIcon,
     Square2StackIcon,
     VideoCameraIcon,
     XMarkIcon
@@ -31,6 +32,7 @@ import {
     MASKS,
     OVERLAY_TRACKS,
     SCREEN_RECORDING,
+    SOURCES,
     SPATIALS,
     SUBTITLES,
     TRANSCRIPT,
@@ -41,6 +43,7 @@ import { selectClipIds } from "@shared/redux/clipSlice"
 import { selectMaskIds } from "@shared/redux/maskSlice"
 import { selectOverlayIds } from "@shared/redux/overlaySlice"
 import {
+    selectExtraTracks,
     selectHasCameraVideo,
     selectHasMicrophoneAudio,
     selectHasSystemAudio
@@ -64,6 +67,7 @@ import FilterSection from "./FilterSection"
 import MaskSection from "./MaskSection"
 import OverlaySection from "./OverlaySection"
 import ScreenRecordingSection from "./ScreenRecordingSection"
+import SourcesSection from "./SourcesSection"
 import SubtitleSection from "./SubtitleSection"
 import TranscriptSection from "./TranscriptSection"
 import SpatialSection from "./SpatialSection"
@@ -111,6 +115,8 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
     const audioClipIds = useSelector(selectAudioClipIds)
     const overlayIds = useSelector(selectOverlayIds)
     const openSection = useSelector(selectOpenSection)
+    const extraTracks = useSelector(selectExtraTracks)
+    const hasExtraTracks = Array.isArray(extraTracks) && extraTracks.length > 0
 
     const isDrawer = mode === "drawer"
 
@@ -211,6 +217,12 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
                 <Square2StackIcon className={ICON_CLS} />
             </SidebarButton>
 
+            {hasExtraTracks && (
+                <SidebarButton label="Sources" active={openSection === SOURCES} onClick={() => open(SOURCES)}>
+                    <RectangleGroupIcon className={ICON_CLS} />
+                </SidebarButton>
+            )}
+
             {isDrawer && (
                 <>
                     <hr className="w-6 border-t border-base-content/10 my-1" />
@@ -257,6 +269,7 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
                 {openSection === "filters" && <FilterSection />}
                 {openSection === AUDIO_TRACKS && <AudioTrackSection />}
                 {openSection === OVERLAY_TRACKS && <OverlaySection />}
+                {openSection === SOURCES && hasExtraTracks && <SourcesSection />}
             </div>
         </div>
     )

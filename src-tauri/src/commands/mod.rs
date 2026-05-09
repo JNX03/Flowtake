@@ -6,6 +6,7 @@ pub mod exporter;
 pub mod files;
 pub mod keyboard;
 pub mod live;
+pub mod multi_app;
 pub mod plugins;
 pub mod presets;
 pub mod projects;

@@ -154,6 +154,8 @@ export default function App() {
     })
 
     const isKeyboardOverlayEnabled = !!pluginSettings?.enabled?.keyboardOverlay
+    const isAppRecordingEnabled = !!pluginSettings?.enabled?.appRecording
+    const appRecordingWindows = pluginSettings?.config?.appRecording?.windows || []
 
     const hasMic = !!cameraMicConfig?.audioTrack
     const hasCam = !!cameraMicConfig?.videoTrack
@@ -203,6 +205,29 @@ export default function App() {
             setIsRecording(true)
             if (isKeyboardOverlayEnabled) {
                 try { await window.electron.ipcRenderer.invoke("keyboard-start") } catch (e) { console.warn("[plugin] keyboard-start failed:", e) }
+            }
+            if (isAppRecordingEnabled && appRecordingWindows.length > 0) {
+                try {
+                    // Plugin selection only persists id+name. Fetch fresh window list to grab geometry.
+                    const all = await window.electron.ipcRenderer.invoke("get-windows")
+                    const picked = appRecordingWindows
+                        .map(w => all?.find(x => x.id === w.id))
+                        .filter(Boolean)
+                        .map(w => ({
+                            id: String(w.id),
+                            name: w.name || "App",
+                            x: w.x ?? 0,
+                            y: w.y ?? 0,
+                            width: w.width ?? 0,
+                            height: w.height ?? 0,
+                        }))
+                        .filter(w => w.width > 0 && w.height > 0)
+                    if (picked.length > 0) {
+                        await window.electron.ipcRenderer.invoke("start-multi-app-capture", picked)
+                    }
+                } catch (e) {
+                    console.warn("[plugin] start-multi-app-capture failed:", e)
+                }
             }
         } catch {
             await window.electron.ipcRenderer.invoke(

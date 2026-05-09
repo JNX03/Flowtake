@@ -164,6 +164,7 @@ export const CAMERA_RECORDING = "camera-recording"
 export const BACKGROUND = "background"
 export const CURSOR = "cursor"
 export const TRANSCRIPT = "transcript"
+export const SOURCES = "sources"
 
 export const INERTIA_FPS = 60
 
