@@ -98,6 +98,11 @@ import {
     updateZoom,
     upsertZooms
 } from "./redux/zoomSlice"
+import {
+    addKeyboardLayout,
+    applyProperties as applyKeyboardLayoutProperties,
+    setKeyboardLayouts
+} from "./redux/keyboardLayoutSlice"
 
 // Lazy-loaded heavy scene modules (Pixi.js, configs, etc.)
 // These are only needed when opening/editing a project, not at startup.
@@ -165,6 +170,7 @@ export const BACKGROUND = "background"
 export const CURSOR = "cursor"
 export const TRANSCRIPT = "transcript"
 export const SOURCES = "sources"
+export const KEYBOARD_LAYOUTS = "keyboard-layouts"
 
 export const INERTIA_FPS = 60
 
@@ -224,6 +230,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         if (json.spatialAnims) actions.push(applySpatialAnimsProperties(json.spatialAnims))
         if (json.audioTrackAnims) actions.push(applyAudioTrackAnimsProperties(json.audioTrackAnims))
         if (json.overlayAnims) actions.push(applyOverlayAnimsProperties(json.overlayAnims))
+        if (json.keyboardLayoutAnims) actions.push(applyKeyboardLayoutProperties(json.keyboardLayoutAnims))
 
         try {
             if (json.project?.background) {
@@ -285,6 +292,22 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
                     json.spatialAnims.rotateX ?? 15, json.spatialAnims.rotateY ?? 0, json.spatialAnims.rotateZ ?? 0,
                     json.spatialAnims.perspective ?? 800, json.spatialAnims.cameraDistance ?? 1.5,
                     json.spatialAnims.eyeContactEnabled ?? true).serialize())))
+
+        // Plugin: keyboard layout. Load saved entities, then auto-seed one full-video span
+        // if the recording captured key events but no entities exist yet.
+        const savedKbEntities = json.keyboardLayoutAnims?.entities
+        if (savedKbEntities) actions.push(setKeyboardLayouts(savedKbEntities))
+        const hasKeyEvents = (json.project?.keyboardEvents?.length ?? 0) > 0
+        const hasSavedKbEntities = Array.isArray(savedKbEntities)
+            ? savedKbEntities.length > 0
+            : !!(savedKbEntities && Object.keys(savedKbEntities).length > 0)
+        if (hasKeyEvents && !hasSavedKbEntities && json.project?.videoDetails?.end) {
+            actions.push(addKeyboardLayout({
+                id: `kb-${crypto.randomUUID()}`,
+                start: 0,
+                end: json.project.videoDetails.end,
+            }))
+        }
 
         actions.push(setHasProject(true))
         return actions

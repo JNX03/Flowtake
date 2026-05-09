@@ -29,13 +29,16 @@ const MAX_VISIBLE = 8
 export default class KeyboardOverlay {
     constructor(stage) {
         this.stage = stage
+        if (stage) stage.sortableChildren = true
         this.container = new Container()
         this.container.label = "plugin-keyboard-overlay"
         this.container.zIndex = 1000
         this.stage.addChild(this.container)
 
         this.events = []
-        this.config = { mode: "keybinds", position: "bottom-center", size: "md" }
+        this.defaults = { mode: "keybinds", position: "bottom-center", size: "md" }
+        this.entities = []                  // [{id, start, end, mode?, position?, size?}]
+        this.activeEntity = null            // currently-rendering entity (for resolved config)
         this.enabled = false
         this.sceneDims = { width: 1280, height: 720 }
     }
@@ -43,20 +46,43 @@ export default class KeyboardOverlay {
     setEnabled(enabled) {
         this.enabled = !!enabled
         this.container.visible = this.enabled
+        this.lastFingerprint = null
     }
 
-    setConfig(config) {
-        this.config = { ...this.config, ...(config || {}) }
-        this.layout(this.lastFrame || [])
+    setDefaults(defaults) {
+        this.defaults = { ...this.defaults, ...(defaults || {}) }
+        this.lastFingerprint = null
+    }
+
+    setEntities(entities) {
+        this.entities = Array.isArray(entities) ? entities : []
+        this.lastFingerprint = null
     }
 
     setEvents(events) {
         this.events = Array.isArray(events) ? events : []
+        this.lastFingerprint = null
     }
 
     setDims(width, height) {
         this.sceneDims = { width, height }
+        this.lastFingerprint = null
         this.layout(this.lastFrame || [])
+    }
+
+    /** Resolve which entity is active at `time`, returning the merged config. */
+    resolveActiveConfig(time) {
+        for (const ent of this.entities) {
+            if (time >= ent.start && time <= ent.end) {
+                return {
+                    entity: ent,
+                    mode: ent.mode ?? this.defaults.mode,
+                    position: ent.position ?? this.defaults.position,
+                    size: ent.size ?? this.defaults.size,
+                }
+            }
+        }
+        return null
     }
 
     /**
@@ -64,24 +90,32 @@ export default class KeyboardOverlay {
      * lay them out as a row of kbd-style chips.
      */
     update(time) {
-        if (!this.enabled || !this.events.length) {
+        if (!this.enabled || !this.events.length || this.entities.length === 0) {
             if (this.container.children.length) this.layout([])
+            this.activeEntity = null
             return
         }
-        const visible = this.computeVisible(time)
+        const active = this.resolveActiveConfig(time)
+        if (!active) {
+            if (this.container.children.length) this.layout([])
+            this.activeEntity = null
+            return
+        }
+        this.activeEntity = active
+        const visible = this.computeVisible(time, active)
 
         // Skip rebuild if the visible set + alphas haven't materially changed.
-        // Quantize alpha to 0.05 buckets to avoid rebuilding every frame during fades.
-        const fp = visible.map(v => `${v.label}|${Math.round(v.alpha * 20)}`).join("§")
+        const fp = `${active.position}|${active.size}|` +
+            visible.map(v => `${v.label}|${Math.round(v.alpha * 20)}`).join("§")
         if (fp === this.lastFingerprint) return
         this.lastFingerprint = fp
 
-        this.layout(visible)
+        this.layout(visible, active)
     }
 
-    computeVisible(time) {
+    computeVisible(time, active) {
         const out = []
-        const isKeybinds = this.config.mode === "keybinds"
+        const isKeybinds = active.mode === "keybinds"
 
         // Walk events and accumulate keydown chips that are still within fade window.
         for (let i = 0; i < this.events.length; i++) {
@@ -125,16 +159,16 @@ export default class KeyboardOverlay {
         return parts.join("+") || "?"
     }
 
-    layout(items) {
+    layout(items, active = this.activeEntity) {
         this.lastFrame = items
         // Free GPU resources from the previous frame's chips before discarding.
         for (const child of this.container.removeChildren()) {
             child.destroy({ children: true })
         }
 
-        if (!this.enabled || items.length === 0) return
+        if (!this.enabled || items.length === 0 || !active) return
 
-        const preset = SIZE_PRESETS[this.config.size] || SIZE_PRESETS.md
+        const preset = SIZE_PRESETS[active.size] || SIZE_PRESETS.md
         const style = new TextStyle({
             fontFamily: "Inter, sans-serif",
             fontSize: preset.font,
@@ -172,7 +206,7 @@ export default class KeyboardOverlay {
 
         const { width: sw, height: sh } = this.sceneDims
         const margin = preset.margin
-        const pos = this.config.position || "bottom-center"
+        const pos = active.position || "bottom-center"
         let originX, originY
 
         if (pos.includes("left")) originX = margin

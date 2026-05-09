@@ -84,6 +84,10 @@ import zoomAnimsReducer, {
     reset as resetZoomAnims,
     zoomSlice
 } from './zoomSlice'
+import keyboardLayoutAnimsReducer, {
+    keyboardLayoutSlice,
+    reset as resetKeyboardLayoutAnims
+} from './keyboardLayoutSlice'
 import liveReducer from './liveSlice'
 import pluginReducer from './pluginSlice'
 
@@ -106,7 +110,8 @@ const filterSlices = isAnyOf(
     ...Object.values(audioTrackSlice.actions),
     ...Object.values(overlaySlice.actions),
     ...Object.values(filterSlice.actions),
-    ...Object.values(spatialSlice.actions)
+    ...Object.values(spatialSlice.actions),
+    ...Object.values(keyboardLayoutSlice.actions)
 )
 
 // Set of excluded action types for O(1) lookup
@@ -124,6 +129,7 @@ const EXCLUDED_ACTION_TYPES = new Set([
     audioTrackSlice.actions.setAudioClips.type,
     overlaySlice.actions.setOverlays.type,
     spatialSlice.actions.setSpatials.type,
+    keyboardLayoutSlice.actions.setKeyboardLayouts.type,
 ])
 
 const filterActions = action => !EXCLUDED_ACTION_TYPES.has(action.type)
@@ -182,6 +188,7 @@ closeListenerMiddleware.startListening({
         dispatch(resetOverlayAnims())
         dispatch(resetFilterAnims())
         dispatch(resetSpatialAnims())
+        dispatch(resetKeyboardLayoutAnims())
         dispatch(resetAssets())
         dispatch(setLoaderMessage("Saving project..."))
         await window.electron.ipcRenderer.invoke("close-project")
@@ -218,6 +225,7 @@ export default configureStore({
                 overlayAnims: overlayAnimsReducer,
                 filterAnims: filterAnimsReducer,
                 spatialAnims: spatialAnimsReducer,
+                keyboardLayoutAnims: keyboardLayoutAnimsReducer,
             }),
             {
                 limit: 50,
@@ -248,7 +256,8 @@ const save = debounce(async (dispatch, getState) => {
         audioTrackAnims,
         overlayAnims,
         filterAnims,
-        spatialAnims
+        spatialAnims,
+        keyboardLayoutAnims
     } = getState().undoableState.present
 
     // Only save if a project is currently opened
@@ -268,6 +277,7 @@ const save = debounce(async (dispatch, getState) => {
             overlayAnims: serializeEntitySlice(overlayAnims),
             filterAnims: { ...filterAnims },
             spatialAnims: serializeEntitySlice(spatialAnims),
+            keyboardLayoutAnims: serializeEntitySlice(keyboardLayoutAnims),
         }
 
         await window.electron.ipcRenderer.invoke("save-json", slices)

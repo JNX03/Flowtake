@@ -82,6 +82,10 @@ import {
     selectFeatureConfig as selectPluginFeatureConfig,
     selectIsFeatureEnabled as selectIsPluginFeatureEnabled
 } from "../redux/pluginSlice"
+import {
+    selectAllKeyboardLayouts,
+    selectKeyboardLayoutDefaults
+} from "../redux/keyboardLayoutSlice"
 import RenderScene from "../scene/RenderScene"
 import {
     CANCEL_RENDER,
@@ -194,7 +198,8 @@ class WorkerRenderer {
                 },
                 pluginKeyboardOverlay: {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY)(this.render.state),
-                    config: selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY)(this.render.state),
+                    defaults: selectKeyboardLayoutDefaults(this.render.state),
+                    entities: selectAllKeyboardLayouts(this.render.state),
                     events: selectKeyboardEvents(this.render.state) || [],
                 },
             },

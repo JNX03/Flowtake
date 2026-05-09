@@ -16,6 +16,7 @@ import {
     clamp,
     CLIPS,
     getGridBackgroundImage,
+    KEYBOARD_LAYOUTS,
     msToPx,
     OVERLAY_TRACKS,
     pxToMs,
@@ -90,12 +91,14 @@ import { selectAllSpatials } from "@shared/redux/spatialSlice"
 import { selectAllSubtitles } from "@shared/redux/subtitleSlice"
 import { selectSpatialIds } from "@shared/redux/spatialSlice"
 import { selectAllZooms, selectZoomIds } from "@shared/redux/zoomSlice"
+import { selectKeyboardLayoutIds } from "@shared/redux/keyboardLayoutSlice"
 import { subscribe, isDragActive } from "../../dragState"
 import AddTrackButton from "./AddTrackButton"
 import AudioTracks from "./AudioTracks"
 import Clicks from "./Clicks"
 import Clips from "./Clips"
 import Cursor from "./Cursor"
+import KeyboardLayouts from "./KeyboardLayouts"
 import Masks from "./Masks"
 import Minimap from "./Minimap"
 import OverlayTracks from "./OverlayTracks"
@@ -127,6 +130,7 @@ export default function Timeline() {
     const subtitleIds = useSelector(selectSubtitleIds)
     const audioClipIds = useSelector(selectAudioClipIds)
     const overlayIds = useSelector(selectOverlayIds)
+    const keyboardLayoutIds = useSelector(selectKeyboardLayoutIds)
     const audioTracks = useSelector(selectAudioTracks)
     const overlayTracks = useSelector(selectOverlayTracks)
     const nextOverlayTrackId = useSelector(selectNextOverlayTrackId)
@@ -409,6 +413,8 @@ export default function Timeline() {
                         <TrackHeader name="Spatial" color="accent" isMinimized={mini} />
                         {totalSubtitles > 0 && <TrackHeader name="Subtitles" color="tertiary" isMinimized={mini} />}
 
+                        {keyboardLayoutIds.length > 0 && <TrackHeader name="Keyboard" color="primary" isMinimized={mini} />}
+
                         {isMaskingModeEnabled && <TrackHeader name="Masks" color="neutral" isMinimized={false} />}
 
                         {/* Track group separator */}
@@ -478,6 +484,7 @@ export default function Timeline() {
                             <Zooms />
                             <SpatialClips />
                             {totalSubtitles > 0 && <Subtitles />}
+                            {keyboardLayoutIds.length > 0 && <KeyboardLayouts />}
                             {isMaskingModeEnabled && <Masks />}
 
                             {/* Track group separator */}

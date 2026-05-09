@@ -76,7 +76,8 @@ export default class RenderScene extends Scene {
         }
         if (args.pluginKeyboardOverlay && this.keyboardOverlay) {
             this.keyboardOverlay.setEnabled(!!args.pluginKeyboardOverlay.enabled)
-            this.keyboardOverlay.setConfig(args.pluginKeyboardOverlay.config || {})
+            this.keyboardOverlay.setDefaults(args.pluginKeyboardOverlay.defaults || {})
+            this.keyboardOverlay.setEntities(args.pluginKeyboardOverlay.entities || [])
             this.keyboardOverlay.setEvents(args.pluginKeyboardOverlay.events || [])
             if (rendererDims) this.keyboardOverlay.setDims(rendererDims.x, rendererDims.y)
         }

@@ -103,11 +103,14 @@ export default class PreviewScene extends Scene {
             case 'plugin.keyboardOverlay.enabled':
                 this.keyboardOverlay?.setEnabled(payload)
                 break
-            case 'plugin.keyboardOverlay.config':
-                this.keyboardOverlay?.setConfig(payload)
-                break
             case 'plugin.keyboardOverlay.events':
                 this.keyboardOverlay?.setEvents(payload)
+                break
+            case 'plugin.keyboardLayout.entities':
+                this.keyboardOverlay?.setEntities(payload)
+                break
+            case 'plugin.keyboardLayout.defaults':
+                this.keyboardOverlay?.setDefaults(payload)
                 break
             case 'cursorCoords.inertia':
                 this.cursorAnimator.setState({ inertia: payload })

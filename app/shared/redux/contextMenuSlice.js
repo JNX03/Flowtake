@@ -17,6 +17,9 @@ const initialState = {
     isNewMaskMenuOpen: false,
     isSpatialMenuOpen: false,
     isNewSpatialMenuOpen: false,
+    isKeyboardLayoutMenuOpen: false,
+    isNewKeyboardLayoutMenuOpen: false,
+    keyboardLayoutId: null,
     selectedMaskRow: null,
 }
 
@@ -43,6 +46,9 @@ export const contextMenuSlice = createSlice({
         setSelectedMaskRow: (state, action) => {
             state.selectedMaskRow = action.payload
         },
+        setKeyboardLayoutId: (state, action) => {
+            state.keyboardLayoutId = action.payload
+        },
         closeAllContextMenus: state => {
             state.isClipMenuOpen = false
             state.isClickMenuOpen = false
@@ -55,6 +61,8 @@ export const contextMenuSlice = createSlice({
             state.isNewMaskMenuOpen = false
             state.isSpatialMenuOpen = false
             state.isNewSpatialMenuOpen = false
+            state.isKeyboardLayoutMenuOpen = false
+            state.isNewKeyboardLayoutMenuOpen = false
         },
         setIsClipMenuOpen: (state, action) => {
             state.isClipMenuOpen = action.payload
@@ -198,6 +206,36 @@ export const contextMenuSlice = createSlice({
             state.isNewMaskMenuOpen = false
             state.isSpatialMenuOpen = false
             state.isNewSpatialMenuOpen = action.payload
+        },
+        setIsKeyboardLayoutMenuOpen: (state, action) => {
+            state.isClipMenuOpen = false
+            state.isClickMenuOpen = false
+            state.isZoomMenuOpen = false
+            state.isSubtitleMenuOpen = false
+            state.isNewClipMenuOpen = false
+            state.isNewZoomMenuOpen = false
+            state.isNewSubtitleMenuOpen = false
+            state.isMaskMenuOpen = false
+            state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
+            state.isKeyboardLayoutMenuOpen = action.payload
+            state.isNewKeyboardLayoutMenuOpen = false
+        },
+        setIsNewKeyboardLayoutMenuOpen: (state, action) => {
+            state.isClipMenuOpen = false
+            state.isClickMenuOpen = false
+            state.isZoomMenuOpen = false
+            state.isSubtitleMenuOpen = false
+            state.isNewClipMenuOpen = false
+            state.isNewZoomMenuOpen = false
+            state.isNewSubtitleMenuOpen = false
+            state.isMaskMenuOpen = false
+            state.isNewMaskMenuOpen = false
+            state.isSpatialMenuOpen = false
+            state.isNewSpatialMenuOpen = false
+            state.isKeyboardLayoutMenuOpen = false
+            state.isNewKeyboardLayoutMenuOpen = action.payload
         }
     },
 })
@@ -222,7 +260,10 @@ export const {
     setIsMaskMenuOpen,
     setIsNewMaskMenuOpen,
     setIsSpatialMenuOpen,
-    setIsNewSpatialMenuOpen
+    setIsNewSpatialMenuOpen,
+    setIsKeyboardLayoutMenuOpen,
+    setIsNewKeyboardLayoutMenuOpen,
+    setKeyboardLayoutId,
 } = contextMenuSlice.actions
 
 export const selectPosition = state => state.contextMenu.position
@@ -242,5 +283,8 @@ export const selectIsMaskMenuOpen = state => state.contextMenu.isMaskMenuOpen
 export const selectIsNewMaskMenuOpen = state => state.contextMenu.isNewMaskMenuOpen
 export const selectIsSpatialMenuOpen = state => state.contextMenu.isSpatialMenuOpen
 export const selectIsNewSpatialMenuOpen = state => state.contextMenu.isNewSpatialMenuOpen
+export const selectIsKeyboardLayoutMenuOpen = state => state.contextMenu.isKeyboardLayoutMenuOpen
+export const selectIsNewKeyboardLayoutMenuOpen = state => state.contextMenu.isNewKeyboardLayoutMenuOpen
+export const selectKeyboardLayoutId = state => state.contextMenu.keyboardLayoutId
 
 export default contextMenuSlice.reducer

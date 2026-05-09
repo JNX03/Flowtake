@@ -139,6 +139,10 @@ import {
     selectFeatureConfig as selectPluginFeatureConfig,
     selectIsFeatureEnabled as selectIsPluginFeatureEnabled
 } from "@shared/redux/pluginSlice"
+import {
+    selectAllKeyboardLayouts,
+    selectKeyboardLayoutDefaults
+} from "@shared/redux/keyboardLayoutSlice"
 import CameraZoomConfig from "@shared/scene/cameraZoom/CameraZoomConfig"
 import ClickConfig from "@shared/scene/click/ClickConfig"
 import CursorTypeConfig from "@shared/scene/cursorType/CursorTypeConfig"
@@ -237,8 +241,9 @@ export default function Preview() {
     const isMouseStyleEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE))
     const mouseStyleConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.MOUSE_STYLE), shallowEqual)
     const isKeyboardOverlayEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY))
-    const keyboardOverlayConfig = useSelector(selectPluginFeatureConfig(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY), shallowEqual)
     const keyboardEvents = useSelector(selectKeyboardEvents)
+    const keyboardLayoutEntities = useSelector(selectAllKeyboardLayouts, shallowEqual)
+    const keyboardLayoutDefaults = useSelector(selectKeyboardLayoutDefaults, shallowEqual)
 
     const [manager, setManager] = useState(null)
 
@@ -639,12 +644,16 @@ export default function Preview() {
     }, [manager, isKeyboardOverlayEnabled])
 
     useEffect(() => {
-        manager?.postUpdate({ type: 'plugin.keyboardOverlay.config', payload: keyboardOverlayConfig })
-    }, [manager, keyboardOverlayConfig])
-
-    useEffect(() => {
         manager?.postUpdate({ type: 'plugin.keyboardOverlay.events', payload: keyboardEvents || [] })
     }, [manager, keyboardEvents])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.keyboardLayout.defaults', payload: keyboardLayoutDefaults })
+    }, [manager, keyboardLayoutDefaults])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.keyboardLayout.entities', payload: keyboardLayoutEntities })
+    }, [manager, keyboardLayoutEntities])
 
     useEffect(() => {
         if (isCleaningUpScene) manager?.postUpdate({ type: 'isCleaningUpScene', payload: isCleaningUpScene })
