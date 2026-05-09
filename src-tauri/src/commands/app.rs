@@ -324,11 +324,19 @@ pub struct DownloadProgress {
 }
 
 #[tauri::command]
-pub async fn download_update(app: AppHandle, download_url: String) -> AppResult<Value> {
+pub async fn download_update(
+    app: AppHandle,
+    download_url: String,
+    version: Option<String>,
+) -> AppResult<Value> {
     use futures_util::StreamExt;
     use std::io::Write;
 
-    log::info!("[download_update] Starting download from: {}", download_url);
+    log::info!(
+        "[download_update] Starting download from: {} (version={:?})",
+        download_url,
+        version
+    );
 
     let client = reqwest::Client::new();
     let response = client
@@ -420,7 +428,73 @@ pub async fn download_update(app: AppHandle, download_url: String) -> AppResult<
     let installer_path = temp_path.to_string_lossy().to_string();
     log::info!("[download_update] Download complete: {}", installer_path);
 
+    // Write sidecar JSON so we can resurface this download on next launch.
+    let sidecar_path = std::env::temp_dir().join("flowtake-update.json");
+    let sidecar = serde_json::json!({
+        "path": installer_path,
+        "version": version,
+    });
+    if let Err(e) = std::fs::write(
+        &sidecar_path,
+        serde_json::to_string(&sidecar).unwrap_or_default(),
+    ) {
+        log::warn!("[download_update] Failed to write sidecar JSON: {}", e);
+    }
+
     Ok(serde_json::json!({ "installerPath": installer_path }))
+}
+
+#[tauri::command]
+pub async fn pending_installer_path(app: AppHandle) -> AppResult<Value> {
+    let sidecar_path = std::env::temp_dir().join("flowtake-update.json");
+    if !sidecar_path.exists() {
+        return Ok(Value::Null);
+    }
+
+    let raw = match std::fs::read_to_string(&sidecar_path) {
+        Ok(s) => s,
+        Err(e) => {
+            log::warn!("[pending_installer_path] Failed to read sidecar: {}", e);
+            return Ok(Value::Null);
+        }
+    };
+    let parsed: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!("[pending_installer_path] Invalid sidecar JSON: {}", e);
+            return Ok(Value::Null);
+        }
+    };
+
+    let path_str = match parsed.get("path").and_then(|v| v.as_str()) {
+        Some(p) => p.to_string(),
+        None => return Ok(Value::Null),
+    };
+    let version = parsed
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    if !std::path::Path::new(&path_str).exists() {
+        // Installer missing — clean up the orphan sidecar.
+        let _ = std::fs::remove_file(&sidecar_path);
+        return Ok(Value::Null);
+    }
+
+    // If the sidecar version matches the running version, the install already happened.
+    if let Some(ref v) = version {
+        let current = app.config().version.clone().unwrap_or_default();
+        if v == &current {
+            let _ = std::fs::remove_file(&path_str);
+            let _ = std::fs::remove_file(&sidecar_path);
+            return Ok(Value::Null);
+        }
+    }
+
+    Ok(serde_json::json!({
+        "path": path_str,
+        "version": version,
+    }))
 }
 
 #[tauri::command]
