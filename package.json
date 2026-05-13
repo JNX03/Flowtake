@@ -46,7 +46,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.2.2",
-    "@tanstack/eslint-plugin-query": "^5.99.2",
+    "@tanstack/eslint-plugin-query": "^5.100.10",
     "@tauri-apps/cli": "^2.10.1",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.5.0",
