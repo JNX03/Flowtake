@@ -3,7 +3,9 @@ import {
     EyeSlashIcon,
     PencilSquareIcon,
     RectangleGroupIcon,
-    ScissorsIcon
+    ScissorsIcon,
+    Squares2X2Icon,
+    ViewColumnsIcon
 } from "@heroicons/react/16/solid"
 import { useCallback, useMemo } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -37,6 +39,11 @@ const CORNER_LABELS = {
 
 const cycleCorner = (cur) => CORNERS[(CORNERS.indexOf(cur) + 1) % CORNERS.length]
 
+const LAYOUTS = ["pip", "sidebyside", "grid"]
+const LAYOUT_LABELS = { pip: "Picture-in-picture", sidebyside: "Side-by-side", grid: "Grid" }
+const LAYOUT_ICONS = { pip: RectangleGroupIcon, sidebyside: ViewColumnsIcon, grid: Squares2X2Icon }
+const cycleLayout = (cur) => LAYOUTS[(LAYOUTS.indexOf(cur || "pip") + 1) % LAYOUTS.length]
+
 export default function AppSceneMenu() {
     const dispatch = useDispatch()
 
@@ -63,6 +70,7 @@ export default function AppSceneMenu() {
             id: `scn-${crypto.randomUUID()}`,
             start: t,
             end: entity.end,
+            layout: entity.layout || "pip",
             mainTrackId: entity.mainTrackId,
             slots: { ...(entity.slots || {}) },
         }))
@@ -92,6 +100,12 @@ export default function AppSceneMenu() {
         }))
     }, [dispatch, entity])
 
+    const onCycleLayout = useCallback(() => {
+        if (!entity) return
+        const next = cycleLayout(entity.layout)
+        dispatch(updateAppScene({ id: entity.id, changes: { layout: next } }))
+    }, [dispatch, entity])
+
     const onDelete = useCallback(() => {
         if (!entity) return
         dispatch(removeAppScene(entity.id))
@@ -115,19 +129,36 @@ export default function AppSceneMenu() {
     const otherTracks = (Array.isArray(tracks) ? tracks : [])
         .filter(t => t.id !== entity.mainTrackId)
 
+    const layout = entity.layout || "pip"
+    const LayoutIcon = LAYOUT_ICONS[layout] || RectangleGroupIcon
+    const showCornerControls = layout === "pip"
+
     return (
         <Menu isOpen={isOpen} close={close}>
             <Item text="Split at time cursor" icon={ScissorsIcon} isEnabled={!!isSplittingEnabled}
                 onClick={onSplit} kbd={<kbd className="kbd kbd-sm">s</kbd>} />
             <Divider />
+            <Item text={`Layout: ${LAYOUT_LABELS[layout]}`} icon={LayoutIcon}
+                isEnabled={true} onClick={onCycleLayout} />
             <Item text={`Main: ${mainName}`} icon={RectangleGroupIcon}
                 isEnabled={Array.isArray(tracks) && tracks.length > 1} onClick={cycleMain} />
-            {otherTracks.map(t => {
+            {showCornerControls && otherTracks.map(t => {
                 const slot = entity.slots?.[t.id] || "hidden"
                 return (
                     <Item key={t.id}
                         text={`${t.name}: ${CORNER_LABELS[slot] || slot}`}
                         icon={slot === "hidden" ? EyeSlashIcon : EyeIcon}
+                        isEnabled={true}
+                        onClick={() => cycleSlot(t.id)} />
+                )
+            })}
+            {!showCornerControls && otherTracks.map(t => {
+                const slot = entity.slots?.[t.id] || "hidden"
+                const isVisible = slot && slot !== "hidden"
+                return (
+                    <Item key={t.id}
+                        text={`${t.name}: ${isVisible ? "Visible" : "Hidden"}`}
+                        icon={isVisible ? EyeIcon : EyeSlashIcon}
                         isEnabled={true}
                         onClick={() => cycleSlot(t.id)} />
                 )

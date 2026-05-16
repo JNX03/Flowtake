@@ -41,6 +41,15 @@ export default function AppScene({ id }) {
         return Object.values(anim.slots).filter(v => v && v !== "hidden").length
     }, [anim])
 
+    const layoutLabel = useMemo(() => {
+        switch (anim?.layout) {
+            case "sidebyside": return "Side-by-side"
+            case "grid": return "Grid"
+            case "pip":
+            default: return "PiP"
+        }
+    }, [anim])
+
     const onChange = useCallback(
         (start, end) => dispatch(updateAppScene({ id, changes: { start, end } })),
         [dispatch, id]
@@ -66,11 +75,11 @@ export default function AppScene({ id }) {
             color="accent" isMinimized={isMinimized}>
             <Label
                 isMinimized={isMinimized}
-                line1={<><RectangleGroupIcon className="size-4 shrink-0 mr-1" />Scene</>}
+                line1={<><RectangleGroupIcon className="size-4 shrink-0 mr-1" />{layoutLabel}</>}
                 line2={<>
                     <span className="truncate">Main: {mainName}</span>
                     {visibleSecondaries > 0 && (
-                        <span className="opacity-60">+{visibleSecondaries} PiP</span>
+                        <span className="opacity-60">+{visibleSecondaries}</span>
                     )}
                 </>}
             />

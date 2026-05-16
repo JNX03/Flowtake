@@ -9,6 +9,7 @@ import CanvasWrapper from "./CanvasWrapper"
 
 const CORNER_PIP_RATIO = 0.22      // PiP size when used as a corner secondary in a scene
 const MARGIN = 16                  // px from edges
+const GRID_GAP = 8                 // px between grid cells
 
 /**
  * A picture-in-picture overlay for one extra-N.mp4 captured by the individual
@@ -22,12 +23,16 @@ export default class ExtraVideo extends CanvasWrapper {
         this.rendererDims = null
 
         // Scene role for the multi-app plugin's scene-block system.
-        //   "default" — hidden (no scene block active = show only the main screen recording)
-        //   "main"    — fills the canvas (focus-record mode)
-        //   "corner"  — small PiP in one of 4 corners (for hybrid scenes)
-        //   "hidden"  — explicitly hidden by a scene block
+        //   "default"   — hidden (no scene block active = show only the main screen recording)
+        //   "main"      — fills the canvas (focus-record mode)
+        //   "corner"    — small PiP in one of 4 corners (for hybrid scenes)
+        //   "half-left" — fills the left half of the canvas (side-by-side layout)
+        //   "half-right"— fills the right half of the canvas (side-by-side layout)
+        //   "grid"      — fills one cell of an N×M grid (opts.gridCell = {row,col,rows,cols})
+        //   "hidden"    — explicitly hidden by a scene block
         this.role = "default"
         this.corner = "tr"
+        this.gridCell = null
         this.userVisible = true   // global Sources panel toggle
 
         // Canvas → Pixi texture pipeline
@@ -66,15 +71,22 @@ export default class ExtraVideo extends CanvasWrapper {
     applyVisibility() {
         // Either the user hid the track via Sources panel, or the role is
         // hidden/default — in both cases hide the container.
-        const sceneVisible = this.role === "main" || this.role === "corner"
+        const sceneVisible = this.role === "main"
+            || this.role === "corner"
+            || this.role === "half-left"
+            || this.role === "half-right"
+            || this.role === "grid"
         this.outerContainer.visible = this.userVisible && sceneVisible
     }
 
     setSceneRole(role, opts = {}) {
         this.role = role || "default"
         if (opts.corner) this.corner = opts.corner
+        if (opts.gridCell) this.gridCell = opts.gridCell
         // Higher zIndex when "main" so it sits above corners.
         if (this.role === "main") this.outerContainer.zIndex = 80 + this.index
+        else if (this.role === "half-left" || this.role === "half-right") this.outerContainer.zIndex = 70 + this.index
+        else if (this.role === "grid") this.outerContainer.zIndex = 70 + this.index
         else if (this.role === "corner") this.outerContainer.zIndex = 60 + this.index
         else this.outerContainer.zIndex = 50 + this.index
         this.layout()
@@ -93,9 +105,7 @@ export default class ExtraVideo extends CanvasWrapper {
         if (role === "main") {
             // Focus-record: fill the entire canvas, preserving aspect ratio
             // (letterbox or pillarbox). Centered.
-            const scaleX = r.x / this.dims.x
-            const scaleY = r.y / this.dims.y
-            const scale = Math.min(scaleX, scaleY)
+            const scale = Math.min(r.x / this.dims.x, r.y / this.dims.y)
             const w = this.dims.x * scale
             const h = this.dims.y * scale
             this.inner.scale.set(scale)
@@ -110,6 +120,27 @@ export default class ExtraVideo extends CanvasWrapper {
             const x = left ? MARGIN : r.x - targetWidth - MARGIN
             const y = top ? MARGIN : r.y - scaledHeight - MARGIN
             this.outerContainer.position.set(x, y)
+        } else if (role === "half-left" || role === "half-right") {
+            // 50/50 split. Each half gets r.x/2 wide minus the central gap.
+            const cellW = (r.x - GRID_GAP) / 2
+            const cellH = r.y
+            const scale = Math.min(cellW / this.dims.x, cellH / this.dims.y)
+            const w = this.dims.x * scale
+            const h = this.dims.y * scale
+            this.inner.scale.set(scale)
+            const cellX = role === "half-left" ? 0 : cellW + GRID_GAP
+            this.outerContainer.position.set(cellX + (cellW - w) / 2, (cellH - h) / 2)
+        } else if (role === "grid") {
+            const cell = this.gridCell || { row: 0, col: 0, rows: 1, cols: 1 }
+            const cellW = (r.x - GRID_GAP * (cell.cols - 1)) / cell.cols
+            const cellH = (r.y - GRID_GAP * (cell.rows - 1)) / cell.rows
+            const scale = Math.min(cellW / this.dims.x, cellH / this.dims.y)
+            const w = this.dims.x * scale
+            const h = this.dims.y * scale
+            this.inner.scale.set(scale)
+            const cellX = cell.col * (cellW + GRID_GAP)
+            const cellY = cell.row * (cellH + GRID_GAP)
+            this.outerContainer.position.set(cellX + (cellW - w) / 2, cellY + (cellH - h) / 2)
         }
         // role === "default" or "hidden": no positioning needed, container is hidden
     }

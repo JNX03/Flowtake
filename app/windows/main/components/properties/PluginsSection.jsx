@@ -97,6 +97,12 @@ const SCENE_SLOTS = [
     { value: "hidden", label: "Hidden" },
 ]
 
+const SCENE_LAYOUTS = [
+    { value: "pip", label: "Picture-in-picture", help: "Main fills the canvas; secondaries float in corners." },
+    { value: "sidebyside", label: "Side-by-side", help: "Main on the left, first visible secondary on the right." },
+    { value: "grid", label: "Grid", help: "Auto-tile every visible source into an N×M grid." },
+]
+
 export default function PluginsSection() {
     const dispatch = useDispatch()
     const enabled = useSelector(selectAllEnabled)
@@ -138,7 +144,7 @@ export default function PluginsSection() {
             for (let i = 1; i < (extraTracks?.length || 0); i++) {
                 slots[extraTracks[i].id] = "hidden"  // focus mode default: only main is shown
             }
-            dispatch(addAppScene({ id, start, end, mainTrackId: main, slots }))
+            dispatch(addAppScene({ id, start, end, layout: "pip", mainTrackId: main, slots }))
             dispatch(setSelectedRow(APP_SCENES))
             dispatch(setOpenSection(APP_SCENES))
             dispatch(setSelectedIds([id]))
@@ -382,19 +388,57 @@ function AppRecordingControls({ selectedId }) {
 
             {selectedScene && (
                 <div className="rounded-md border border-base-content/10 px-2 py-2 flex flex-col gap-2">
-                    <SectionHead text="Secondary placements" />
+                    <SectionHead text="Layout" />
+                    <div className="grid grid-cols-3 gap-1.5">
+                        {SCENE_LAYOUTS.map(l => {
+                            const active = (selectedScene.layout || "pip") === l.value
+                            return (
+                                <button
+                                    key={l.value}
+                                    type="button"
+                                    title={l.help}
+                                    onClick={() => update({ layout: l.value })}
+                                    className={`btn btn-xs ${active ? "btn-primary" : "btn-outline"}`}>
+                                    {l.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+                    <p className="text-[10px] text-base-content/40 -mt-1">
+                        {SCENE_LAYOUTS.find(l => l.value === (selectedScene.layout || "pip"))?.help}
+                    </p>
+                </div>
+            )}
+
+            {selectedScene && (
+                <div className="rounded-md border border-base-content/10 px-2 py-2 flex flex-col gap-2">
+                    <SectionHead text={(selectedScene.layout || "pip") === "pip" ? "Secondary placements" : "Secondary visibility"} />
                     {tracks.filter(t => t.id !== selectedScene.mainTrackId).map((t) => {
                         const cur = selectedScene.slots?.[t.id] || "hidden"
+                        const isPip = (selectedScene.layout || "pip") === "pip"
+                        if (isPip) {
+                            return (
+                                <Row key={t.id} label={t.name}>
+                                    <select
+                                        className="select select-xs flex-1"
+                                        value={cur}
+                                        onChange={(e) => setSlot(t.id, e.target.value)}>
+                                        {SCENE_SLOTS.map(s => (
+                                            <option key={s.value} value={s.value}>{s.label}</option>
+                                        ))}
+                                    </select>
+                                </Row>
+                            )
+                        }
+                        const isVisible = cur && cur !== "hidden"
                         return (
                             <Row key={t.id} label={t.name}>
-                                <select
-                                    className="select select-xs flex-1"
-                                    value={cur}
-                                    onChange={(e) => setSlot(t.id, e.target.value)}>
-                                    {SCENE_SLOTS.map(s => (
-                                        <option key={s.value} value={s.value}>{s.label}</option>
-                                    ))}
-                                </select>
+                                <button
+                                    type="button"
+                                    onClick={() => setSlot(t.id, isVisible ? "hidden" : "tr")}
+                                    className={`btn btn-xs flex-1 ${isVisible ? "btn-primary" : "btn-outline"}`}>
+                                    {isVisible ? "Visible" : "Hidden"}
+                                </button>
                             </Row>
                         )
                     })}

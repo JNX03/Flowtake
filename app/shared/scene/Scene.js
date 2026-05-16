@@ -148,9 +148,10 @@ export default class Scene {
     applySceneAtTime(time) {
         if (!this.extraVideos.length) return
         const active = this.resolveSceneAt(time)
+        const layout = active?.layout || "pip"
         // Cheap fingerprint to avoid re-laying-out every frame.
         const fp = active
-            ? `${active.id}|${active.mainTrackId || ''}|${JSON.stringify(active.slots || {})}`
+            ? `${active.id}|${layout}|${active.mainTrackId || ''}|${JSON.stringify(active.slots || {})}`
             : "default"
         if (fp === this._lastSceneFingerprint) return
         this._lastSceneFingerprint = fp
@@ -160,7 +161,16 @@ export default class Scene {
             for (const ev of this.extraVideos) ev?.setSceneRole("default")
             return
         }
-        // Scene active. Map each extra index → its trackId, then assign role.
+
+        if (layout === "sidebyside") {
+            this._applySideBySide(active)
+            return
+        }
+        if (layout === "grid") {
+            this._applyGrid(active)
+            return
+        }
+        // Default: PiP — main fills, others go to corners or hidden.
         for (let i = 0; i < this.extraVideos.length; i++) {
             const ev = this.extraVideos[i]
             if (!ev) continue
@@ -176,6 +186,54 @@ export default class Scene {
             } else {
                 ev.setSceneRole("corner", { corner: slot })
             }
+        }
+    }
+
+    /** Side-by-side: main on the left, first visible non-main slot on the right. */
+    _applySideBySide(active) {
+        const slots = active.slots || {}
+        // Pick the "right" track: first sceneTrackOrder entry that is not main and not hidden.
+        let rightTrackId = null
+        for (const trackId of this.sceneTrackOrder) {
+            if (!trackId || trackId === active.mainTrackId) continue
+            const slot = slots[trackId]
+            if (slot && slot !== "hidden") { rightTrackId = trackId; break }
+        }
+        for (let i = 0; i < this.extraVideos.length; i++) {
+            const ev = this.extraVideos[i]
+            if (!ev) continue
+            const trackId = this.sceneTrackOrder[i]
+            if (!trackId) { ev.setSceneRole("default"); continue }
+            if (trackId === active.mainTrackId) ev.setSceneRole("half-left")
+            else if (trackId === rightTrackId) ev.setSceneRole("half-right")
+            else ev.setSceneRole("hidden")
+        }
+    }
+
+    /** Grid: tile every non-hidden track (main first at top-left). */
+    _applyGrid(active) {
+        const slots = active.slots || {}
+        const visibleIds = []
+        if (active.mainTrackId) visibleIds.push(active.mainTrackId)
+        for (const trackId of this.sceneTrackOrder) {
+            if (!trackId || trackId === active.mainTrackId) continue
+            const slot = slots[trackId]
+            if (slot && slot !== "hidden") visibleIds.push(trackId)
+        }
+        const total = visibleIds.length
+        const cols = total <= 1 ? 1 : (total === 2 ? 2 : (total <= 4 ? 2 : Math.ceil(Math.sqrt(total))))
+        const rows = Math.max(1, Math.ceil(total / cols))
+        const positions = new Map()
+        visibleIds.forEach((id, idx) => {
+            positions.set(id, { row: Math.floor(idx / cols), col: idx % cols, rows, cols })
+        })
+        for (let i = 0; i < this.extraVideos.length; i++) {
+            const ev = this.extraVideos[i]
+            if (!ev) continue
+            const trackId = this.sceneTrackOrder[i]
+            const cell = trackId ? positions.get(trackId) : null
+            if (cell) ev.setSceneRole("grid", { gridCell: cell })
+            else ev.setSceneRole("hidden")
         }
     }
 

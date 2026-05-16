@@ -41,6 +41,7 @@ export default function NewAppSceneMenu() {
         dispatch(addAppScene({
             id: `scn-${crypto.randomUUID()}`,
             start, end,
+            layout: "pip",
             mainTrackId: main,
             slots,
         }))
