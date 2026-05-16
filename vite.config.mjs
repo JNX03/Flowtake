@@ -84,6 +84,7 @@ export default defineConfig({
         areaPicker: resolve(__dirname, 'app/windows/areaPicker/index.html'),
         note: resolve(__dirname, 'app/windows/note/index.html'),
         recorder: resolve(__dirname, 'app/windows/recorder/index.html'),
+        liveOverlay: resolve(__dirname, 'app/windows/liveOverlay/index.html'),
         windowPicker: resolve(__dirname, 'app/windows/windowPicker/index.html'),
         exporter: resolve(__dirname, 'app/windows/exporter/index.html'),
         drawing: resolve(__dirname, 'app/windows/drawing/index.html'),
