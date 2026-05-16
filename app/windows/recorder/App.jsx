@@ -6,6 +6,7 @@ import {
     PauseIcon,
     PencilIcon,
     PlayIcon,
+    RectangleGroupIcon,
     TrashIcon,
     VideoCameraIcon,
     VideoCameraSlashIcon,
@@ -112,6 +113,17 @@ const Divider = () => (
     <div className="w-px h-5 mx-1.5 flex-shrink-0 bg-white/[0.08]" />
 )
 
+// "+N apps" chip used in both the pre-recording and recording pills when the
+// Individual App Recording plugin is configured.
+const AppBadge = ({ count, title }) => (
+    <span
+        title={title}
+        className="flex items-center gap-1 px-1.5 py-[2px] rounded-full bg-indigo-500/20 text-indigo-200 text-[10px] font-semibold flex-shrink-0">
+        <RectangleGroupIcon className="size-3" />
+        +{count}
+    </span>
+)
+
 export default function App() {
 
     const [time, setTime] = useState(0)
@@ -142,6 +154,10 @@ export default function App() {
     const isKeyboardOverlayEnabled = !!pluginSettings?.enabled?.keyboardOverlay
     const isAppRecordingEnabled = !!pluginSettings?.enabled?.appRecording
     const appRecordingWindows = pluginSettings?.config?.appRecording?.windows || []
+    const showAppBadge = isAppRecordingEnabled && appRecordingWindows.length > 0
+    const appBadgeTitle = showAppBadge
+        ? `Also capturing: ${appRecordingWindows.map(w => w.name).join(", ")}`
+        : ""
 
     const hasMic = !!cameraMicConfig?.audioTrack
     const hasCam = !!cameraMicConfig?.videoTrack
@@ -348,6 +364,8 @@ export default function App() {
                         </div>
                     )}
 
+                    {showAppBadge && <AppBadge count={appRecordingWindows.length} title={appBadgeTitle} />}
+
                     {countdown !== null ? (
                         <>
                             <span key={countdown} className="countdown-num text-[26px] font-bold text-white tabular-nums leading-none">
@@ -425,6 +443,7 @@ export default function App() {
                     {recDot}
                     {hasMic && <VolumeMeter level={isMicMuted ? 0 : level} compact />}
                     {timer}
+                    {showAppBadge && <AppBadge count={appRecordingWindows.length} title={appBadgeTitle} />}
                 </div>
                 <Suspense fallback={null}>
                     <RecorderTutorial onActiveChange={setTutorialActive} />
@@ -461,6 +480,7 @@ export default function App() {
                         {cameraPreview}
                         {recDot}
                         {timer}
+                        {showAppBadge && <AppBadge count={appRecordingWindows.length} title={appBadgeTitle} />}
                     </div>
 
                     {/* ── Center: tools (shifted right with margin) ── */}
