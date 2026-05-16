@@ -563,9 +563,24 @@ pub async fn init_recording(
     source: Value,
     camera_mic_config: Value,
     system_audio: Value,
+    mode: Option<String>,
 ) -> AppResult<()> {
     #[cfg(target_os = "macos")]
     crate::mouse_tracker::restore_macos_cursor();
+
+    let is_live = mode.as_deref() == Some("live");
+
+    // Live mode: skip the FFmpeg/recording pipeline entirely and open the
+    // dedicated live overlay window. The composer + RTMP path is driven from
+    // the overlay via `live:start`.
+    if is_live {
+        let state = app.state::<Mutex<AppState>>();
+        {
+            let mut state = state.lock().unwrap();
+            state.camera_mic_config = Some(camera_mic_config.clone());
+        }
+        return open_live_overlay(app, source).await;
+    }
 
     let state = app.state::<Mutex<AppState>>();
 
@@ -1105,6 +1120,83 @@ pub async fn init_recording(
     // Emit recording-init event
     app.emit("recording-init", &source).ok();
 
+    Ok(())
+}
+
+/// Build the dedicated live overlay pill window. Mirrors the recorder window's
+/// geometry (centered top-of-screen, always-on-top, decoration-less) but uses
+/// its own URL so the live UI lives independently from the recorder UI.
+async fn open_live_overlay(app: AppHandle, source: Value) -> AppResult<()> {
+    // Minimize main window the same way recording does
+    if let Some(main_win) = app.get_webview_window("main") {
+        main_win.minimize().ok();
+    }
+
+    if app.get_webview_window("liveOverlay").is_some() {
+        // Already open — just emit the init event so the existing window can react
+        app.emit("live-init", &source).ok();
+        return Ok(());
+    }
+
+    let monitor = app
+        .get_webview_window("main")
+        .and_then(|w| w.current_monitor().ok().flatten());
+
+    let overlay_w = 500.0;
+    let overlay_h = 72.0;
+    let margin = 10.0;
+
+    let win_x = if let Some(m) = &monitor {
+        let size = m.size();
+        let scale = m.scale_factor();
+        let w = size.width as f64 / scale;
+        (w - overlay_w) / 2.0
+    } else {
+        400.0
+    };
+
+    let live_window = WebviewWindowBuilder::new(
+        &app,
+        "liveOverlay",
+        WebviewUrl::App("app/windows/liveOverlay/index.html".into()),
+    )
+    .title("Live - Flowtake")
+    .inner_size(overlay_w, overlay_h)
+    .min_inner_size(overlay_w, overlay_h)
+    .position(win_x, margin)
+    .resizable(false)
+    .minimizable(false)
+    .maximizable(false)
+    .closable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .content_protected(super::windows::is_content_protection_enabled(&app))
+    .build();
+
+    match live_window {
+        Ok(ref win) => {
+            if let Err(e) = win.set_always_on_top(true) {
+                log::warn!("Failed to set live overlay always-on-top: {}", e);
+            }
+            win.show().ok();
+            log::info!("Live overlay window created (always-on-top)");
+        }
+        Err(e) => {
+            log::error!("Failed to create live overlay window: {}", e);
+            if let Some(main_win) = app.get_webview_window("main") {
+                main_win.unminimize().ok();
+            }
+            return Err(AppError::General(format!(
+                "Failed to create live overlay window: {}",
+                e
+            )));
+        }
+    }
+
+    app.emit("live-init", &source).ok();
     Ok(())
 }
 
