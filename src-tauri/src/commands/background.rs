@@ -46,8 +46,8 @@ pub async fn update_background(
                 let state = app.state::<Mutex<AppState>>();
                 let state = state.lock().unwrap();
                 let project_temp = state.project_temp_dir(&project_id);
-                let base_dir = project_temp.clone();
-                let src = project_temp.join(&rel_path);
+                let base_dir = project_temp.join("backgrounds");
+                let src = base_dir.join(&rel_path);
                 let canonical_src = src.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
                 let canonical_base = base_dir.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
                 if !canonical_src.starts_with(&canonical_base) {
