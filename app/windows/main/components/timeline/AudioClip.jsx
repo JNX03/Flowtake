@@ -43,6 +43,9 @@ export default function AudioClip({ id }) {
         [anim, pxPerMs]
     )
 
+    // Waveform should only paint inside the move column, not under the two 24px resize handles
+    const waveformWidth = Math.max(clipWidthPx - 48, 0)
+
     const onChange = useCallback(
         (start, end) => dispatch(updateAudioClip({ id, changes: { start, end } })),
         [dispatch, id]
@@ -71,15 +74,13 @@ export default function AudioClip({ id }) {
             crossTrackEnabled currentTrackId={anim.trackIndex}
             trackDropZone="audio-track" getTrackAnims={getTrackAnims}
             onTrackChange={onTrackChange}>
-            <div className="relative">
-                <AudioWaveform waveformData={anim.waveformData} width={clipWidthPx} />
+            <div className="relative flex-1 min-w-0 h-full overflow-hidden flex flex-col justify-center">
+                <AudioWaveform waveformData={anim.waveformData} width={waveformWidth} />
                 <Label
-                    line1={<><MusicalNoteIcon className="size-4 shrink-0 mr-1" />{anim.name || "Audio"}</>}
+                    line1={<><MusicalNoteIcon className="size-4 shrink-0 mr-1 inline-block align-text-bottom" />{anim.name || "Audio"}</>}
                     line2={<>
-                        <span className="flex items-center gap-1">
-                            <SpeakerWaveIcon className="size-3 shrink-0" />
-                            {formatPercent(anim.volume ?? 1)}
-                        </span>
+                        <SpeakerWaveIcon className="size-3 shrink-0 inline-block align-text-bottom mr-1" />
+                        {formatPercent(anim.volume ?? 1)}
                     </>}
                 />
             </div>

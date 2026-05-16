@@ -1,15 +1,18 @@
 import PropTypes from "prop-types"
 
 export default function Label({ isMinimized = false, line1, line2, badge }) {
-    return (<>
-        <div className={`${isMinimized ? "hidden" : "hidden @min-[1.5rem]:flex"} px-3 text-sm text-nowrap text-start font-semibold items-center drop-shadow-sm`}>
-            {line1}
-            {badge && <span className="ml-auto text-[10px] font-normal opacity-60 pl-2">{badge}</span>}
+    if (isMinimized) return null
+    return (
+        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 overflow-hidden pointer-events-none px-2">
+            <div className="flex items-center gap-1 text-sm font-semibold drop-shadow-sm bg-base-100/40 backdrop-blur-[2px] rounded-sm px-1 py-0.5 self-start max-w-full min-w-0">
+                <div className="truncate min-w-0">{line1}</div>
+                {badge && <div className="shrink-0 text-[10px] font-normal opacity-60 pl-1">{badge}</div>}
+            </div>
+            <div className="text-xs opacity-80 drop-shadow-sm self-start max-w-full min-w-0 truncate">
+                {line2}
+            </div>
         </div>
-        <div className={`${isMinimized ? "hidden" : "hidden @min-[1.5rem]:flex"} px-3 text-xs text-nowrap text-start items-center gap-2 opacity-80 drop-shadow-sm`}>
-            {line2}
-        </div>
-    </>)
+    )
 }
 
 Label.propTypes = {
