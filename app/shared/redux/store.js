@@ -92,6 +92,10 @@ import mouseStyleAnimsReducer, {
     mouseStyleAnimSlice,
     reset as resetMouseStyleAnims
 } from './mouseStyleAnimSlice'
+import drawnMouseAnimsReducer, {
+    drawnMouseAnimSlice,
+    reset as resetDrawnMouseAnims
+} from './drawnMouseAnimSlice'
 import appSceneAnimsReducer, {
     appSceneAnimSlice,
     reset as resetAppSceneAnims
@@ -121,6 +125,7 @@ const filterSlices = isAnyOf(
     ...Object.values(spatialSlice.actions),
     ...Object.values(keyboardLayoutSlice.actions),
     ...Object.values(mouseStyleAnimSlice.actions),
+    ...Object.values(drawnMouseAnimSlice.actions),
     ...Object.values(appSceneAnimSlice.actions)
 )
 
@@ -141,6 +146,7 @@ const EXCLUDED_ACTION_TYPES = new Set([
     spatialSlice.actions.setSpatials.type,
     keyboardLayoutSlice.actions.setKeyboardLayouts.type,
     mouseStyleAnimSlice.actions.setMouseStyles.type,
+    drawnMouseAnimSlice.actions.setDrawnMice.type,
     appSceneAnimSlice.actions.setAppScenes.type,
 ])
 
@@ -202,6 +208,7 @@ closeListenerMiddleware.startListening({
         dispatch(resetSpatialAnims())
         dispatch(resetKeyboardLayoutAnims())
         dispatch(resetMouseStyleAnims())
+        dispatch(resetDrawnMouseAnims())
         dispatch(resetAppSceneAnims())
         dispatch(resetAssets())
         dispatch(setLoaderMessage("Saving project..."))
@@ -241,6 +248,7 @@ export default configureStore({
                 spatialAnims: spatialAnimsReducer,
                 keyboardLayoutAnims: keyboardLayoutAnimsReducer,
                 mouseStyleAnims: mouseStyleAnimsReducer,
+                drawnMouseAnims: drawnMouseAnimsReducer,
                 appSceneAnims: appSceneAnimsReducer,
             }),
             {
@@ -275,6 +283,7 @@ const save = debounce(async (dispatch, getState) => {
         spatialAnims,
         keyboardLayoutAnims,
         mouseStyleAnims,
+        drawnMouseAnims,
         appSceneAnims
     } = getState().undoableState.present
 
@@ -297,6 +306,7 @@ const save = debounce(async (dispatch, getState) => {
             spatialAnims: serializeEntitySlice(spatialAnims),
             keyboardLayoutAnims: serializeEntitySlice(keyboardLayoutAnims),
             mouseStyleAnims: serializeEntitySlice(mouseStyleAnims),
+            drawnMouseAnims: serializeEntitySlice(drawnMouseAnims),
             appSceneAnims: serializeEntitySlice(appSceneAnims),
         }
 

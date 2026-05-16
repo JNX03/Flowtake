@@ -108,6 +108,10 @@ import {
     setMouseStyles
 } from "./redux/mouseStyleAnimSlice"
 import {
+    applyProperties as applyDrawnMouseProperties,
+    setDrawnMice
+} from "./redux/drawnMouseAnimSlice"
+import {
     applyProperties as applyAppSceneProperties,
     setAppScenes
 } from "./redux/appSceneAnimSlice"
@@ -180,6 +184,7 @@ export const TRANSCRIPT = "transcript"
 export const SOURCES = "sources"
 export const KEYBOARD_LAYOUTS = "keyboard-layouts"
 export const MOUSE_STYLES = "mouse-styles"
+export const DRAWN_MICE = "drawn-mice"
 export const APP_SCENES = "app-scenes"
 export const PLUGINS = "plugins"
 
@@ -243,6 +248,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         if (json.overlayAnims) actions.push(applyOverlayAnimsProperties(json.overlayAnims))
         if (json.keyboardLayoutAnims) actions.push(applyKeyboardLayoutProperties(json.keyboardLayoutAnims))
         if (json.mouseStyleAnims) actions.push(applyMouseStyleProperties(json.mouseStyleAnims))
+        if (json.drawnMouseAnims) actions.push(applyDrawnMouseProperties(json.drawnMouseAnims))
         if (json.appSceneAnims) actions.push(applyAppSceneProperties(json.appSceneAnims))
 
         try {
@@ -317,6 +323,10 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         // placements for a time span.
         if (json.appSceneAnims?.entities) {
             actions.push(setAppScenes(json.appSceneAnims.entities))
+        }
+
+        if (json.drawnMouseAnims?.entities) {
+            actions.push(setDrawnMice(json.drawnMouseAnims.entities))
         }
 
         // Plugin: keyboard layout. Load saved entities, then auto-seed one full-video span

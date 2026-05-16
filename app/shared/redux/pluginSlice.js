@@ -35,6 +35,7 @@ const initialState = {
     detected: [],
     pluginsDir: null,
     isHydrated: false,
+    isDrawMouseModeActive: false,
 }
 
 export const pluginSlice = createSlice({
@@ -67,6 +68,9 @@ export const pluginSlice = createSlice({
         setPluginsDir: (state, action) => {
             state.pluginsDir = action.payload
         },
+        setIsDrawMouseModeActive: (state, action) => {
+            state.isDrawMouseModeActive = !!action.payload
+        },
     },
 })
 
@@ -76,6 +80,7 @@ export const {
     updateFeatureConfig,
     setDetectedPlugins,
     setPluginsDir,
+    setIsDrawMouseModeActive,
 } = pluginSlice.actions
 
 export const selectIsFeatureEnabled = id => state => !!state.plugin.enabled[id]
@@ -84,6 +89,7 @@ export const selectAllEnabled = state => state.plugin.enabled
 export const selectDetectedPlugins = state => state.plugin.detected
 export const selectPluginsDir = state => state.plugin.pluginsDir
 export const selectIsHydrated = state => state.plugin.isHydrated
+export const selectIsDrawMouseModeActive = state => !!state.plugin.isDrawMouseModeActive
 
 export const selectPersistedShape = state => ({
     enabled: state.plugin.enabled,
