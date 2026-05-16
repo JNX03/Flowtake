@@ -14,6 +14,8 @@
       media-src 'self' blob: data: https://asset.localhost http://video.localhost asset: stream:;
       connect-src 'self' https: http: ws: wss: ipc: https://asset.localhost http://video.localhost asset:;
       font-src 'self' data:;" />
+  <link rel="preload" as="font" type="font/ttf" href="./app/shared/assets/fonts/Fraunces-Italic-VariableFont.ttf" crossorigin="anonymous" />
+  <link rel="preload" as="font" type="font/ttf" href="./app/shared/assets/fonts/Fraunces-VariableFont.ttf" crossorigin="anonymous" />
 </head>
 
 <body class="hyphens-auto h-full max-h-full bg-base-300">
@@ -22,92 +24,160 @@
   <div id="splash">
     <style>
       @keyframes splash-in { from { opacity:0 } to { opacity:1 } }
-      @keyframes splash-check { from { opacity:0;transform:scale(0.5) } to { opacity:1;transform:scale(1) } }
+      @keyframes splash-headline-in {
+        from { opacity:0; transform:translateY(14px); letter-spacing:0.005em; }
+        to { opacity:1; transform:translateY(0); letter-spacing:-0.025em; }
+      }
+      @keyframes splash-fade-up {
+        from { opacity:0; transform:translateY(8px); }
+        to { opacity:1; transform:translateY(0); }
+      }
+      @keyframes splash-rule-travel {
+        0%   { transform:translateX(-32px); opacity:0; }
+        12%  { opacity:1; }
+        88%  { opacity:1; }
+        100% { transform:translateX(360px); opacity:0; }
+      }
       #splash {
         position:fixed;inset:0;z-index:9999;
-        background:#0f0f23;
+        background:#0a0a18;
+        color:#f0eee6;
         display:flex;flex-direction:column;
-        animation: splash-in .15s ease-out;
+        font-family:Poppins,system-ui,sans-serif;
+        animation: splash-in .18s ease-out;
+        overflow:hidden;
       }
-      #splash.removing { opacity:0; transition:opacity .15s ease-out }
+      #splash::before {
+        content:"";position:absolute;inset:0;pointer-events:none;
+        background:
+          radial-gradient(ellipse 60% 50% at 82% -8%, rgba(108,92,231,0.42), transparent 65%),
+          radial-gradient(ellipse 55% 70% at 6% 110%, rgba(232,67,147,0.18), transparent 60%);
+      }
+      #splash::after {
+        content:"";position:absolute;inset:0;pointer-events:none;
+        opacity:0.06;mix-blend-mode:overlay;
+        background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.65 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+        background-size:220px 220px;
+      }
+      #splash.removing { opacity:0; transition:opacity .18s ease-out; }
       #splash-titlebar {
-        height:32px;display:flex;align-items:center;padding:0 8px;
-        flex-shrink:0;
+        position:relative;z-index:2;
+        height:36px;display:flex;align-items:center;padding:0 14px;
+        flex-shrink:0;gap:10px;
       }
-      #splash-titlebar-icon { width:20px;height:20px;margin-right:8px;border-radius:4px }
+      #splash-titlebar-icon { width:18px;height:18px;border-radius:4px; }
       #splash-titlebar-text {
-        font-family:Poppins,system-ui,sans-serif;font-size:14px;font-weight:600;
-        color:rgba(240,240,255,0.85);margin:0;
+        font-size:11px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;
+        color:rgba(240,238,230,0.55);margin:0;
+      }
+      #splash-titlebar-dot {
+        margin-left:auto;display:flex;gap:5px;
+      }
+      #splash-titlebar-dot span {
+        width:6px;height:6px;border-radius:999px;
+        background:rgba(240,238,230,0.18);
       }
       #splash-content {
-        flex:1;display:flex;flex-direction:column;
-        align-items:center;justify-content:center;gap:24px;
+        position:relative;z-index:2;
+        flex:1;display:grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(220px, 1fr);
+        align-items:end;
+        padding: 0 56px 92px 56px;
+        gap:48px;
       }
-      #splash-logo {
-        width:64px;height:64px;border-radius:14px;
-        filter:drop-shadow(0 0 20px rgba(108,92,231,0.3));
+      #splash-headline-wrap { min-width:0; max-width:560px; }
+      #splash-eyebrow {
+        display:flex;align-items:center;gap:10px;margin-bottom:22px;
+        font-size:10.5px;font-weight:500;letter-spacing:0.24em;text-transform:uppercase;
+        color:rgba(240,238,230,0.45);
+        animation: splash-fade-up .55s ease-out both;
       }
-      #splash-brand {
-        font-family:Poppins,system-ui,sans-serif;font-size:20px;font-weight:600;
-        color:rgba(240,240,255,0.9);margin:0;letter-spacing:0.01em;
+      #splash-eyebrow-mark {
+        width:18px;height:1px;background:rgba(240,238,230,0.4);display:inline-block;
       }
-      #splash-opensource {
-        display:flex;align-items:center;gap:8px;
-        margin-top:-8px;
+      #splash-headline {
+        font-family:"Fraunces", ui-serif, Georgia, serif;
+        font-weight:400;
+        font-size:78px;line-height:0.94;letter-spacing:-0.025em;
+        color:#f7f4ea;
+        margin:0;
+        font-variation-settings: "SOFT" 50, "opsz" 96;
+        animation: splash-headline-in .9s cubic-bezier(0.2,0.7,0.2,1) both;
+        animation-delay: .08s;
       }
-      #splash-opensource-badge {
-        display:inline-flex;align-items:center;gap:5px;
-        font-family:system-ui,sans-serif;font-size:10px;font-weight:500;
-        color:rgba(240,240,255,0.35);
-        border:1px solid rgba(240,240,255,0.08);
-        border-radius:20px;padding:3px 10px 3px 7px;
-        text-decoration:none;
-        transition:color .2s,border-color .2s;
+      #splash-headline em {
+        font-style:italic;font-variation-settings: "SOFT" 90, "opsz" 96, "WONK" 1;
+        color:#cdb5ff;
+        font-weight:400;
       }
-      #splash-opensource-badge:hover {
-        color:rgba(240,240,255,0.6);
-        border-color:rgba(240,240,255,0.15);
+      #splash-headline-mute { color:rgba(247,244,234,0.55); }
+      #splash-rule-wrap {
+        margin-top:34px;width:100%;max-width:380px;position:relative;height:1px;
+        animation: splash-fade-up .6s ease-out both;
+        animation-delay: .22s;
       }
-      #splash-github-icon {
-        width:12px;height:12px;fill:currentColor;flex-shrink:0;
-      }
-      #splash-footer {
-        position:absolute;bottom:16px;left:0;right:0;
-        display:flex;justify-content:center;
-        font-family:system-ui,sans-serif;font-size:9px;
-        color:rgba(240,240,255,0.15);letter-spacing:0.03em;
-      }
-      #splash-loader { display:flex;flex-direction:column;align-items:center;gap:14px;width:220px }
-      #splash-bar-track {
-        width:100%;height:3px;border-radius:2px;
-        background:rgba(108,92,231,0.12);overflow:hidden;
+      #splash-rule-track {
+        position:absolute;inset:0;background:rgba(247,244,234,0.12);
       }
       #splash-bar-fill {
-        height:100%;border-radius:2px;width:0%;
-        background:linear-gradient(90deg,#6C5CE7,#00CEC9);
-        transition:width .4s cubic-bezier(0.4,0,0.2,1);
+        position:absolute;top:0;left:0;height:100%;width:0%;
+        background:linear-gradient(90deg, rgba(108,92,231,0.65), #6C5CE7, #00CEC9);
+        transition:width .55s cubic-bezier(0.4,0,0.2,1);
+        box-shadow: 0 0 14px rgba(108,92,231,0.55);
       }
-      #splash-stages { display:flex;flex-direction:column;gap:6px;width:100% }
+      #splash-rule-trail {
+        position:absolute;top:0;left:0;height:100%;width:28px;
+        background:linear-gradient(90deg, transparent, rgba(255,255,255,0.55), rgba(0,206,201,0.6), transparent);
+        animation: splash-rule-travel 1.9s cubic-bezier(0.55,0,0.45,1) infinite;
+      }
+      #splash-rule-meta {
+        margin-top:14px;display:flex;justify-content:space-between;
+        font-size:10px;letter-spacing:0.2em;text-transform:uppercase;
+        color:rgba(247,244,234,0.35);
+      }
+      #splash-rule-meta strong {
+        color:rgba(247,244,234,0.8);font-weight:500;font-variant-numeric:tabular-nums;
+      }
+      #splash-stages {
+        display:flex;flex-direction:column;gap:11px;
+        animation: splash-fade-up .65s ease-out both;
+        animation-delay: .3s;
+      }
       .splash-stage {
-        display:flex;align-items:center;gap:8px;
-        font-family:system-ui,sans-serif;font-size:11px;font-weight:400;
-        color:rgba(240,240,255,0.2);margin:0;
-        transition:color .3s ease,opacity .3s ease;
+        display:grid;grid-template-columns: 22px 14px 1fr;
+        align-items:center;column-gap:12px;
+        font-size:11.5px;font-weight:400;letter-spacing:0.01em;
+        color:rgba(247,244,234,0.22);
+        margin:0;
+        transition:color .35s ease, transform .35s ease;
       }
-      .splash-stage.active { color:rgba(240,240,255,0.6) }
-      .splash-stage.done { color:rgba(0,206,201,0.7) }
-      .splash-stage-icon {
-        width:14px;height:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+      .splash-stage[data-state="active"] { color:rgba(247,244,234,0.88); transform:translateX(2px); }
+      .splash-stage[data-state="done"]   { color:rgba(247,244,234,0.4); }
+      .splash-stage-num {
+        font-variant-numeric:tabular-nums;font-weight:600;font-size:10.5px;
+        letter-spacing:0.08em;
+        color:rgba(247,244,234,0.28);
       }
-      .splash-stage-spinner {
-        width:12px;height:12px;border:1.5px solid rgba(108,92,231,0.3);
-        border-top-color:#6C5CE7;border-radius:50%;
-        animation:splash-spin .6s linear infinite;
+      .splash-stage[data-state="active"] .splash-stage-num { color:#9e8aff; }
+      .splash-stage[data-state="done"]   .splash-stage-num { color:rgba(0,206,201,0.55); }
+      .splash-stage-mark {
+        width:8px;height:1px;background:currentColor;opacity:0.6;
+        transition: width .35s ease;
       }
-      @keyframes splash-spin { to { transform:rotate(360deg) } }
-      .splash-stage-check {
-        animation:splash-check .2s ease-out;
+      .splash-stage[data-state="active"] .splash-stage-mark { width:14px; opacity:1; box-shadow:0 0 8px currentColor; }
+      .splash-stage[data-state="done"]   .splash-stage-mark { width:10px; }
+      .splash-stage-label { white-space:nowrap; }
+      #splash-footer {
+        position:absolute;bottom:18px;left:56px;right:56px;z-index:2;
+        display:flex;justify-content:space-between;align-items:center;
+        font-size:10px;letter-spacing:0.2em;text-transform:uppercase;
+        color:rgba(247,244,234,0.25);
       }
+      #splash-footer a {
+        color:inherit;text-decoration:none;transition:color .2s;
+      }
+      #splash-footer a:hover { color:rgba(247,244,234,0.65); }
+      #splash-footer-mark { color:rgba(247,244,234,0.4);font-weight:500; }
     </style>
     <div id="splash-titlebar" data-tauri-drag-region>
       <svg id="splash-titlebar-icon" viewBox="0 0 256 256" fill="none">
@@ -119,67 +189,76 @@
         <rect x="56" y="123" width="30" height="7" rx="3.5" fill="#00CEC9"/>
         <rect x="65" y="146" width="16" height="7" rx="3.5" fill="#00CEC9"/>
       </svg>
-      <p id="splash-titlebar-text">Flowtake</p>
+      <p id="splash-titlebar-text">Flowtake &nbsp;&middot;&nbsp; Take 001</p>
+      <div id="splash-titlebar-dot"><span></span><span></span><span></span></div>
     </div>
     <div id="splash-content">
-      <svg id="splash-logo" viewBox="0 0 256 256" fill="none">
-        <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
-        <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="#12122a"/>
-        <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="url(#sg)" />
-        <defs><linearGradient id="sg" x1="0.3" y1="0" x2="0.7" y2="1">
-          <stop offset="0%" stop-color="#6C5CE7" stop-opacity="0.12"/>
-          <stop offset="100%" stop-color="#6C5CE7" stop-opacity="0"/>
-        </linearGradient></defs>
-        <polygon points="103,76 192,128 103,180" fill="#6C5CE7"/>
-        <polygon points="107,82 180,124 107,128" fill="#8C7AFF" opacity="0.4"/>
-        <rect x="62" y="100" width="22" height="7" rx="3.5" fill="#00CEC9"/>
-        <rect x="56" y="123" width="30" height="7" rx="3.5" fill="#00CEC9"/>
-        <rect x="65" y="146" width="16" height="7" rx="3.5" fill="#00CEC9"/>
-        <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="none" stroke="#6C5CE7" stroke-opacity="0.15" stroke-width="1.5"/>
-      </svg>
-      <p id="splash-brand">Flowtake</p>
-      <div id="splash-opensource">
-        <a id="splash-opensource-badge" href="https://github.com/JNX03/Flowtake" target="_blank" rel="noopener noreferrer">
-          <svg id="splash-github-icon" viewBox="0 0 16 16">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-          </svg>
-          Open Source
-        </a>
-      </div>
-      <div id="splash-loader">
-        <div id="splash-bar-track"><div id="splash-bar-fill"></div></div>
-        <div id="splash-stages">
-          <p class="splash-stage active" data-stage="bridge">
-            <span class="splash-stage-icon"><span class="splash-stage-spinner"></span></span>
-            Initializing core
-          </p>
-          <p class="splash-stage" data-stage="framework">
-            <span class="splash-stage-icon"></span>
-            Loading interface
-          </p>
-          <p class="splash-stage" data-stage="store">
-            <span class="splash-stage-icon"></span>
-            Preparing workspace
-          </p>
-          <p class="splash-stage" data-stage="render">
-            <span class="splash-stage-icon"></span>
-            Building UI
-          </p>
-          <p class="splash-stage" data-stage="devices">
-            <span class="splash-stage-icon"></span>
-            Detecting devices
-          </p>
+      <div id="splash-headline-wrap">
+        <p id="splash-eyebrow">
+          <span id="splash-eyebrow-mark"></span>
+          Now boarding &middot; v1
+        </p>
+        <h1 id="splash-headline">
+          Setting<br/>
+          the&nbsp;<em>stage.</em>
+        </h1>
+        <div id="splash-rule-wrap">
+          <div id="splash-rule-track"></div>
+          <div id="splash-bar-fill"></div>
+          <div id="splash-rule-trail"></div>
+        </div>
+        <div id="splash-rule-meta">
+          <span>Loading workspace</span>
+          <span><strong id="splash-progress-num">0</strong>&nbsp;/&nbsp;5</span>
         </div>
       </div>
+      <div id="splash-stages">
+        <p class="splash-stage" data-stage="bridge" data-state="active">
+          <span class="splash-stage-num">01</span>
+          <span class="splash-stage-mark"></span>
+          <span class="splash-stage-label">Initializing core</span>
+        </p>
+        <p class="splash-stage" data-stage="framework" data-state="pending">
+          <span class="splash-stage-num">02</span>
+          <span class="splash-stage-mark"></span>
+          <span class="splash-stage-label">Loading interface</span>
+        </p>
+        <p class="splash-stage" data-stage="store" data-state="pending">
+          <span class="splash-stage-num">03</span>
+          <span class="splash-stage-mark"></span>
+          <span class="splash-stage-label">Preparing workspace</span>
+        </p>
+        <p class="splash-stage" data-stage="render" data-state="pending">
+          <span class="splash-stage-num">04</span>
+          <span class="splash-stage-mark"></span>
+          <span class="splash-stage-label">Building UI</span>
+        </p>
+        <p class="splash-stage" data-stage="devices" data-state="pending">
+          <span class="splash-stage-num">05</span>
+          <span class="splash-stage-mark"></span>
+          <span class="splash-stage-label">Detecting devices</span>
+        </p>
+      </div>
     </div>
-    <div id="splash-footer">MIT License &middot; github.com/JNX03/Flowtake</div>
+    <div id="splash-footer">
+      <span id="splash-footer-mark">FLOWTAKE</span>
+      <a href="https://github.com/JNX03/Flowtake" target="_blank" rel="noopener noreferrer">
+        MIT &middot; github.com/JNX03/Flowtake &nbsp;&#8599;
+      </a>
+    </div>
   </div>
   <div id="error-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:#1a1a2e;overflow:auto;"></div>
   <script>
     // Splash progress API
     var _splashStages = ['bridge','framework','store','render','devices'];
+    var _splashHeadlines = [
+      ['Setting',  'the&nbsp;<em>stage.</em>'],
+      ['Cueing',   'the&nbsp;<em>lights.</em>'],
+      ['Loading',  'the&nbsp;<em>scene.</em>'],
+      ['Almost',   '<em>there.</em>'],
+      ['Ready',    'to&nbsp;<em>roll.</em>']
+    ];
     var _splashDone = {};
-    var _checkSvg = '<svg class="splash-stage-check" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#00CEC9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
     window.splashUpdate = function(stageId) {
       _splashDone[stageId] = true;
@@ -190,21 +269,32 @@
         if (!el) continue;
         if (_splashDone[sid]) {
           doneCount++;
-          el.className = 'splash-stage done';
-          el.querySelector('.splash-stage-icon').innerHTML = _checkSvg;
+          el.setAttribute('data-state', 'done');
         } else if (doneCount === i) {
-          el.className = 'splash-stage active';
-          el.querySelector('.splash-stage-icon').innerHTML = '<span class="splash-stage-spinner"></span>';
+          el.setAttribute('data-state', 'active');
+        } else {
+          el.setAttribute('data-state', 'pending');
         }
       }
       var pct = (doneCount / _splashStages.length) * 100;
       var fill = document.getElementById('splash-bar-fill');
       if (fill) fill.style.width = pct + '%';
+      var num = document.getElementById('splash-progress-num');
+      if (num) num.textContent = doneCount;
+      var headline = document.getElementById('splash-headline');
+      if (headline && _splashHeadlines[doneCount]) {
+        var pair = _splashHeadlines[doneCount];
+        headline.innerHTML = pair[0] + '<br/>' + pair[1];
+      }
     };
 
     window.splashDismiss = function() {
       var fill = document.getElementById('splash-bar-fill');
       if (fill) fill.style.width = '100%';
+      var num = document.getElementById('splash-progress-num');
+      if (num) num.textContent = 5;
+      var headline = document.getElementById('splash-headline');
+      if (headline) headline.innerHTML = 'Ready<br/>to&nbsp;<em>roll.</em>';
       var splash = document.getElementById('splash');
       if (splash) {
         splash.classList.add('removing');
@@ -213,7 +303,7 @@
         setTimeout(function() {
           splash.style.display = 'none';
           splash.style.pointerEvents = 'none';
-        }, 160);
+        }, 200);
       }
     };
 
