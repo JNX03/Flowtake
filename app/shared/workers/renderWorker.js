@@ -91,6 +91,10 @@ import {
     selectMouseStyleDefaults
 } from "../redux/mouseStyleAnimSlice"
 import {
+    selectAllDrawnMice,
+    selectDrawnMouseDefaults
+} from "../redux/drawnMouseAnimSlice"
+import {
     selectAllAppScenes
 } from "../redux/appSceneAnimSlice"
 import { selectExtraTracks } from "../redux/projectSlice"
@@ -204,6 +208,10 @@ class WorkerRenderer {
                     enabled: selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE)(this.render.state),
                     defaults: selectMouseStyleDefaults(this.render.state),
                     entities: selectAllMouseStyles(this.render.state),
+                },
+                pluginDrawnMouse: {
+                    defaults: selectDrawnMouseDefaults(this.render.state),
+                    entities: selectAllDrawnMice(this.render.state),
                 },
                 pluginAppScene: {
                     blocks: selectAllAppScenes(this.render.state),

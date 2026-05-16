@@ -48,6 +48,7 @@ export default class PreviewScene extends Scene {
                 this.cursorTypeAnimator.setState({ videoDetails: payload })
                 this.panAnimator.setState({ videoDetails: payload })
                 this.cursorAnimator.setState({ videoDetails: payload })
+                this.drawnMouseAnimator?.setState({ videoDetails: payload })
                 break
             }
             case 'subtitleAnims.backgroundColor':
@@ -105,6 +106,12 @@ export default class PreviewScene extends Scene {
                 break
             case 'plugin.mouseStyle.entities':
                 this.cursorAnimator?.setStyleEntities(payload)
+                break
+            case 'plugin.drawnMouse.defaults':
+                this.drawnMouseAnimator?.setState({ defaults: payload })
+                break
+            case 'plugin.drawnMouse.entities':
+                this.drawnMouseAnimator?.setState({ configs: payload })
                 break
             case 'plugin.appScene.blocks':
                 this.setSceneBlocks(payload?.blocks || [], payload?.trackOrder || [])

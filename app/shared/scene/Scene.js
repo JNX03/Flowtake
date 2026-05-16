@@ -34,6 +34,7 @@ import ClickAnimator from "./click/ClickAnimator"
 import ClipAnimator from "./clip/ClipAnimator"
 import CursorAnimator from "./cursorAnim/CursorAnimator"
 import CursorTypeAnimator from "./cursorType/CursorTypeAnimator"
+import DrawnMouseAnimator from "./drawnMouse/DrawnMouseAnimator"
 import FilterAnimator from "./filter/FilterAnimator"
 import MaskAnimator from "./mask/MaskAnimator"
 import OverlayAnimator from "./overlay/OverlayAnimator"
@@ -285,6 +286,10 @@ export default class Scene {
 
         this.transitionAnimator = new TransitionAnimator(this.container)
 
+        // Drawn-mouse paths render on top of everything; coords are renderer-pixel
+        // so they map 1:1 to the on-canvas position where the user drew them.
+        this.drawnMouseAnimator = new DrawnMouseAnimator(this.app.stage)
+
         this.cursorFill = cursorFill
         this.cursorStroke = cursorStroke
         console.log("[Scene] init: awaiting createCursorSprites")
@@ -394,6 +399,7 @@ export default class Scene {
 
         this.clickAnimator?.update(this.time)
         this.cursorAnimator?.update(this.time)
+        this.drawnMouseAnimator?.update(this.time)
         this.spotlightAnimator?.update()
         this.subtitleAnimator?.update(this.time)
         this.cursorTypeAnimator?.update(this.time)

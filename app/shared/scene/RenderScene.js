@@ -77,6 +77,14 @@ export default class RenderScene extends Scene {
             this.cursorAnimator.setStyleDefaults(ms.defaults || null)
             this.cursorAnimator.setStyleEntities(ms.entities || [])
         }
+        if (args.pluginDrawnMouse) {
+            const dm = args.pluginDrawnMouse
+            this.drawnMouseAnimator?.setState({
+                defaults: dm.defaults || null,
+                configs: dm.entities || [],
+                videoDetails,
+            })
+        }
         if (args.pluginAppScene) {
             this.setSceneBlocks(
                 args.pluginAppScene.blocks || [],
