@@ -589,6 +589,157 @@
     .flowtake-rise {
         animation: flowtake-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
     }
+
+    .flowtake-nav-item {
+        position: relative;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.4rem;
+        padding: 0.15rem 0;
+        font-family: var(--font-brand);
+        font-size: 11.5px;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        color: color-mix(in oklab, var(--color-base-content) 42%, transparent);
+        cursor: pointer;
+        background: transparent;
+        border: 0;
+        transition: color 0.25s ease;
+    }
+
+    .flowtake-nav-item:hover {
+        color: color-mix(in oklab, var(--color-base-content) 78%, transparent);
+    }
+
+    .flowtake-nav-item[data-active="true"] {
+        color: var(--color-base-content);
+    }
+
+    .flowtake-nav-item .flowtake-numeral {
+        color: color-mix(in oklab, var(--color-base-content) 22%, transparent);
+        font-size: 11px;
+        transition: color 0.25s ease;
+    }
+
+    .flowtake-nav-item[data-active="true"] .flowtake-numeral {
+        color: var(--color-primary);
+    }
+
+    .flowtake-nav-item[data-active="true"]::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -5px;
+        height: 1px;
+        background: var(--color-primary);
+        box-shadow: 0 0 10px color-mix(in oklab, var(--color-primary) 65%, transparent);
+    }
+
+    .flowtake-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.2rem 0.55rem 0.2rem 0.45rem;
+        border-radius: 999px;
+        font-family: var(--font-brand);
+        font-size: 9.5px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: color-mix(in oklab, var(--color-base-content) 78%, transparent);
+        background: color-mix(in oklab, var(--color-base-100) 55%, transparent);
+        border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+        backdrop-filter: blur(8px);
+    }
+
+    .flowtake-status-pill__dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--color-accent);
+        box-shadow: 0 0 8px color-mix(in oklab, var(--color-accent) 75%, transparent);
+        animation: flowtake-status-pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes flowtake-status-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .flowtake-pullquote {
+        position: relative;
+        padding: 0.3rem 0 0.3rem 0.75rem;
+        border-left: 2px solid var(--color-primary);
+    }
+
+    .flowtake-pullquote__lead {
+        font-family: var(--font-display);
+        font-style: italic;
+        font-weight: 400;
+        font-size: 14px;
+        line-height: 1.3;
+        color: color-mix(in oklab, var(--color-base-content) 85%, transparent);
+        font-variation-settings: "SOFT" 70, "opsz" 14;
+    }
+
+    .flowtake-pullquote--compact .flowtake-pullquote__lead {
+        font-size: 12.5px;
+    }
+
+    .flowtake-pullquote__caption {
+        font-family: var(--font-brand);
+        font-size: 10px;
+        color: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+        margin-top: 0.25rem;
+    }
+
+    .flowtake-sidebar-rail {
+        position: relative;
+    }
+
+    .flowtake-sidebar-rail .flowtake-sidebar-rail__item {
+        position: relative;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 0.6rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: 0;
+        padding: 0;
+        line-height: 0;
+        color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
+        cursor: pointer;
+        transition: color 0.2s ease, background 0.2s ease;
+    }
+
+    .flowtake-sidebar-rail .flowtake-sidebar-rail__item > svg {
+        display: block;
+    }
+
+    .flowtake-sidebar-rail__item:hover {
+        color: color-mix(in oklab, var(--color-base-content) 80%, transparent);
+        background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
+    }
+
+    .flowtake-sidebar-rail__item[data-active="true"] {
+        color: var(--color-primary);
+    }
+
+    .flowtake-sidebar-rail__accent {
+        position: absolute;
+        left: -8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 2px;
+        height: 18px;
+        background: var(--color-primary);
+        border-radius: 2px;
+        box-shadow: 0 0 10px color-mix(in oklab, var(--color-primary) 70%, transparent);
+        pointer-events: none;
+    }
 }
 
 @font-face {
