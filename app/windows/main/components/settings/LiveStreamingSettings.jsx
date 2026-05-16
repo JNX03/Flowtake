@@ -3,6 +3,11 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import Fieldset from "../properties/Fieldset"
 import Toggle from "../properties/Toggle"
+import {
+    LIVE_SETTINGS_DEFAULTS as DEFAULTS,
+    loadLiveSettings,
+    saveLiveSettings,
+} from "./liveSettingsStore"
 
 const PLATFORM_PRESETS = {
     youtube: {
@@ -40,40 +45,10 @@ const ZOOM_MODES = [
     { value: "step", label: "Step in / out" },
 ]
 
-const STORE_KEY = "live.settings"
-
-const DEFAULTS = {
-    platform: "youtube",
-    rtmpUrl: PLATFORM_PRESETS.youtube.url,
-    streamKey: "",
-    videoBitrateKbps: 6000,
-    resolution: "source",
-    saveLocal: true,
-    hideNativeCursor: true,
-    captureMic: false,
-    zoomHotkey: "Ctrl+Shift+Z",
-    zoomMode: "hold",
-    zoomTargetScale: 2.0,
-    zoomEaseMs: 350,
-}
-
-async function loadSettings() {
-    try {
-        const stored = await window.electron.ipcRenderer.invoke("store-get", STORE_KEY)
-        return { ...DEFAULTS, ...(stored || {}) }
-    } catch {
-        return { ...DEFAULTS }
-    }
-}
-
-async function saveSettings(next) {
-    await window.electron.ipcRenderer.invoke("store-set", STORE_KEY, next)
-}
-
 export default function LiveStreamingSettings() {
     const { data: settings, isPending, refetch } = useQuery({
         queryKey: ["liveSettings"],
-        queryFn: loadSettings,
+        queryFn: loadLiveSettings,
         staleTime: Infinity,
     })
 
@@ -112,7 +87,7 @@ export default function LiveStreamingSettings() {
 
     const update = async (patch) => {
         const next = { ...(settings || DEFAULTS), ...patch }
-        await saveSettings(next)
+        await saveLiveSettings(next)
         refetch()
     }
 
