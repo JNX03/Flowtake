@@ -1,5 +1,6 @@
 import {
     PauseIcon,
+    PencilSquareIcon,
     PlayIcon,
     SpeakerWaveIcon,
     SpeakerXMarkIcon,
@@ -138,8 +139,11 @@ import {
 import {
     FEATURE_IDS as PLUGIN_FEATURE_IDS,
     selectFeatureConfig as selectPluginFeatureConfig,
-    selectIsFeatureEnabled as selectIsPluginFeatureEnabled
+    selectIsDrawMouseModeActive,
+    selectIsFeatureEnabled as selectIsPluginFeatureEnabled,
+    setIsDrawMouseModeActive
 } from "@shared/redux/pluginSlice"
+import { addDrawnMouse } from "@shared/redux/drawnMouseAnimSlice"
 import {
     selectAllKeyboardLayouts,
     selectKeyboardLayoutDefaults
@@ -148,6 +152,10 @@ import {
     selectAllMouseStyles,
     selectMouseStyleDefaults
 } from "@shared/redux/mouseStyleAnimSlice"
+import {
+    selectAllDrawnMice,
+    selectDrawnMouseDefaults
+} from "@shared/redux/drawnMouseAnimSlice"
 import {
     selectAllAppScenes
 } from "@shared/redux/appSceneAnimSlice"
@@ -249,6 +257,9 @@ export default function Preview() {
     const isMouseStyleEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.MOUSE_STYLE))
     const mouseStyleDefaults = useSelector(selectMouseStyleDefaults, shallowEqual)
     const mouseStyleEntities = useSelector(selectAllMouseStyles, shallowEqual)
+    const drawnMouseDefaults = useSelector(selectDrawnMouseDefaults, shallowEqual)
+    const drawnMouseEntities = useSelector(selectAllDrawnMice, shallowEqual)
+    const isDrawMouseModeActive = useSelector(selectIsDrawMouseModeActive)
     const isKeyboardOverlayEnabled = useSelector(selectIsPluginFeatureEnabled(PLUGIN_FEATURE_IDS.KEYBOARD_OVERLAY))
     const keyboardEvents = useSelector(selectKeyboardEvents)
     const keyboardLayoutEntities = useSelector(selectAllKeyboardLayouts, shallowEqual)
@@ -659,6 +670,14 @@ export default function Preview() {
     }, [manager, mouseStyleEntities])
 
     useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.drawnMouse.defaults', payload: drawnMouseDefaults })
+    }, [manager, drawnMouseDefaults])
+
+    useEffect(() => {
+        manager?.postUpdate({ type: 'plugin.drawnMouse.entities', payload: drawnMouseEntities })
+    }, [manager, drawnMouseEntities])
+
+    useEffect(() => {
         manager?.postUpdate({ type: 'plugin.keyboardOverlay.enabled', payload: isKeyboardOverlayEnabled })
     }, [manager, isKeyboardOverlayEnabled])
 
@@ -725,16 +744,108 @@ export default function Preview() {
         manager?.postIsPlaying(isPlaying)
     }, [manager, isPlaying])
 
+    // Draw-mouse: capture freehand pointer drags on the preview canvas while
+    // arming is active, then emit a new drawn-mouse segment at the playhead.
+    // Points are stored in renderer-pixel space (matches the Pixi app.stage
+    // coord system the DrawnMouseAnimator draws in).
+    useEffect(() => {
+        if (!isDrawMouseModeActive) return
+        const canvas = canvasRef.current
+        if (!canvas || !rendererDims) return
+
+        let drawing = false
+        let startWallTime = 0
+        let points = []
+        let pointerId = null
+
+        const toRendererCoords = (e) => {
+            const rect = canvas.getBoundingClientRect()
+            if (!rect.width || !rect.height) return { x: 0, y: 0 }
+            return {
+                x: (e.clientX - rect.left) * (rendererDims.x / rect.width),
+                y: (e.clientY - rect.top) * (rendererDims.y / rect.height),
+            }
+        }
+
+        const onDown = (e) => {
+            if (e.button !== 0) return
+            drawing = true
+            pointerId = e.pointerId
+            startWallTime = performance.now()
+            points = []
+            const p = toRendererCoords(e)
+            points.push({ x: p.x, y: p.y, t: 0 })
+            try { canvas.setPointerCapture(e.pointerId) } catch (_) { /* ignore */ }
+            e.preventDefault()
+        }
+        const onMove = (e) => {
+            if (!drawing || e.pointerId !== pointerId) return
+            const p = toRendererCoords(e)
+            points.push({ x: p.x, y: p.y, t: performance.now() - startWallTime })
+        }
+        const onUp = (e) => {
+            if (!drawing || e.pointerId !== pointerId) return
+            drawing = false
+            try { canvas.releasePointerCapture(e.pointerId) } catch (_) { /* ignore */ }
+            const pathDuration = points.length > 1 ? points[points.length - 1].t : 0
+            if (points.length >= 2 && pathDuration > 50) {
+                const start = time
+                const end = Math.min(start + pathDuration, duration)
+                dispatch(addDrawnMouse({
+                    id: `dm-${crypto.randomUUID()}`,
+                    start,
+                    end,
+                    points,
+                    color: null,
+                    label: null,
+                    showLabel: null,
+                    preset: null,
+                    showTrail: true,
+                }))
+            }
+            dispatch(setIsDrawMouseModeActive(false))
+        }
+
+        canvas.addEventListener("pointerdown", onDown)
+        canvas.addEventListener("pointermove", onMove)
+        canvas.addEventListener("pointerup", onUp)
+        canvas.addEventListener("pointercancel", onUp)
+        return () => {
+            canvas.removeEventListener("pointerdown", onDown)
+            canvas.removeEventListener("pointermove", onMove)
+            canvas.removeEventListener("pointerup", onUp)
+            canvas.removeEventListener("pointercancel", onUp)
+        }
+    }, [isDrawMouseModeActive, rendererDims, time, duration, dispatch])
+
+    const toggleDrawMouseMode = useCallback(() => {
+        dispatch(setIsDrawMouseModeActive(!isDrawMouseModeActive))
+    }, [dispatch, isDrawMouseModeActive])
+
     return (
         <div className="flowtake-preview flex-1 min-w-[320px] min-h-0 flex flex-col relative">
             <div className="flowtake-preview__chrome h-10 shrink-0 flex items-center justify-center">
                 <div className="flowtake-preview__toolbar inline-flex items-center gap-2 px-2 py-1 rounded-full bg-base-100/90">
                     <AspectRatioDropdown />
+                    <button
+                        onClick={toggleDrawMouseMode}
+                        disabled={isPlaying}
+                        className={`btn btn-xs ${isDrawMouseModeActive ? "btn-primary" : "btn-ghost"} gap-1`}
+                        title={isDrawMouseModeActive ? "Drawing — drag on the canvas, or click to cancel" : "Draw a mouse path"}
+                    >
+                        <PencilSquareIcon className="size-4" />
+                        <span className="hidden sm:inline">{isDrawMouseModeActive ? "Drawing…" : "Draw mouse"}</span>
+                    </button>
                 </div>
             </div>
             <div ref={ref} data-drop-zone="preview" className="flowtake-preview__stage flex-1 min-h-0 flex items-center justify-center relative group px-4 py-3">
-                <canvas ref={canvasRef} className="flowtake-preview__canvas rounded-xl overflow-hidden cursor-none bg-black" />
+                <canvas ref={canvasRef} className={`flowtake-preview__canvas rounded-xl overflow-hidden bg-black ${isDrawMouseModeActive ? "cursor-crosshair" : "cursor-none"}`} />
                 <OverlayCanvas canvasRect={canvasRect} />
+                {isDrawMouseModeActive && (
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-primary text-primary-content text-xs font-medium shadow-lg pointer-events-none">
+                        Drag to draw a path — release to finish
+                    </div>
+                )}
             </div>
             <div className="flowtake-preview__controls h-12 shrink-0 flex items-center justify-center gap-2">
                 <div className="join shadow-sm">
