@@ -25,6 +25,13 @@ pub struct CapturedTrack {
     pub filename: String,
     pub width: u32,
     pub height: u32,
+    /// Milliseconds between the main recording's start and this extra's
+    /// FFmpeg child being spawned. The editor uses this to bias the seek
+    /// position so extras stay aligned with the main timeline. Best-effort:
+    /// the value is the time from `recording_start_timestamp` to spawn, not
+    /// to first frame, so a few extra millis of jitter is expected.
+    #[serde(rename = "startOffsetMs", default)]
+    pub start_offset_ms: i64,
 }
 
 /// Spawn one FFmpeg child per selected window. Each writes to
@@ -41,13 +48,13 @@ pub async fn start_multi_app_capture(
         return Ok(Vec::new());
     }
 
-    let project_temp = {
+    let (project_temp, recording_start_ts) = {
         let s = state.lock().unwrap();
         let pid = s
             .project_id
             .clone()
             .ok_or(AppError::NoProjectOpen)?;
-        s.project_temp_dir(&pid)
+        (s.project_temp_dir(&pid), s.recording_start_timestamp)
     };
     std::fs::create_dir_all(&project_temp).ok();
 
@@ -75,6 +82,15 @@ pub async fn start_multi_app_capture(
             "[multi_app] spawning capture {} for window '{}' ({}x{}) at ({}, {}) -> {:?}",
             idx, w.name, w.width, w.height, w.x, w.y, out_path
         );
+
+        let spawn_ts_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let start_offset_ms = match recording_start_ts {
+            Some(start) => (spawn_ts_ms - start).max(0),
+            None => 0,
+        };
 
         let mut child = match spawn_window_capture(&app, &ffmpeg_path, w, &out_path) {
             Ok(c) => c,
@@ -105,6 +121,7 @@ pub async fn start_multi_app_capture(
             filename,
             width: w.width,
             height: w.height,
+            start_offset_ms,
         });
     }
 
@@ -184,7 +201,7 @@ fn spawn_window_capture(
     let off_y = (spec.y - mon_y).max(0);
 
     let ddagrab = format!(
-        "ddagrab=output_idx={}:framerate=15:draw_mouse=0:offset_x={}:offset_y={}:video_size={}x{}",
+        "ddagrab=output_idx={}:framerate=30:draw_mouse=0:offset_x={}:offset_y={}:video_size={}x{}",
         mon_idx, off_x, off_y, w, h
     );
 

@@ -127,24 +127,32 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
     }, [isPlaying, screenVideoRef])
 
     // Mirror screen play/pause + seek onto every extra-app video so PiPs stay in sync.
+    // Each extra carries an optional startOffsetMs that compensates for the gap
+    // between the main FFmpeg start and the per-app capture spawn.
     useEffect(() => {
         const screen = screenVideoRef.current
         if (!screen || !extraVideoRefs?.current?.length) return
 
+        const offsetSecForIndex = (i) => {
+            const ms = extraTracks?.[i]?.startOffsetMs
+            return typeof ms === "number" ? ms / 1000 : 0
+        }
+        const targetTime = (i) => Math.max(0, screen.currentTime - offsetSecForIndex(i))
+
         const onPlay = () => extraVideoRefs.current.forEach(v => v && play(v))
         const onPause = () => extraVideoRefs.current.forEach(v => v?.pause())
-        const onSeeked = () => extraVideoRefs.current.forEach(v => {
-            if (v) v.currentTime = screen.currentTime
+        const onSeeked = () => extraVideoRefs.current.forEach((v, i) => {
+            if (v) v.currentTime = targetTime(i)
         })
         const onRateChange = () => extraVideoRefs.current.forEach(v => {
             if (v) v.playbackRate = screen.playbackRate
         })
         const onTimeUpdate = throttle(() => {
-            for (const v of extraVideoRefs.current) {
-                if (v && Math.abs(v.currentTime - screen.currentTime) > 0.15) {
-                    v.currentTime = screen.currentTime
+            extraVideoRefs.current.forEach((v, i) => {
+                if (v && Math.abs(v.currentTime - targetTime(i)) > 0.15) {
+                    v.currentTime = targetTime(i)
                 }
-            }
+            })
         }, 200)
 
         screen.addEventListener("play", onPlay)

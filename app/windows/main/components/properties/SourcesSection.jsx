@@ -61,8 +61,8 @@ export default function SourcesSection() {
                     </div>
                 )}
                 <p className="text-[10px] text-base-content/40 leading-snug mt-2">
-                    Visibility toggles persist with your project. Compositing extra layers into the preview canvas
-                    is in active development — this panel previews the metadata captured during recording.
+                    Visibility toggles persist with your project. Audio is captured once on the main track —
+                    extras are video-only.
                 </p>
             </Fieldset>
         </div>
