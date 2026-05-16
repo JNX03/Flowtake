@@ -4,7 +4,6 @@ import {
   PuzzlePieceIcon,
   SignalIcon,
   VideoCameraIcon,
-  SparklesIcon,
 } from "@heroicons/react/24/outline"
 import {
   CodeBracketSquareIcon,
@@ -28,12 +27,47 @@ const VIEW_PROJECTS = "projects"
 const VIEW_PLUGINS = "plugins"
 const VIEW_LIVE = "live"
 
+const VIEW_ORDER = [VIEW_RECORD, VIEW_PROJECTS, VIEW_LIVE, VIEW_PLUGINS]
+
+const VIEW_META = {
+  [VIEW_RECORD]:   { num: "01", label: "Record",   icon: VideoCameraIcon },
+  [VIEW_PROJECTS]: { num: "02", label: "Library",  icon: FolderOpenIcon },
+  [VIEW_LIVE]:     { num: "03", label: "Live",     icon: SignalIcon },
+  [VIEW_PLUGINS]:  { num: "04", label: "Plugins",  icon: PuzzlePieceIcon },
+}
+
 function getGreeting() {
   const h = new Date().getHours()
-  if (h < 5) return "Working late"
-  if (h < 12) return "Good morning"
-  if (h < 18) return "Good afternoon"
-  return "Good evening"
+  if (h < 5) return "Working late,"
+  if (h < 12) return "Good morning,"
+  if (h < 18) return "Good afternoon,"
+  return "Good evening,"
+}
+
+function getHeadline({ activeView, isFirstRun }) {
+  if (activeView === VIEW_RECORD) {
+    if (isFirstRun) return { line1: "Hello,", accent: "welcome." }
+    return { line1: getGreeting(), accent: "ready." }
+  }
+  if (activeView === VIEW_PROJECTS) return { line1: "Your", accent: "archive." }
+  if (activeView === VIEW_LIVE)     return { line1: "Go", accent: "live." }
+  if (activeView === VIEW_PLUGINS)  return { line1: "Extend the", accent: "runtime." }
+  return { line1: "", accent: "" }
+}
+
+function getDescription({ activeView, totalProjects }) {
+  if (activeView === VIEW_RECORD) {
+    return "Pick a source, set up audio, then hit record. Auto-zoom does the rest."
+  }
+  if (activeView === VIEW_PROJECTS) {
+    return totalProjects > 0
+      ? `${totalProjects} ${totalProjects === 1 ? "project" : "projects"} saved locally.`
+      : "Your recordings will appear here."
+  }
+  if (activeView === VIEW_LIVE) {
+    return "Pick a source, set up audio, then hit Go Live. Hold the zoom hotkey to zoom in mid-stream."
+  }
+  return "Toggle built-in extensions and drop in your own (research preview)."
 }
 
 export default function Launcher() {
@@ -63,44 +97,42 @@ export default function Launcher() {
 
   const totalProjects = projectsMeta?.count ?? 0
   const isFirstRun = (launchCount ?? 0) <= 1
-  const greeting = getGreeting()
+  const headline = getHeadline({ activeView, isFirstRun })
+  const description = getDescription({ activeView, totalProjects })
+
+  const statusLabel = isFirstRun
+    ? "New session"
+    : totalProjects > 0
+      ? `${totalProjects} ${totalProjects === 1 ? "take" : "takes"} on disk`
+      : "Ready"
 
   return (<>
     <TitleBar>
       <ExportButton />
     </TitleBar>
 
-    <div className="flex h-full overflow-hidden bg-base-100">
+    <div className="flex h-full overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-[60px] flex-shrink-0 bg-base-200/40 border-r border-base-content/5 flex flex-col items-center py-3 gap-1">
-        <div className="size-9 rounded-xl flex items-center justify-center mb-2 overflow-hidden">
-          <img src={logo} alt="Flowtake" className="size-7" />
+      <aside className="flowtake-sidebar-rail relative w-[64px] flex-shrink-0 bg-base-200/30 border-r border-base-content/5 flex flex-col items-center py-4 gap-1.5">
+        <div className="size-9 rounded-xl flex items-center justify-center mb-2 overflow-hidden relative">
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 rounded-xl"
+            style={{ boxShadow: "0 0 0 1px color-mix(in oklab, var(--color-primary) 35%, transparent), 0 0 18px color-mix(in oklab, var(--color-primary) 25%, transparent)" }}
+          />
+          <img src={logo} alt="Flowtake" className="size-7 relative" />
         </div>
-        <SidebarItem
-          icon={VideoCameraIcon}
-          label="Record"
-          active={activeView === VIEW_RECORD}
-          onClick={() => setActiveView(VIEW_RECORD)}
-        />
-        <SidebarItem
-          icon={FolderOpenIcon}
-          label="Projects"
-          active={activeView === VIEW_PROJECTS}
-          badge={totalProjects > 0 ? totalProjects : null}
-          onClick={() => setActiveView(VIEW_PROJECTS)}
-        />
-        <SidebarItem
-          icon={SignalIcon}
-          label="Live Stream"
-          active={activeView === VIEW_LIVE}
-          onClick={() => setActiveView(VIEW_LIVE)}
-        />
-        <SidebarItem
-          icon={PuzzlePieceIcon}
-          label="Plugins"
-          active={activeView === VIEW_PLUGINS}
-          onClick={() => setActiveView(VIEW_PLUGINS)}
-        />
+
+        {VIEW_ORDER.map(view => (
+          <SidebarItem
+            key={view}
+            icon={VIEW_META[view].icon}
+            label={VIEW_META[view].label}
+            active={activeView === view}
+            badge={view === VIEW_PROJECTS && totalProjects > 0 ? totalProjects : null}
+            onClick={() => setActiveView(view)}
+          />
+        ))}
 
         <div className="flex-1" />
 
@@ -121,82 +153,95 @@ export default function Launcher() {
         />
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative">
-        {/* Subtle theme-aware backdrop */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-60"
-          style={{
-            background: "radial-gradient(ellipse 80% 60% at 50% -10%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 60%)"
-          }}
-        />
+      {/* Main stage */}
+      <main className="flowtake-stage flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        <div className="flowtake-grain" />
 
-        <div className="relative flex-1 min-h-0 w-full max-w-6xl mx-auto px-5 md:px-7 pt-3 pb-3 flex flex-col overflow-hidden">
-          {/* Hero header */}
-          <header className="flex-shrink-0 mb-3 flex items-end justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-base-content/40 mb-0.5">
-                {greeting}
-              </p>
-              <h1 className="font-brand font-semibold text-xl md:text-2xl text-base-content leading-tight truncate">
-                {activeView === VIEW_RECORD
-                  ? (isFirstRun ? "Capture your first recording" : "Ready to record")
-                  : activeView === VIEW_PROJECTS
-                    ? "My projects"
-                    : activeView === VIEW_LIVE
-                      ? "Go live"
-                      : "Plugins & Extensions"}
-              </h1>
-              <p className="text-xs text-base-content/50 mt-1 truncate">
-                {activeView === VIEW_RECORD
-                  ? "Pick a source, set up audio, then hit record. Auto-zoom does the rest."
-                  : activeView === VIEW_PROJECTS
-                    ? (totalProjects > 0
-                      ? `${totalProjects} ${totalProjects === 1 ? "project" : "projects"} saved locally`
-                      : "Your recordings will appear here")
-                    : activeView === VIEW_LIVE
-                      ? "Stream Flowtake's smoothed cursor straight to YouTube, Twitch, or any RTMP target"
-                      : "Toggle built-in extensions and drop in your own (research preview)"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <SegmentedTab
-                items={[
-                  { id: VIEW_RECORD, label: "Record", icon: VideoCameraIcon },
-                  { id: VIEW_PROJECTS, label: "Projects", icon: FolderOpenIcon },
-                  { id: VIEW_LIVE, label: "Live", icon: SignalIcon },
-                  { id: VIEW_PLUGINS, label: "Plugins", icon: PuzzlePieceIcon },
-                ]}
-                active={activeView}
-                onChange={setActiveView}
-              />
-              <button
-                onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
-                className="hidden md:inline-flex items-center gap-1.5 text-[11px] text-base-content/45 hover:text-base-content/80 transition-colors px-2 py-1 rounded-md hover:bg-base-content/5"
-                title={`Flowtake ${version || ""} · MIT License`}
-              >
-                <GitHubIcon className="size-3.5" />
-                <span>v{version || "—"}</span>
-              </button>
-            </div>
+        <div className="relative flex-1 min-h-0 w-full max-w-6xl mx-auto px-5 md:px-8 pt-2 pb-2 flex flex-col overflow-hidden">
+
+          {/* Eyebrow + status pill */}
+          <header className="flex-shrink-0 flex items-center justify-between gap-3 mb-1.5">
+            <p className="flowtake-eyebrow flowtake-rise flex items-center gap-2">
+              <span className="inline-block h-px w-4 bg-base-content/35" />
+              {isFirstRun ? "First take" : "Now playing"}
+              <span className="text-base-content/25">&middot;</span>
+              v{version || "—"}
+              <span className="text-base-content/25">&middot;</span>
+              MIT
+            </p>
+
+            <span className="flowtake-status-pill flowtake-rise" style={{ animationDelay: "0.05s" }}>
+              <span className="flowtake-status-pill__dot" />
+              {statusLabel}
+            </span>
           </header>
 
-          {/* First-run tip card */}
+          {/* Hero headline */}
+          <div className="flex-shrink-0">
+            <h1
+              key={`${activeView}-${isFirstRun}`}
+              className="flowtake-display flowtake-rise text-[26px] md:text-[34px] lg:text-[40px] text-base-content/95 whitespace-nowrap"
+              style={{ animationDelay: "0.08s" }}
+            >
+              {headline.line1}{" "}
+              <em className="flowtake-display--italic text-primary">
+                {headline.accent}
+              </em>
+            </h1>
+            <p
+              className="flowtake-rise mt-1 text-[12px] md:text-[13px] text-base-content/55 max-w-xl leading-snug"
+              style={{ animationDelay: "0.18s" }}
+            >
+              {description}
+            </p>
+          </div>
+
+          {/* First-run pull-quote */}
           {isFirstRun && activeView === VIEW_RECORD && (
-            <div className="flex-shrink-0 mb-3 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5">
-              <SparklesIcon className="size-4 text-primary mt-0.5 flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-base-content/85">Welcome to Flowtake</p>
-                <p className="text-[11px] text-base-content/55 mt-0.5">
-                  Tip: enable system audio and a microphone for tutorials. Cursor zoom, masks, and click effects are added automatically.
-                </p>
-              </div>
+            <div
+              className="flowtake-pullquote flowtake-pullquote--compact flowtake-rise flex-shrink-0 mt-2 max-w-xl"
+              style={{ animationDelay: "0.24s" }}
+            >
+              <p className="flowtake-pullquote__lead">
+                Enable system audio and a microphone for tutorials. Cursor zoom, masks, and click effects are choreographed automatically.
+              </p>
             </div>
           )}
 
-          {/* Content area */}
-          <section className="flex-1 min-h-0 overflow-hidden rounded-2xl border border-base-content/5 bg-base-100/60 backdrop-blur-sm shadow-sm p-3 md:p-4">
+          {/* Numbered navigation */}
+          <nav
+            className="flowtake-rise flex-shrink-0 mt-2.5 flex items-baseline gap-5 md:gap-7 border-t border-base-content/10 pt-2"
+            style={{ animationDelay: "0.28s" }}
+            aria-label="Primary"
+          >
+            {VIEW_ORDER.map(view => {
+              const meta = VIEW_META[view]
+              const isActive = activeView === view
+              return (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setActiveView(view)}
+                  className="flowtake-nav-item"
+                  data-active={isActive ? "true" : "false"}
+                >
+                  <span className="flowtake-numeral">{meta.num}</span>
+                  <span>{meta.label}</span>
+                  {view === VIEW_PROJECTS && totalProjects > 0 && (
+                    <span className="ml-0.5 text-[10px] text-base-content/35 font-medium tabular-nums">
+                      ({totalProjects})
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Content surface */}
+          <section
+            className="flowtake-rise flex-1 min-h-0 mt-2.5 overflow-hidden"
+            style={{ animationDelay: "0.34s" }}
+          >
             <NewRecording isOpen={activeView === VIEW_RECORD} />
             <Projects isOpen={activeView === VIEW_PROJECTS} />
             <Live isOpen={activeView === VIEW_LIVE} />
@@ -224,17 +269,14 @@ function SidebarItem({ onClick, active, icon: Icon, label, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`relative tooltip tooltip-right w-10 h-10 rounded-lg flex items-center justify-center transition-all
-        ${active
-          ? "bg-primary/15 text-primary"
-          : "text-base-content/40 hover:text-base-content/70 hover:bg-base-content/5"
-        }`}
+      className="flowtake-sidebar-rail__item tooltip tooltip-right"
       data-tip={label}
+      data-active={active ? "true" : "false"}
     >
-      <Icon className="size-5" />
       {active && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
+        <span className="flowtake-sidebar-rail__accent" aria-hidden="true" />
       )}
+      <Icon className="size-5" />
       {badge != null && (
         <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-base-content/15 text-base-content/80 text-[9px] font-semibold flex items-center justify-center leading-none">
           {badge > 99 ? "99+" : badge}
@@ -250,39 +292,4 @@ SidebarItem.propTypes = {
   icon: PropTypes.elementType.isRequired,
   label: PropTypes.string.isRequired,
   badge: PropTypes.number,
-}
-
-function SegmentedTab({ items, active, onChange }) {
-  return (
-    <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-base-200/60 border border-base-content/5">
-      {items.map(item => {
-        const Icon = item.icon
-        const isActive = active === item.id
-        return (
-          <button
-            key={item.id}
-            onClick={() => onChange(item.id)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all
-              ${isActive
-                ? "bg-base-100 text-base-content shadow-sm"
-                : "text-base-content/55 hover:text-base-content/85"
-              }`}
-          >
-            <Icon className="size-3.5" />
-            {item.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-SegmentedTab.propTypes = {
-  items: PropTypes.arrayOf(PropTypes.shape({
-    id: PropTypes.string.isRequired,
-    label: PropTypes.string.isRequired,
-    icon: PropTypes.elementType.isRequired,
-  })).isRequired,
-  active: PropTypes.string.isRequired,
-  onChange: PropTypes.func.isRequired,
 }
