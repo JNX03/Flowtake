@@ -6,7 +6,6 @@ import {
     PauseIcon,
     PencilIcon,
     PlayIcon,
-    SignalIcon,
     TrashIcon,
     VideoCameraIcon,
     VideoCameraSlashIcon,
@@ -14,8 +13,6 @@ import {
 } from "@heroicons/react/20/solid"
 import { StopIcon } from "@heroicons/react/24/solid"
 import { useQuery } from "@tanstack/react-query"
-import { invoke } from "@tauri-apps/api/core"
-import { emit, listen } from "@tauri-apps/api/event"
 import moment from "moment"
 import momentDurationFormatSetup from "moment-duration-format"
 import {
@@ -130,17 +127,6 @@ export default function App() {
     const [audioStream, setAudioStream] = useState(null)
     const [tutorialActive, setTutorialActive] = useState(false)
 
-    // ── Live streaming mode ──
-    const [mode, setMode] = useState("record")           // "record" | "live"
-    const [liveStats, setLiveStats] = useState(null)     // { fps, bitrateKbps, droppedFrames, ... }
-    const liveStartedRef = useRef(false)
-
-    const { data: liveSettings } = useQuery({
-        queryKey: ["liveSettings"],
-        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "live.settings"),
-        staleTime: Infinity,
-    })
-
     const { data: cameraMicConfig } = useQuery({
         queryKey: ['cameraMicConfig'],
         queryFn: () => window.electron.ipcRenderer.invoke("get-camera-mic-config"),
@@ -192,10 +178,6 @@ export default function App() {
     }, [cameraMicConfig])
 
     const startRecording = useCallback(async () => {
-        if (mode === "live") {
-            await startLiveSession()
-            return
-        }
         await new Promise(resolve => {
             window.electron.ipcRenderer.once('recording-started', (_e, value) => resolve(value))
             window.electron.ipcRenderer.invoke("start-recording")
@@ -236,54 +218,11 @@ export default function App() {
             )
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [deviceRecorder, mode, liveSettings, isKeyboardOverlayEnabled, isAppRecordingEnabled, appRecordingWindows])
-
-    const startLiveSession = useCallback(async () => {
-        if (liveStartedRef.current) return
-        liveStartedRef.current = true
-        try {
-            await invoke("open_live_composer")
-            // Wait for the composer to mount before sending the start payload.
-            await new Promise((resolve) => {
-                let unlisten
-                const timeout = setTimeout(() => {
-                    if (unlisten) unlisten()
-                    resolve()
-                }, 4000)
-                listen("live:composer-mounted", () => {
-                    clearTimeout(timeout)
-                    if (unlisten) unlisten()
-                    resolve()
-                }).then(fn => { unlisten = fn })
-            })
-            await emit("live:start", liveSettings || {})
-            setIsRecording(true)
-        } catch (err) {
-            console.error("[live] start failed:", err)
-            liveStartedRef.current = false
-            await invoke("cancel_recording", { reason: String(err) }).catch(() => {})
-        }
-    }, [liveSettings])
+    }, [deviceRecorder, isKeyboardOverlayEnabled, isAppRecordingEnabled, appRecordingWindows])
 
     useEffect(() => {
         if ((cameraMicConfig?.audioTrack || cameraMicConfig?.videoTrack) && !deviceRecorder) createDeviceRecorder()
     }, [cameraMicConfig, deviceRecorder, createDeviceRecorder])
-
-    // Subscribe to live streaming events
-    useEffect(() => {
-        let unlistenStats, unlistenStopped
-        listen("live-stats", (e) => setLiveStats(e.payload)).then(fn => { unlistenStats = fn })
-        listen("live:stopped", (e) => {
-            setLiveStats(null)
-            liveStartedRef.current = false
-            // After backend reports stop, close window and let main app surface a toast.
-            invoke("destroy_window").catch(() => {})
-        }).then(fn => { unlistenStopped = fn })
-        return () => {
-            try { unlistenStats?.() } catch {}
-            try { unlistenStopped?.() } catch {}
-        }
-    }, [])
 
     useEffect(() => {
         if (cameraMicConfig && (deviceRecorder || (!cameraMicConfig.videoTrack && !cameraMicConfig.audioTrack)))
@@ -321,10 +260,6 @@ export default function App() {
 
     const onClickStop = async () => {
         setIsRecording(false)
-        if (mode === "live") {
-            await emit("live:stop")
-            return
-        }
         await deviceRecorder?.stop()
         deviceRecorder?.destroy()
         if (isKeyboardOverlayEnabled) {
@@ -419,7 +354,7 @@ export default function App() {
                                 {countdown}
                             </span>
                             <span className="text-[10px] uppercase tracking-wider font-semibold text-white/50">
-                                {mode === "live" ? "live" : "rec"}
+                                rec
                             </span>
                             <Btn onClick={onClickCancel} title="Cancel"
                                 className="w-7 h-7 rounded-full text-white/25 hover:text-white/60 hover:bg-white/[0.08]">
@@ -427,74 +362,8 @@ export default function App() {
                             </Btn>
                         </>
                     ) : (
-                        <div className="flex items-center gap-2">
-                            {/* Mode toggle: Record | Live */}
-                            <div className="flex items-center rounded-full bg-white/[0.04] p-0.5">
-                                <button
-                                    onClick={() => setMode("record")}
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors
-                                        ${mode === "record" ? "bg-white/10 text-white/90" : "text-white/40 hover:text-white/70"}`}>
-                                    Rec
-                                </button>
-                                <button
-                                    onClick={() => setMode("live")}
-                                    title="Live streaming (beta)"
-                                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1
-                                        ${mode === "live" ? "bg-red-500/25 text-red-300" : "text-white/40 hover:text-white/70"}`}>
-                                    <SignalIcon className="size-3" />
-                                    Live
-                                    <span className="text-[7px] text-amber-300/80 font-bold ml-0.5">β</span>
-                                </button>
-                            </div>
-                            <span className="loading loading-spinner loading-xs text-indigo-400" style={{ width: 14, height: 14 }}></span>
-                        </div>
+                        <span className="loading loading-spinner loading-xs text-indigo-400" style={{ width: 14, height: 14 }}></span>
                     )}
-                </div>
-            </div>
-        )
-    }
-
-    // ─── Live streaming: dedicated pill ──────────────────────────────
-    if (mode === "live") {
-        const bitrate = liveStats ? `${Math.round(liveStats.bitrateKbps)}k` : "—"
-        const dropped = liveStats?.droppedFrames ?? 0
-        return (
-            <div className="h-full w-full flex items-start justify-center" style={{ pointerEvents: "none" }}>
-                <StyleTag />
-                <div
-                    className="island-pill mt-1"
-                    data-tauri-drag-region
-                    style={{
-                        ...pillBg,
-                        width: 320,
-                        height: 44,
-                        borderRadius: 22,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 10,
-                        pointerEvents: "auto",
-                    }}
-                >
-                    <div className="flex items-center gap-1.5">
-                        <SignalIcon className="size-3.5 text-red-400" />
-                        <span className="rec-dot w-[7px] h-[7px] rounded-full bg-red-500" />
-                        <span className="text-[11px] uppercase tracking-wider font-bold text-red-300">live</span>
-                        <span className="text-[8px] text-amber-300/80 font-bold">β</span>
-                    </div>
-                    <span className="font-semibold text-[13px] tabular-nums tracking-tight text-white/90">
-                        {formattedTime}
-                    </span>
-                    <span className="text-[11px] text-white/40 tabular-nums">{bitrate}/s</span>
-                    {dropped > 0 && (
-                        <span className="text-[11px] text-amber-300 tabular-nums" title="Dropped frames">
-                            ⚠ {dropped}
-                        </span>
-                    )}
-                    <Btn onClick={onClickStop} title="End stream"
-                        className="w-7 h-7 rounded-full bg-red-500 hover:bg-red-400 text-white">
-                        <StopIcon className="size-3.5" />
-                    </Btn>
                 </div>
             </div>
         )
