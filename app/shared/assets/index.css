@@ -466,6 +466,129 @@
     .flowtake-editor .range {
         accent-color: var(--color-primary);
     }
+
+    /* ===== Editorial design system (home, loader) ===== */
+
+    .flowtake-stage {
+        position: relative;
+        isolation: isolate;
+        background: var(--color-base-300);
+    }
+
+    .flowtake-stage::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+            radial-gradient(ellipse 70% 55% at 82% -10%,
+                color-mix(in oklab, var(--color-primary) 26%, transparent),
+                transparent 65%),
+            radial-gradient(ellipse 60% 80% at 8% 110%,
+                color-mix(in oklab, var(--color-secondary) 14%, transparent),
+                transparent 60%);
+        z-index: 0;
+    }
+
+    .flowtake-stage > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .flowtake-grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.06;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.65 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+        background-size: 220px 220px;
+        z-index: 0;
+    }
+
+    .flowtake-display {
+        font-family: var(--font-display);
+        font-weight: 400;
+        font-style: normal;
+        letter-spacing: -0.025em;
+        line-height: 0.95;
+        font-variation-settings: "SOFT" 50, "opsz" 96, "WONK" 0;
+    }
+
+    .flowtake-display--italic {
+        font-family: var(--font-display);
+        font-weight: 400;
+        font-style: italic;
+        font-variation-settings: "SOFT" 80, "opsz" 96, "WONK" 1;
+    }
+
+    .flowtake-eyebrow {
+        font-family: var(--font-brand);
+        font-weight: 500;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: color-mix(in oklab, var(--color-base-content) 46%, transparent);
+    }
+
+    .flowtake-rule {
+        height: 1px;
+        background: color-mix(in oklab, var(--color-base-content) 14%, transparent);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .flowtake-rule__accent {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 28px;
+        background: linear-gradient(90deg,
+            transparent,
+            var(--color-primary),
+            color-mix(in oklab, var(--color-accent) 70%, var(--color-primary)),
+            transparent);
+        animation: flowtake-rule-travel 1.7s cubic-bezier(0.55, 0, 0.45, 1) infinite;
+    }
+
+    @keyframes flowtake-rule-travel {
+        0% { transform: translateX(-30px); opacity: 0; }
+        12% { opacity: 1; }
+        88% { opacity: 1; }
+        100% { transform: translateX(calc(var(--rule-distance, 320px) + 30px)); opacity: 0; }
+    }
+
+    .flowtake-rule__progress {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg,
+            color-mix(in oklab, var(--color-primary) 70%, transparent),
+            var(--color-primary),
+            color-mix(in oklab, var(--color-accent) 80%, var(--color-primary)));
+        transition: width 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 0 14px color-mix(in oklab, var(--color-primary) 55%, transparent);
+    }
+
+    .flowtake-numeral {
+        font-family: var(--font-brand);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.04em;
+    }
+
+    /* Staggered entrance for hero surfaces */
+    @keyframes flowtake-rise {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .flowtake-rise {
+        animation: flowtake-rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
 }
 
 @font-face {
