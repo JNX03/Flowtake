@@ -129,7 +129,14 @@ export default function AudioTracks() {
             />
             {(clipsByTrack[track.id] || []).length === 0 && !isMinimized && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-[10px] opacity-20">Double-click to import audio, or drag from Assets</span>
+                    <button
+                        type="button"
+                        onClick={() => importAudioToTrack(track.id, 0)}
+                        className="pointer-events-auto text-xs opacity-60 hover:opacity-100 border border-dashed border-base-content/25 hover:border-secondary hover:bg-secondary/10 rounded-md px-3 py-1 transition-all flex items-center gap-1.5"
+                    >
+                        <span className="text-base leading-none">+</span>
+                        Click to add audio
+                    </button>
                 </div>
             )}
         </div>
