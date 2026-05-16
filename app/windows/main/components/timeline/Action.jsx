@@ -19,6 +19,7 @@ import {
     setLastSelectedAnim,
     setSelectedIds
 } from "@shared/redux/timelineSlice"
+import ClipDeleteButton from "./ClipDeleteButton"
 
 export default function Action({
     anim,
@@ -127,6 +128,9 @@ export default function Action({
                 `${isMinimized ? "" : "cursor-pointer"} @container`}
             style={{ left: `${leftPosition}px`, width: `${width}px` }} >
             {children}
+            {isSelected && !isMinimized && !isDragging && width >= 56 && (
+                <ClipDeleteButton animId={anim.id} />
+            )}
         </div>
     )
 }
