@@ -1,4 +1,7 @@
-import { CursorArrowRaysIcon } from "@heroicons/react/16/solid"
+import {
+    CursorArrowRaysIcon,
+    EyeSlashIcon
+} from "@heroicons/react/16/solid"
 import PropTypes from "prop-types"
 import { useCallback } from "react"
 import { useDispatch, useSelector } from "react-redux"
@@ -52,18 +55,26 @@ export default function MouseStyle({ id }) {
 
     const color = anim.color ?? defaults.color
     const label = anim.label ?? defaults.label
+    const isHidden = anim.enabled === false
 
     return (
         <FlexibleAction anim={anim} anims={anims} isRowSelected={selectedRow === MOUSE_STYLES}
             onChange={onChange} onSelect={onSelect} onContextMenu={onContextMenu}
-            color="primary" isMinimized={isMinimized}>
+            color={isHidden ? "neutral" : "primary"} isMinimized={isMinimized}>
             <Label
                 isMinimized={isMinimized}
-                line1={<><CursorArrowRaysIcon className="size-4 shrink-0 mr-1" />Cursor</>}
-                line2={<>
-                    <span className="inline-block size-2.5 rounded-full mr-1" style={{ backgroundColor: color }} />
-                    <span className="opacity-70 truncate">{label || "(no tag)"}</span>
+                line1={<>
+                    {isHidden
+                        ? <EyeSlashIcon className="size-4 shrink-0 mr-1" />
+                        : <CursorArrowRaysIcon className="size-4 shrink-0 mr-1" />}
+                    <span className={isHidden ? "line-through opacity-60" : ""}>Cursor</span>
                 </>}
+                line2={isHidden
+                    ? <span className="opacity-70 truncate">Hidden</span>
+                    : <>
+                        <span className="inline-block size-2.5 rounded-full mr-1" style={{ backgroundColor: color }} />
+                        <span className="opacity-70 truncate">{label || "(no tag)"}</span>
+                    </>}
             />
         </FlexibleAction>
     )

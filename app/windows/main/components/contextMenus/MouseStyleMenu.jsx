@@ -1,9 +1,11 @@
 import {
+    BoltIcon,
     EyeIcon,
     EyeSlashIcon,
     PencilSquareIcon,
     ScissorsIcon,
-    SwatchIcon
+    SwatchIcon,
+    TagIcon
 } from "@heroicons/react/16/solid"
 import { useCallback, useMemo } from "react"
 import { useHotkeys } from "react-hotkeys-hook"
@@ -36,6 +38,14 @@ const PRESET_COLORS = [
     { name: "Yellow", value: "#facc15" },
     { name: "Purple", value: "#a855f7" },
     { name: "White", value: "#ffffff" },
+]
+
+// `inherit` = null (use global cursorCoords.inertia)
+const SMOOTHING_STEPS = [
+    { name: "Inherit", value: null },
+    { name: "Snappy", value: 200 },
+    { name: "Smooth", value: 650 },
+    { name: "Floaty", value: 1100 },
 ]
 
 export default function MouseStyleMenu() {
@@ -89,6 +99,20 @@ export default function MouseStyleMenu() {
         dispatch(updateMouseStyle({ id: entity.id, changes: { showLabel: !cur } }))
     }, [dispatch, entity])
 
+    const toggleEnabled = useCallback(() => {
+        if (!entity) return
+        const isHidden = entity.enabled === false
+        dispatch(updateMouseStyle({ id: entity.id, changes: { enabled: isHidden ? true : false } }))
+    }, [dispatch, entity])
+
+    const cycleSmoothing = useCallback(() => {
+        if (!entity) return
+        const cur = entity.inertia ?? null
+        const idx = SMOOTHING_STEPS.findIndex(s => s.value === cur)
+        const next = SMOOTHING_STEPS[(idx + 1) % SMOOTHING_STEPS.length]
+        dispatch(updateMouseStyle({ id: entity.id, changes: { inertia: next.value } }))
+    }, [dispatch, entity])
+
     const onDelete = useCallback(() => {
         if (!entity) return
         dispatch(removeMouseStyle(entity.id))
@@ -99,6 +123,10 @@ export default function MouseStyleMenu() {
         { enabled: areHotkeysEnabled && !!isSplittingEnabled && !isPlaying },
         [areHotkeysEnabled, isSplittingEnabled, isPlaying, onSplit])
 
+    useHotkeys('h', () => toggleEnabled(),
+        { enabled: areHotkeysEnabled && isOpen && !isPlaying },
+        [areHotkeysEnabled, isOpen, isPlaying, toggleEnabled])
+
     useHotkeys('delete', () => onDelete(),
         { enabled: areHotkeysEnabled && isOpen && !isPlaying },
         [areHotkeysEnabled, isOpen, isPlaying, onDelete])
@@ -108,17 +136,26 @@ export default function MouseStyleMenu() {
     const currentPreset = PRESET_COLORS.find(c =>
         (entity.color || "").toLowerCase() === c.value.toLowerCase()
     )
+    const isHidden = entity.enabled === false
+    const currentSmoothing = SMOOTHING_STEPS.find(s => s.value === (entity.inertia ?? null)) || SMOOTHING_STEPS[0]
 
     return (
         <Menu isOpen={isOpen} close={close}>
+            <Item text={isHidden ? "Show cursor in this segment" : "Hide cursor in this segment"}
+                icon={isHidden ? EyeIcon : EyeSlashIcon}
+                isEnabled={true} onClick={toggleEnabled}
+                kbd={<kbd className="kbd kbd-sm">h</kbd>} />
+            <Divider />
             <Item text="Split at time cursor" icon={ScissorsIcon} isEnabled={!!isSplittingEnabled}
                 onClick={onSplit} kbd={<kbd className="kbd kbd-sm">s</kbd>} />
             <Divider />
             <Item text={`Color: ${currentPreset?.name || (entity.color || "Custom")}`}
-                icon={SwatchIcon} isEnabled={true} onClick={cyclePreset} />
+                icon={SwatchIcon} isEnabled={!isHidden} onClick={cyclePreset} />
             <Item text={entity.showLabel ? "Hide tag" : "Show tag"}
-                icon={entity.showLabel ? EyeSlashIcon : EyeIcon}
-                isEnabled={true} onClick={toggleLabel} />
+                icon={entity.showLabel ? TagIcon : TagIcon}
+                isEnabled={!isHidden} onClick={toggleLabel} />
+            <Item text={`Smoothing: ${currentSmoothing.name}`}
+                icon={BoltIcon} isEnabled={!isHidden} onClick={cycleSmoothing} />
             <Item text="Edit in sidebar" icon={PencilSquareIcon}
                 isEnabled={false} onClick={close} />
             <Divider />

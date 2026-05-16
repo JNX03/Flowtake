@@ -14,6 +14,7 @@ import {
 import shallowEqual from "../../shallowEqual"
 import Animator from "../Animator"
 import Drag from "./Drag"
+import { drawPreset, hexStringToInt } from "./presetShapes"
 
 const MOTION_ROTATION_FRAMES = 10
 const MOTION_ROTATION_MAX_STRENGTH = Math.PI / 4
@@ -45,7 +46,7 @@ export default class CursorAnimator extends Animator {
         this.duration = duration
 
         this.pluginStyle = null
-        this.styleEntities = []      // [{id, start, end, color?, showLabel?, label?, preset?}]
+        this.styleEntities = []      // [{id, start, end, enabled?, inertia?, color?, showLabel?, label?, preset?}]
         this.styleDefaults = null    // { color, showLabel, label, preset }
         this.styleEnabled = false    // global plugin toggle
         this.tagContainer = null
@@ -54,14 +55,19 @@ export default class CursorAnimator extends Animator {
         this.presetGraphics = null
         this._lastResolvedStyleKey = null
         this._activePreset = "default"
+        this._isCursorHidden = false
+
+        // Per-segment inertia: lazily-built map keyed by inertia value.
+        // Each entry is a frame-indexed coords map (same shape as `this.coords`).
+        this.coordsMaps = new Map()
     }
 
 
     update(timestamp) {
         if (!this.coords || !this.videoDetails || this.blurStrength === null || this.rotationStrength === null || this.cutOff === null || this.isLoop === null) return
 
-        // Show cursor container once we have valid coords
-        if (!this.cursor.visible) this.cursor.visible = true
+        // Show cursor container once we have valid coords (unless a segment hides it).
+        if (!this.cursor.visible && !this._isCursorHidden) this.cursor.visible = true
 
         let coords = this.getCoords(timestamp)
         let prevCoords = this.getCoords(Math.max(timestamp - 1000 / INERTIA_FPS, 0))
@@ -97,6 +103,7 @@ export default class CursorAnimator extends Animator {
     setStyleEntities(entities) {
         this.styleEntities = Array.isArray(entities) ? entities : []
         this._lastResolvedStyleKey = null
+        this.rebuildSegmentCoordsMaps()
     }
 
     /** Slice-level defaults — used when no entity is active. */
@@ -111,17 +118,23 @@ export default class CursorAnimator extends Animator {
         this._lastResolvedStyleKey = null
     }
 
-    /** Resolve which { color, showLabel, label, preset } applies at `time`. */
-    resolveStyleAt(time) {
-        if (!this.styleEnabled) return null
-        // Find active entity by start/end window; entities are sorted by start
-        // (the adapter does this) so a linear scan from the back catches the
-        // last-added overlapping entity if multiple overlap.
-        let active = null
+    /**
+     * Find the segment active at `time`, scanning from the back so the
+     * last-added entity wins when ranges overlap.
+     */
+    findActiveStyleAt(time) {
         for (let i = this.styleEntities.length - 1; i >= 0; i--) {
             const e = this.styleEntities[i]
-            if (time >= e.start && time <= e.end) { active = e; break }
+            if (time >= e.start && time <= e.end) return e
         }
+        return null
+    }
+
+    /** Resolve which { color, showLabel, label, preset, hideCursor } applies at `time`. */
+    resolveStyleAt(time) {
+        if (!this.styleEnabled) return null
+        const active = this.findActiveStyleAt(time)
+        if (active && active.enabled === false) return { hideCursor: true }
         const d = this.styleDefaults || {}
         return {
             color: active?.color ?? d.color ?? "#ffffff",
@@ -131,8 +144,49 @@ export default class CursorAnimator extends Animator {
         }
     }
 
+    /** Resolve which inertia value applies at `time` (per-segment override or global). */
+    resolveInertiaAt(time) {
+        if (this.styleEnabled) {
+            const active = this.findActiveStyleAt(time)
+            if (active && active.inertia != null) return active.inertia
+        }
+        return this.inertia
+    }
+
+    /**
+     * Build a coords map for every inertia value used by an active segment,
+     * keyed by inertia so getCoords can pick the right one per frame.
+     * No-op until mouseEvents/duration/inertia are set up.
+     */
+    rebuildSegmentCoordsMaps() {
+        if (!this.mouseEvents || !this.duration || this.inertia == null) return
+        // Keep the global-default entry in sync.
+        if (this.coords) this.coordsMaps.set(this.inertia, this.coords)
+        for (const e of this.styleEntities) {
+            if (e.inertia == null) continue
+            if (this.coordsMaps.has(e.inertia)) continue
+            this.coordsMaps.set(e.inertia, applyInertia(this.mouseEvents, this.duration, e.inertia))
+        }
+    }
+
     applyResolvedStyle(time) {
         const resolved = this.resolveStyleAt(time)
+
+        if (resolved?.hideCursor) {
+            if (!this._isCursorHidden) {
+                this._isCursorHidden = true
+                if (this.cursor) this.cursor.visible = false
+                if (this.tagContainer) this.tagContainer.visible = false
+            }
+            this._lastResolvedStyleKey = "__hidden__"
+            return
+        }
+
+        if (this._isCursorHidden) {
+            this._isCursorHidden = false
+            if (this.cursor) this.cursor.visible = true
+        }
+
         const style = resolved
             ? { enabled: true, color: resolved.color, showLabel: resolved.showLabel, label: resolved.label, preset: resolved.preset }
             : { enabled: false, preset: "default" }
@@ -172,50 +226,7 @@ export default class CursorAnimator extends Animator {
     }
 
     redrawPreset(preset, colorHex) {
-        const g = this.presetGraphics
-        if (!g) return
-        const color = hexStringToInt(colorHex)
-        g.clear()
-        // Sizes here are in scene-pixel units (the cursorContainer is positioned
-        // in scene coords; we draw small enough that cursorScale still applies).
-        switch (preset) {
-            case "arrow":
-                g.poly([0, 0, 0, 28, 8, 22, 13, 32, 17, 30, 12, 21, 20, 21])
-                    .fill({ color, alpha: 1 })
-                    .stroke({ color: 0xffffff, alpha: 0.85, width: 1.2 })
-                break
-            case "pointer":
-                g.poly([4, 0, 4, 22, 8, 19, 12, 28, 16, 26, 12, 18, 18, 18])
-                    .fill({ color, alpha: 1 })
-                    .stroke({ color: 0xffffff, alpha: 0.85, width: 1.2 })
-                g.circle(11, 11, 3).stroke({ color: 0xffffff, alpha: 0.6, width: 1 })
-                break
-            case "dot":
-                g.circle(0, 0, 8).fill({ color, alpha: 0.9 })
-                g.circle(0, 0, 8).stroke({ color: 0xffffff, alpha: 0.85, width: 1.5 })
-                break
-            case "ring":
-                g.circle(0, 0, 12).stroke({ color, alpha: 1, width: 3 })
-                g.circle(0, 0, 4).fill({ color, alpha: 0.9 })
-                break
-            case "target":
-                g.circle(0, 0, 14).stroke({ color, alpha: 0.9, width: 2 })
-                g.moveTo(-18, 0).lineTo(-6, 0).stroke({ color, alpha: 0.9, width: 2 })
-                g.moveTo(6, 0).lineTo(18, 0).stroke({ color, alpha: 0.9, width: 2 })
-                g.moveTo(0, -18).lineTo(0, -6).stroke({ color, alpha: 0.9, width: 2 })
-                g.moveTo(0, 6).lineTo(0, 18).stroke({ color, alpha: 0.9, width: 2 })
-                g.circle(0, 0, 2).fill({ color, alpha: 1 })
-                break
-            case "agent":
-                // Concentric ring with subtle inner dot — meant to read as
-                // "AI cursor" in screencasts.
-                g.circle(0, 0, 18).stroke({ color, alpha: 0.45, width: 2 })
-                g.circle(0, 0, 12).stroke({ color, alpha: 0.85, width: 2.5 })
-                g.circle(0, 0, 4).fill({ color, alpha: 1 })
-                break
-            default:
-                break
-        }
+        drawPreset(this.presetGraphics, preset, colorHex)
     }
 
     setState({ videoDetails, inertia, cutOff, blurStrength, rotationStrength, isLoop }) {
@@ -264,6 +275,8 @@ export default class CursorAnimator extends Animator {
         if (this.inertia === null) return
 
         this.coords = applyInertia(this.mouseEvents, this.duration, this.inertia)
+        this.coordsMaps.set(this.inertia, this.coords)
+        this.rebuildSegmentCoordsMaps()
     }
 
     configureCutOffCoords() {
@@ -305,7 +318,9 @@ export default class CursorAnimator extends Animator {
     }
 
     computeIdleFrame(timestamp) {
-        return { position: getCoords(this.screenVideoDimensions, this.videoDetails, timestamp, this.coords) }
+        const inertia = this.resolveInertiaAt(timestamp)
+        const map = (inertia != null && this.coordsMaps.get(inertia)) || this.coords
+        return { position: getCoords(this.screenVideoDimensions, this.videoDetails, timestamp, map) }
     }
 
     getCoords(timestamp) {
@@ -396,9 +411,3 @@ export default class CursorAnimator extends Animator {
     }
 }
 
-function hexStringToInt(hex) {
-    if (typeof hex !== "string") return 0xFFFFFF
-    const stripped = hex.startsWith("#") ? hex.slice(1) : hex
-    const n = parseInt(stripped, 16)
-    return Number.isFinite(n) ? n : 0xFFFFFF
-}
