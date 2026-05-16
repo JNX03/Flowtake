@@ -345,11 +345,21 @@ export default function TimelineToolbar({ zoomSteps, onFitToView }) {
                 </div>
             </div>
 
-            {/* Selection info */}
+            {/* Selection info + keyboard hints */}
             {hasSelection && (
-                <span className="text-[10px] opacity-30 mr-2">
-                    {selectedIds.length} selected
-                </span>
+                <div className="flex items-center gap-2 mr-2 text-[10px] opacity-60">
+                    <span className="font-medium">{selectedIds.length} selected</span>
+                    <span className="opacity-40">·</span>
+                    <span className="flex items-center gap-1">
+                        <kbd className="kbd kbd-xs">Del</kbd> remove
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <kbd className="kbd kbd-xs">S</kbd> split
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <kbd className="kbd kbd-xs">Ctrl</kbd>+<kbd className="kbd kbd-xs">D</kbd> copy
+                    </span>
+                </div>
             )}
 
             {/* Toggle buttons */}
