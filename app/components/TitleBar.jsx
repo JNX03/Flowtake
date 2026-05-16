@@ -1,18 +1,20 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import PropTypes from 'prop-types'
 import { useCallback } from 'react'
+import { isTauri } from '@shared/tauriBridge'
 import icon from "../shared/assets/logo.svg"
 
+const callWindow = async (method) => {
+    if (!isTauri) return
+    try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        await getCurrentWindow()[method]()
+    } catch (e) { console.warn(`${method} failed`, e) }
+}
+
 function WindowControls({ variant = "default" }) {
-    const minimize = useCallback(async () => {
-        try { await getCurrentWindow().minimize() } catch (e) { console.warn('minimize failed', e) }
-    }, [])
-    const toggleMaximize = useCallback(async () => {
-        try { await getCurrentWindow().toggleMaximize() } catch (e) { console.warn('toggleMaximize failed', e) }
-    }, [])
-    const close = useCallback(async () => {
-        try { await getCurrentWindow().close() } catch (e) { console.warn('close failed', e) }
-    }, [])
+    const minimize = useCallback(() => callWindow('minimize'), [])
+    const toggleMaximize = useCallback(() => callWindow('toggleMaximize'), [])
+    const close = useCallback(() => callWindow('close'), [])
 
     if (variant === "traffic") {
         return (

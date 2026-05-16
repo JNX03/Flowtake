@@ -6,6 +6,19 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit, once } from '@tauri-apps/api/event';
 
+const isTauri = typeof window !== 'undefined'
+    && typeof window.__TAURI_INTERNALS__ !== 'undefined';
+
+let warned = false;
+const warnBrowserMode = () => {
+    if (warned) return;
+    warned = true;
+    console.warn(
+        '[TauriBridge] Running outside a Tauri webview — IPC calls will be no-ops. ' +
+        'For full functionality run `npm run tauri dev`.'
+    );
+};
+
 // Map of Electron IPC channel names to Tauri command names
 const COMMAND_MAP = {
     // Store
@@ -235,6 +248,11 @@ const listeners = new Map();
  */
 const ipcRenderer = {
     async invoke(channel, ...args) {
+        if (!isTauri) {
+            warnBrowserMode();
+            return null;
+        }
+
         const tauriCommand = COMMAND_MAP[channel];
         if (!tauriCommand) {
             console.warn(`[TauriBridge] Unknown IPC channel: ${channel}`);
@@ -253,6 +271,13 @@ const ipcRenderer = {
     },
 
     on(channel, callback) {
+        if (!isTauri) {
+            warnBrowserMode();
+            if (!listeners.has(channel)) listeners.set(channel, []);
+            listeners.get(channel).push({ callback, unlisten: Promise.resolve(() => {}) });
+            return this;
+        }
+
         const unlisten = listen(channel, (event) => {
             // Mimic Electron's callback signature: (event, ...args)
             callback(event, event.payload);
@@ -267,6 +292,13 @@ const ipcRenderer = {
     },
 
     once(channel, callback) {
+        if (!isTauri) {
+            warnBrowserMode();
+            if (!listeners.has(channel)) listeners.set(channel, []);
+            listeners.get(channel).push({ callback, unlisten: Promise.resolve(() => {}) });
+            return this;
+        }
+
         const wrappedCallback = (event) => {
             // Auto-remove from listeners map when it fires
             const channelListeners = listeners.get(channel);
@@ -287,6 +319,7 @@ const ipcRenderer = {
     },
 
     send(channel, ...args) {
+        if (!isTauri) return;
         emit(channel, args.length === 1 ? args[0] : args);
     },
 
@@ -340,5 +373,5 @@ export function initTauriBridge() {
     window.api = {};
 }
 
-export { ipcRenderer };
-export default { initTauriBridge, ipcRenderer };
+export { ipcRenderer, isTauri };
+export default { initTauriBridge, ipcRenderer, isTauri };

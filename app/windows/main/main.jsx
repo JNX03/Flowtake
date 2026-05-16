@@ -1,4 +1,4 @@
-import { initTauriBridge } from '@shared/tauriBridge'
+import { initTauriBridge, isTauri } from '@shared/tauriBridge'
 
 // Stage 1: Initialize Tauri bridge
 initTauriBridge()
@@ -79,8 +79,11 @@ createRoot(document.getElementById('root')).render(
 
 // Show main window after React commits, but let App.jsx handle splash dismissal
 // after early data resolves
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-requestAnimationFrame(() => {
+requestAnimationFrame(async () => {
     if (window.splashUpdate) window.splashUpdate('render')
-    getCurrentWebviewWindow().show().catch(() => {})
+    if (!isTauri) return
+    try {
+        const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+        getCurrentWebviewWindow().show().catch(() => {})
+    } catch {}
 })
