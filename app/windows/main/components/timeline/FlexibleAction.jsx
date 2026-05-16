@@ -49,24 +49,32 @@ export default function FlexibleAction({
             onContextMenu={onContextMenu} isRowSelected={isRowSelected} isClickEnabled={!isDragging} color={color}
             isMinimized={isMinimized} isDragging={isDragging} actionRef={actionElementRef}>
             <div ref={leftResizeRef}
-                className={`w-5 ${isMinimized ? "" : "hover:bg-base-content/30 transition-all cursor-col-resize"} shrink-0 flex items-center justify-center group/left`}>
-                {!isMinimized && <div className="w-0.5 h-4 rounded-full bg-base-content/25 group-hover/left:w-1 group-hover/left:h-6 transition-all" />}
+                title={isMinimized ? undefined : "Drag to trim start"}
+                className={`w-6 ${isMinimized ? "" : "hover:bg-base-content/30 transition-colors cursor-col-resize"} shrink-0 flex items-center justify-center group/left z-10`}>
+                {!isMinimized && (
+                    <div className="w-1 h-5 rounded-full bg-base-content/50 group-hover/left:bg-base-content/90 group-hover/left:w-1.5 group-hover/left:h-7 transition-all shadow-sm" />
+                )}
             </div>
-            <div ref={moveHandleRef} className={`flex-1 flex flex-col justify-evenly min-w-0 relative group/move ${isMinimized ? "" : "cursor-grab"}`}>
+            <div ref={moveHandleRef}
+                title={isMinimized ? undefined : "Drag to move"}
+                className={`flex-1 flex flex-col justify-evenly min-w-0 relative group/move ${isMinimized ? "" : "cursor-grab active:cursor-grabbing"}`}>
                 {children}
                 {!isMinimized && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/move:opacity-25 transition-opacity pointer-events-none">
+                    <div className="absolute top-1 left-1/2 -translate-x-1/2 opacity-30 group-hover/move:opacity-70 transition-opacity pointer-events-none">
                         <div className="flex flex-col gap-0.5">
-                            <div className="w-5 h-px bg-current rounded-full" />
-                            <div className="w-5 h-px bg-current rounded-full" />
-                            <div className="w-5 h-px bg-current rounded-full" />
+                            <div className="w-4 h-px bg-current rounded-full" />
+                            <div className="w-4 h-px bg-current rounded-full" />
+                            <div className="w-4 h-px bg-current rounded-full" />
                         </div>
                     </div>
                 )}
             </div>
             <div ref={rightResizeRef}
-                className={`w-5 ${isMinimized ? "" : "hover:bg-base-content/30 transition-all cursor-col-resize"} shrink-0 flex items-center justify-center group/right`}>
-                {!isMinimized && <div className="w-0.5 h-4 rounded-full bg-base-content/25 group-hover/right:w-1 group-hover/right:h-6 transition-all" />}
+                title={isMinimized ? undefined : "Drag to trim end"}
+                className={`w-6 ${isMinimized ? "" : "hover:bg-base-content/30 transition-colors cursor-col-resize"} shrink-0 flex items-center justify-center group/right z-10`}>
+                {!isMinimized && (
+                    <div className="w-1 h-5 rounded-full bg-base-content/50 group-hover/right:bg-base-content/90 group-hover/right:w-1.5 group-hover/right:h-7 transition-all shadow-sm" />
+                )}
             </div>
         </Action>
     )
