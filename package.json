@@ -57,7 +57,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "postcss": "^8.5.12",
-    "tailwindcss": "^4.2.1",
+    "tailwindcss": "^4.3.0",
     "vite": "^8.0.13",
     "vite-plugin-static-copy": "^4.1.0"
   },
