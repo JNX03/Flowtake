@@ -110,9 +110,10 @@ export default function App() {
 
     return (
         <div className="h-full flex flex-col bg-base-300 rounded-xl overflow-hidden border border-base-content/10">
-            {/* Drag region - no window controls */}
-            <div className="h-8 flex-none flex items-center select-none" data-tauri-drag-region>
-                <span className="text-[11px] font-medium opacity-40 pl-4">Flowtake</span>
+            {/* Title bar (drag region) */}
+            <div className="h-9 flex-none flex items-center gap-2 select-none px-4" data-tauri-drag-region>
+                <span className="size-2.5 rounded-[3px] bg-primary rotate-45" />
+                <span className="text-xs font-semibold tracking-tight">Export</span>
             </div>
 
             {/* Tab navigation */}

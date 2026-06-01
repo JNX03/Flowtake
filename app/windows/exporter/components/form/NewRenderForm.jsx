@@ -13,7 +13,6 @@ import {
 } from "@tanstack/react-query"
 import PropTypes from "prop-types"
 import {
-    useCallback,
     useEffect,
     useMemo,
     useState
@@ -28,7 +27,6 @@ import {
     TOAST_ERROR
 } from "@shared/helpers"
 import { buildGitHubIssueUrl } from "@shared/errorReporting"
-import { EXPORT_PRESETS } from "@shared/exportPresets"
 import {
     createRenderableProjectState,
     getRenderProjectName
@@ -40,7 +38,6 @@ import {
     setProjectState
 } from "@shared/redux/renderSlice"
 import { captureException } from "@shared/sentryHelpers"
-import ShareableUrl from "./ShareableUrl"
 
 const ASPECT_ICONS = {
     "16x9": ComputerDesktopIcon,
@@ -54,13 +51,7 @@ const ASPECT_LABELS = {
     "1x1": "1:1"
 }
 
-const QUALITY_OPTIONS = [
-    { value: "very_high", restrictShareable: true },
-    { value: "high" },
-    { value: "medium" },
-    { value: "low" },
-    { value: "very_low" }
-]
+const QUALITY_OPTIONS = ["very_high", "high", "medium", "low", "very_low"]
 
 export default function Form({ onAdd, onCancel, isVisible }) {
 
@@ -68,9 +59,6 @@ export default function Form({ onAdd, onCancel, isVisible }) {
     const queryClient = useQueryClient()
 
     const [aspectRatio, setAspectRatio] = useState("16x9")
-    const [useShareableUrl, setUseShareableUrl] = useState(false)
-    const [presignedUrl, setPresignedUrl] = useState(null)
-    const [objectId, setObjectId] = useState(null)
     const [isInitializing, setIsInitializing] = useState(false)
 
     const projectState = useSelector(selectProjectState)
@@ -130,17 +118,6 @@ export default function Form({ onAdd, onCancel, isVisible }) {
         "854x480": "480p", "480x854": "480p", "480x480": "480p"
     }), [])
 
-    const getUrl = useCallback(async () => {
-        const { id, presignedUrl } = await window.electron.ipcRenderer.invoke(
-            "get-shareable-url",
-            projectState.undoableState.present.project.name
-        )
-        if (id && presignedUrl) {
-            setObjectId(id)
-            setPresignedUrl(presignedUrl)
-        } else setUseShareableUrl(false)
-    }, [projectState])
-
     useEffect(() => {
         if (projectState) setAspectRatio(projectState.undoableState.present.project.aspectRatio)
     }, [projectState])
@@ -157,22 +134,6 @@ export default function Form({ onAdd, onCancel, isVisible }) {
         window.electron.ipcRenderer.on('project-state', (_e, state) => dispatch(setProjectState(state)))
     }, [dispatch])
 
-    useEffect(() => {
-        if (useShareableUrl && !objectId) getUrl()
-    }, [useShareableUrl, objectId, getUrl])
-
-    useEffect(() => {
-        if (isVisible) {
-            setUseShareableUrl(false)
-            setPresignedUrl(null)
-            setObjectId(null)
-        }
-    }, [isVisible])
-
-    useEffect(() => {
-        if (useShareableUrl && quality === "very_high") setQuality("high")
-    }, [quality, setQuality, useShareableUrl])
-
     const onAddClicked = async () => {
         setIsInitializing(true)
 
@@ -185,7 +146,7 @@ export default function Form({ onAdd, onCancel, isVisible }) {
             projectName: getRenderProjectName(projectState),
             status: RENDER_PENDING,
             config: { resolution, fps, aspectRatio, quality },
-            upload: { isRequested: useShareableUrl && !!presignedUrl, presignedUrl, objectId },
+            upload: { isRequested: false, presignedUrl: null, objectId: null },
             timestamp: Date.now(),
             id: `render-${self.crypto.randomUUID()}`
         }
@@ -194,52 +155,18 @@ export default function Form({ onAdd, onCancel, isVisible }) {
             dispatch(addRender(render))
             onAdd()
         } catch (e) {
-            dispatch(addToast({ type: TOAST_ERROR, text: "Couldn't queue render", autoDismiss: false, actions: [{ label: "Report", url: buildGitHubIssueUrl("Couldn't queue render") }] }))
+            const message = (typeof e === "string" ? e : e?.message) || "Couldn't queue render"
+            dispatch(addToast({ type: TOAST_ERROR, text: message, autoDismiss: false, actions: [{ label: "Report", url: buildGitHubIssueUrl(message) }] }))
             captureException(e)
         } finally {
             setIsInitializing(false)
         }
     }
 
-    const isShareableUrlEnabled = () => {
-        if (projectState === null) return false
-        const { start, end } = projectState.undoableState.present.project.videoDetails
-        return end - start <= 10 * 60 * 1000
-    }
-
-    const is4K = res => res === "3840x2160" || res === "2160x3840" || res === "2160x2160"
-
     return (
         <div className={`flex flex-col h-full ${isVisible ? "" : "hidden"}`}>
             <div className="flex-1 overflow-y-auto px-5 py-4">
                 <div className="flex flex-col gap-5">
-
-                    {/* Quick Presets */}
-                    <div>
-                        <span className="text-[11px] font-medium uppercase tracking-wider opacity-40 mb-2 block">
-                            Quick Presets
-                        </span>
-                        <div className="grid grid-cols-3 gap-1.5">
-                            {EXPORT_PRESETS.map(preset => (
-                                <button
-                                    key={preset.id}
-                                    onClick={() => {
-                                        setAspectRatio(preset.aspectRatio)
-                                        setResolutionString(preset.resolution)
-                                        setFps(preset.fps)
-                                        setQuality(preset.quality)
-                                    }}
-                                    className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-[10px] font-medium transition-all bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
-                                >
-                                    {preset.icon === "yt" && <ComputerDesktopIcon className="size-3.5" />}
-                                    {preset.icon === "mobile" && <DevicePhoneMobileIcon className="size-3.5" />}
-                                    {preset.icon === "square" && <Square2StackIcon className="size-3.5" />}
-                                    {preset.icon === "desktop" && <ComputerDesktopIcon className="size-3.5" />}
-                                    <span className="truncate w-full text-center">{preset.name}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
 
                     {/* Aspect Ratio */}
                     <div>
@@ -273,25 +200,20 @@ export default function Form({ onAdd, onCancel, isVisible }) {
                             Resolution
                         </span>
                         <div className="grid grid-cols-4 gap-1.5">
-                            {resolutions.map(res => {
-                                const disabled4K = useShareableUrl && is4K(res)
-                                return (
-                                    <button
-                                        key={res}
-                                        onClick={() => !disabled4K && setResolutionString(res)}
-                                        disabled={disabled4K || isPendingSetResolutionString || isPendingResolutionString}
-                                        className={`py-2 rounded-lg text-xs font-medium transition-all ${
-                                            disabled4K ? "opacity-20 cursor-not-allowed" : ""
-                                        } ${
-                                            resolutionString === res
-                                                ? "bg-primary text-primary-content"
-                                                : "bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
-                                        }`}
-                                    >
-                                        {resolutionLabels[res] || res}
-                                    </button>
-                                )
-                            })}
+                            {resolutions.map(res => (
+                                <button
+                                    key={res}
+                                    onClick={() => setResolutionString(res)}
+                                    disabled={isPendingSetResolutionString || isPendingResolutionString}
+                                    className={`py-2 rounded-lg text-xs font-medium transition-all ${
+                                        resolutionString === res
+                                            ? "bg-primary text-primary-content"
+                                            : "bg-base-100 text-base-content/60 hover:text-base-content hover:bg-base-100/80"
+                                    }`}
+                                >
+                                    {resolutionLabels[res] || res}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -328,64 +250,49 @@ export default function Form({ onAdd, onCancel, isVisible }) {
                                 className="select select-sm w-full bg-base-100 border-0 text-xs font-medium rounded-lg h-auto py-2"
                                 disabled={isPendingSetQuality || isPendingQuality}
                             >
-                                {QUALITY_OPTIONS.map(opt => (
-                                    <option
-                                        key={opt.value}
-                                        disabled={useShareableUrl && opt.restrictShareable}
-                                        value={opt.value}
-                                    >
-                                        {getRenderQualityLabel(opt.value)}
+                                {QUALITY_OPTIONS.map(value => (
+                                    <option key={value} value={value}>
+                                        {getRenderQualityLabel(value)}
                                     </option>
                                 ))}
                             </select>
                         </div>
                     </div>
 
-                    <p className="text-[11px] opacity-30 leading-relaxed -mt-2">
+                    <p className="text-[11px] opacity-30 leading-relaxed">
                         Lower resolution and frame rate for faster exports.
                     </p>
-
-                    {/* Shareable Link */}
-                    <div className="bg-base-100 rounded-lg p-3.5">
-                        <label className="flex items-center justify-between cursor-pointer">
-                            <span className="text-xs font-medium">Shareable Link</span>
-                            <input
-                                type="checkbox"
-                                className="toggle toggle-sm toggle-primary"
-                                checked={useShareableUrl}
-                                onChange={e => setUseShareableUrl(e.target.checked)}
-                                disabled={!isShareableUrlEnabled()}
-                            />
-                        </label>
-                        {useShareableUrl && (
-                            <div className="mt-3">
-                                <ShareableUrl useShareableUrl={useShareableUrl} objectId={objectId} />
-                            </div>
-                        )}
-                        {!isShareableUrlEnabled() && (
-                            <p className="text-[11px] opacity-30 mt-1.5">Available for videos up to 10 minutes.</p>
-                        )}
-                    </div>
                 </div>
             </div>
 
-            {/* Bottom actions */}
-            <div className="px-5 py-4 flex items-center gap-3">
-                <button
-                    onClick={onCancel}
-                    disabled={isInitializing}
-                    className="flex-1 py-2.5 rounded-lg text-xs font-medium bg-base-100 text-base-content/60 hover:text-base-content transition-all"
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={onAddClicked}
-                    disabled={!projectState || isInitializing}
-                    className="flex-1 py-2.5 rounded-lg text-xs font-medium bg-primary text-primary-content hover:brightness-110 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40"
-                >
-                    {isInitializing && <span className="loading loading-spinner loading-xs" />}
-                    {!isInitializing && <>Export <ArrowRightIcon className="size-3.5" /></>}
-                </button>
+            {/* Output summary + actions */}
+            <div className="flex-none border-t border-base-content/5 px-5 pt-3 pb-4">
+                <div className="flex items-center justify-center gap-2 text-[11px] mb-3 select-none">
+                    <span className="font-semibold text-base-content/70">MP4</span>
+                    <span className="text-base-content/20">&middot;</span>
+                    <span className="text-base-content/50">{resolutionString ? resolutionString.replace("x", "×") : "…"}</span>
+                    <span className="text-base-content/20">&middot;</span>
+                    <span className="text-base-content/50">{fps ?? "…"} FPS</span>
+                    <span className="text-base-content/20">&middot;</span>
+                    <span className="text-base-content/50">{quality ? getRenderQualityLabel(quality) : "…"}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={onCancel}
+                        disabled={isInitializing}
+                        className="flex-1 py-2.5 rounded-lg text-xs font-medium bg-base-100 text-base-content/60 hover:text-base-content transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onAddClicked}
+                        disabled={!projectState || isInitializing}
+                        className="flex-[1.4] py-2.5 rounded-lg text-xs font-semibold bg-primary text-primary-content hover:brightness-110 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40"
+                    >
+                        {isInitializing && <span className="loading loading-spinner loading-xs" />}
+                        {!isInitializing && <>Export <ArrowRightIcon className="size-3.5" /></>}
+                    </button>
+                </div>
             </div>
         </div>
     )
