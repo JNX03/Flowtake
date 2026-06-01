@@ -436,10 +436,16 @@ self.addEventListener('message', async (event) => {
                 renderer.initPromise = renderer.init(payload.screenVideoDims, payload.cameraVideoDims)
                 await renderer.initPromise
             } catch (error) {
+                console.error(error)
                 post(self, RENDER_ERROR, { error: error.message })
                 renderer.initPromise = null
                 await renderer.cancel()
                 if (!error.isCaptured && !error.message.includes('CanvasRenderer is not yet implemented')) throw error
+                // Init failed (already reported via RENDER_ERROR). Reply with a failed
+                // response so the manager's postAsync rejects deterministically instead of
+                // resolving with a fake success and racing into START_RENDER.
+                if (expectsResponse) post(self, type, null, id, false, true, [], { name: error.name, message: error.message })
+                return
             }
 
             result = { renderId: payload.render.id }

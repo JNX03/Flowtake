@@ -27,6 +27,7 @@ export default class WorkerInputReader extends RendererInputReader {
 
     async createSink(timestamps) {
         const track = await this.input.getPrimaryVideoTrack()
+        if (!track) throw new Error(`No video track found in "${this.videoType}" — the recording may be missing or corrupted`)
         this.sink = new CanvasSink(track, { poolSize: BATCH_SIZE })
         this.timestamps = timestamps.map(({ rendererTimestamp }) => toS(rendererTimestamp))
     }

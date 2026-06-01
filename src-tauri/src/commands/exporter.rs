@@ -18,9 +18,20 @@ pub async fn open_export_window(
         state.export_section = section.clone();
     }
 
-    // Close existing exporter window if any
+    // If the exporter window already exists, reuse it: bring it forward and push the new
+    // project state + section to its listeners. (Closing then immediately rebuilding raced
+    // with Tauri's async close() and threw "a webview with label `exporter` already exists".)
     if let Some(existing) = app.get_webview_window("exporter") {
-        existing.close().map_err(AppError::Tauri)?;
+        existing.show().ok();
+        existing.unminimize().ok();
+        existing.set_focus().ok();
+        if let Some(state_data) = state_data {
+            app.emit_to("exporter", "project-state", &state_data).ok();
+        }
+        if let Some(section) = section {
+            app.emit_to("exporter", "open-section", &section).ok();
+        }
+        return Ok(());
     }
 
     let _window = WebviewWindowBuilder::new(
@@ -104,34 +115,61 @@ pub async fn queue_render(app: AppHandle, render: Value) -> AppResult<()> {
     let render_id = render
         .get("id")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| AppError::General("Render is missing an id".to_string()))?
         .to_string();
 
+    // Require an open project. Falling back to "" copied the whole temp root and produced
+    // an empty render dir, which later failed cryptically with "Render failed".
     let project_id = {
         let state = state.lock().unwrap();
-        state.project_id.clone().unwrap_or_default()
+        state.project_id.clone().ok_or(AppError::NoProjectOpen)?
     };
 
     let mut state = state.lock().unwrap();
     let render_temp = state.render_temp_dir(&render_id);
     std::fs::create_dir_all(&render_temp)?;
 
-    // Copy project files to render temp directory
+    // Copy project files (screen.mp4, camera.webm, project.json, ...) into the render temp dir.
     let project_temp = state.project_temp_dir(&project_id);
     if project_temp.exists() {
         copy_dir_contents(&project_temp, &render_temp)?;
     }
 
+    // The renderer always reads screen.mp4 first; if it's missing or empty the project was
+    // never fully saved to temp. Fail fast here with a clear message instead of letting the
+    // worker throw a cryptic decode/read error later.
+    let screen_video = render_temp.join("screen.mp4");
+    let screen_ok = std::fs::metadata(&screen_video)
+        .map(|m| m.len() > 0)
+        .unwrap_or(false);
+    if !screen_ok {
+        std::fs::remove_dir_all(&render_temp).ok();
+        return Err(AppError::General(
+            "Screen recording not found — open and save the project before exporting".to_string(),
+        ));
+    }
+
     let export_dir = state.export_dir();
     std::fs::create_dir_all(&export_dir)?;
 
-    let output_path = export_dir.join(format!(
-        "{}.mp4",
-        render
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("export")
-    ));
+    // Name the output after the project (sanitized for the filesystem) and avoid overwriting
+    // earlier exports by suffixing " (n)". Previously every export overwrote "export.mp4"
+    // because the render object never carried a "name" field.
+    let raw_name = render
+        .get("projectName")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("Flowtake Recording");
+    let safe_name: String = raw_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') { c } else { '_' })
+        .collect::<String>()
+        .trim()
+        .to_string();
+    let safe_name = if safe_name.is_empty() { "Flowtake Recording".to_string() } else { safe_name };
+    let output_path = unique_output_path(&export_dir, &safe_name);
 
     state.renders.insert(
         render_id.clone(),
@@ -145,6 +183,18 @@ pub async fn queue_render(app: AppHandle, render: Value) -> AppResult<()> {
     );
 
     Ok(())
+}
+
+/// Returns `<dir>/<stem>.mp4`, or `<dir>/<stem> (n).mp4` if that already exists, so each
+/// export keeps a distinct file instead of overwriting the previous one.
+fn unique_output_path(dir: &std::path::Path, stem: &str) -> std::path::PathBuf {
+    let mut candidate = dir.join(format!("{}.mp4", stem));
+    let mut n = 1;
+    while candidate.exists() {
+        candidate = dir.join(format!("{} ({}).mp4", stem, n));
+        n += 1;
+    }
+    candidate
 }
 
 #[tauri::command]

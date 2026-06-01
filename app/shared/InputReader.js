@@ -31,6 +31,7 @@ export default class InputReader {
         await reader.init()
         const track = await reader.input.getPrimaryVideoTrack()
         await reader.close()
+        if (!track) throw new Error(`No video track found in "${reader.videoType}" — the recording may be missing or corrupted`)
         return { x: track.displayWidth, y: track.displayHeight }
     }
 

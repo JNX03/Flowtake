@@ -44,10 +44,36 @@ export default class RenderWorkerManager extends WorkerManager {
     }
 
     async start(onProcessed) {
-        await this.init(onProcessed)
+        try {
+            await this.init(onProcessed)
+        } catch (e) {
+            // Worker-side failures already report via the RENDER_ERROR message (which sets
+            // isCancelled). This catch covers manager-side failures too — e.g. the screen
+            // video is missing/empty so getDimensions() rejects before the worker ever runs.
+            // Never rethrow: a rejected start() makes react-query retry and spawn more workers.
+            if (!this.isCancelled) this.fail(e?.message || String(e))
+            return
+        }
         if (this.isCancelled) return
         this.post(START_RENDER)
         renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_RENDERING } }))
+    }
+
+    // Surface a render failure exactly once: real message in the toast + console, mark the
+    // render canceled, and advance the queue. Guarded by isCancelled so init- and render-time
+    // failures don't double-report.
+    fail(message) {
+        if (this.isCancelled) return
+        console.error("[render] Render failed:", message)
+        this.isCancelled = true
+        renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_CANCELED } }))
+        renderStore.dispatch(addToast({
+            type: TOAST_ERROR,
+            text: `Render failed: ${message}`,
+            autoDismiss: false,
+            actions: [{ label: "Report", url: buildGitHubIssueUrl(message) }]
+        }))
+        this.onProcessed?.()
     }
 
     async init(onProcessed) {
@@ -90,10 +116,7 @@ export default class RenderWorkerManager extends WorkerManager {
                 this.onProcessed()
                 break
             case RENDER_ERROR:
-                renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_CANCELED } }))
-                renderStore.dispatch(addToast({ type: TOAST_ERROR, text: "Render failed", autoDismiss: false, actions: [{ label: "Report", url: buildGitHubIssueUrl("Render failed") }] }))
-                this.isCancelled = true
-                this.onProcessed()
+                this.fail(payload?.error || "Render failed")
                 break
             case SEGMENT_FRAME: {
                 responsePayload = await this.segment(payload)

@@ -12,6 +12,11 @@ export const createRenderableProjectState = (state, rendererDims = null) => {
             ...(rendererDims ? { rendererDims } : {})
         },
         panCoords: state.panCoords,
+        // The render worker reads plugin selectors (mouse style, keyboard overlay) which
+        // expect a top-level `plugin` slice. Without it, selectIsFeatureEnabled crashes with
+        // "Cannot read properties of undefined (reading 'enabled')". Fall back to an inert
+        // slice so a missing plugin state just disables plugins instead of failing the render.
+        plugin: state.plugin ?? { enabled: {}, config: {} },
         undoableState: {
             present: state.undoableState.present
         }
