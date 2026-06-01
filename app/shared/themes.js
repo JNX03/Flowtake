@@ -97,3 +97,21 @@ export const DARK_THEMES = [
 export function applyTheme(themeId) {
     document.documentElement.setAttribute("data-theme", themeId)
 }
+
+// Broadcast a theme change to every app window (export, recorder, ...) so they restyle live.
+export function broadcastTheme(themeId) {
+    try {
+        window.electron?.ipcRenderer?.send?.("theme-changed", themeId)
+    } catch { /* ignore — broadcasting is best-effort */ }
+}
+
+// Apply the saved theme on a window's startup and keep it in sync when it changes elsewhere.
+// Call once from a window entry (e.g. exporter.jsx) so secondary windows follow the app theme.
+export function initThemeSync() {
+    window.electron?.ipcRenderer?.invoke("store-get", "appearance-theme")
+        .then(theme => { if (theme) applyTheme(theme) })
+        .catch(() => {})
+    window.electron?.ipcRenderer?.on?.("theme-changed", (_e, themeId) => {
+        if (themeId) applyTheme(themeId)
+    })
+}

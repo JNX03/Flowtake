@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { LIGHT_THEMES, DARK_THEMES, applyTheme } from "@shared/themes"
+import { LIGHT_THEMES, DARK_THEMES, applyTheme, broadcastTheme } from "@shared/themes"
 import Fieldset from "../properties/Fieldset"
 
 export default function AppearanceSettings() {
@@ -20,6 +20,7 @@ export default function AppearanceSettings() {
     const selectTheme = async (themeId) => {
         setActiveTheme(themeId)
         applyTheme(themeId)
+        broadcastTheme(themeId)
         await window.electron.ipcRenderer.invoke(
             "store-set",
             "appearance-theme",

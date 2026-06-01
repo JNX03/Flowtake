@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { LIGHT_THEMES, DARK_THEMES, applyTheme } from "@shared/themes"
+import { LIGHT_THEMES, DARK_THEMES, applyTheme, broadcastTheme } from "@shared/themes"
 import { ThemeCard } from "../settings/AppearanceSettings"
 
 export default function AppearanceStep() {
@@ -17,6 +17,7 @@ export default function AppearanceStep() {
     const selectTheme = async (themeId) => {
         setActiveTheme(themeId)
         applyTheme(themeId)
+        broadcastTheme(themeId)
         await window.electron.ipcRenderer.invoke("store-set", "appearance-theme", themeId)
     }
 

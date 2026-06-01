@@ -1,6 +1,10 @@
 import { initTauriBridge } from '@shared/tauriBridge'
 initTauriBridge()
 
+import { initThemeSync } from '@shared/themes'
+// Match the theme the user picked in Settings, and update live if they change it.
+initThemeSync()
+
 import {
     QueryClient,
     QueryClientProvider
