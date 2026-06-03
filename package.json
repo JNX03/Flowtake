@@ -96,7 +96,7 @@
     "react-hotkeys-hook": "^5.3.2",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
-    "react-redux": "^9.2.0",
+    "react-redux": "^9.3.0",
     "react-resize-detector": "^12.3.0",
     "redux-undo": "^1.1.0",
     "rehype-raw": "^7.0.0",
