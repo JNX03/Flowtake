@@ -92,7 +92,7 @@
     "pixi-filters": "^6.1.5",
     "pixi.js": "^8.18.1",
     "prop-types": "^15.8.1",
-    "react": "^19.2.4",
+    "react": "^19.2.7",
     "react-hotkeys-hook": "^5.3.2",
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
