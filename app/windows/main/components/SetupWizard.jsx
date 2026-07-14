@@ -3,16 +3,12 @@ import PropTypes from "prop-types"
 import TitleBar from "../../../components/TitleBar"
 import WelcomeStep from "./setup/WelcomeStep"
 import PermissionsStep from "./setup/PermissionsStep"
-import ExportPathStep from "./setup/ExportPathStep"
-import AppearanceStep from "./setup/AppearanceStep"
 import CompletionStep from "./setup/CompletionStep"
 
 const STEPS = [
     { id: "welcome", label: "Welcome" },
-    { id: "permissions", label: "Permissions" },
-    { id: "export", label: "Export" },
-    { id: "theme", label: "Theme" },
-    { id: "done", label: "Done" },
+    { id: "permissions", label: "Readiness" },
+    { id: "done", label: "Record" },
 ]
 
 export default function SetupWizard({ onComplete }) {
@@ -30,8 +26,6 @@ export default function SetupWizard({ onComplete }) {
         switch (STEPS[currentStep].id) {
             case "welcome": return <WelcomeStep />
             case "permissions": return <PermissionsStep />
-            case "export": return <ExportPathStep />
-            case "theme": return <AppearanceStep />
             case "done": return <CompletionStep onComplete={onComplete} />
             default: return null
         }
@@ -45,7 +39,7 @@ export default function SetupWizard({ onComplete }) {
 
         <div className="flex flex-col h-full pt-8">
             {/* Step indicator */}
-            <div className="px-8 pt-6 pb-2 flex-none">
+            <div className="px-4 sm:px-8 pt-5 pb-2 flex-none">
                 <ul className="steps steps-horizontal w-full">
                     {STEPS.map((step, i) => (
                         <li key={step.id} className={`step text-xs ${i <= currentStep ? "step-primary" : ""}`}>
@@ -56,28 +50,29 @@ export default function SetupWizard({ onComplete }) {
             </div>
 
             {/* Step content */}
-            <div className="flex-1 overflow-auto px-8 py-4">
+            <div className="flex-1 overflow-auto px-4 sm:px-8 py-4">
                 {renderStep()}
             </div>
 
             {/* Navigation */}
-            <div className="flex-none px-8 py-4 border-t border-base-content/10 flex items-center justify-between">
+            <div className="flex-none px-4 sm:px-8 py-4 border-t border-base-content/10 flex items-center justify-between">
                 <button
+                    type="button"
                     className="btn btn-ghost btn-sm"
                     onClick={onComplete}
                 >
-                    Skip setup
+                    Use defaults
                 </button>
 
                 <div className="flex gap-2">
                     {!isFirst && (
-                        <button className="btn btn-ghost btn-sm" onClick={prev}>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={prev}>
                             Back
                         </button>
                     )}
                     {!isLast && (
-                        <button className="btn btn-primary btn-sm" onClick={next}>
-                            Next
+                        <button type="button" className="btn btn-primary btn-sm" onClick={next}>
+                            {currentStep === 0 ? "Check readiness" : "Continue"}
                         </button>
                     )}
                 </div>

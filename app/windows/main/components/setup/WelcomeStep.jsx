@@ -22,8 +22,7 @@ export default function WelcomeStep() {
             </div>
 
             <p className="text-base-content/70 max-w-md">
-                Professional screen recording with automatic zoom animations.
-                Let's get you set up in a few quick steps.
+                Record your screen, window, or a custom area with local processing and automatic zoom. One quick readiness check, then you can start.
             </p>
         </div>
     )

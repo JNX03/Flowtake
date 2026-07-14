@@ -7,6 +7,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 
 export default function PermissionsStep() {
+    const platform = window.electron?.process?.platform || (navigator.platform?.includes("Mac") ? "darwin" : navigator.platform?.includes("Win") ? "win32" : "other")
     const { data: permissions, isPending: permPending, refetch: refetchPerms } = useQuery({
         queryKey: ['setup-permissions'],
         queryFn: () => window.electron.ipcRenderer.invoke("check-permissions"),
@@ -39,9 +40,9 @@ export default function PermissionsStep() {
     return (
         <div className="flex flex-col gap-5 max-w-lg mx-auto">
             <div>
-                <h3 className="text-lg font-semibold">Permissions & Dependencies</h3>
+                <h3 className="text-lg font-semibold">Recorder readiness</h3>
                 <p className="text-sm text-base-content/60 mt-1">
-                    Flowtake needs certain permissions and tools to record your screen.
+                    Flowtake checks the local capture tools now. Camera and microphone access are requested only if you choose those devices.
                 </p>
             </div>
 
@@ -55,7 +56,10 @@ export default function PermissionsStep() {
                     </div>
                 ) : (
                     <div className="space-y-1">
-                        {permissions?.map((perm, i) => (
+                        {permissions?.map((perm, i) => {
+                            const isCheckedOnUse = platform === "win32" && perm.permission !== "screenCapture"
+                            const status = isCheckedOnUse ? "Checked on use" : perm.hasPermission ? "Available" : "Missing"
+                            return (
                             <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-base-200/50">
                                 {perm.hasPermission ? (
                                     <CheckCircleIcon className="w-5 h-5 text-success flex-none" />
@@ -64,10 +68,11 @@ export default function PermissionsStep() {
                                 )}
                                 <span className="text-sm flex-1">{perm.label}</span>
                                 <span className={`badge badge-sm ${perm.hasPermission ? "badge-success" : "badge-warning"}`}>
-                                    {perm.hasPermission ? "Granted" : "Missing"}
+                                    {status}
                                 </span>
                             </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 )}
             </div>
@@ -108,7 +113,7 @@ export default function PermissionsStep() {
                     <ArrowPathIcon className="w-4 h-4" />
                     Refresh
                 </button>
-                {!allPermsOk && navigator.platform?.includes("Mac") && (
+                {!allPermsOk && platform === "darwin" && (
                     <button className="btn btn-ghost btn-sm gap-1" onClick={openSystemSettings}>
                         <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                         Open System Settings
@@ -118,7 +123,12 @@ export default function PermissionsStep() {
 
             {allPermsOk && allDepsOk && (
                 <div className="text-sm text-success font-medium">
-                    Everything looks good! Click Next to continue.
+                    Core recording tools are ready. Device access is still your choice.
+                </div>
+            )}
+            {(!allPermsOk || !allDepsOk) && !isLoading && (
+                <div className="text-sm text-warning font-medium">
+                    A required item needs attention. You can continue, but unavailable recording options will remain off.
                 </div>
             )}
         </div>

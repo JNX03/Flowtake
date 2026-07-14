@@ -16,8 +16,7 @@ import {
     TOAST_ERROR_CAPTURE,
     TOAST_EXPORT_COMPLETED,
     TOAST_UPDATE,
-    TOAST_UPDATE_READY,
-    TOAST_WARNING
+    TOAST_UPDATE_READY
 } from "@shared/helpers"
 import { addErrorToast } from "@shared/errorToastHelper"
 import { initSystemInfo } from "@shared/errorReporting"
@@ -120,6 +119,12 @@ export default function App() {
         setShowSetupWizard(false)
     }, [])
 
+    useEffect(() => {
+        const showSetup = () => setShowSetupWizard(true)
+        window.addEventListener("flowtake-run-setup", showSetup)
+        return () => window.removeEventListener("flowtake-run-setup", showSetup)
+    }, [])
+
     const getCapturersAndEncoders = useCallback(async () => {
         try {
             const c = await window.electron.ipcRenderer.invoke("get-capturers")
@@ -173,15 +178,29 @@ export default function App() {
         const consumeEarlyData = async () => {
             try {
                 if (window.__earlyData) {
-                    const [c, e, setupDone] = await Promise.all([
-                        window.__earlyData.capturers,
-                        window.__earlyData.encoders,
-                        window.__earlyData.setupCompleted
+                    const earlyData = window.__earlyData
+                    window.__earlyData = null
+
+                    // Capture-engine discovery and setup state are cheap. Show
+                    // the launcher as soon as those are ready while the real
+                    // hardware-encoder probes finish in the background. A cold
+                    // GPU driver can otherwise hold the splash for several
+                    // seconds even though the rest of the app is usable.
+                    const [c, setupDone] = await Promise.all([
+                        earlyData.capturers,
+                        earlyData.setupCompleted
                     ])
                     dispatch(setCapturers(Array.isArray(c) ? c : []))
-                    dispatch(setEncoders(Array.isArray(e) ? e : []))
                     setShowSetupWizard(setupDone !== true)
-                    window.__earlyData = null
+                    dismissSplash()
+
+                    try {
+                        const e = await earlyData.encoders
+                        dispatch(setEncoders(Array.isArray(e) ? e : []))
+                    } catch (encoderError) {
+                        console.error("[Flowtake] Failed to detect video encoders:", encoderError)
+                        dispatch(setEncoders([]))
+                    }
                 } else {
                     await getCapturersAndEncoders()
                     const setupDone = await window.electron.ipcRenderer.invoke("store-get", "hasCompletedSetup").catch(() => null)
