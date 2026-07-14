@@ -6,6 +6,7 @@ import PropTypes from "prop-types"
 import {
   useCallback,
   useEffect,
+  useRef,
   useState
 } from "react"
 import {
@@ -22,6 +23,7 @@ import {
   selectEncoders,
   selectIsProjectClosing,
   selectRenderQueueProgress,
+  setOpenSettings,
   setLoaderMessage
 } from "@shared/redux/appSlice"
 import {
@@ -30,12 +32,16 @@ import {
   setIsRecording
 } from "@shared/redux/recorderSlice"
 import RecordModal from "./RecordModal"
+import { SETTINGS_RECORDER } from "../settings/constants"
 
-export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids = [] }) {
+export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids = [], audioProcessingSettings }) {
 
   const dispatch = useDispatch()
 
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [startError, setStartError] = useState(null)
+  const [isStarting, setIsStarting] = useState(false)
+  const startInFlightRef = useRef(false)
 
   const source = useSelector(selectSource)
   const isRecording = useSelector(selectIsRecording)
@@ -79,6 +85,10 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
   }, [dispatch, isRecording, isProjectClosing])
 
   const start = useCallback(async () => {
+    if (startInFlightRef.current || isRecording) return
+    startInFlightRef.current = true
+    setIsStarting(true)
+
     const video = (cameras ?? []).find(({ id }) => id === camera) ?? null
     const audio = (microphones ?? []).find(({ id }) => id === microphone) ?? null
 
@@ -87,15 +97,16 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
       audioTrack: audio?.track.label,
       constraints: {
         video: video
-          ? { ...CONSTRAINTS_VIDEO, deviceId: video.deviceId }
+          ? { ...CONSTRAINTS_VIDEO, deviceId: { exact: video.deviceId } }
           : false,
         audio: audio
-          ? { ...CONSTRAINTS_AUDIO, deviceId: audio.deviceId }
+          ? { ...CONSTRAINTS_AUDIO, ...audioProcessingSettings, deviceId: { exact: audio.deviceId } }
           : false,
       },
     }
 
     try {
+      setStartError(null)
       await window.electron.ipcRenderer.invoke("init-recording", source, mediaSourceConfig, isRecordingSystemAudio ? systemAudio : null)
 
       // Mute excluded apps when recording with system audio
@@ -106,9 +117,13 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
       dispatch(setIsRecording(true))
     } catch (err) {
       console.error("[Flowtake] init-recording failed:", err)
+      setStartError(err?.message || String(err) || "Recording could not start. Check your devices and try again.")
       dispatch(setIsRecording(false))
+    } finally {
+      startInFlightRef.current = false
+      setIsStarting(false)
     }
-  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids])
+  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids, audioProcessingSettings, isRecording])
 
   const onClick = useCallback(() => {
     if (renderQueueProgress === -1) start()
@@ -124,17 +139,31 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
 
   const isPending = isPendingCamera || isPendingCameras || isPendingMicrophone || isPendingMicrophones ||
     isPendingSystemAudio
+  const hasRecorderEngine = (capturers?.length ?? 0) > 0 && (encoders?.length ?? 0) > 0
+  const primaryAction = hasRecorderEngine || isPending
+    ? onClick
+    : () => dispatch(setOpenSettings(SETTINGS_RECORDER))
 
   return (<>
     <Button
-      onClick={onClick}
-      isLoading={isPending || !capturers?.length || !encoders?.length}
-      disabled={isPending || !capturers?.length || !encoders?.length}
+      onClick={primaryAction}
+      isLoading={isStarting || isPending}
+      disabled={isStarting || isRecording || isPending}
       icon={ArrowRightIcon}
       className="btn-primary w-full"
     >
-      Record
+      {hasRecorderEngine ? "Record" : "Set up recorder"}
     </Button>
+    {!isPending && !hasRecorderEngine && (
+      <p className="mt-1 text-[11px] leading-snug text-warning" role="status">
+        Capture engine needs attention. Open Recorder settings to repair it.
+      </p>
+    )}
+    {startError && (
+      <p className="mt-1 text-[11px] leading-snug text-error" role="alert">
+        {startError}
+      </p>
+    )}
     <RecordModal
       isOpen={isModalOpen}
       onCancel={onModalCancel}
@@ -146,4 +175,9 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
 RecordButton.propTypes = {
   isRecordingSystemAudio: PropTypes.bool.isRequired,
   excludedAudioPids: PropTypes.arrayOf(PropTypes.number),
+  audioProcessingSettings: PropTypes.shape({
+    noiseSuppression: PropTypes.bool,
+    echoCancellation: PropTypes.bool,
+    autoGainControl: PropTypes.bool,
+  }).isRequired,
 }

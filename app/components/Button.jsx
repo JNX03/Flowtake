@@ -8,7 +8,8 @@ export default function Button({
     children,
     size = "md",
     className,
-    tooltip
+    tooltip,
+    ...buttonProps
 }) {
 
     const getButtonSizeClass = size => {
@@ -50,6 +51,7 @@ export default function Button({
             onClick={onClick}
             disabled={disabled || isLoading}
             {...(tooltip ? { "data-tip": tooltip } : {})}
+            {...buttonProps}
         >
             {!isLoading && Icon && <Icon className={getIconSizeClass(size)} />}
             {isLoading && <span className={`loading loading-spinner ${getSpinnerSizeClass(size)}`} />}
