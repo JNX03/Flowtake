@@ -1,11 +1,10 @@
 import { ArrowDownTrayIcon, ArrowPathIcon, CheckCircleIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { exit } from "@tauri-apps/plugin-process"
 import Button from "../../../../components/Button"
 import MarkdownRenderer from "../../../../components/MarkdownRenderer"
 import Fieldset from "../properties/Fieldset"
-import Toggle from "../properties/Toggle"
 
 function formatBytes(bytes) {
     if (bytes < 1024) return `${bytes} B`
@@ -23,11 +22,11 @@ export default function UpdatesSettings() {
     const [isInstalling, setIsInstalling] = useState(false)
     const unlistenRef = useRef(null)
 
-    const { data: autoUpdateEnabled, isPending: isAutoUpdatePending, refetch: refetchAutoUpdate } = useQuery({
-        queryKey: ['autoUpdateEnabled'],
-        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "autoUpdateEnabled"),
-        staleTime: Infinity
-    })
+    const removeProgressListener = useCallback(() => {
+        if (!unlistenRef.current) return
+        unlistenRef.current()
+        unlistenRef.current = null
+    }, [])
 
     const { data: version } = useQuery({
         queryKey: ['version'],
@@ -42,18 +41,8 @@ export default function UpdatesSettings() {
     })
 
     useEffect(() => {
-        return () => {
-            if (unlistenRef.current) {
-                unlistenRef.current()
-                unlistenRef.current = null
-            }
-        }
-    }, [])
-
-    const onChangeAutoUpdate = async (e) => {
-        await window.electron.ipcRenderer.invoke("store-set", "autoUpdateEnabled", e.target.checked)
-        refetchAutoUpdate()
-    }
+        return removeProgressListener
+    }, [removeProgressListener])
 
     const onCheckForUpdates = async () => {
         setChecking(true)
@@ -77,16 +66,18 @@ export default function UpdatesSettings() {
         setInstallerPath(null)
 
         // Listen for progress events
-        if (unlistenRef.current) {
-            unlistenRef.current()
-        }
-        unlistenRef.current = window.electron.ipcRenderer.on("update-download-progress", (_event, data) => {
+        removeProgressListener()
+        const handleProgress = (_event, data) => {
             setDownloadProgress({
                 bytesDownloaded: data.bytes_downloaded,
                 totalBytes: data.total_bytes,
                 percent: data.percent,
             })
-        })
+        }
+        window.electron.ipcRenderer.on("update-download-progress", handleProgress)
+        unlistenRef.current = () => {
+            window.electron.ipcRenderer.removeListener("update-download-progress", handleProgress)
+        }
 
         try {
             const result = await window.electron.ipcRenderer.invoke(
@@ -100,10 +91,7 @@ export default function UpdatesSettings() {
             setDownloadError(err?.message || String(err) || "Download failed")
             setDownloadProgress(null)
         } finally {
-            if (unlistenRef.current) {
-                unlistenRef.current()
-                unlistenRef.current = null
-            }
+            removeProgressListener()
         }
     }
 
@@ -130,14 +118,6 @@ export default function UpdatesSettings() {
 
     return (<div className="flex flex-col gap-4">
         <h4 className="font-semibold text-lg">Updates</h4>
-
-        <Fieldset legend="Auto Update" description="Automatically check for updates when Flowtake starts.">
-            <Toggle leftLabel="Check for updates automatically"
-                value={isAutoUpdatePending ? false : (autoUpdateEnabled ?? true)}
-                onChange={onChangeAutoUpdate}
-                disabled={isAutoUpdatePending}
-                isIndeterminate={isAutoUpdatePending} />
-        </Fieldset>
 
         <Fieldset legend="Check for Updates" description={`Current version: ${version || "..."}`}>
             <div className="flex flex-col gap-3">
@@ -199,7 +179,7 @@ export default function UpdatesSettings() {
                                 <Button icon={ArrowDownTrayIcon} onClick={onDownloadUpdate}>
                                     Download Update
                                 </Button>
-                                <button className="btn btn-ghost btn-sm gap-1" onClick={onOpenInBrowser}>
+                                <button type="button" className="btn btn-ghost btn-sm gap-1" onClick={onOpenInBrowser}>
                                     <ArrowTopRightOnSquareIcon className="size-4" />
                                     Open in browser
                                 </button>

@@ -35,11 +35,12 @@ test("renderable project state omits app state and undo history", () => {
 
     const renderState = createRenderableProjectState(state, { x: 854, y: 480 })
 
-    assert.deepEqual(Object.keys(renderState).sort(), ["animator", "panCoords", "undoableState"])
+    assert.deepEqual(Object.keys(renderState).sort(), ["animator", "panCoords", "plugin", "undoableState"])
     assert.equal(renderState.undoableState.present, present)
     assert.equal(renderState.panCoords, panCoords)
     assert.deepEqual(renderState.animator.rendererDims, { x: 854, y: 480 })
     assert.equal(renderState.animator.backgroundAlpha, 1)
+    assert.deepEqual(renderState.plugin, { enabled: {}, config: {} })
     assert.equal("past" in renderState.undoableState, false)
     assert.equal("future" in renderState.undoableState, false)
     assert.equal("app" in renderState, false)

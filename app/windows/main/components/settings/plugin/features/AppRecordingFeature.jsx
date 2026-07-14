@@ -7,11 +7,14 @@ import {
     updateFeatureConfig,
 } from '@shared/redux/pluginSlice'
 
+const MAX_APP_LAYERS = 2
+
 export default function AppRecordingFeature() {
     const dispatch = useDispatch()
     const config = useSelector(selectFeatureConfig(FEATURE_IDS.APP_RECORDING))
     const [picking, setPicking] = useState(false)
     const [available, setAvailable] = useState([])
+    const [pickerError, setPickerError] = useState(null)
 
     const update = (patch) => {
         dispatch(updateFeatureConfig({ id: FEATURE_IDS.APP_RECORDING, patch }))
@@ -19,6 +22,7 @@ export default function AppRecordingFeature() {
 
     const refreshWindows = async () => {
         setPicking(true)
+        setPickerError(null)
         try {
             const list = await window.electron.ipcRenderer.invoke('get-windows')
             // Keep top-level non-tool windows that have a name
@@ -26,11 +30,13 @@ export default function AppRecordingFeature() {
             setAvailable(visible)
         } catch {
             setAvailable([])
+            setPickerError('App windows could not be listed. Close the picker and try again.')
         }
     }
 
     const toggle = (win) => {
         const exists = (config.windows || []).some(w => w.id === win.id)
+        if (!exists && (config.windows || []).length >= MAX_APP_LAYERS) return
         const nextWindows = exists
             ? config.windows.filter(w => w.id !== win.id)
             : [...(config.windows || []), { id: win.id, name: win.name }]
@@ -51,7 +57,10 @@ export default function AppRecordingFeature() {
     return (
         <div className="flex flex-col gap-3 mt-2">
             <p className="text-[11px] text-base-content/50 leading-snug">
-                Capture each selected app to its own video layer. You can show or hide layers in the editor before exporting.
+                Capture up to {MAX_APP_LAYERS} additional app regions as separate video layers. Each layer adds an encoder, so use only what you need.
+            </p>
+            <p className="text-[11px] text-warning/80 leading-snug">
+                Keep selected windows open, uncovered, and in the same position until you stop recording.
             </p>
 
             {(config.windows || []).length > 0 && (
@@ -83,17 +92,19 @@ export default function AppRecordingFeature() {
                 <div className="rounded-md border border-base-content/10 max-h-60 overflow-y-auto divide-y divide-base-content/5">
                     {available.length === 0 && (
                         <div className="px-3 py-6 text-center text-xs text-base-content/40">
-                            No windows available.
+                            {pickerError || "No windows available."}
                         </div>
                     )}
                     {available.map(w => {
                         const checked = (config.windows || []).some(s => s.id === w.id)
+                        const atLimit = !checked && (config.windows || []).length >= MAX_APP_LAYERS
                         return (
-                            <label key={w.id} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-base-content/5">
+                            <label key={w.id} className={`flex items-center gap-2 px-3 py-1.5 hover:bg-base-content/5 ${atLimit ? "opacity-45 cursor-not-allowed" : "cursor-pointer"}`}>
                                 <input
                                     type="checkbox"
                                     className="checkbox checkbox-xs"
                                     checked={checked}
+                                    disabled={atLimit}
                                     onChange={() => toggle(w)}
                                 />
                                 <span className="text-xs truncate flex-1">{w.name}</span>
