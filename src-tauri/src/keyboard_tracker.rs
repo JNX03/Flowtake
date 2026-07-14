@@ -127,7 +127,10 @@ impl KeyboardTracker {
 
 // ── Windows implementation ──────────────────────────────────────────────────
 #[cfg(target_os = "windows")]
-static KB_EVENTS: std::sync::LazyLock<Mutex<Option<Arc<Mutex<Vec<KeyEvent>>>>>> =
+type SharedKeyEvents = Arc<Mutex<Vec<KeyEvent>>>;
+
+#[cfg(target_os = "windows")]
+static KB_EVENTS: std::sync::LazyLock<Mutex<Option<SharedKeyEvents>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
 #[cfg(target_os = "windows")]
@@ -246,7 +249,7 @@ fn vk_to_name(vk: u32) -> String {
     let v = vk as u16;
 
     // F1..F24
-    if v >= VK_F1.0 && v <= VK_F24.0 {
+    if (VK_F1.0..=VK_F24.0).contains(&v) {
         return format!("F{}", v - VK_F1.0 + 1);
     }
     // 0..9 top row
@@ -258,7 +261,7 @@ fn vk_to_name(vk: u32) -> String {
         return ((v as u8) as char).to_string();
     }
     // Numpad 0..9
-    if v >= VK_NUMPAD0.0 && v <= VK_NUMPAD9.0 {
+    if (VK_NUMPAD0.0..=VK_NUMPAD9.0).contains(&v) {
         return format!("Num{}", v - VK_NUMPAD0.0);
     }
 
