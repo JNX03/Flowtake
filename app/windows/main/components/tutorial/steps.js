@@ -16,7 +16,7 @@ export const TUTORIAL_STEPS = [
     {
         id: 'stop-recording',
         title: 'Recording in progress',
-        description: 'Your screen is being recorded. Press Stop or use the keyboard shortcut when you\'re done.',
+        description: 'Your screen is being recorded. Use the always-visible Stop and save button when you\'re done.',
         targetSelector: null, // No spotlight — waiting state
         placement: null,
         isWaiting: true,

@@ -46,6 +46,19 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime']
   },
 
+  // Vite's default scan does not discover worker-only scene dependencies until
+  // the first recording opens. Scan both workers up front so dependency
+  // optimization stays in one generation and cannot force a reload behind the
+  // editor's unsaved-work guard during that first handoff.
+  optimizeDeps: {
+    entries: [
+      'index.html',
+      'app/windows/**/index.html',
+      'app/shared/workers/previewWorker.js',
+      'app/shared/workers/renderWorker.js',
+    ],
+  },
+
   assetsInclude: ['**/*.tflite', '**/*.frag', '**/*.vert', '**/*.wgsl'],
 
   // Vite options tailored for Tauri development
