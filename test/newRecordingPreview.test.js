@@ -8,8 +8,10 @@ const source = await readFile(
 )
 
 test("source preview polling avoids screenshot retry storms", () => {
-    assert.match(source, /retry:\s*false/)
-    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 5000 : 2000/)
+    assert.match(source, /retry:\s*\(failureCount, error\)/)
+    assert.match(source, /failureCount < 1 && !message\.includes\("ScreenPermissionDenied"\)/)
+    assert.match(source, /retryDelay:\s*500/)
+    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 10000 : 5000/)
     assert.match(source, /refetchIntervalInBackground:\s*false/)
     assert.match(source, /previewUnavailable/)
     assert.match(source, /refetch:\s*refetchCaptureSourcePreview/)

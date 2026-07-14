@@ -51,11 +51,11 @@ export default function Settings() {
     useHotkeys("ctrl+slash", () => dispatch(setOpenSettings(SETTINGS_HOTKEYS)))
 
     return (<Modal isOpen={!!openSettings} title={"Settings"} close={() => dispatch(setOpenSettings(null))}
-        modalBoxClassNames="w-full max-w-3xl h-150 flex flex-col">
-        <div className="flex flex-row gap-6 flex-1 min-h-0">
+        modalBoxClassNames="w-full max-w-3xl h-[min(600px,calc(100vh-2rem))] flex flex-col">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-5 flex-1 min-h-0">
             {/* Sidebar */}
-            <nav className="w-48 flex-shrink-0 flex flex-col">
-                <div className="flex flex-col gap-0.5">
+            <nav className="w-full sm:w-44 flex-shrink-0 flex sm:flex-col overflow-x-auto sm:overflow-visible pb-1 sm:pb-0" aria-label="Settings sections">
+                <div className="flex sm:flex-col gap-0.5 min-w-max sm:min-w-0">
                     <NavItem icon={Cog6ToothIcon} label="General"
                         active={openSettings === SETTINGS_GENERAL}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_GENERAL))} />
@@ -71,10 +71,9 @@ export default function Settings() {
                     <NavItem icon={LanguageIcon} label="Speech to Text"
                         active={openSettings === SETTINGS_STT}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_STT))} />
-                    <NavItem icon={BoltIcon} label="Hotkeys"
+                    <NavItem icon={BoltIcon} label="Shortcuts"
                         active={openSettings === SETTINGS_HOTKEYS}
                         onClick={() => dispatch(setOpenSettings(SETTINGS_HOTKEYS))}
-                        badge={<span className="ml-auto"><kbd className="kbd kbd-xs mr-0.5">ctrl</kbd><kbd className="kbd kbd-xs">/</kbd></span>}
                     />
                     <NavItem icon={ArrowPathIcon} label="Updates"
                         active={openSettings === SETTINGS_UPDATES}
@@ -82,15 +81,16 @@ export default function Settings() {
                 </div>
 
                 {/* Footer */}
-                <div className="mt-auto pt-4 border-t border-base-content/5">
+                <div className="hidden sm:block mt-auto pt-4 border-t border-base-content/5">
                     <div className="flex items-center gap-2 px-2">
-                        <img src={icon} className="size-5 rounded" />
+                        <img src={icon} alt="" className="size-5 rounded" />
                         <span className="text-xs font-brand">
                             <span className="font-semibold">Flowtake</span>
                             {!isPending && !isError && <span className="text-base-content/40 ml-1">{version}</span>}
                         </span>
                     </div>
                     <button
+                        type="button"
                         onClick={() => window.electron.ipcRenderer.invoke("open-url-in-browser", "https://github.com/JNX03/Flowtake")}
                         className="flex items-center gap-1.5 px-2 mt-2 text-[11px] text-base-content/25 hover:text-base-content/50 transition-colors"
                     >
@@ -101,7 +101,7 @@ export default function Settings() {
             </nav>
 
             {/* Content */}
-            <div className="flex-1 min-w-0 border-l border-base-content/5 pl-6">
+            <div className="flex-1 min-w-0 min-h-0 border-t sm:border-t-0 sm:border-l border-base-content/5 pt-3 sm:pt-0 sm:pl-5">
                 <div className="overflow-y-auto overflow-x-hidden h-full">
                     {openSettings === SETTINGS_GENERAL && <GeneralSettings />}
                     {openSettings === SETTINGS_APPEARANCE && <AppearanceSettings />}
@@ -119,7 +119,9 @@ export default function Settings() {
 function NavItem({ icon: Icon, label, active, onClick, badge }) {
     return (
         <button
+            type="button"
             onClick={onClick}
+            aria-current={active ? "page" : undefined}
             className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-all
                 ${active
                     ? "bg-primary/10 text-primary font-medium"

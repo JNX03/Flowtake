@@ -6,8 +6,14 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_store::StoreExt;
 
 /// Read the content-protection preference from the store.
-/// Returns `true` (protected / hidden from capture) when the key is absent.
+/// Release builds default to protected/hidden so Flowtake never appears in a
+/// user's recording. Debug builds are deliberately capturable, which keeps
+/// visual QA possible without weakening production privacy.
 pub fn is_content_protection_enabled(app: &AppHandle) -> bool {
+    if cfg!(debug_assertions) {
+        return false;
+    }
+
     app.store("store.json")
         .ok()
         .and_then(|s| s.get("contentProtectionEnabled"))
@@ -336,10 +342,10 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
     #[cfg(target_os = "windows")]
     {
         let screenshot_path = temp_dir.join("picker_bg.bmp");
-        return tokio::task::spawn_blocking(move || capture_desktop_to_bmp(&screenshot_path))
+        tokio::task::spawn_blocking(move || capture_desktop_to_bmp(&screenshot_path))
             .await
             .map_err(|e| AppError::General(format!("Join error: {e}")))?
-            .map_err(AppError::General);
+            .map_err(AppError::General)
     }
 
     #[cfg(target_os = "macos")]
@@ -454,33 +460,56 @@ pub async fn select_window(app: AppHandle, window: Value) -> AppResult<()> {
     Ok(())
 }
 
+fn intersect_window_with_desktop(
+    x: i64,
+    y: i64,
+    width: i64,
+    height: i64,
+    desktop: (i64, i64, i64, i64),
+) -> Option<(i64, i64, i64, i64)> {
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+
+    let (desktop_left, desktop_top, desktop_right, desktop_bottom) = desktop;
+    let left = x.max(desktop_left);
+    let top = y.max(desktop_top);
+    let right = x.saturating_add(width).min(desktop_right);
+    let bottom = y.saturating_add(height).min(desktop_bottom);
+
+    (right > left && bottom > top).then_some((left, top, right - left, bottom - top))
+}
+
 #[tauri::command]
 pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
-    // Screen dimensions used for clamping enumerated window bounds.
-    // - Windows: bounds come from GetWindowRect in physical pixels, but the PowerShell
-    //   C# host is DPI-unaware so it reports already-scaled-down pixels; divide by scale.
-    // - macOS: enumerate_windows_macos now returns physical pixels (logical points * scale),
-    //   so clamp against physical screen dimensions directly.
-    let (screen_w, screen_h) = if let Some(main_win) = app.get_webview_window("main") {
-        if let Ok(Some(monitor)) = main_win.current_monitor() {
+    // Clamp against the complete virtual desktop, including monitors whose
+    // origins are negative or lie beyond the monitor containing Flowtake.
+    // Every platform enumerator reports physical desktop pixels. The Windows
+    // helper opts its enumeration thread into per-monitor DPI awareness so
+    // GetWindowRect matches Tauri's monitor coordinates on mixed-DPI setups.
+    let desktop_bounds = app
+        .available_monitors()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|monitor| {
+            let position = monitor.position();
             let size = monitor.size();
-            #[cfg(target_os = "macos")]
-            let dims = (size.width as i64, size.height as i64);
-            #[cfg(not(target_os = "macos"))]
-            let dims = {
-                let scale = monitor.scale_factor();
-                (
-                    (size.width as f64 / scale) as i64,
-                    (size.height as f64 / scale) as i64,
-                )
-            };
-            dims
-        } else {
-            (1920, 1080)
-        }
-    } else {
-        (1920, 1080)
-    };
+            (
+                position.x as i64,
+                position.y as i64,
+                position.x as i64 + size.width as i64,
+                position.y as i64 + size.height as i64,
+            )
+        })
+        .reduce(|combined, monitor| {
+            (
+                combined.0.min(monitor.0),
+                combined.1.min(monitor.1),
+                combined.2.max(monitor.2),
+                combined.3.max(monitor.3),
+            )
+        })
+        .unwrap_or((0, 0, 1920, 1080));
 
     // Get our own process ID to filter out our windows
     let our_pid = std::process::id();
@@ -526,14 +555,11 @@ pub async fn get_windows(app: AppHandle) -> AppResult<Value> {
                 let width = obj.get("width").and_then(|v| v.as_i64()).unwrap_or(0);
                 let height = obj.get("height").and_then(|v| v.as_i64()).unwrap_or(0);
 
-                let clamped_x = x.max(0);
-                let clamped_y = y.max(0);
-                let clamped_w = (width - (clamped_x - x)).min(screen_w - clamped_x);
-                let clamped_h = (height - (clamped_y - y)).min(screen_h - clamped_y);
-
-                if clamped_w <= 0 || clamped_h <= 0 {
+                let Some((clamped_x, clamped_y, clamped_w, clamped_h)) =
+                    intersect_window_with_desktop(x, y, width, height, desktop_bounds)
+                else {
                     return Value::Null; // will be filtered
-                }
+                };
 
                 obj.insert("x".to_string(), serde_json::json!(clamped_x));
                 obj.insert("y".to_string(), serde_json::json!(clamped_y));
@@ -774,19 +800,14 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
                 && data.y >= rect.top
                 && data.y < rect.bottom
             {
-                // Clamp to avoid negative coords (invisible window borders)
-                let cx = rect.left.max(0);
-                let cy = rect.top.max(0);
-                let cw = w - (cx - rect.left);
-                let ch = h - (cy - rect.top);
                 let val = serde_json::json!({
                     "name": title,
                     "id": (hwnd.0 as i64).to_string(),
                     "type": "window",
-                    "x": cx,
-                    "y": cy,
-                    "width": cw,
-                    "height": ch
+                    "x": rect.left,
+                    "y": rect.top,
+                    "width": w,
+                    "height": h
                 });
                 *data.result.lock().unwrap() = Some(val);
                 return BOOL(0); // Stop enumeration
@@ -916,10 +937,15 @@ public class WinEnum {
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
     [DllImport("user32.dll")]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left, Top, Right, Bottom; }
     public static List<Dictionary<string, object>> GetVisibleWindows(uint[] excludePids) {
+        // PER_MONITOR_AWARE_V2 makes GetWindowRect return physical virtual-
+        // desktop coordinates, including negative secondary-monitor origins.
+        IntPtr previousDpiContext = SetThreadDpiAwarenessContext(new IntPtr(-4));
         var pidSet = new HashSet<uint>(excludePids);
         var result = new List<Dictionary<string, object>>();
         EnumWindows((hWnd, lParam) => {
@@ -953,6 +979,9 @@ public class WinEnum {
             result.Add(dict);
             return true;
         }, IntPtr.Zero);
+        if (previousDpiContext != IntPtr.Zero) {
+            SetThreadDpiAwarenessContext(previousDpiContext);
+        }
         return result;
     }
 }
@@ -1375,4 +1404,37 @@ pub async fn close_live_composer(app: AppHandle) -> AppResult<()> {
         win.close().map_err(AppError::Tauri)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::intersect_window_with_desktop;
+
+    #[test]
+    fn window_intersection_keeps_secondary_monitor_coordinates() {
+        let desktop = (-1920, 0, 3840, 1080);
+
+        assert_eq!(
+            intersect_window_with_desktop(-1700, 100, 900, 700, desktop),
+            Some((-1700, 100, 900, 700))
+        );
+        assert_eq!(
+            intersect_window_with_desktop(2200, 80, 1200, 800, desktop),
+            Some((2200, 80, 1200, 800))
+        );
+    }
+
+    #[test]
+    fn window_intersection_clips_only_the_off_desktop_portion() {
+        let desktop = (-1920, -1080, 1920, 1080);
+
+        assert_eq!(
+            intersect_window_with_desktop(-2100, -1200, 500, 500, desktop),
+            Some((-1920, -1080, 320, 380))
+        );
+        assert_eq!(
+            intersect_window_with_desktop(2500, 0, 500, 500, desktop),
+            None
+        );
+    }
 }

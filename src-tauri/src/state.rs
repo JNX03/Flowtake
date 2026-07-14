@@ -1,16 +1,16 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::sync::Mutex;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tauri_plugin_shell::process::CommandChild;
-use tokio::sync::mpsc;
 use crate::commands::multi_app::CapturedTrack;
 use crate::keyboard_tracker::KeyboardTracker;
 use crate::mouse_tracker::MouseTracker;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::fs::File;
+use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+use std::sync::Mutex;
+use tauri_plugin_shell::process::CommandChild;
+use tokio::sync::mpsc;
 
 /// Global application state managed by Tauri
 pub struct AppState {
@@ -26,12 +26,30 @@ pub struct AppState {
     pub camera_file_handle: Option<File>,
     pub renders: HashMap<String, RenderState>,
     pub camera_mic_config: Option<Value>,
+    /// Serializes fallible session setup so double-clicks cannot replace the
+    /// active recording ID while the overlay is being created.
+    pub recording_init_in_progress: bool,
+    /// Guards the transition from the countdown UI to the native capture
+    /// process. It stays claimed for the lifetime of a recording so repeated
+    /// start commands are idempotent and cannot orphan an overwritten child.
+    pub recording_capture_claimed: bool,
+    /// Serializes stop/reset/cancel against a capture process that is still
+    /// crossing the spawn boundary.
+    pub recording_stop_in_progress: bool,
     pub ffmpeg_child_id: Option<u32>,
     pub ffmpeg_child: Option<CommandChild>,
     pub mouse_tracker: MouseTracker,
     pub keyboard_tracker: KeyboardTracker,
     pub multi_app_children: Vec<std::process::Child>,
     pub multi_app_tracks: Vec<CapturedTrack>,
+    /// Serializes App-layer startup with an immediate Stop request so children
+    /// cannot be published after the recording has already finalized.
+    pub multi_app_init_in_progress: bool,
+    pub multi_app_stop_requested: bool,
+    /// A selected App-layer capture that failed finalization is a durable
+    /// session error. Keep it across Stop retries so an empty child list cannot
+    /// silently turn a failed required layer into a successful save.
+    pub multi_app_finalize_error: Option<String>,
     pub recording_start_timestamp: Option<i64>,
     pub export_state_data: Option<Value>,
     pub export_section: Option<String>,
@@ -95,12 +113,18 @@ impl AppState {
             camera_file_handle: None,
             renders: HashMap::new(),
             camera_mic_config: None,
+            recording_init_in_progress: false,
+            recording_capture_claimed: false,
+            recording_stop_in_progress: false,
             ffmpeg_child_id: None,
             ffmpeg_child: None,
             mouse_tracker: MouseTracker::new(),
             keyboard_tracker: KeyboardTracker::new(),
             multi_app_children: Vec::new(),
             multi_app_tracks: Vec::new(),
+            multi_app_init_in_progress: false,
+            multi_app_stop_requested: false,
+            multi_app_finalize_error: None,
             recording_start_timestamp: None,
             export_state_data: None,
             export_section: None,

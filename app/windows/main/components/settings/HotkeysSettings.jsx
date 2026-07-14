@@ -10,8 +10,12 @@ export default function HotkeysSettings() {
     useHotkeys("ctrl+slash", () => { dispatch(setOpenSettings(null)) })
 
     return (<div className="flex flex-col gap-4">
-        <h4 className="font-semibold text-lg">Hotkeys</h4>
-        <table className="table table-sm table-zebra w-full rounded-box overflow-hidden">
+        <div>
+            <h4 className="font-semibold text-lg">Keyboard shortcuts</h4>
+            <p className="mt-1 text-xs text-base-content/50">Reference list for active shortcuts. Shortcut remapping is not available in this build.</p>
+        </div>
+        <div className="overflow-x-auto rounded-box">
+        <table className="table table-sm table-zebra w-full min-w-[32rem] overflow-hidden">
             <thead><tr><th>General</th><th></th></tr></thead>
             <tbody>
                 <tr>
@@ -98,7 +102,7 @@ export default function HotkeysSettings() {
                 <tr>
                     <th>Merge selected element left</th>
                     <td className="text-right">
-                        <kbd className="kbd kbd-sm mr-2">ctrl</kbd>
+                        <kbd className="kbd kbd-sm mr-2">m</kbd>
                         <kbd className="kbd kbd-sm align-bottom inline-flex items-center">
                             <ArrowLongLeftIcon className="size-4" />
                         </kbd>
@@ -125,6 +129,6 @@ export default function HotkeysSettings() {
                 </tr>
             </tbody>
         </table>
+        </div>
     </div>)
 }
-

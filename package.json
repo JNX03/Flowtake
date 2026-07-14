@@ -20,6 +20,7 @@
   "scripts": {
     "lint": "eslint --cache .",
     "test": "node --test",
+    "diagnose:recording": "node scripts/recording-diagnostics.mjs",
     "dev:frontend": "vite --config vite.config.mjs",
     "build:frontend": "vite build --config vite.config.mjs",
     "dev": "tauri dev",
@@ -43,8 +44,21 @@
     "cross-platform"
   ],
   "license": "MIT",
+  "overrides": {
+    "eslint-plugin-react-hooks": {
+      ".": "$eslint-plugin-react-hooks",
+      "@babel/core": "8.0.1"
+    },
+    "minimatch": {
+      ".": "$minimatch",
+      "brace-expansion": "5.0.7"
+    },
+    "onnxruntime-web@1.25.0-dev.20260327-722743c0e2": {
+      "protobufjs": "7.6.3"
+    }
+  },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "9.39.5",
     "@tailwindcss/postcss": "^4.3.0",
     "@tanstack/eslint-plugin-query": "^5.100.14",
     "@tauri-apps/cli": "^2.11.2",
@@ -52,7 +66,7 @@
     "autoprefixer": "^10.5.0",
     "daisyui": "^5.5.23",
     "esbuild": "^0.28.1",
-    "eslint": "^10.3.0",
+    "eslint": "9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",

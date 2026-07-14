@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef
 } from "react"
+import PropTypes from "prop-types"
 import { useSelector } from "react-redux"
 import {
   CONSTRAINTS_AUDIO,
@@ -10,7 +11,7 @@ import {
 } from "@shared/helpers"
 import { selectIsCloseRequested } from "@shared/redux/appSlice"
 
-export default function CameraPreview() {
+export default function CameraPreview({ audioProcessingSettings }) {
 
   const previewVideoRef = useRef(null)
 
@@ -41,14 +42,14 @@ export default function CameraPreview() {
   })
 
   const { data: stream, isPending: isPendingStream } = useQuery({
-    queryKey: ['stream', camera, microphone, cameras, microphones],
+    queryKey: ['stream', camera, microphone, cameras, microphones, audioProcessingSettings],
     queryFn: async () => {
       let video = false
       let videoSource = null
       if (camera) {
         videoSource = (cameras ?? []).find(({ id }) => id === camera)
         if (!videoSource) return null
-        video = { ...CONSTRAINTS_VIDEO, deviceId: videoSource.deviceId }
+        video = { ...CONSTRAINTS_VIDEO, deviceId: { exact: videoSource.deviceId } }
       }
 
       let audio = false
@@ -56,7 +57,7 @@ export default function CameraPreview() {
       if (microphone) {
         audioSource = (microphones ?? []).find(({ id }) => id === microphone)
         if (!audioSource) return null
-        audio = { ...CONSTRAINTS_AUDIO, deviceId: audioSource.deviceId }
+        audio = { ...CONSTRAINTS_AUDIO, ...audioProcessingSettings, deviceId: { exact: audioSource.deviceId } }
       }
 
       try {
@@ -118,6 +119,7 @@ export default function CameraPreview() {
         <span className="loading loading-spinner"></span>
       </div>
       <video
+        aria-label="Camera preview"
         ref={previewVideoRef}
         autoPlay
         muted
@@ -126,4 +128,12 @@ export default function CameraPreview() {
       />
     </div>
   )
+}
+
+CameraPreview.propTypes = {
+  audioProcessingSettings: PropTypes.shape({
+    noiseSuppression: PropTypes.bool,
+    echoCancellation: PropTypes.bool,
+    autoGainControl: PropTypes.bool,
+  }).isRequired,
 }

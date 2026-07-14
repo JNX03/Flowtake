@@ -74,7 +74,7 @@ pub async fn list_plugins(state: State<'_, Mutex<AppState>>) -> AppResult<Vec<Pl
             is_dir: metadata.is_dir(),
         });
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|entry| entry.name.to_lowercase());
     Ok(out)
 }
 

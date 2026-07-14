@@ -3,9 +3,7 @@ import {
     CameraIcon,
     DocumentTextIcon,
     MicrophoneIcon,
-    PauseIcon,
     PencilIcon,
-    PlayIcon,
     RectangleGroupIcon,
     TrashIcon,
     VideoCameraIcon,
@@ -13,6 +11,7 @@ import {
     XMarkIcon,
 } from "@heroicons/react/20/solid"
 import { StopIcon } from "@heroicons/react/24/solid"
+import { ask } from "@tauri-apps/plugin-dialog"
 import { useQuery } from "@tanstack/react-query"
 import moment from "moment"
 import momentDurationFormatSetup from "moment-duration-format"
@@ -30,6 +29,13 @@ import useAudioMeter from "@shared/hooks/useAudioMeter"
 import VolumeMeter from "../../components/VolumeMeter"
 
 const RecorderTutorial = lazy(() => import("./components/RecorderTutorial"))
+
+const IDLE_ACTION = {
+    status: "idle",
+    message: "Recording in progress",
+}
+
+const BUSY_ACTIONS = new Set(["confirming", "saving", "restarting", "discarding"])
 
 const StyleTag = () => (
     <style>{`
@@ -96,11 +102,23 @@ const pillBg = {
 }
 
 // Icon button component — uses relative positioning + z-index to ensure clickability over drag region
-const Btn = ({ onClick, title, children, className = "", dataTutorial }) => (
+const Btn = ({
+    onClick,
+    title,
+    children,
+    className = "",
+    dataTutorial,
+    disabled = false,
+    ariaPressed,
+}) => (
     <button
+        type="button"
         onClick={onClick}
         title={title}
-        className={`relative z-10 flex items-center justify-center transition-all duration-100 cursor-pointer flex-shrink-0 active:scale-90 ${className}`}
+        aria-label={title}
+        aria-pressed={ariaPressed}
+        disabled={disabled}
+        className={`relative z-10 flex items-center justify-center transition-all duration-100 cursor-pointer flex-shrink-0 active:scale-90 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${className}`}
         style={{ WebkitUserSelect: "none" }}
         data-tutorial={dataTutorial}
     >
@@ -115,12 +133,19 @@ const Divider = () => (
 
 // "+N apps" chip used in both the pre-recording and recording pills when the
 // Individual App Recording plugin is configured.
-const AppBadge = ({ count, title }) => (
+const AppBadge = ({ count, title, status = "planned" }) => (
     <span
         title={title}
-        className="flex items-center gap-1 px-1.5 py-[2px] rounded-full bg-indigo-500/20 text-indigo-200 text-[10px] font-semibold flex-shrink-0">
+        aria-label={title}
+        className={`flex items-center gap-1 px-1.5 py-[2px] rounded-full text-[10px] font-semibold flex-shrink-0 ${
+            status === "failed"
+                ? "bg-red-500/20 text-red-200"
+                : status === "partial"
+                    ? "bg-amber-500/20 text-amber-200"
+                    : "bg-indigo-500/20 text-indigo-200"
+        }`}>
         <RectangleGroupIcon className="size-3" />
-        +{count}
+        {status === "failed" ? "!" : `+${count}`}
     </span>
 )
 
@@ -130,14 +155,17 @@ export default function App() {
     const [intervalId, setIntervalId] = useState(null)
     const [countdown, setCountdown] = useState(null)
     const [isRecording, setIsRecording] = useState(false)
-    const [isPaused, setIsPaused] = useState(false)
+    const [isCaptureFinalized, setIsCaptureFinalized] = useState(false)
     const [deviceRecorder, setDeviceRecorder] = useState(null)
     const [isMicMuted, setIsMicMuted] = useState(false)
     const [isCameraOff, setIsCameraOff] = useState(false)
     const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpansionPinned, setIsExpansionPinned] = useState(false)
     const [isDrawing, setIsDrawing] = useState(false)
     const [audioStream, setAudioStream] = useState(null)
     const [tutorialActive, setTutorialActive] = useState(false)
+    const [appCaptureStatus, setAppCaptureStatus] = useState(null)
+    const [actionState, setActionState] = useState(IDLE_ACTION)
 
     const { data: cameraMicConfig } = useQuery({
         queryKey: ['cameraMicConfig'],
@@ -153,11 +181,16 @@ export default function App() {
 
     const isKeyboardOverlayEnabled = !!pluginSettings?.enabled?.keyboardOverlay
     const isAppRecordingEnabled = !!pluginSettings?.enabled?.appRecording
-    const appRecordingWindows = pluginSettings?.config?.appRecording?.windows || []
+    const appRecordingWindows = useMemo(
+        () => pluginSettings?.config?.appRecording?.windows || [],
+        [pluginSettings]
+    )
     const showAppBadge = isAppRecordingEnabled && appRecordingWindows.length > 0
-    const appBadgeTitle = showAppBadge
+    const appBadgeStatus = appCaptureStatus?.status || "planned"
+    const appBadgeCount = appCaptureStatus?.count ?? appRecordingWindows.length
+    const appBadgeTitle = appCaptureStatus?.message || (showAppBadge
         ? `Also capturing: ${appRecordingWindows.map(w => w.name).join(", ")}`
-        : ""
+        : "")
 
     const hasMic = !!cameraMicConfig?.audioTrack
     const hasCam = !!cameraMicConfig?.videoTrack
@@ -174,6 +207,20 @@ export default function App() {
         }
     }, [deviceRecorder, isRecording])
 
+    useEffect(() => {
+        const preview = cameraVideoRef.current
+        const stream = deviceRecorder?.stream
+        if (!preview || !stream) return
+
+        // The countdown, compact recorder, and expanded recorder render
+        // different <video> elements. Reattach the live stream whenever that
+        // element changes so the camera control never turns into a blank dot.
+        preview.srcObject = stream
+        return () => {
+            if (preview.srcObject === stream) preview.srcObject = null
+        }
+    }, [deviceRecorder, isRecording, isExpanded])
+
     const formattedTime = useMemo(() => {
         if (typeof moment.duration.fn.format === "undefined") momentDurationFormatSetup(moment)
         return moment.duration(time).format("mm:ss", { trim: false })
@@ -181,25 +228,50 @@ export default function App() {
 
     const timeRef = useRef(time)
     const cameraVideoRef = useRef(null)
+    const recordingStartClaimRef = useRef(false)
+    const deviceRecorderInitRef = useRef(null)
+    const countdownArmedRef = useRef(false)
+    const actionLockRef = useRef(false)
 
     const createDeviceRecorder = useCallback(async () => {
-        const recorder = new DeviceRecorder()
+        if (deviceRecorderInitRef.current) return deviceRecorderInitRef.current
+
+        const initPromise = (async () => {
+            const recorder = new DeviceRecorder()
+            try {
+                await recorder.init(cameraMicConfig, cameraVideoRef.current)
+                await recorder.initFile()
+                setDeviceRecorder(recorder)
+                return recorder
+            } catch (e) {
+                recorder.destroy()
+                await window.electron.ipcRenderer.invoke("cancel-recording", e.message)
+                return null
+            }
+        })()
+        deviceRecorderInitRef.current = initPromise
+
         try {
-            await recorder.init(cameraMicConfig, cameraVideoRef.current)
-            await recorder.initFile()
-            setDeviceRecorder(recorder)
-        } catch (e) {
-            await window.electron.ipcRenderer.invoke("cancel-recording", e.message)
+            return await initPromise
+        } finally {
+            if (deviceRecorderInitRef.current === initPromise) {
+                deviceRecorderInitRef.current = null
+            }
         }
     }, [cameraMicConfig])
 
     const startRecording = useCallback(async () => {
-        await new Promise(resolve => {
-            window.electron.ipcRenderer.once('recording-started', (_e, value) => resolve(value))
-            window.electron.ipcRenderer.invoke("start-recording")
-        })
+        if (recordingStartClaimRef.current) return
+        recordingStartClaimRef.current = true
         try {
-            deviceRecorder?.start()
+            setIsCaptureFinalized(false)
+            setAppCaptureStatus(null)
+            // Await the command itself instead of waiting only for the success
+            // event. If FFmpeg cannot start, the command rejects; the previous
+            // event-only path waited forever and left the countdown overlay
+            // stranded with no actionable error.
+            await window.electron.ipcRenderer.invoke("start-recording")
+            await deviceRecorder?.start()
             setIsRecording(true)
             if (isKeyboardOverlayEnabled) {
                 try { await window.electron.ipcRenderer.invoke("keyboard-start") } catch (e) { console.warn("[plugin] keyboard-start failed:", e) }
@@ -221,19 +293,50 @@ export default function App() {
                         }))
                         .filter(w => w.width > 0 && w.height > 0)
                     if (picked.length > 0) {
-                        await window.electron.ipcRenderer.invoke("start-multi-app-capture", picked)
+                        const tracks = await window.electron.ipcRenderer.invoke("start-multi-app-capture", picked)
+                        const started = Array.isArray(tracks) ? tracks.length : 0
+                        if (started === 0) {
+                            setAppCaptureStatus({
+                                status: "failed",
+                                count: 0,
+                                message: "Individual app recording could not start. The main recording is still running.",
+                            })
+                        } else if (started < picked.length) {
+                            setAppCaptureStatus({
+                                status: "partial",
+                                count: started,
+                                message: `${started} of ${picked.length} individual app captures started.`,
+                            })
+                        } else {
+                            setAppCaptureStatus({
+                                status: "active",
+                                count: started,
+                                message: `${started} individual app ${started === 1 ? "capture" : "captures"} active.`,
+                            })
+                        }
+                    } else {
+                        setAppCaptureStatus({
+                            status: "failed",
+                            count: 0,
+                            message: "The selected app windows are no longer available. The main recording is still running.",
+                        })
                     }
                 } catch (e) {
                     console.warn("[plugin] start-multi-app-capture failed:", e)
+                    setAppCaptureStatus({
+                        status: "failed",
+                        count: 0,
+                        message: "Individual app recording failed. The main recording is still running.",
+                    })
                 }
             }
-        } catch {
+        } catch (error) {
+            recordingStartClaimRef.current = false
             await window.electron.ipcRenderer.invoke(
                 "cancel-recording",
-                "The selected camera or microphone could not be recorded."
+                error?.message || String(error) || "The selected source could not be recorded."
             )
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [deviceRecorder, isKeyboardOverlayEnabled, isAppRecordingEnabled, appRecordingWindows])
 
     useEffect(() => {
@@ -241,8 +344,14 @@ export default function App() {
     }, [cameraMicConfig, deviceRecorder, createDeviceRecorder])
 
     useEffect(() => {
-        if (cameraMicConfig && (deviceRecorder || (!cameraMicConfig.videoTrack && !cameraMicConfig.audioTrack)))
+        if (
+            !countdownArmedRef.current
+            && cameraMicConfig
+            && (deviceRecorder || (!cameraMicConfig.videoTrack && !cameraMicConfig.audioTrack))
+        ) {
+            countdownArmedRef.current = true
             setCountdown(3)
+        }
     }, [cameraMicConfig, deviceRecorder])
 
     useEffect(() => {
@@ -261,12 +370,12 @@ export default function App() {
     }, [countdown, startRecording])
 
     useEffect(() => {
-        if (intervalId !== null && (!isRecording || isPaused)) {
+        if (intervalId !== null && (!isRecording || isCaptureFinalized)) {
             clearInterval(intervalId)
             setIntervalId(null)
-        } else if (intervalId === null && isRecording && !isPaused)
+        } else if (intervalId === null && isRecording && !isCaptureFinalized)
             setIntervalId(setInterval(() => setTime(timeRef.current + 1000), 1000))
-    }, [intervalId, isRecording, isPaused])
+    }, [intervalId, isRecording, isCaptureFinalized])
 
     useEffect(() => {
         timeRef.current = time
@@ -274,44 +383,186 @@ export default function App() {
 
     // ─── Actions ─────────────────────────────────────────────────────
 
-    const onClickStop = async () => {
-        setIsRecording(false)
-        await deviceRecorder?.stop()
-        deviceRecorder?.destroy()
+    // Keep destructive actions serialized. React state alone is not enough here:
+    // two pointer events can arrive before a render disables the buttons.
+    const beginAction = (status, message) => {
+        if (actionLockRef.current) return false
+        actionLockRef.current = true
+        setActionState({ status, message })
+        return true
+    }
+
+    const releaseAction = (nextState = IDLE_ACTION) => {
+        actionLockRef.current = false
+        setActionState(nextState)
+    }
+
+    const failAction = (verb, error, message) => {
+        console.error(`[recorder] Could not ${verb}:`, error)
+        const detail = error?.message || String(error || "Unknown error")
+        releaseAction({
+            status: "error",
+            message: message || `Couldn’t ${verb}: ${detail}`,
+        })
+    }
+
+    const stopRuntimeFeatures = async ({ stopAppCapture = true } = {}) => {
         if (isKeyboardOverlayEnabled) {
-            try { await window.electron.ipcRenderer.invoke("keyboard-stop") } catch (e) { console.warn("[plugin] keyboard-stop failed:", e) }
+            try {
+                await window.electron.ipcRenderer.invoke("keyboard-stop")
+            } catch (error) {
+                console.warn("[plugin] keyboard-stop failed:", error)
+            }
         }
-        window.electron.ipcRenderer.invoke("stop-recording")
+        if (stopAppCapture && isAppRecordingEnabled) {
+            try {
+                await window.electron.ipcRenderer.invoke("stop-multi-app-capture")
+            } catch (error) {
+                console.warn("[plugin] stop-multi-app-capture failed:", error)
+            }
+        }
     }
 
-    const onClickPause = () => {
-        setIsPaused(true)
-        window.electron.ipcRenderer.invoke("pause-recording", true)
-    }
+    const onClickStop = async () => {
+        if (!beginAction("saving", "Saving recording…")) return
+        let captureWasFinalized = isCaptureFinalized
 
-    const onClickResume = () => {
-        setIsPaused(false)
-        window.electron.ipcRenderer.invoke("pause-recording", false)
+        try {
+            try {
+                await deviceRecorder?.stop()
+            } catch (error) {
+                const detail = error?.message || String(error || "Unknown error")
+                throw new Error(`Camera or microphone track could not be finalized. ${detail}`)
+            }
+            // Native stop is the single owner of app-layer shutdown and
+            // validation. Calling the plugin stop first could reject before
+            // the primary FFmpeg process was stopped, leaving the take live
+            // behind a Retry button.
+            await stopRuntimeFeatures({ stopAppCapture: false })
+            // stop-recording owns graceful capture shutdown and packaging.
+            // From this point the timer and live-device controls must not imply
+            // that frames are still being captured if packaging later rejects.
+            captureWasFinalized = true
+            setIsCaptureFinalized(true)
+            await window.electron.ipcRenderer.invoke("stop-recording")
+            // Keep the recorder and its retry/discard controls alive until the
+            // native archive and project-store transaction has fully succeeded.
+            deviceRecorder?.destroy()
+            setIsRecording(false)
+        } catch (error) {
+            const detail = error?.message || String(error || "Unknown error")
+            failAction(
+                "save the recording",
+                error,
+                captureWasFinalized
+                    ? `Recording stopped. Save failed — ${detail}`
+                    : undefined
+            )
+        }
     }
 
     const onClickRestart = async () => {
+        if (!beginAction("confirming", "Confirm restart…")) return
+
+        let confirmed
+        try {
+            confirmed = await ask("Restart this recording? The current take will be permanently discarded.", {
+                title: "Restart recording",
+                kind: "warning",
+                okLabel: "Restart",
+                cancelLabel: "Keep recording",
+            })
+        } catch (error) {
+            failAction("open the restart confirmation", error)
+            return
+        }
+
+        if (!confirmed) {
+            releaseAction()
+            return
+        }
+
+        setActionState({ status: "restarting", message: "Restarting recording…" })
+        setCountdown(null)
         setIsRecording(false)
-        await deviceRecorder?.stop()
-        await window.electron.ipcRenderer.invoke("reset-recording")
-        setTime(0)
-        setIsPaused(false)
-        setIsMicMuted(false)
-        setIsCameraOff(false)
-        await deviceRecorder?.initFile()
-        setCountdown(3)
+        let resetCompleted = false
+
+        try {
+            try {
+                await deviceRecorder?.stop()
+            } catch (error) {
+                console.warn("[recorder] Device track finalization failed during restart:", error)
+            }
+            await stopRuntimeFeatures()
+            await window.electron.ipcRenderer.invoke("reset-recording")
+            resetCompleted = true
+            recordingStartClaimRef.current = false
+            setIsCaptureFinalized(false)
+            setTime(0)
+
+            // Muting toggles MediaStreamTrack.enabled. Resetting only the React
+            // labels left the real tracks muted/off on the next take.
+            deviceRecorder?.stream?.getTracks().forEach(track => {
+                track.enabled = true
+            })
+            setIsMicMuted(false)
+            setIsCameraOff(false)
+            setAppCaptureStatus(null)
+            await deviceRecorder?.initFile()
+
+            releaseAction()
+            setCountdown(3)
+        } catch (error) {
+            // If the native reset itself failed, keep Stop & save available for
+            // the original screen capture. Otherwise show a cancellable error.
+            setIsRecording(!resetCompleted)
+            failAction("restart the recording", error)
+        }
     }
 
     const onClickCancel = async () => {
-        setIsRecording(false)
+        const hasCurrentTake = isRecording || timeRef.current > 0
+        if (!beginAction(
+            hasCurrentTake ? "confirming" : "discarding",
+            hasCurrentTake ? "Confirm discard…" : "Closing recorder…"
+        )) return
+
+        if (hasCurrentTake) {
+            let confirmed
+            try {
+                confirmed = await ask("Discard this recording? This take cannot be recovered.", {
+                    title: "Discard recording",
+                    kind: "warning",
+                    okLabel: "Discard",
+                    cancelLabel: "Keep recording",
+                })
+            } catch (error) {
+                failAction("open the discard confirmation", error)
+                return
+            }
+
+            if (!confirmed) {
+                releaseAction()
+                return
+            }
+        }
+
+        setActionState({ status: "discarding", message: "Discarding recording…" })
         setCountdown(null)
-        await deviceRecorder?.stop()
-        deviceRecorder?.destroy()
-        await window.electron.ipcRenderer.invoke("cancel-recording")
+        try {
+            try {
+                await deviceRecorder?.stop()
+            } catch (error) {
+                console.warn("[recorder] Device track finalization failed during discard:", error)
+            } finally {
+                deviceRecorder?.destroy()
+            }
+            await stopRuntimeFeatures()
+            await window.electron.ipcRenderer.invoke("cancel-recording")
+            setIsRecording(false)
+        } catch (error) {
+            failAction("discard the recording", error)
+        }
     }
 
     const toggleMic = () => {
@@ -343,17 +594,27 @@ export default function App() {
         window.electron.ipcRenderer.invoke("toggle-drawing-overlay")
     }
 
+    const isActionBusy = BUSY_ACTIONS.has(actionState.status)
+    const hasActionStatus = actionState.status !== "idle"
+    const actionStatusClass = actionState.status === "error" ? "text-red-300" : "text-white/70"
+    const stopActionTitle = actionState.status === "error"
+        ? (isCaptureFinalized ? "Retry save" : "Retry stop and save")
+        : "Stop and save recording"
+
     // ─── Pre-recording: countdown / loading ──────────────────────────
     if (!isRecording) {
         return (
             <div className="h-full w-full flex items-center justify-center" style={{ padding: 2 }}>
                 <StyleTag />
+                <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                    {actionState.message}
+                </span>
                 <div
                     className="island-pill flex items-center justify-center gap-3 overflow-hidden"
                     data-tauri-drag-region
                     style={{
                         ...pillBg,
-                        width: countdown !== null ? 200 : 200,
+                        width: hasActionStatus ? 300 : 220,
                         height: 52,
                         borderRadius: 26,
                     }}
@@ -364,24 +625,46 @@ export default function App() {
                         </div>
                     )}
 
-                    {showAppBadge && <AppBadge count={appRecordingWindows.length} title={appBadgeTitle} />}
+                    {showAppBadge && <AppBadge count={appBadgeCount} title={appBadgeTitle} status={appBadgeStatus} />}
 
-                    {countdown !== null ? (
+                    {hasActionStatus ? (
+                        <span
+                            role={actionState.status === "error" ? "alert" : "status"}
+                            className={`max-w-[190px] truncate text-[11px] font-semibold ${actionStatusClass}`}
+                            title={actionState.message}
+                        >
+                            {actionState.message}
+                        </span>
+                    ) : countdown !== null ? (
                         <>
-                            <span key={countdown} className="countdown-num text-[26px] font-bold text-white tabular-nums leading-none">
+                            <span
+                                key={countdown}
+                                role="status"
+                                aria-label={`Recording starts in ${countdown}`}
+                                className="countdown-num text-[26px] font-bold text-white tabular-nums leading-none"
+                            >
                                 {countdown}
                             </span>
                             <span className="text-[10px] uppercase tracking-wider font-semibold text-white/50">
                                 rec
                             </span>
-                            <Btn onClick={onClickCancel} title="Cancel"
-                                className="w-7 h-7 rounded-full text-white/25 hover:text-white/60 hover:bg-white/[0.08]">
-                                <XMarkIcon className="size-4" />
-                            </Btn>
                         </>
                     ) : (
-                        <span className="loading loading-spinner loading-xs text-indigo-400" style={{ width: 14, height: 14 }}></span>
+                        <span
+                            className="loading loading-spinner loading-xs text-indigo-400"
+                            role="status"
+                            aria-label="Preparing recorder"
+                            style={{ width: 14, height: 14 }}
+                        />
                     )}
+                    <Btn
+                        onClick={onClickCancel}
+                        title={hasActionStatus && actionState.status === "error" ? "Close recorder" : "Cancel"}
+                        disabled={isActionBusy}
+                        className="w-7 h-7 rounded-full text-white/30 hover:text-white/70 hover:bg-white/[0.08]"
+                    >
+                        <XMarkIcon className="size-4" />
+                    </Btn>
                 </div>
             </div>
         )
@@ -404,16 +687,27 @@ export default function App() {
     ) : null
 
     const recDot = (
-        <div className={`rec-dot w-[7px] h-[7px] rounded-full flex-shrink-0 ${isPaused ? 'bg-amber-400' : 'bg-red-500'}`}
-            style={isPaused ? { animation: 'none' } : {}} />
+        <div aria-hidden="true" className="rec-dot w-[7px] h-[7px] rounded-full flex-shrink-0 bg-red-500" />
     )
 
     const timer = (
-        <span className="font-semibold text-[13px] tabular-nums tracking-tight text-white/90"
+        <span
+            aria-label={`Recording time ${formattedTime}`}
+            className="font-semibold text-[13px] tabular-nums tracking-tight text-white/90"
             style={{ fontVariantNumeric: "tabular-nums" }}>
             {formattedTime}
         </span>
     )
+
+    const recordingReadout = hasActionStatus ? (
+        <span
+            role={actionState.status === "error" ? "alert" : "status"}
+            className={`max-w-[190px] truncate text-[11px] font-semibold ${actionStatusClass}`}
+            title={actionState.message}
+        >
+            {actionState.message}
+        </span>
+    ) : timer
 
     if (!isExpanded && !tutorialActive) {
         // ── COMPACT: just centered dot + timer ──
@@ -423,27 +717,52 @@ export default function App() {
                 style={{ pointerEvents: "none" }}
             >
                 <StyleTag />
+                <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                    {actionState.message}
+                </span>
                 <div
                     className="island-pill mt-1"
                     data-tauri-drag-region
-                    onMouseEnter={() => setIsExpanded(true)}
+                    onMouseEnter={() => { if (!isActionBusy) setIsExpanded(true) }}
                     style={{
                         ...pillBg,
-                        width: 220,
+                        width: showAppBadge || hasActionStatus ? 340 : 280,
                         height: 44,
                         borderRadius: 22,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        gap: 10,
+                        padding: "4px 6px 4px 10px",
+                        gap: 4,
                         pointerEvents: "auto",
                     }}
                 >
-                    {cameraPreview}
-                    {recDot}
-                    {hasMic && <VolumeMeter level={isMicMuted ? 0 : level} compact />}
-                    {timer}
-                    {showAppBadge && <AppBadge count={appRecordingWindows.length} title={appBadgeTitle} />}
+                    <button
+                        type="button"
+                        className="relative z-10 flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-1.5 py-1 text-white outline-none hover:bg-white/[0.05] focus-visible:ring-2 focus-visible:ring-indigo-400/80 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => {
+                            setIsExpansionPinned(true)
+                            setIsExpanded(true)
+                        }}
+                        aria-label={`Show recording controls. Recording time ${formattedTime}`}
+                        aria-expanded="false"
+                        disabled={isActionBusy}
+                        title="Show recording controls"
+                    >
+                        {!hasActionStatus && cameraPreview}
+                        {!isCaptureFinalized && recDot}
+                        {!hasActionStatus && hasMic && <VolumeMeter level={isMicMuted ? 0 : level} compact />}
+                        {recordingReadout}
+                        {!hasActionStatus && showAppBadge && <AppBadge count={appBadgeCount} title={appBadgeTitle} status={appBadgeStatus} />}
+                    </button>
+                    <Btn
+                        onClick={onClickStop}
+                        title={stopActionTitle}
+                        dataTutorial="rec-stop"
+                        disabled={isActionBusy}
+                        className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-400 active:bg-red-600 text-white"
+                    >
+                        <StopIcon className="size-4" />
+                    </Btn>
                 </div>
                 <Suspense fallback={null}>
                     <RecorderTutorial onActiveChange={setTutorialActive} />
@@ -459,13 +778,24 @@ export default function App() {
             style={{ pointerEvents: "none" }}
         >
             <StyleTag />
+            <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                {actionState.message}
+            </span>
             <div
                 className="island-pill mt-1"
                 data-tauri-drag-region
-                onMouseLeave={() => { if (!tutorialActive) setIsExpanded(false) }}
+                onMouseLeave={() => { if (!tutorialActive && !isExpansionPinned) setIsExpanded(false) }}
+                onKeyDown={event => {
+                    if (event.key === "Escape" && !tutorialActive && !isActionBusy) {
+                        setIsExpansionPinned(false)
+                        setIsExpanded(false)
+                    }
+                }}
+                role="toolbar"
+                aria-label="Recording controls"
                 style={{
                     ...pillBg,
-                    width: 440,
+                    width: 456,
                     height: 56,
                     borderRadius: 28,
                     display: "flex",
@@ -473,23 +803,29 @@ export default function App() {
                     pointerEvents: "auto",
                 }}
             >
-                <div style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", padding: "0 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", padding: "0 10px" }}>
 
                     {/* ── Left: indicator + timer ── */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8, flexShrink: 0 }}>
-                        {cameraPreview}
-                        {recDot}
-                        {timer}
-                        {showAppBadge && <AppBadge count={appRecordingWindows.length} title={appBadgeTitle} />}
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
+                        {!hasActionStatus && cameraPreview}
+                        {!isCaptureFinalized && recDot}
+                        {recordingReadout}
+                        {!hasActionStatus && showAppBadge && <AppBadge count={appBadgeCount} title={appBadgeTitle} status={appBadgeStatus} />}
                     </div>
 
                     {/* ── Center: tools (shifted right with margin) ── */}
-                    <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 16 }}>
+                    {!hasActionStatus && (
+                    <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginLeft: 8 }}>
                         <Divider />
                         {hasMic && (
-                            <div className="flex items-center gap-1">
-                                <Btn onClick={toggleMic} title={isMicMuted ? "Unmute mic" : "Mute mic"}
-                                    className={`w-8 h-8 rounded-lg ${isMicMuted ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
+                            <div className="flex items-center">
+                                <Btn
+                                    onClick={toggleMic}
+                                    title={isMicMuted ? "Unmute microphone" : "Mute microphone"}
+                                    disabled={isActionBusy}
+                                    ariaPressed={isMicMuted}
+                                    className={`w-8 h-8 rounded-lg ${isMicMuted ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}
+                                >
                                     <div className="relative">
                                         <MicrophoneIcon className="size-4" />
                                         {isMicMuted && (
@@ -499,27 +835,33 @@ export default function App() {
                                         )}
                                     </div>
                                 </Btn>
-                                <div className="w-12">
-                                    <VolumeMeter level={isMicMuted ? 0 : level} />
-                                </div>
                             </div>
                         )}
                         {hasCam && (
-                            <Btn onClick={toggleCamera} title={isCameraOff ? "Camera on" : "Camera off"}
-                                className={`w-8 h-8 rounded-lg ${isCameraOff ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}>
+                            <Btn
+                                onClick={toggleCamera}
+                                title={isCameraOff ? "Turn camera on" : "Turn camera off"}
+                                disabled={isActionBusy}
+                                ariaPressed={isCameraOff}
+                                className={`w-8 h-8 rounded-lg ${isCameraOff ? "text-white/20" : "text-white/50 hover:text-white/80 hover:bg-white/[0.06]"}`}
+                            >
                                 {isCameraOff ? <VideoCameraSlashIcon className="size-4" /> : <VideoCameraIcon className="size-4" />}
                             </Btn>
                         )}
                         <div className="w-px h-3.5 mx-1 bg-white/[0.04]" />
-                        <Btn onClick={openTeleprompter} title="Teleprompter" dataTutorial="rec-teleprompter"
+                        <Btn onClick={openTeleprompter} title="Open teleprompter" dataTutorial="rec-teleprompter"
+                            disabled={isActionBusy}
                             className="w-8 h-8 rounded-lg text-white/40 hover:text-indigo-300 hover:bg-indigo-500/10">
                             <DocumentTextIcon className="size-4" />
                         </Btn>
-                        <Btn onClick={takeScreenshot} title="Screenshot" dataTutorial="rec-screenshot"
+                        <Btn onClick={takeScreenshot} title="Take screenshot" dataTutorial="rec-screenshot"
+                            disabled={isActionBusy}
                             className="w-8 h-8 rounded-lg text-white/40 hover:text-amber-300 hover:bg-amber-500/10">
                             <CameraIcon className="size-4" />
                         </Btn>
-                        <Btn onClick={toggleDrawing} title="Draw on screen" dataTutorial="rec-draw"
+                        <Btn onClick={toggleDrawing} title={isDrawing ? "Close drawing tools" : "Draw on screen"} dataTutorial="rec-draw"
+                            disabled={isActionBusy}
+                            ariaPressed={isDrawing}
                             className={`relative w-8 h-8 rounded-lg ${isDrawing ? "text-indigo-400 bg-indigo-500/15" : "text-white/40 hover:text-emerald-300 hover:bg-emerald-500/10"}`}>
                             <PencilIcon className="size-4" />
                             {isDrawing && (
@@ -527,6 +869,7 @@ export default function App() {
                             )}
                         </Btn>
                     </div>
+                    )}
 
                     {/* ── Spacer ── */}
                     <div style={{ flex: 1 }} />
@@ -534,28 +877,24 @@ export default function App() {
                     {/* ── Right: actions ── */}
                     <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
                         <Divider />
-                        <Btn onClick={onClickRestart} title="Restart"
-                            className="w-8 h-8 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.06]">
-                            <ArrowPathIcon className="size-4" />
-                        </Btn>
-                        <Btn onClick={onClickCancel} title="Discard"
+                        {!isCaptureFinalized && (
+                            <Btn onClick={onClickRestart} title="Restart recording"
+                                disabled={isActionBusy}
+                                className="w-8 h-8 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/[0.06]">
+                                <ArrowPathIcon className="size-4" />
+                            </Btn>
+                        )}
+                        <Btn onClick={onClickCancel} title="Discard recording"
+                            disabled={isActionBusy}
                             className="w-8 h-8 rounded-lg text-white/20 hover:text-red-400/80 hover:bg-red-500/10">
                             <TrashIcon className="size-4" />
                         </Btn>
 
-                        {!isPaused ? (
-                            <Btn onClick={onClickPause} title="Pause" dataTutorial="rec-pause"
-                                className="w-9 h-9 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white/60 hover:text-white/90">
-                                <PauseIcon className="size-[18px]" />
-                            </Btn>
-                        ) : (
-                            <Btn onClick={onClickResume} title="Resume" dataTutorial="rec-pause"
-                                className="w-9 h-9 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400">
-                                <PlayIcon className="size-[18px]" />
-                            </Btn>
-                        )}
-
-                        <Btn onClick={onClickStop} title="Stop & save" dataTutorial="rec-stop"
+                        <Btn
+                            onClick={onClickStop}
+                            title={stopActionTitle}
+                            dataTutorial="rec-stop"
+                            disabled={isActionBusy}
                             className="w-9 h-9 rounded-xl bg-red-500 hover:bg-red-400 active:bg-red-600 text-white ml-0.5">
                             <StopIcon className="size-[18px]" />
                         </Btn>

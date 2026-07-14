@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import Hint from "../../../../components/Hint"
 import Fieldset from "../properties/Fieldset"
-import Toggle from "../properties/Toggle"
 import SubtitlesGenerator from "../../subtitles/SubtitlesGenerator"
 
 export default function SpeechToTextSettings() {
@@ -12,12 +11,6 @@ export default function SpeechToTextSettings() {
     const { data: defaultLanguage, isPending, refetch } = useQuery({
         queryKey: ['sttDefaultLanguage'],
         queryFn: () => window.electron.ipcRenderer.invoke("store-get", "sttDefaultLanguage"),
-        staleTime: Infinity
-    })
-
-    const { data: autoGenerate, isPending: isAutoGenPending, refetch: refetchAutoGen } = useQuery({
-        queryKey: ['sttAutoGenerate'],
-        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "sttAutoGenerate"),
         staleTime: Infinity
     })
 
@@ -35,17 +28,12 @@ export default function SpeechToTextSettings() {
         refetch()
     }
 
-    const onChangeAutoGenerate = async (e) => {
-        await window.electron.ipcRenderer.invoke("store-set", "sttAutoGenerate", e.target.checked)
-        refetchAutoGen()
-    }
-
     return (<div className="flex flex-col gap-4">
         <h4 className="font-semibold text-lg">Speech to Text</h4>
         <span className="block">
             <Hint>
-                Auto-generate subtitles from speech in your recordings using AI. Supports 99+ languages.
-                First-time use downloads the AI model (~75MB).
+                This language is preselected when you generate subtitles from a recording. Speech recognition supports 99+ languages.
+                First-time use downloads the local AI model (~75MB).
             </Hint>
         </span>
 
@@ -53,6 +41,7 @@ export default function SpeechToTextSettings() {
             <div className="relative">
                 <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
                 <input
+                    aria-label="Search speech recognition languages"
                     type="text"
                     placeholder="Search languages..."
                     value={languageSearch}
@@ -61,6 +50,7 @@ export default function SpeechToTextSettings() {
                 />
             </div>
             <select
+                aria-label="Default speech recognition language"
                 className="select select-sm w-full"
                 value={isPending ? "en" : (defaultLanguage || "en")}
                 onChange={onChangeLanguage}
@@ -76,12 +66,5 @@ export default function SpeechToTextSettings() {
             )}
         </Fieldset>
 
-        <Fieldset legend="Auto-generate" description="Automatically generate subtitles when opening a recording that has audio.">
-            <Toggle leftLabel="Auto-generate subtitles"
-                value={isAutoGenPending ? false : (autoGenerate ?? false)}
-                onChange={onChangeAutoGenerate}
-                disabled={isAutoGenPending}
-                isIndeterminate={isAutoGenPending} />
-        </Fieldset>
     </div>)
 }

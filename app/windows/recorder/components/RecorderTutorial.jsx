@@ -19,14 +19,9 @@ const TOUR = [
         body: "Capture a still frame at any moment during the recording.",
     },
     {
-        id: "rec-pause",
-        title: "Pause and resume",
-        body: "Take a break — your recording stays seamless.",
-    },
-    {
         id: "rec-stop",
-        title: "Stop and edit",
-        body: "Click here when you're done. We'll open the editor next.",
+        title: "Stop and save",
+        body: "This action stays visible when the controls collapse. Use it when your take is finished.",
     },
 ]
 
@@ -40,7 +35,8 @@ export default function RecorderTutorial({ onActiveChange }) {
     const [rect, setRect] = useState(null)
     const originalSizeRef = useRef(null)
 
-    // Decide whether to show the tour: only when both flags say it's not yet completed.
+    // The main first-run tutorial owns the user's first recording. Only offer
+    // this compact recorder tour on a later take, after the main tour is done.
     useEffect(() => {
         let cancelled = false
         const check = async () => {
@@ -51,7 +47,7 @@ export default function RecorderTutorial({ onActiveChange }) {
                     ipc.invoke("store-get", "hasCompletedRecorderTutorial"),
                 ])
                 if (cancelled) return
-                if (!main && !rec) {
+                if (main && !rec) {
                     setActive(true)
                 }
             } catch { /* ignore */ }
@@ -196,6 +192,10 @@ export default function RecorderTutorial({ onActiveChange }) {
                     }}
                 />
                 <div
+                    role="dialog"
+                    aria-modal="false"
+                    aria-labelledby="recorder-tour-title"
+                    aria-describedby="recorder-tour-body"
                     style={{
                         background: "rgba(20, 20, 36, 0.96)",
                         backdropFilter: "blur(20px) saturate(1.4)",
@@ -208,10 +208,15 @@ export default function RecorderTutorial({ onActiveChange }) {
                     }}
                 >
                     {/* dots */}
-                    <div className="flex gap-1.5 mb-2">
-                        {TOUR.map((_, i) => (
+                    <div
+                        className="flex gap-1.5 mb-2"
+                        role="status"
+                        aria-label={`Recorder tour step ${stepIndex + 1} of ${TOUR.length}`}
+                    >
+                        {TOUR.map((tourStep, i) => (
                             <div
-                                key={i}
+                                key={tourStep.id}
+                                aria-hidden="true"
                                 className="w-1.5 h-1.5 rounded-full"
                                 style={{
                                     background:
@@ -222,8 +227,8 @@ export default function RecorderTutorial({ onActiveChange }) {
                             />
                         ))}
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{step.title}</div>
-                    <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(255,255,255,0.65)", marginBottom: 12 }}>
+                    <div id="recorder-tour-title" style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{step.title}</div>
+                    <div id="recorder-tour-body" style={{ fontSize: 12, lineHeight: 1.5, color: "rgba(255,255,255,0.65)", marginBottom: 12 }}>
                         {step.body}
                     </div>
                     <div className="flex items-center justify-between">

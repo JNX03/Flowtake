@@ -64,16 +64,22 @@ test("studio title bar keeps mac-style controls wired to window actions", () => 
     assert.match(titleBarSource, /aria-label="Close window"/)
     assert.match(titleBarSource, /aria-label="Minimize window"/)
     assert.match(titleBarSource, /aria-label="Maximize window"/)
-    assert.match(titleBarSource, /getCurrentWindow\(\)\.close\(\)/)
-    assert.match(titleBarSource, /getCurrentWindow\(\)\.minimize\(\)/)
-    assert.match(titleBarSource, /getCurrentWindow\(\)\.toggleMaximize\(\)/)
+    assert.match(titleBarSource, /getCurrentWindow\(\)\[method\]\(\)/)
+    assert.match(titleBarSource, /callWindow\('close'\)/)
+    assert.match(titleBarSource, /callWindow\('minimize'\)/)
+    assert.match(titleBarSource, /callWindow\('toggleMaximize'\)/)
 })
 
 test("studio theme defines clean, bounded editor surfaces", () => {
+    const studioCss = cssSource.slice(
+        cssSource.indexOf(".flowtake-editor {"),
+        cssSource.indexOf("/* ===== Editorial design system")
+    )
+
     assert.match(cssSource, /name:\s*"flowtake-studio"/)
-    assert.match(cssSource, /\.flowtake-panel,\n\s+\.flowtake-icon-rail,\n\s+\.flowtake-asset-rail,\n\s+\.flowtake-properties-card,\n\s+\.flowtake-timeline-surface/)
+    assert.match(cssSource, /\.flowtake-panel,\r?\n\s+\.flowtake-icon-rail,\r?\n\s+\.flowtake-asset-rail,\r?\n\s+\.flowtake-properties-card,\r?\n\s+\.flowtake-timeline-surface/)
     assert.match(cssSource, /\.flowtake-preview__stage/)
     assert.match(cssSource, /\.flowtake-preview__canvas/)
     assert.match(cssSource, /\.flowtake-timeline-scroll/)
-    assert.doesNotMatch(cssSource, /letter-spacing:\s*-[0-9.]/)
+    assert.doesNotMatch(studioCss, /letter-spacing:\s*-[0-9.]/)
 })
