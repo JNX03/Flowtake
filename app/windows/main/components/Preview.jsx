@@ -9,15 +9,16 @@ import {
 import {
     useCallback,
     useEffect,
-    useMemo,
     useRef,
     useState
 } from "react"
+import PropTypes from "prop-types"
 import { useHotkeys } from "react-hotkeys-hook"
 import {
     shallowEqual,
     useDispatch,
-    useSelector
+    useSelector,
+    useStore
 } from "react-redux"
 import { useResizeDetector } from "react-resize-detector"
 import { MODE_SIDE_BY_SIDE } from "@shared/constants"
@@ -170,9 +171,24 @@ import AspectRatioDropdown from "./AspectRatioDropdown"
 import OverlayCanvas from "./OverlayCanvas"
 import VideoWrapper from "./VideoWrapper"
 
+function PreviewClockBridge({ manager }) {
+    const time = useSelector(selectTime)
+
+    useEffect(() => {
+        manager?.postTime(time)
+    }, [manager, time])
+
+    return null
+}
+
+PreviewClockBridge.propTypes = {
+    manager: PropTypes.instanceOf(PreviewWorkerManager)
+}
+
 export default function Preview() {
 
     const dispatch = useDispatch()
+    const reduxStore = useStore()
 
     // TODO: masks can also be used to highlight information. just draw a border. easy to do!
 
@@ -195,7 +211,6 @@ export default function Preview() {
 
     const isPlaying = useSelector(selectIsPlaying)
     const isStopped = useSelector(selectIsStopped)
-    const time = useSelector(selectTime)
     const areVideosReady = useSelector(selectAreVideosReady)
     const isMuted = useSelector(selectIsMuted)
     const areHotkeysEnabled = useSelector(selectAreHotkeysEnabled)
@@ -269,10 +284,9 @@ export default function Preview() {
     const appScenes = useSelector(selectAllAppScenes, shallowEqual)
 
     const [manager, setManager] = useState(null)
-
-    const isPlayable = useMemo(
-        () => videoDetails && time < videoDetails.end,
-        [videoDetails, time])
+    const isPlayable = useSelector(state => (
+        Number.isFinite(videoDetails?.end) && selectTime(state) < videoDetails.end
+    ))
 
     const canvasRef = useRef(null)
     const screenVideoRef = useRef(null)
@@ -280,32 +294,61 @@ export default function Preview() {
     const extraVideoRefs = useRef([])
     const registeredExtrasRef = useRef(new Set())
     const hasManagerRef = useRef(false)
+    const activeManagerRef = useRef(null)
+    const isPreviewMountedRef = useRef(true)
+    const rendererDimsRef = useRef(rendererDims)
 
     const [canvasRect, setCanvasRect] = useState(null)
 
     const { width: wrapperWidth, height: wrapperHeight, ref } = useResizeDetector()
 
+    useEffect(() => {
+        rendererDimsRef.current = rendererDims
+    }, [rendererDims])
+
+    useEffect(() => {
+        isPreviewMountedRef.current = true
+        return () => {
+            isPreviewMountedRef.current = false
+            activeManagerRef.current?.terminate()
+            activeManagerRef.current = null
+        }
+    }, [])
+
     const createManager = useCallback(async () => {
         console.log("[Preview] createManager start", { duration, hasCameraVideo, projectId: id })
         let phase = "construct preview worker manager"
+        let candidate = null
         try {
-            const manager = new PreviewWorkerManager(screenVideoRef.current, cameraVideoRef.current)
+            candidate = new PreviewWorkerManager(screenVideoRef.current, cameraVideoRef.current)
+            activeManagerRef.current = candidate
             console.log("[Preview] awaiting manager.init()")
             phase = "initialize preview worker manager"
-            await manager.init(
+            await candidate.init(
                 canvasRef.current,
                 duration,
                 { cursorFill, cursorStroke, mouseEvents, hasCameraVideo, projectId: id })
             console.log("[Preview] manager.init() resolved")
 
-            setManager(manager)
+            if (!isPreviewMountedRef.current) {
+                candidate.terminate()
+                if (activeManagerRef.current === candidate) activeManagerRef.current = null
+                return
+            }
+
+            setManager(candidate)
             dispatch(setIsInitialized(true))
-        } catch (e) {
-            e.message = `${e?.message || String(e)} (during ${phase})`
-            console.error("[Preview] createManager failed:", e?.stack || e?.message || String(e))
-            dispatch(addErrorToast("Failed to initialize preview: " + (e?.message || String(e))))
-            // Allow re-entry so a retry (project reopen) can run createManager again.
-            hasManagerRef.current = false
+        } catch (error) {
+            candidate?.terminate()
+            if (activeManagerRef.current === candidate) activeManagerRef.current = null
+            if (!isPreviewMountedRef.current) return
+
+            const message = `${error?.message || String(error)} (during ${phase})`
+            console.error("[Preview] createManager failed:", error?.stack || message)
+            dispatch(addErrorToast("Failed to initialize preview: " + message))
+            // The canvas may already have been transferred off-thread. Reopening
+            // the project remounts Preview with a fresh canvas and retries safely.
+            hasManagerRef.current = true
         }
 
     }, [cursorFill, cursorStroke, dispatch, duration, hasCameraVideo, id, mouseEvents])
@@ -334,7 +377,7 @@ export default function Preview() {
         else if (isPlayable) onPlay()
     },
         { enabled: areHotkeysEnabled },
-        [isPlaying, isPlayable, areHotkeysEnabled])
+        [isPlaying, isPlayable, areHotkeysEnabled, onPause, onPlay])
 
     useEffect(() => {
         if (!manager && !hasManagerRef.current && areVideosReady && duration && mouseEvents) {
@@ -342,12 +385,6 @@ export default function Preview() {
             createManager()
         }
     }, [createManager, manager, areVideosReady, duration, mouseEvents])
-
-    useEffect(() => {
-        return () => {
-            if (manager) manager.terminate()
-        }
-    }, [manager])
 
     useEffect(() => {
         const getDims = (aspectWidth, aspectHeight, maxRendererWidth, maxRendererHeight) => {
@@ -370,7 +407,10 @@ export default function Preview() {
                 }
             }
         }
-        if (wrapperWidth && wrapperHeight) {
+        let resizeTimer = null
+        let rectFrame = null
+
+        if (wrapperWidth && wrapperHeight && canvasRef.current) {
             let dims
             switch (aspectRatio) {
                 case "16x9":
@@ -388,9 +428,26 @@ export default function Preview() {
             }
             canvasRef.current.style.width = `${dims.css.x}px`
             canvasRef.current.style.height = `${dims.css.y}px`
-            dispatch(setRendererDims(dims.renderer))
+
+            const currentRendererDims = rendererDimsRef.current
+            const rendererChanged = !currentRendererDims
+                || currentRendererDims.x !== dims.renderer.x
+                || currentRendererDims.y !== dims.renderer.y
+
+            if (rendererChanged) {
+                const commitResize = () => {
+                    rendererDimsRef.current = dims.renderer
+                    dispatch(setRendererDims(dims.renderer))
+                }
+
+                // The first size is needed for initialization. Later resizes are
+                // debounced so dragging panels does not repeatedly reallocate GPU buffers.
+                if (!currentRendererDims?.x || !currentRendererDims?.y) commitResize()
+                else resizeTimer = window.setTimeout(commitResize, 120)
+            }
+
             // Update overlay canvas rect after layout settles
-            requestAnimationFrame(() => {
+            rectFrame = requestAnimationFrame(() => {
                 if (canvasRef.current) {
                     const parent = canvasRef.current.parentElement
                     if (parent) {
@@ -406,11 +463,12 @@ export default function Preview() {
                 }
             })
         }
-    }, [aspectRatio, dispatch, wrapperWidth, wrapperHeight])
 
-    useEffect(() => {
-        manager?.postTime(time)
-    }, [time, manager])
+        return () => {
+            if (resizeTimer) window.clearTimeout(resizeTimer)
+            if (rectFrame) cancelAnimationFrame(rectFrame)
+        }
+    }, [aspectRatio, dispatch, wrapperWidth, wrapperHeight])
 
     // handles creation of zoom, pan and camera zoom anim configs
     useEffect(() => {
@@ -789,7 +847,7 @@ export default function Preview() {
             try { canvas.releasePointerCapture(e.pointerId) } catch (_) { /* ignore */ }
             const pathDuration = points.length > 1 ? points[points.length - 1].t : 0
             if (points.length >= 2 && pathDuration > 50) {
-                const start = time
+                const start = selectTime(reduxStore.getState())
                 const end = Math.min(start + pathDuration, duration)
                 dispatch(addDrawnMouse({
                     id: `dm-${crypto.randomUUID()}`,
@@ -816,58 +874,90 @@ export default function Preview() {
             canvas.removeEventListener("pointerup", onUp)
             canvas.removeEventListener("pointercancel", onUp)
         }
-    }, [isDrawMouseModeActive, rendererDims, time, duration, dispatch])
+    }, [isDrawMouseModeActive, rendererDims, duration, dispatch, reduxStore])
 
     const toggleDrawMouseMode = useCallback(() => {
         dispatch(setIsDrawMouseModeActive(!isDrawMouseModeActive))
     }, [dispatch, isDrawMouseModeActive])
 
     return (
-        <div className="flowtake-preview flex-1 min-w-[320px] min-h-0 flex flex-col relative">
-            <div className="flowtake-preview__chrome h-10 shrink-0 flex items-center justify-center">
-                <div className="flowtake-preview__toolbar inline-flex items-center gap-2 px-2 py-1 rounded-full bg-base-100/90">
+        <section className="flowtake-preview flex-1 min-w-0 min-h-0 flex flex-col relative" aria-label="Video preview">
+            <PreviewClockBridge manager={manager} />
+            <header className="flowtake-preview__chrome h-11 shrink-0 flex items-center justify-between gap-2 px-2">
+                <div className="min-w-0 flex items-baseline gap-2">
+                    <h2 className="text-xs font-semibold">Canvas</h2>
+                    <span className="hidden sm:inline text-[10px] text-base-content/40">
+                        {aspectRatio.replace("x", ":")}
+                    </span>
+                </div>
+                <div className="flowtake-preview__toolbar inline-flex items-center gap-1 p-1 rounded-lg bg-base-100">
                     <AspectRatioDropdown />
                     <button
+                        type="button"
                         onClick={toggleDrawMouseMode}
                         disabled={isPlaying}
+                        aria-pressed={isDrawMouseModeActive}
+                        aria-label={isDrawMouseModeActive ? "Finish drawing mouse path" : "Draw mouse path"}
                         className={`btn btn-xs ${isDrawMouseModeActive ? "btn-primary" : "btn-ghost"} gap-1`}
-                        title={isDrawMouseModeActive ? "Drawing — drag on the canvas, or click to cancel" : "Draw a mouse path"}
+                        title={isDrawMouseModeActive ? "Finish drawing mouse path" : "Draw a mouse path"}
                     >
                         <PencilSquareIcon className="size-4" />
-                        <span className="hidden sm:inline">{isDrawMouseModeActive ? "Drawing…" : "Draw mouse"}</span>
+                        <span className="hidden md:inline">{isDrawMouseModeActive ? "Drawing" : "Draw mouse"}</span>
                     </button>
                 </div>
-            </div>
-            <div ref={ref} data-drop-zone="preview" className="flowtake-preview__stage flex-1 min-h-0 flex items-center justify-center relative group px-4 py-3">
-                <canvas ref={canvasRef} className={`flowtake-preview__canvas rounded-xl overflow-hidden bg-black ${isDrawMouseModeActive ? "cursor-crosshair" : "cursor-none"}`} />
+            </header>
+
+            <div ref={ref} data-drop-zone="preview" className="flowtake-preview__stage flex-1 min-h-0 flex items-center justify-center relative group p-2 sm:p-3">
+                <canvas ref={canvasRef} className={`flowtake-preview__canvas rounded-lg overflow-hidden bg-black ${isDrawMouseModeActive ? "cursor-crosshair" : "cursor-none"}`} />
                 <OverlayCanvas canvasRect={canvasRect} />
                 {isDrawMouseModeActive && (
-                    <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-primary text-primary-content text-xs font-medium shadow-lg pointer-events-none">
-                        Drag to draw a path — release to finish
+                    <div className="flowtake-preview__draw-hint absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-primary text-primary-content text-[11px] font-medium pointer-events-none">
+                        Drag on the canvas, then release to finish
                     </div>
                 )}
             </div>
-            <div className="flowtake-preview__controls h-12 shrink-0 flex items-center justify-center gap-2">
-                <div className="join shadow-sm">
-                    {!isPlaying && <button onClick={onPlay} disabled={!videoDetails || time >= videoDetails.end}
-                        className="btn btn-sm join-item">
-                        <PlayIcon className="h-5 w-5" />
-                    </button>}
-                    {isPlaying && <button onClick={onPause} className="btn btn-sm join-item">
-                        <PauseIcon className="h-5 w-5" />
-                    </button>}
-                    <button onClick={onStop} disabled={isStopped} className="btn btn-sm join-item">
-                        <StopIcon className="h-5 w-5" />
+
+            <footer className="flowtake-preview__controls h-12 shrink-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2">
+                <span className="hidden lg:block text-[10px] text-base-content/35">Space to play or pause</span>
+                <div className="join flowtake-preview__transport">
+                    {!isPlaying && (
+                        <button
+                            type="button"
+                            onClick={onPlay}
+                            disabled={!isPlayable}
+                            className="btn btn-sm join-item"
+                            aria-label="Play preview"
+                            title="Play (Space)"
+                        >
+                            <PlayIcon className="size-4" />
+                        </button>
+                    )}
+                    {isPlaying && (
+                        <button type="button" onClick={onPause} className="btn btn-sm join-item" aria-label="Pause preview" title="Pause (Space)">
+                            <PauseIcon className="size-4" />
+                        </button>
+                    )}
+                    <button type="button" onClick={onStop} disabled={isStopped} className="btn btn-sm join-item" aria-label="Stop preview" title="Stop">
+                        <StopIcon className="size-4" />
                     </button>
                 </div>
-                {(hasMicrophoneAudio || hasSystemAudio) &&
-                    <button onClick={onToggleSound}
-                        className={`btn btn-sm swap swap-flip shadow-sm ${isMuted ? "swap-active" : ""}`}>
-                        <SpeakerXMarkIcon className="size-4 swap-on" />
-                        <SpeakerWaveIcon className="size-4 swap-off" />
-                    </button>}
-            </div>
+                <div className="justify-self-end">
+                    {(hasMicrophoneAudio || hasSystemAudio) && (
+                        <button
+                            type="button"
+                            onClick={onToggleSound}
+                            aria-label={isMuted ? "Unmute preview" : "Mute preview"}
+                            title={isMuted ? "Unmute preview" : "Mute preview"}
+                            className={`btn btn-sm btn-square swap swap-flip ${isMuted ? "swap-active" : ""}`}
+                        >
+                            <SpeakerXMarkIcon className="size-4 swap-on" />
+                            <SpeakerWaveIcon className="size-4 swap-off" />
+                        </button>
+                    )}
+                </div>
+            </footer>
+
             <VideoWrapper screenVideoRef={screenVideoRef} cameraVideoRef={cameraVideoRef} extraVideoRefs={extraVideoRefs} />
-        </div>
+        </section>
     )
 }
