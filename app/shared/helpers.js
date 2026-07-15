@@ -17,6 +17,7 @@ import {
     setHasProject,
     setLoaderMessage
 } from "./redux/appSlice"
+import { setAssets } from "./redux/assetSlice"
 import {
     addCameraZoom,
     applyProperties as applyCameraZoomAnimsProperties,
@@ -249,6 +250,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         if (json.mouseStyleAnims) actions.push(applyMouseStyleProperties(json.mouseStyleAnims))
         if (json.drawnMouseAnims) actions.push(applyDrawnMouseProperties(json.drawnMouseAnims))
         if (json.appSceneAnims) actions.push(applyAppSceneProperties(json.appSceneAnims))
+        if (json.assets?.entities) actions.push(setAssets(json.assets.entities))
 
         try {
             if (json.project?.background) {

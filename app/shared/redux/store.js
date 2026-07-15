@@ -14,7 +14,7 @@ import appReducer, {
     setIsProjectClosing,
     setLoaderMessage
 } from './appSlice'
-import assetReducer, { reset as resetAssets } from './assetSlice'
+import assetReducer, { assetSlice, reset as resetAssets } from './assetSlice'
 import audioTrackAnimsReducer, {
     audioTrackSlice,
     reset as resetAudioTrackAnims
@@ -129,6 +129,15 @@ const filterSlices = isAnyOf(
     ...Object.values(appSceneAnimSlice.actions)
 )
 
+// Asset library mutations live outside undo history but still need to persist
+// with the current project. Hydration, import progress, and close-time resets
+// must not schedule a save.
+const filterSaveableSlices = action =>
+    filterSlices(action) ||
+    assetSlice.actions.addAsset.match(action) ||
+    assetSlice.actions.removeAsset.match(action) ||
+    assetSlice.actions.updateAsset.match(action)
+
 // Set of excluded action types for O(1) lookup
 const EXCLUDED_ACTION_TYPES = new Set([
     projectSlice.actions.setVideoDetails.type,
@@ -157,9 +166,11 @@ const filterPreventUndo = action => !action.meta?.preventUndo
 // Add one or more listener entries that look for specific actions.
 // They may contain any sync or async logic, similar to thunks.
 saveListenerMiddleware.startListening({
-    matcher: filterSlices,
+    matcher: filterSaveableSlices,
     effect: (_action, { dispatch, getState }) => {
-        if (!getState().editor.isSaving) dispatch(setIsSaving(true))
+        const state = getState()
+        if (!state.undoableState.present.project.id || state.app.isProjectClosing) return
+        if (!state.editor.isSaving) dispatch(setIsSaving(true))
         save(dispatch, getState)
     },
 })
@@ -265,30 +276,34 @@ export default configureStore({
 })
 
 const save = debounce(async (dispatch, getState) => {
-    // Access the present state for all slices
-    const {
-        project,
-        clipAnims,
-        clickAnims,
-        cursorTypeAnims,
-        subtitleAnims,
-        panAnims,
-        zoomAnims,
-        cameraZoomAnims,
-        cursorCoords,
-        maskAnims,
-        audioTrackAnims,
-        overlayAnims,
-        filterAnims,
-        spatialAnims,
-        keyboardLayoutAnims,
-        mouseStyleAnims,
-        drawnMouseAnims,
-        appSceneAnims
-    } = getState().undoableState.present
+    try {
+        // Access the present state for all slices
+        const state = getState()
+        const {
+            project,
+            clipAnims,
+            clickAnims,
+            cursorTypeAnims,
+            subtitleAnims,
+            panAnims,
+            zoomAnims,
+            cameraZoomAnims,
+            cursorCoords,
+            maskAnims,
+            audioTrackAnims,
+            overlayAnims,
+            filterAnims,
+            spatialAnims,
+            keyboardLayoutAnims,
+            mouseStyleAnims,
+            drawnMouseAnims,
+            appSceneAnims
+        } = state.undoableState.present
 
-    // Only save if a project is currently opened
-    if (project.id) {
+        // The project can close while a debounced save is waiting.
+        if (!project.id || state.app.isProjectClosing) return
+
+        const assetState = getState().assets
         const slices = {
             project: { ...project },
             clipAnims: serializeEntitySlice(clipAnims),
@@ -308,10 +323,13 @@ const save = debounce(async (dispatch, getState) => {
             mouseStyleAnims: serializeEntitySlice(mouseStyleAnims),
             drawnMouseAnims: serializeEntitySlice(drawnMouseAnims),
             appSceneAnims: serializeEntitySlice(appSceneAnims),
+            assets: {
+                entities: assetState.ids.map(assetId => assetState.entities[assetId])
+            },
         }
 
         await window.electron.ipcRenderer.invoke("save-json", slices)
-
-        dispatch(setIsSaving(false))
+    } finally {
+        if (getState().editor.isSaving) dispatch(setIsSaving(false))
     }
 }, 3000)
