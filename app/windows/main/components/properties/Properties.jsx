@@ -85,13 +85,14 @@ function SidebarButton({ active, onClick, label, children }) {
             type="button"
             onClick={onClick}
             aria-label={label}
+            aria-current={active ? "page" : undefined}
             data-tip={label}
-            className={`flowtake-sidebar-button tooltip tooltip-right relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
+            className={`flowtake-sidebar-button tooltip tooltip-left relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
                 ${active
                     ? "bg-base-content/10 text-primary"
                     : "text-base-content/70 hover:bg-base-content/5 hover:text-base-content"}`}
         >
-            {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-r" />}
+            {active && <span className="absolute right-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-l" />}
             {children}
         </button>
     )
@@ -106,7 +107,14 @@ SidebarButton.propTypes = {
 
 const ICON_CLS = "w-5 h-5"
 
-export default function Properties({ mode = "docked", panelWidth = 320, isDrawerOpen = false, onDrawerChange }) {
+export default function Properties({
+    mode = "docked",
+    panelWidth = 320,
+    isDrawerOpen = false,
+    onDrawerChange,
+    side = "right",
+    showRail = true,
+}) {
 
     const dispatch = useDispatch()
 
@@ -175,7 +183,10 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
     }, [isDrawer, isDrawerOpen, onDrawerChange])
 
     const iconBar = (
-        <nav className="flowtake-icon-rail w-12 shrink-0 bg-base-100 rounded-xl flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar">
+        <nav
+            className="flowtake-icon-rail w-12 h-full shrink-0 bg-base-100 rounded-xl flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar"
+            aria-label="Inspector tools"
+        >
             <SidebarButton label="Screen Recording" active={openSection === SCREEN_RECORDING} onClick={() => open(SCREEN_RECORDING)}>
                 <ComputerDesktopIcon className={ICON_CLS} />
             </SidebarButton>
@@ -289,22 +300,35 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
     )
 
     if (isDrawer) {
+        if (!showRail && !isDrawerOpen) return null
+        const drawerOffsetClass = showRail ? (side === "right" ? "right-14" : "left-14") : (side === "right" ? "right-0" : "left-0")
         return (
             <>
-                <div className="relative h-full shrink-0 z-20">
-                    {iconBar}
-                </div>
+                {showRail && <div className="relative h-full shrink-0 z-20">{iconBar}</div>}
                 {isDrawerOpen && (
                     <>
-                        <div
-                            className="absolute inset-0 bg-base-content/20 backdrop-blur-[1px] z-10 transition-opacity"
+                        <button
+                            type="button"
+                            aria-label="Close inspector"
+                            className="flowtake-panel-backdrop absolute inset-0 z-10"
                             onClick={() => onDrawerChange?.(false)}
                         />
                         <div
-                            className="flowtake-panel absolute left-14 top-0 bottom-0 z-20 bg-base-100 rounded-xl overflow-hidden"
-                            style={{ width: `min(${panelWidth}px, calc(100vw - 60px))` }}
+                            className={`flowtake-panel absolute ${drawerOffsetClass} top-0 bottom-0 z-20 bg-base-100 rounded-xl overflow-hidden`}
+                            style={{
+                                width: showRail
+                                    ? `min(${panelWidth}px, calc(100vw - 60px))`
+                                    : `min(${panelWidth + 48}px, calc(100vw - 12px))`
+                            }}
                         >
-                            {contentPanel}
+                            {showRail
+                                ? contentPanel
+                                : (
+                                    <div className="flex h-full min-w-0 gap-2 p-1.5">
+                                        {iconBar}
+                                        <div className="min-w-0 flex-1">{contentPanel}</div>
+                                    </div>
+                                )}
                         </div>
                     </>
                 )}
@@ -314,13 +338,13 @@ export default function Properties({ mode = "docked", panelWidth = 320, isDrawer
 
     return (
         <div
-            className="shrink-0 relative h-full flex flex-row gap-2 transition-[width] duration-200"
+            className={`flowtake-inspector-dock shrink-0 relative h-full flex gap-2 transition-[width] duration-200 ${side === "right" ? "flex-row" : "flex-row-reverse"}`}
             style={{ width: `calc(${panelWidth}px + 3rem + 0.5rem)` }}
         >
-            {iconBar}
             <div className="flex-1 min-w-0 h-full">
                 {contentPanel}
             </div>
+            {showRail && iconBar}
         </div>
     )
 }
@@ -330,4 +354,6 @@ Properties.propTypes = {
     panelWidth: PropTypes.number,
     isDrawerOpen: PropTypes.bool,
     onDrawerChange: PropTypes.func,
+    side: PropTypes.oneOf(["left", "right"]),
+    showRail: PropTypes.bool,
 }
