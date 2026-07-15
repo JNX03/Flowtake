@@ -101,6 +101,16 @@ export default class OverlayAnimator {
             if (config.shapeType === "circle") {
                 const r = config.radius || 60
                 g.circle(0, 0, r)
+            } else if (config.shapeType === "arrow") {
+                g.poly([
+                    -w / 2, -h * 0.2,
+                    w * 0.2, -h * 0.2,
+                    w * 0.2, -h / 2,
+                    w / 2, 0,
+                    w * 0.2, h / 2,
+                    w * 0.2, h * 0.2,
+                    -w / 2, h * 0.2,
+                ], true)
             } else {
                 const br = config.borderRadius || 0
                 if (br > 0) g.roundRect(-w / 2, -h / 2, w, h, br)

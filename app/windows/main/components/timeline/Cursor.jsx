@@ -40,6 +40,8 @@ import {
     setTime
 } from "@shared/redux/timelineSlice"
 
+const TIMELINE_PUBLISH_INTERVAL_MS = 1000 / 30
+
 export default function Cursor({ onScrollToCursor }) {
 
     const dispatch = useDispatch()
@@ -68,15 +70,26 @@ export default function Cursor({ onScrollToCursor }) {
     const isPlayingRef = useRef(isPlaying)
     const isStoppedRef = useRef(isStopped)
 
-    const setTimeThrottled = useThrottledCallback(t => dispatch(setTime(t)), 16, { 'trailing': true })
+    const setTimeThrottled = useThrottledCallback(
+        t => dispatch(setTime(t)),
+        TIMELINE_PUBLISH_INTERVAL_MS,
+        { leading: true, trailing: true }
+    )
 
     const applyTime = useCallback((unclampedTime, scrollToCursor = true, throttled = false) => {
         const t = clamp(unclampedTime, videoDetails.start, videoDetails.end)
         if (timeRef.current !== t && cursorInternalOffset !== null) {
             if (throttled) setTimeThrottled(t)
-            else dispatch(setTime(t))
+            else {
+                // Never allow an older trailing playback update to overwrite an
+                // explicit seek or pause position.
+                if (setTimeThrottled.isPending()) setTimeThrottled.flush()
+                setTimeThrottled.cancel()
+                dispatch(setTime(t))
+            }
             timeRef.current = t
-            cursor.current.style.transform = `translateX(${msToPx(t, pxPerMs) - cursorInternalOffset}px)`
+            if (cursor.current)
+                cursor.current.style.transform = `translateX(${msToPx(t, pxPerMs) - cursorInternalOffset}px)`
 
             if ((!isStoppedRef.current && t === videoDetails.start) || (isStoppedRef.current && t > videoDetails.start))
                 dispatch(setIsStopped(!isPlaying && t === videoDetails.start))
@@ -87,10 +100,17 @@ export default function Cursor({ onScrollToCursor }) {
 
     useEffect(() => {
         if (!isPlaying) {
+            const finalPlaybackTime = isPlayingRef.current ? timeRef.current : null
+            if (setTimeThrottled.isPending()) setTimeThrottled.flush()
             timeRef.current = null
-            applyTime(time)
+            applyTime(finalPlaybackTime ?? time)
         }
-    }, [pxPerMs, isPlaying, time, applyTime])
+    }, [pxPerMs, isPlaying, time, applyTime, setTimeThrottled])
+
+    useEffect(() => () => {
+        if (setTimeThrottled.isPending()) setTimeThrottled.flush()
+        setTimeThrottled.cancel()
+    }, [setTimeThrottled])
 
     useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
 
@@ -127,6 +147,8 @@ export default function Cursor({ onScrollToCursor }) {
                 window.removeEventListener("mousemove", handleMouseMove)
                 window.removeEventListener("mouseup", handleMouseUp)
 
+                if (setTimeThrottled.isPending()) setTimeThrottled.flush()
+                setTimeThrottled.cancel()
                 setIsMouseDown(false)
             }
 
@@ -144,7 +166,7 @@ export default function Cursor({ onScrollToCursor }) {
         return () => {
             c?.removeEventListener("mousedown", handleMouseDown)
         }
-    }, [isPlaying, videoDetails, pxPerMs, cursorInternalOffset, offset, scrollLeft, applyTime])
+    }, [isPlaying, videoDetails, pxPerMs, cursorInternalOffset, offset, scrollLeft, applyTime, setTimeThrottled])
 
     // Render loop for timeline time updates
     useEffect(() => {
@@ -159,7 +181,9 @@ export default function Cursor({ onScrollToCursor }) {
                     // Continue the render loop
                     if (prevT === null) prevT = t
                     const tslf = (t - prevT) * playbackRate
-                    applyTime(timeRef.current + tslf)
+                    // Keep the DOM cursor at display refresh rate while reducing
+                    // Redux subscribers to roughly 30 updates per second.
+                    applyTime(timeRef.current + tslf, true, true)
                     prevT = t
                 }
 
@@ -174,8 +198,9 @@ export default function Cursor({ onScrollToCursor }) {
                 cancelAnimationFrame(animationFrame.current)
                 animationFrame.current = null
             }
+            if (setTimeThrottled.isPending()) setTimeThrottled.flush()
         }
-    }, [isPlaying, isStopped, videoDetails, pxPerMs, cursorInternalOffset, playbackRate, applyTime])
+    }, [isPlaying, isStopped, videoDetails, pxPerMs, cursorInternalOffset, playbackRate, applyTime, setTimeThrottled])
 
     useEffect(() => {
         if (isPlaying) {
