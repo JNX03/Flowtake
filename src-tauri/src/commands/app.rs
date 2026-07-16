@@ -88,7 +88,7 @@ pub async fn get_is_sentry_enabled() -> AppResult<bool> {
 
 #[cfg(target_os = "macos")]
 pub fn macos_has_screen_recording_permission() -> bool {
-    core_graphics::access::ScreenCaptureAccess::default().preflight()
+    core_graphics::access::ScreenCaptureAccess.preflight()
 }
 
 #[tauri::command]

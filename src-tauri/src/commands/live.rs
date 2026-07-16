@@ -930,11 +930,11 @@ pub async fn get_cursor_position(_app: AppHandle) -> AppResult<CursorSample> {
                 });
             }
         }
-        return Ok(CursorSample {
+        Ok(CursorSample {
             x: 0,
             y: 0,
             timestamp_ms,
-        });
+        })
     }
 
     #[cfg(target_os = "linux")]
@@ -955,11 +955,11 @@ pub async fn get_cursor_position(_app: AppHandle) -> AppResult<CursorSample> {
             }
             return Ok(CursorSample { x, y, timestamp_ms });
         }
-        return Ok(CursorSample {
+        Ok(CursorSample {
             x: 0,
             y: 0,
             timestamp_ms,
-        });
+        })
     }
 }
 
