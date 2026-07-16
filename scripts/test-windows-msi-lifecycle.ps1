@@ -31,7 +31,10 @@ $ExpectedMsiSize = 92131328L
 $ExpectedChecksumsSha256 = "34DFA1267068590F277E5A172E5538159FF809A94D364812CAF3DA6CFBCB3B16"
 $ExpectedExecutable = "C:\Program Files\Flowtake\flowtake.exe"
 $ExpectedInstallDirectory = "C:\Program Files\Flowtake"
-$ExpectedFileVersion = "1.6.0.0"
+$ExpectedFileVersion = $ExpectedVersion
+$ExpectedDesktopShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDesktopDirectory)) "Flowtake.lnk"
+$ExpectedStartMenuShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonPrograms)) "Flowtake\Flowtake.lnk"
+$ExpectedUninstallShortcut = Join-Path $ExpectedInstallDirectory "Uninstall Flowtake.lnk"
 $ExpectedVendorKey = "HKCU:\Software\Jnx03\Flowtake"
 $ExpectedUninstallKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$ExpectedProductCode"
 $UnexpectedWowUninstallKey = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$ExpectedProductCode"
@@ -105,6 +108,46 @@ function Invoke-NativeChecked {
         ExitCode = $exitCode
         Output = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
     }
+}
+
+function Invoke-MsiUninstallChecked {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProductCode,
+        [Parameter(Mandatory = $true)][string]$LogPath,
+        [int[]]$AllowedExitCodes = @(0, 1605)
+    )
+
+    $msiExecPath = Join-Path $env:SystemRoot "System32\msiexec.exe"
+    Assert-Condition (Test-Path -LiteralPath $msiExecPath -PathType Leaf) "The trusted System32 msiexec.exe is unavailable."
+    $arguments = @("/x", $ProductCode, "/qn", "/norestart", "/L*V!", $LogPath)
+    $rendered = $arguments | ForEach-Object {
+        if ($_ -match "\s") { '"{0}"' -f $_ } else { $_ }
+    }
+    Write-Evidence ("Running and waiting: {0} {1}" -f $msiExecPath, ($rendered -join " "))
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $msiExecPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    foreach ($argument in $arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    try {
+        $process.StartInfo = $startInfo
+        Assert-Condition ($process.Start()) "Could not start msiexec.exe."
+        Assert-Condition ($process.WaitForExit(120000)) "msiexec.exe did not exit within 120 seconds."
+        $exitCode = $process.ExitCode
+    }
+    finally {
+        $process.Dispose()
+    }
+
+    if ($AllowedExitCodes -notcontains $exitCode) {
+        throw "msiexec.exe exited with code $exitCode."
+    }
+    Write-Evidence "msiexec.exe completed with exit code $exitCode after the uninstall process exited."
 }
 
 function Release-ComObject {
@@ -194,8 +237,8 @@ function Assert-CleanInstallState {
     Assert-Condition (@(Get-FlowtakeProcesses).Count -eq 0) "A Flowtake process remains $phase."
 
     $shortcuts = @(
-        (Join-Path $env:USERPROFILE "Desktop\Flowtake.lnk"),
-        (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Flowtake\Flowtake.lnk")
+        $ExpectedDesktopShortcut,
+        $ExpectedStartMenuShortcut
     )
     Assert-Condition (-not (Test-Path -LiteralPath $ExpectedVendorKey)) "Installer-owned HKCU vendor key exists $phase."
     foreach ($shortcut in $shortcuts) {
@@ -205,6 +248,30 @@ function Assert-CleanInstallState {
     if ($AfterUninstall) {
         Write-Evidence "Installer-owned ARP, HKCU, shortcut, file, directory, and process state is absent after uninstall."
     }
+}
+
+function Wait-CleanInstallState {
+    param(
+        [int]$Attempts = 30,
+        [int]$DelaySeconds = 1
+    )
+
+    $lastFailure = $null
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Assert-CleanInstallState -AfterUninstall
+            return
+        }
+        catch {
+            $lastFailure = $_
+            if ($attempt -lt $Attempts) {
+                Write-Evidence "Install state is not clean after uninstall attempt $attempt/$Attempts; waiting $DelaySeconds second(s): $($_.Exception.Message)"
+                Start-Sleep -Seconds $DelaySeconds
+            }
+        }
+    }
+
+    throw "Install state did not become clean after $Attempts bounded checks: $($lastFailure.Exception.Message)"
 }
 
 function Get-MpCmdRunPath {
@@ -574,9 +641,9 @@ try {
     Assert-Condition ($fileVersion -eq $ExpectedFileVersion) "Installed executable version mismatch: $fileVersion"
 
     $requiredShortcuts = @(
-        (Join-Path $env:USERPROFILE "Desktop\Flowtake.lnk"),
-        (Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Flowtake\Flowtake.lnk"),
-        (Join-Path $ExpectedInstallDirectory "Uninstall Flowtake.lnk")
+        $ExpectedDesktopShortcut,
+        $ExpectedStartMenuShortcut,
+        $ExpectedUninstallShortcut
     )
     foreach ($shortcut in $requiredShortcuts) {
         Assert-Condition (Test-Path -LiteralPath $shortcut -PathType Leaf) "Expected installer shortcut is missing: $shortcut"
@@ -616,8 +683,7 @@ try {
         "--verbose-logs", "--log", $wingetUninstallLog
     ) -LogPath (Join-Path $EvidenceDirectory "winget-uninstall-command.log") | Out-Null
     $installObserved = $false
-    Start-Sleep -Seconds 3
-    Assert-CleanInstallState -AfterUninstall
+    Wait-CleanInstallState
     Write-Evidence "WinGet manifest uninstall removed the MSI product, installer-owned registry state, shortcuts, files, and process."
 }
 catch {
@@ -650,9 +716,10 @@ finally {
             (Test-Path -LiteralPath $ExpectedInstallDirectory) -or
             (Test-Path -LiteralPath $ExpectedVendorKey)
         ) {
-            Invoke-NativeChecked -FilePath "msiexec.exe" -Arguments @(
-                "/x", $ExpectedProductCode, "/qn", "/norestart", "/L*V", $fallbackUninstallLog
-            ) -LogPath (Join-Path $EvidenceDirectory "msi-fallback-uninstall-command.log") -AllowedExitCodes @(0, 1605, 3010) | Out-Null
+            Invoke-MsiUninstallChecked `
+                -ProductCode $ExpectedProductCode `
+                -LogPath $fallbackUninstallLog `
+                -AllowedExitCodes @(0, 1605)
         }
     }
     catch {
@@ -698,7 +765,7 @@ finally {
     }
 
     try {
-        Assert-CleanInstallState -AfterUninstall
+        Wait-CleanInstallState
     }
     catch {
         $cleanupErrors.Add("final install-state assertion: $($_.Exception.Message)")

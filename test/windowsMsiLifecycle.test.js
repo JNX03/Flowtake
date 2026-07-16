@@ -184,8 +184,10 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     const executableDefenderIndex = lifecycleScript.indexOf('Invoke-DefenderScan -TargetPath $ExpectedExecutable')
     const launchIndex = lifecycleScript.indexOf("Start-Process -FilePath $ExpectedExecutable")
     const uninstallIndex = lifecycleScript.indexOf('"uninstall", "--manifest"')
-    const finallyIndex = lifecycleScript.indexOf("finally {")
-    const fallbackUninstallIndex = lifecycleScript.indexOf('"msiexec.exe"', finallyIndex)
+    const outerCatchIndex = lifecycleScript.indexOf("$primaryFailure = $_")
+    const finallyIndex = lifecycleScript.indexOf("finally {", outerCatchIndex)
+    const fallbackUninstallIndex = lifecycleScript.indexOf("Invoke-MsiUninstallChecked", finallyIndex)
+    const finalCleanStateIndex = lifecycleScript.lastIndexOf("Wait-CleanInstallState")
 
     assert.ok(preDownloadDefenderIndex >= 0 && preDownloadDefenderIndex < firstFlowtakeDownloadIndex)
     assert.ok(firstFlowtakeDownloadIndex < checksumIndex)
@@ -199,7 +201,9 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     assert.ok(installedDefenderIndex < executableDefenderIndex)
     assert.ok(executableDefenderIndex < launchIndex)
     assert.ok(launchIndex < uninstallIndex)
-    assert.ok(finallyIndex >= 0 && fallbackUninstallIndex > finallyIndex)
+    assert.ok(outerCatchIndex > uninstallIndex)
+    assert.ok(finallyIndex > outerCatchIndex && fallbackUninstallIndex > finallyIndex)
+    assert.ok(finalCleanStateIndex > fallbackUninstallIndex)
 
     for (const requiredBoundary of [
         'GITHUB_REF -eq "refs/heads/main"',
@@ -243,10 +247,30 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
         "FinalReleaseComObject",
         'InvokeMember("Close", "InvokeMethod"',
         "DisplayVersion",
+        "$ExpectedFileVersion = $ExpectedVersion",
+        "Assert-Condition ($fileVersion -eq $ExpectedFileVersion)",
+        "[Environment+SpecialFolder]::CommonDesktopDirectory",
+        "[Environment+SpecialFolder]::CommonPrograms",
+        "$ExpectedUninstallShortcut = Join-Path $ExpectedInstallDirectory",
         "UninstallString",
         "WinGet list did not correlate",
         "Start-Sleep -Seconds 10",
         "Assert-CleanInstallState -AfterUninstall",
+        "function Invoke-MsiUninstallChecked",
+        'Join-Path $env:SystemRoot "System32\\msiexec.exe"',
+        "The trusted System32 msiexec.exe is unavailable",
+        "[System.Diagnostics.ProcessStartInfo]::new()",
+        "$startInfo.FileName = $msiExecPath",
+        "$startInfo.UseShellExecute = $false",
+        "$startInfo.ArgumentList.Add($argument)",
+        "$process.WaitForExit(120000)",
+        "msiexec.exe did not exit within 120 seconds",
+        "$exitCode = $process.ExitCode",
+        "$AllowedExitCodes -notcontains $exitCode",
+        "msiexec.exe completed with exit code",
+        "function Wait-CleanInstallState",
+        "for ($attempt = 1; $attempt -le $Attempts; $attempt++)",
+        "Install state did not become clean after $Attempts bounded checks",
         '-Arguments @("settings", "--disable", "LocalManifestFiles")',
         'winget-settings-after-disable.log',
         "Could not inspect flowtake process",
@@ -264,6 +288,37 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     assert.doesNotMatch(lifecycleScript, /while\s*\(/)
     assert.doesNotMatch(lifecycleScript, /&\s+\$wingetPath\s+settings\s+--disable/)
     assert.doesNotMatch(lifecycleScript, /InvokeMember\("OpenDatabase"/)
+    assert.doesNotMatch(lifecycleScript, /Invoke-NativeChecked\s+-FilePath\s+["']msiexec\.exe["']/)
+    assert.doesNotMatch(lifecycleScript, /\$ExpectedFileVersion\s*=\s*["'][^"']+["']/)
+
+    const msiUninstallHelper = lifecycleScript.slice(
+        lifecycleScript.indexOf("function Invoke-MsiUninstallChecked"),
+        lifecycleScript.indexOf("function Release-ComObject")
+    )
+    assert.doesNotMatch(msiUninstallHelper, /3010/)
+
+    const fallbackInvocation = lifecycleScript.slice(fallbackUninstallIndex, finalCleanStateIndex)
+    assert.match(fallbackInvocation, /-AllowedExitCodes @\(0, 1605\)/)
+    assert.doesNotMatch(fallbackInvocation, /3010/)
+
+    const cleanStateAssertion = lifecycleScript.slice(
+        lifecycleScript.indexOf("function Assert-CleanInstallState"),
+        lifecycleScript.indexOf("function Wait-CleanInstallState")
+    )
+    assert.match(cleanStateAssertion, /\$ExpectedDesktopShortcut,\r?\n\s*\$ExpectedStartMenuShortcut/)
+
+    const installedShortcutAssertion = lifecycleScript.slice(
+        lifecycleScript.indexOf("$requiredShortcuts = @("),
+        lifecycleScript.indexOf("foreach ($shortcut in $requiredShortcuts)")
+    )
+    assert.match(
+        installedShortcutAssertion,
+        /\$ExpectedDesktopShortcut,\r?\n\s*\$ExpectedStartMenuShortcut,\r?\n\s*\$ExpectedUninstallShortcut/
+    )
+    assert.doesNotMatch(
+        lifecycleScript,
+        /\$env:USERPROFILE\s+"Desktop\\Flowtake\.lnk"|\$env:APPDATA\s+"Microsoft\\Windows\\Start Menu\\Programs\\Flowtake\\Flowtake\.lnk"/
+    )
 
     const defenderScan = lifecycleScript.slice(
         lifecycleScript.indexOf("function Invoke-DefenderScan"),
