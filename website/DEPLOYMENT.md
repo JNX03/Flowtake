@@ -8,6 +8,10 @@ The physical comparison entry is served at:
 
 `https://jnx03.github.io/Flowtake/screen-studio-alternative-windows/`
 
+The physical storyboard guide entry is served at:
+
+`https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/`
+
 No repository setting, custom domain, or DNS change is performed by this configuration.
 
 ## Build modes
@@ -15,7 +19,7 @@ No repository setting, custom domain, or DNS change is performed by this configu
 - `npm run dev` and `npm run build` use `/` as the asset base for normal local work.
 - `npm run build -- --mode pages` uses `/Flowtake/`, matching GitHub project Pages.
 - After a Pages-mode build, `npm run preview -- --mode pages` serves the generated site locally at `http://localhost:4173/Flowtake/` by default.
-- `npm run verify:build` requires both `dist/index.html` and `dist/screen-studio-alternative-windows/index.html`, validates their distinct metadata, parses the comparison JSON-LD, and checks the sitemap entry.
+- `npm run verify:build` requires `dist/index.html`, `dist/screen-studio-alternative-windows/index.html`, and `dist/developer-tool-demo-storyboard/index.html`; validates their distinct metadata and JSON-LD; and checks both physical-route sitemap entries.
 
 Public images used from React are joined to `import.meta.env.BASE_URL`. Vite rewrites the favicon and CSS font URLs during the Pages-mode build. This prevents requests from escaping to the domain root when the site is hosted below `/Flowtake/`.
 

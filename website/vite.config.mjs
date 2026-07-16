@@ -19,6 +19,10 @@ export default defineConfig(({ mode }) => ({
           __dirname,
           "screen-studio-alternative-windows/index.html",
         ),
+        developerToolDemoStoryboard: resolve(
+          __dirname,
+          "developer-tool-demo-storyboard/index.html",
+        ),
       },
     },
   },
@@ -29,7 +33,11 @@ export default defineConfig(({ mode }) => ({
     host: "0.0.0.0",
     allowedHosts: ["terminal.local"],
     warmup: {
-      clientFiles: ["./src/main.jsx", "./src/screenStudioAlternative.main.jsx"],
+      clientFiles: [
+        "./src/main.jsx",
+        "./src/screenStudioAlternative.main.jsx",
+        "./src/developerToolDemoStoryboard.main.js",
+      ],
     },
   },
   plugins: [react()],
