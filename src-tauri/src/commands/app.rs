@@ -539,7 +539,7 @@ fn get_install_command(deps: &[Value]) -> String {
         } else if command_exists("zypper") {
             return format!("sudo zypper install -y {}", _packages);
         }
-        return format!("Install these packages: {}", _packages);
+        format!("Install these packages: {}", _packages)
     }
 
     #[cfg(target_os = "windows")]
@@ -549,7 +549,7 @@ fn get_install_command(deps: &[Value]) -> String {
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
-        return format!("Install these packages: {}", _packages);
+        format!("Install these packages: {}", _packages)
     }
 }
 
@@ -627,7 +627,7 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-        return Ok(serde_json::json!({
+        Ok(serde_json::json!({
             "success": output.status.success(),
             "message": if output.status.success() {
                 "Dependencies installed successfully. Please restart Flowtake."
@@ -637,7 +637,7 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
             "stdout": stdout,
             "stderr": stderr,
             "command": install_cmd
-        }));
+        }))
     }
 
     #[cfg(target_os = "windows")]

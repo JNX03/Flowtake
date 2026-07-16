@@ -1134,7 +1134,10 @@ async fn init_recording_impl(
     }
 
     let mut ffmpeg_args: Vec<String> = Vec::new();
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let mut video_filters: Vec<String> = Vec::new();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let video_filters: Vec<String> = Vec::new();
     let (recording_offset_x, recording_offset_y): (i64, i64);
 
     if is_window_capture {

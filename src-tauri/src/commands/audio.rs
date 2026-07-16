@@ -222,7 +222,7 @@ mod platform {
                     let name = info
                         .proplist
                         .get_str("application.name")
-                        .unwrap_or_else(|| format!("Unknown"));
+                        .unwrap_or_else(|| "Unknown".to_string());
                     let pid_str = info
                         .proplist
                         .get_str("application.process.id")
