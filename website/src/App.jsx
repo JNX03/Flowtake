@@ -13,9 +13,8 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createLeadPayload, describeLeadFailure, sendEvent, submitLead } from "./intake.js";
 
-const LEAD_ENDPOINT = import.meta.env.VITE_LEAD_ENDPOINT?.trim() || "";
-const EVENT_ENDPOINT = import.meta.env.VITE_EVENT_ENDPOINT?.trim() || "";
 const CONTACT_EMAIL = "jnxstartup@gmail.com";
 const RELEASE_VERSION = "1.6.0";
 const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
@@ -90,26 +89,8 @@ const faqs = [
   },
 ];
 
-function track(name, detail = {}) {
-  if (!EVENT_ENDPOINT) return;
-  const payload = JSON.stringify({
-    name,
-    detail,
-    path: window.location.pathname,
-    timestamp: new Date().toISOString(),
-  });
-
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon(EVENT_ENDPOINT, new Blob([payload], { type: "application/json" }));
-    return;
-  }
-
-  fetch(EVENT_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: payload,
-    keepalive: true,
-  }).catch(() => {});
+function track(name) {
+  void sendEvent(name);
 }
 
 export function App() {
@@ -117,16 +98,16 @@ export function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const briefTriggerRef = useRef(null);
 
-  const openBrief = (source, trigger) => {
-    track("brief_opened", { source });
+  const openBrief = (trigger) => {
+    track("brief_opened");
     briefTriggerRef.current = trigger instanceof HTMLElement ? trigger : document.activeElement;
     setMobileOpen(false);
     setBriefOpen(true);
   };
 
-  const reserve = (source, trigger) => {
-    track("founding_cta_clicked", { source, checkoutMode: "qualification_first" });
-    openBrief(source, trigger);
+  const reserve = (trigger) => {
+    track("founding_cta_clicked");
+    openBrief(trigger);
   };
 
   useEffect(() => {
@@ -169,7 +150,7 @@ export function App() {
             href="https://github.com/JNX03/Flowtake"
             target="_blank"
             rel="noreferrer"
-            onClick={() => track("github_clicked", { source: "header" })}
+            onClick={() => track("github_clicked")}
           >
             GitHub
           </a>
@@ -178,7 +159,7 @@ export function App() {
             href="https://github.com/JNX03/Flowtake/releases/latest"
             target="_blank"
             rel="noreferrer"
-            onClick={() => track("download_clicked", { source: "header" })}
+            onClick={() => track("download_clicked")}
           >
             Download free
           </a>
@@ -228,7 +209,7 @@ export function App() {
                 href="https://github.com/JNX03/Flowtake/releases/latest"
                 target="_blank"
                 rel="noreferrer"
-                onClick={() => track("download_clicked", { source: "hero" })}
+                onClick={() => track("download_clicked")}
               >
                 Download Flowtake free
                 <ArrowRightIcon aria-hidden="true" />
@@ -337,7 +318,7 @@ export function App() {
               ))}
             </ul>
             <div className="plan-action">
-              <button className="button button-primary" type="button" onClick={(event) => reserve("plan", event.currentTarget)}>
+              <button className="button button-primary" type="button" onClick={(event) => reserve(event.currentTarget)}>
                 Request a founding slot
                 <ArrowRightIcon aria-hidden="true" />
               </button>
@@ -391,7 +372,8 @@ export function App() {
             </article>
             <article id="privacy">
               <h3>Privacy and business contact</h3>
-              <p>The request form uses name, work email, company, optional URL/date, and release story only to assess and reply to the request. Declined or inactive lead data is deleted within 90 days. No nonessential cookies are used while analytics is unconfigured.</p>
+              <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service so we can assess and reply. Lead records are encrypted at rest and declined or inactive leads are deleted within 90 days.</p>
+              <p>This page also sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count - not event details, page URLs, device identifiers, or form content. IP addresses are used in server memory for abuse-rate limiting and are not written to lead or event files. No nonessential cookies are used.</p>
               <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>; expected reply time is two business days. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
             </article>
           </div>
@@ -421,7 +403,7 @@ export function App() {
             <p className="eyebrow"><span className="eyebrow-line" aria-hidden="true" /> Cue the next release</p>
             <h2>Show us the workflow. We’ll frame the take.</h2>
           </div>
-          <button className="button button-primary" type="button" onClick={(event) => openBrief("footer", event.currentTarget)}>
+          <button className="button button-primary" type="button" onClick={(event) => openBrief(event.currentTarget)}>
             Request a sample storyboard <ArrowRightIcon aria-hidden="true" />
           </button>
         </section>
@@ -456,6 +438,8 @@ function BriefDialog({ onClose, restoreFocusTo }) {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [briefText, setBriefText] = useState("");
+  const [briefSubject, setBriefSubject] = useState("");
+  const [fallbackAllowed, setFallbackAllowed] = useState(false);
   const firstInput = useRef(null);
   const dialogRef = useRef(null);
 
@@ -499,47 +483,53 @@ function BriefDialog({ onClose, restoreFocusTo }) {
   const sendBrief = async (event) => {
     event.preventDefault();
     setError("");
+    setBriefText("");
+    setBriefSubject("");
+    setFallbackAllowed(false);
     setStatus("sending");
 
-    const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+    let payload;
+    try {
+      payload = createLeadPayload(new FormData(event.currentTarget));
+    } catch (payloadError) {
+      setError(payloadError.message || "Please check the entered fields and try again.");
+      setStatus("idle");
+      return;
+    }
     const text = [
-      `Name: ${data.name}`,
-      `Work email: ${data.email}`,
-      `Company: ${data.company}`,
-      `Launch URL: ${data.url || "Not provided"}`,
-      `Target date: ${data.deadline || "Not provided"}`,
+      `Name: ${payload.name}`,
+      `Work email: ${payload.email}`,
+      `Company: ${payload.company}`,
+      `Launch URL: ${payload.url || "Not provided"}`,
+      `Target date: ${payload.deadline || "Not provided"}`,
       "",
       "Release story:",
-      data.story,
+      payload.story,
     ].join("\n");
     setBriefText(text);
+    setBriefSubject(`Flowtake Release Studio brief - ${payload.company}`);
 
     try {
-      if (LEAD_ENDPOINT) {
-        const response = await fetch(LEAD_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...data, source: "release-studio-website" }),
-        });
-        if (!response.ok) throw new Error("The brief endpoint did not accept the request.");
-        track("brief_submitted", { method: "endpoint" });
-        setStatus("submitted");
-        return;
-      }
-
-      const subject = encodeURIComponent(`Flowtake Release Studio brief · ${data.company}`);
-      const body = encodeURIComponent(text);
-      track("brief_handoff_started", { method: "email" });
-      window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
-      setStatus("email");
+      await submitLead(payload);
+      track("brief_submitted");
+      setStatus("submitted");
     } catch (submissionError) {
-      setError(submissionError.message || "We could not send the brief. Please copy it and email us directly.");
+      const failure = describeLeadFailure(submissionError);
+      setFallbackAllowed(failure.fallbackAllowed);
+      setError(failure.message);
       setStatus("idle");
     }
   };
 
+  const openEmailFallback = () => {
+    if (!fallbackAllowed || !briefText) return;
+    track("brief_handoff_started");
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(briefSubject)}&body=${encodeURIComponent(briefText)}`;
+    setStatus("email");
+  };
+
   const copyBrief = async () => {
-    if (!briefText) return;
+    if (!briefText || (status === "idle" && !fallbackAllowed)) return;
     try {
       await navigator.clipboard.writeText(briefText);
       setError("");
@@ -597,23 +587,26 @@ function BriefDialog({ onClose, restoreFocusTo }) {
             <button className="text-link" type="button" onClick={onClose}>Close</button>
           </div>
         ) : (
-          <form onSubmit={sendBrief}>
+          <form onSubmit={sendBrief} onInput={() => {
+            if (error) setError("");
+            if (fallbackAllowed) setFallbackAllowed(false);
+          }}>
             <div className="form-grid">
               <label>
                 Your name <span>required</span>
-                <input ref={firstInput} name="name" autoComplete="name" required />
+                <input ref={firstInput} name="name" autoComplete="name" maxLength="80" required />
               </label>
               <label>
                 Work email <span>required</span>
-                <input name="email" type="email" autoComplete="email" required />
+                <input name="email" type="email" autoComplete="email" maxLength="254" required />
               </label>
               <label>
                 Company or project <span>required</span>
-                <input name="company" autoComplete="organization" required />
+                <input name="company" autoComplete="organization" maxLength="100" required />
               </label>
               <label>
                 Launch or product URL <span>optional</span>
-                <input name="url" type="url" inputMode="url" placeholder="https://" />
+                <input name="url" type="url" inputMode="url" placeholder="https://" maxLength="500" />
               </label>
             </div>
             <label>
@@ -622,19 +615,40 @@ function BriefDialog({ onClose, restoreFocusTo }) {
             </label>
             <label>
               What should a viewer understand after 45 seconds? <span>required</span>
-              <textarea name="story" rows="4" minLength="20" required aria-describedby="brief-safety" />
+              <textarea name="story" rows="4" minLength="20" maxLength="2000" required aria-describedby="brief-safety" />
             </label>
             <p className="form-safety" id="brief-safety">
               Do not include passwords, API keys, customer data, or access to a production environment.
             </p>
             <label className="consent-row">
               <input name="privacyAccepted" type="checkbox" required />
-              <span>I agree to the <a href="#privacy" target="_blank" rel="noreferrer">privacy disclosure</a> and understand this is a qualification request, not a purchase.</span>
+              <span>I've read the <a href="#privacy" target="_blank" rel="noreferrer">privacy disclosure</a> and agree to Flowtake using this brief to assess and reply. I understand this is not a purchase.</span>
             </label>
+            <div className="form-honeypot" aria-hidden="true" inert={true}>
+              <label>
+                Website
+                <input
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  maxLength="500"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  data-bwignore="true"
+                />
+              </label>
+            </div>
             {error && <p className="form-error" role="alert">{error}</p>}
-            <p className="form-status" aria-live="polite">{status === "sending" ? "Preparing your request…" : ""}</p>
+            {error && fallbackAllowed && briefText && (
+              <div className="form-fallback-actions">
+                <button className="button button-quiet" type="button" onClick={openEmailFallback}>Open email draft instead</button>
+                <button className="text-link" type="button" onClick={copyBrief}>Copy brief</button>
+              </div>
+            )}
+            <p className="form-status" aria-live="polite">{status === "sending" ? "Sending your brief..." : ""}</p>
             <button className="button button-primary form-submit" type="submit" disabled={status === "sending"}>
-              {status === "sending" ? "Preparing…" : LEAD_ENDPOINT ? "Send the brief" : "Open email draft"}
+              {status === "sending" ? "Sending..." : error ? "Try again" : "Send the brief"}
               <ArrowRightIcon aria-hidden="true" />
             </button>
           </form>

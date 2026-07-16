@@ -1055,6 +1055,35 @@ button.text-link {
   border-color: #ff7675;
 }
 
+.form-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.form-fallback-actions {
+  margin: -4px 0 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.form-fallback-actions .button {
+  min-height: 42px;
+}
+
+.form-fallback-actions .text-link {
+  min-height: 42px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
 .form-submit {
   width: 100%;
 }
