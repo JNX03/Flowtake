@@ -140,6 +140,14 @@ jobs:
             -Mode ValidateManifest `
             -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR
 
+      - name: Verify exclusion-independent Defender custom scan
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-msi-lifecycle.ps1 `
+            -Mode ValidateDefender `
+            -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR
+
   installer-lifecycle:
     name: Install, scan, launch, and uninstall exact MSI
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'

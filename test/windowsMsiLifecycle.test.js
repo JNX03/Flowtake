@@ -89,6 +89,12 @@ test("MSI execution is restricted to a manual main-branch dispatch", () => {
         validationJob.steps.find(step => step.name === "Validate immutable package metadata").run,
         /-Mode ValidateManifest/
     )
+    const defenderProbe = validationJob.steps.find(
+        step => step.name === "Verify exclusion-independent Defender custom scan"
+    )
+    assert.equal(defenderProbe.if, "github.event_name == 'pull_request'")
+    assert.equal(defenderProbe.shell, "pwsh")
+    assert.match(defenderProbe.run, /-Mode ValidateDefender/)
     assert.match(
         lifecycleJob.steps.find(step => step.name === "Prove the exact published MSI lifecycle").run,
         /-Mode Lifecycle/
@@ -168,38 +174,55 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     const checksumIndex = lifecycleScript.indexOf("Downloaded MSI SHA-256 mismatch")
     const firstInstallerExecution = lifecycleScript.indexOf('"install", "--manifest"')
     const msiDefenderIndex = lifecycleScript.indexOf('Invoke-DefenderScan -TargetPath $msiPath')
+    const scannedHashIndex = lifecycleScript.indexOf("$scannedMsiSha256 =")
+    const manifestHashCorrelationIndex = lifecycleScript.indexOf("$scannedMsiSha256 -eq $manifestInstallerSha256")
+    const installerHashOverrideIndex = lifecycleScript.indexOf('-Name "InstallerHashOverride"')
+    const preInstallHashIndex = lifecycleScript.indexOf("$preInstallMsiSha256 =")
     const installedDefenderIndex = lifecycleScript.indexOf('Invoke-DefenderScan -TargetPath $ExpectedInstallDirectory')
+    const executableDefenderIndex = lifecycleScript.indexOf('Invoke-DefenderScan -TargetPath $ExpectedExecutable')
     const launchIndex = lifecycleScript.indexOf("Start-Process -FilePath $ExpectedExecutable")
     const uninstallIndex = lifecycleScript.indexOf('"uninstall", "--manifest"')
     const finallyIndex = lifecycleScript.indexOf("finally {")
     const fallbackUninstallIndex = lifecycleScript.indexOf('"msiexec.exe"', finallyIndex)
 
     assert.ok(checksumIndex >= 0 && checksumIndex < msiDefenderIndex)
-    assert.ok(msiDefenderIndex < firstInstallerExecution)
+    assert.ok(msiDefenderIndex < scannedHashIndex)
+    assert.ok(scannedHashIndex < manifestHashCorrelationIndex)
+    assert.ok(manifestHashCorrelationIndex < installerHashOverrideIndex)
+    assert.ok(installerHashOverrideIndex < preInstallHashIndex)
+    assert.ok(preInstallHashIndex < firstInstallerExecution)
     assert.ok(firstInstallerExecution < installedDefenderIndex)
-    assert.ok(installedDefenderIndex < launchIndex)
+    assert.ok(installedDefenderIndex < executableDefenderIndex)
+    assert.ok(executableDefenderIndex < launchIndex)
     assert.ok(launchIndex < uninstallIndex)
     assert.ok(finallyIndex >= 0 && fallbackUninstallIndex > finallyIndex)
 
     for (const requiredBoundary of [
         'GITHUB_REF -eq "refs/heads/main"',
         'GITHUB_EVENT_NAME -eq "workflow_dispatch"',
+        'GITHUB_EVENT_NAME -eq "pull_request"',
         "Get-MpComputerStatus",
-        "Remove-MpPreference -ExclusionPath",
         "-DisableRealtimeMonitoring $false",
         "Update-MpSignature",
         "AntivirusEnabled",
         "RealTimeProtectionEnabled",
         "AMRunningMode",
-        "Start-MpScan -ScanType CustomScan",
-        "Get-MpThreatDetection",
-        "Get-MpThreatDetection -ErrorAction Stop",
-        '"-CheckExclusion", "-Path", $TargetPath',
-        "-AllowedExitCodes @(1)",
-        "is not excluded",
+        "AMEngineVersion",
+        '"-Scan", "-ScanType", "3", "-File", $TargetPath, "-DisableRemediation"',
+        "-AllowedExitCodes @(0)",
+        "Scan finished",
+        "found no threats",
+        "PASS: exclusion-independent Defender custom scan validated on a harmless file; no Flowtake installer was downloaded or executed",
         "Enable-DefenderForTarget -TargetPath $msiPath",
         "Enable-DefenderForTarget -TargetPath $ExpectedInstallDirectory",
-        "Assert-DefenderTargetNotExcluded -TargetPath $ExpectedExecutable",
+        "Invoke-DefenderScan -TargetPath $ExpectedExecutable",
+        "Defender-scanned MSI SHA-256 does not match the tracked manifest",
+        '-Name "InstallerHashOverride"',
+        "WinGet InstallerHashOverride is enabled",
+        "Scanned MSI size changed immediately before WinGet install",
+        "Scanned MSI changed immediately before WinGet install",
+        "Successfully verified installer hash",
+        "WinGet did not report successful installer hash verification",
         "WindowsInstaller",
         "$windowsInstaller.OpenDatabase($msiPath, 0)",
         "FinalReleaseComObject",
@@ -220,20 +243,16 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
 
     assert.doesNotMatch(
         lifecycleScript,
-        /continue-on-error|ignore-security-hash|LocalArchiveMalwareScanOverride|InstallerHashOverride|Win32_Product|\|\|\s*true|"--product-code"/
+        /continue-on-error|LocalArchiveMalwareScanOverride|Win32_Product|\|\|\s*true|"--product-code"|-ReturnHR|Start-MpScan|Get-MpThreatDetection|Remove-MpPreference|-CheckExclusion/
     )
-    assert.doesNotMatch(lifecycleScript, /Get-MpThreatDetection[^\r\n]*SilentlyContinue/)
+    assert.doesNotMatch(lifecycleScript, /["']--ignore-security-hash["']/)
     assert.doesNotMatch(lifecycleScript, /&\s+\$wingetPath\s+settings\s+--disable/)
     assert.doesNotMatch(lifecycleScript, /InvokeMember\("OpenDatabase"/)
-    assert.equal(
-        lifecycleScript.match(/= @\(Get-CoveringDefenderExclusions -TargetPath \$TargetPath\)/g)?.length,
-        2
-    )
 
-    const exclusionCheck = lifecycleScript.slice(
-        lifecycleScript.indexOf("function Assert-DefenderTargetNotExcluded"),
-        lifecycleScript.indexOf("function Enable-DefenderForTarget")
+    const defenderScan = lifecycleScript.slice(
+        lifecycleScript.indexOf("function Invoke-DefenderScan"),
+        lifecycleScript.indexOf("function Write-FailureLogTails")
     )
-    assert.match(exclusionCheck, /-AllowedExitCodes @\(1\)/)
-    assert.doesNotMatch(exclusionCheck, /-AllowedExitCodes @\([^)]*0/)
+    assert.match(defenderScan, /-AllowedExitCodes @\(0\)/)
+    assert.doesNotMatch(defenderScan, /-AllowedExitCodes @\([^)]*[1-9]/)
 })
