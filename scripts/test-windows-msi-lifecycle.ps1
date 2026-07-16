@@ -221,41 +221,25 @@ function Get-MpCmdRunPath {
     return $mpCmdRunPath[0]
 }
 
-function Enable-DefenderForTarget {
+function Prepare-DefenderScan {
     param([Parameter(Mandatory = $true)][string]$TargetPath)
 
     Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender target is missing: $TargetPath"
-    foreach ($requiredCommand in @("Get-MpComputerStatus", "Get-MpPreference", "Set-MpPreference", "Update-MpSignature")) {
+    foreach ($requiredCommand in @("Get-MpComputerStatus", "Update-MpSignature")) {
         Assert-Condition ($null -ne (Get-Command $requiredCommand -ErrorAction SilentlyContinue)) "Required Defender command is unavailable: $requiredCommand"
     }
 
-    Set-MpPreference `
-        -DisableRealtimeMonitoring $false `
-        -DisableBehaviorMonitoring $false `
-        -DisableScriptScanning $false `
-        -DisableIOAVProtection $false `
-        -DisableArchiveScanning $false `
-        -PUAProtection Enabled
     Update-MpSignature | Out-Null
-
-    $preference = Get-MpPreference
-    Assert-Condition (-not [bool]$preference.DisableRealtimeMonitoring) "Defender real-time monitoring remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableBehaviorMonitoring) "Defender behavior monitoring remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableScriptScanning) "Defender script scanning remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableIOAVProtection) "Defender IOAV protection remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableArchiveScanning) "Defender archive scanning remained disabled."
-    Assert-Condition ([int]$preference.PUAProtection -eq 1) "Defender PUA protection is not enabled."
 
     $status = Get-MpComputerStatus
     Assert-Condition ([bool]$status.AMServiceEnabled) "Defender antimalware service is not enabled."
     Assert-Condition ([bool]$status.AntivirusEnabled) "Defender antivirus is not enabled."
-    Assert-Condition ([bool]$status.RealTimeProtectionEnabled) "Defender real-time protection is not enabled."
     Assert-Condition ($status.AMRunningMode -eq "Normal") "Defender is not running in Normal mode: $($status.AMRunningMode)"
     Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$status.AMEngineVersion)) "Defender engine version is unavailable."
     Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$status.AntivirusSignatureVersion)) "Defender signature version is unavailable."
     Assert-Condition ($null -ne $status.AntivirusSignatureLastUpdated) "Defender signature timestamp is unavailable."
     Assert-Condition ([int]$status.AntivirusSignatureAge -le 1) "Defender signatures are stale: age $($status.AntivirusSignatureAge) day(s)."
-    Write-Evidence "Defender enabled in Normal mode for an exclusion-independent custom scan of $TargetPath; engine $($status.AMEngineVersion), signature $($status.AntivirusSignatureVersion), updated $($status.AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o'))."
+    Write-Evidence "Defender on-demand scan prerequisites are ready for $TargetPath; mode Normal, engine $($status.AMEngineVersion), signature $($status.AntivirusSignatureVersion), updated $($status.AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o')). Real-time status is $([bool]$status.RealTimeProtectionEnabled) and is observed only, not used as a custom-scan prerequisite or claimed as installer-write coverage."
 }
 
 function Invoke-DefenderScan {
@@ -265,15 +249,17 @@ function Invoke-DefenderScan {
     )
 
     Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender scan target is missing: $TargetPath"
+    $resolvedTarget = (Resolve-Path -LiteralPath $TargetPath).Path
     $safeLabel = ($Label -replace "[^A-Za-z0-9.-]", "-").Trim("-")
     Assert-Condition (-not [string]::IsNullOrWhiteSpace($safeLabel)) "Defender scan label is invalid."
     $result = Invoke-NativeChecked `
         -FilePath (Get-MpCmdRunPath) `
-        -Arguments @("-Scan", "-ScanType", "3", "-File", $TargetPath, "-DisableRemediation") `
+        -Arguments @("-Scan", "-ScanType", "3", "-File", $resolvedTarget, "-DisableRemediation") `
         -LogPath (Join-Path $EvidenceDirectory "defender-scan-$safeLabel.log") `
         -AllowedExitCodes @(0)
     Assert-Condition ($result.Output -match "(?im)^\s*Scan finished\.\s*$") "Defender did not report a completed scan for $Label."
-    Assert-Condition ($result.Output -match "(?im)\bfound no threats\.\s*$") "Defender did not report a clean scan for $Label."
+    $cleanTargetPattern = "(?im)^\s*Scanning\s+{0}\s+found no threats\.\s*$" -f [regex]::Escape($resolvedTarget)
+    Assert-Condition ($result.Output -match $cleanTargetPattern) "Defender did not report a clean scan for the exact target: $Label."
     Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender scan target disappeared: $Label."
     Write-Evidence "Defender exclusion-independent custom scan completed with no threats: $Label."
 }
@@ -337,7 +323,7 @@ if ($Mode -eq "ValidateDefender") {
     $probePath = "C:\FlowtakeDefenderProbe-$([guid]::NewGuid().ToString('N')).txt"
     try {
         [System.IO.File]::WriteAllText($probePath, "Harmless Flowtake Defender scan-path probe.")
-        Enable-DefenderForTarget -TargetPath $probePath
+        Prepare-DefenderScan -TargetPath $probePath
         Invoke-DefenderScan -TargetPath $probePath -Label "harmless PR probe"
         Assert-Condition (Test-Path -LiteralPath $probePath -PathType Leaf) "Defender probe file disappeared after scanning."
         Write-Evidence "PASS: exclusion-independent Defender custom scan validated on a harmless file; no Flowtake installer was downloaded or executed."
@@ -434,7 +420,7 @@ try {
     Assert-Condition ($signatureStatus -eq "NotSigned") "v1.6.0 MSI signing status drifted: $signatureStatus"
     Write-Evidence "MSI metadata matches product, version, publisher, product/upgrade codes, machine scope, and disclosed unsigned status."
 
-    Enable-DefenderForTarget -TargetPath $msiPath
+    Prepare-DefenderScan -TargetPath $msiPath
     Invoke-DefenderScan -TargetPath $msiPath -Label "published Flowtake MSI"
     Assert-Condition (Test-Path -LiteralPath $msiPath -PathType Leaf) "MSI disappeared after Defender scan."
     Assert-Condition ((Get-Item -LiteralPath $msiPath).Length -eq $ExpectedMsiSize) "MSI size changed after Defender scan."
@@ -507,7 +493,7 @@ try {
     Assert-Condition ($listResult.Output -match [regex]::Escape($ExpectedVersion)) "WinGet list did not correlate the installed version."
     Write-Evidence "Installation correlated across WinGet inventory, 64-bit ARP, MSI ProductCode, HKCU installer key, shortcuts, and executable metadata."
 
-    Enable-DefenderForTarget -TargetPath $ExpectedInstallDirectory
+    Prepare-DefenderScan -TargetPath $ExpectedInstallDirectory
     Invoke-DefenderScan -TargetPath $ExpectedInstallDirectory -Label "installed Flowtake directory"
     Invoke-DefenderScan -TargetPath $ExpectedExecutable -Label "installed Flowtake executable"
     Assert-Condition (Test-Path -LiteralPath $ExpectedExecutable -PathType Leaf) "Installed executable disappeared after Defender scan."
@@ -645,7 +631,7 @@ if ($null -ne $cleanupFailure) {
     throw $cleanupFailure
 }
 
-Write-Evidence "PASS: exact-manifest validation, published-asset integrity, active Defender custom scans, silent install, correlation, bounded startup, WinGet uninstall, and cleanup all passed."
+Write-Evidence "PASS: exact-manifest validation, published-asset integrity, exclusion-independent Defender on-demand scans, silent install, correlation, bounded startup, WinGet uninstall, and cleanup all passed."
 
 if ($env:GITHUB_STEP_SUMMARY) {
     @(
@@ -657,6 +643,6 @@ if ($env:GITHUB_STEP_SUMMARY) {
         "- ProductCode: ``$ExpectedProductCode``",
         "- Runner: ``$($env:ImageOS) $($env:ImageVersion)``",
         "- WinGet: ``$wingetVersion``",
-        "- Evidence: manifest validation, release digest/checksum, MSI metadata, active Defender custom scans, install/registry correlation, 10-second startup, uninstall, and cleanup"
+        "- Evidence: manifest validation, release digest/checksum, MSI metadata, exclusion-independent Defender on-demand scans, install/registry correlation, 10-second startup, uninstall, and cleanup"
     ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 }

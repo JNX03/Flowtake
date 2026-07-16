@@ -202,19 +202,20 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
         'GITHUB_EVENT_NAME -eq "workflow_dispatch"',
         'GITHUB_EVENT_NAME -eq "pull_request"',
         "Get-MpComputerStatus",
-        "-DisableRealtimeMonitoring $false",
         "Update-MpSignature",
         "AntivirusEnabled",
-        "RealTimeProtectionEnabled",
         "AMRunningMode",
         "AMEngineVersion",
-        '"-Scan", "-ScanType", "3", "-File", $TargetPath, "-DisableRemediation"',
+        "RealTimeProtectionEnabled",
+        "observed only, not used as a custom-scan prerequisite or claimed as installer-write coverage",
+        '"-Scan", "-ScanType", "3", "-File", $resolvedTarget, "-DisableRemediation"',
         "-AllowedExitCodes @(0)",
         "Scan finished",
+        '[regex]::Escape($resolvedTarget)',
         "found no threats",
         "PASS: exclusion-independent Defender custom scan validated on a harmless file; no Flowtake installer was downloaded or executed",
-        "Enable-DefenderForTarget -TargetPath $msiPath",
-        "Enable-DefenderForTarget -TargetPath $ExpectedInstallDirectory",
+        "Prepare-DefenderScan -TargetPath $msiPath",
+        "Prepare-DefenderScan -TargetPath $ExpectedInstallDirectory",
         "Invoke-DefenderScan -TargetPath $ExpectedExecutable",
         "Defender-scanned MSI SHA-256 does not match the tracked manifest",
         '-Name "InstallerHashOverride"',
@@ -243,7 +244,7 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
 
     assert.doesNotMatch(
         lifecycleScript,
-        /continue-on-error|LocalArchiveMalwareScanOverride|Win32_Product|\|\|\s*true|"--product-code"|-ReturnHR|Start-MpScan|Get-MpThreatDetection|Remove-MpPreference|-CheckExclusion/
+        /continue-on-error|LocalArchiveMalwareScanOverride|Win32_Product|\|\|\s*true|"--product-code"|-ReturnHR|Start-MpScan|Get-MpThreatDetection|Remove-MpPreference|Set-MpPreference|Get-MpPreference|-CheckExclusion/
     )
     assert.doesNotMatch(lifecycleScript, /["']--ignore-security-hash["']/)
     assert.doesNotMatch(lifecycleScript, /&\s+\$wingetPath\s+settings\s+--disable/)
