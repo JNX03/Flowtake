@@ -98,6 +98,8 @@ For vulnerability reporting, follow the private process in [SECURITY.md](SECURIT
 
 Teams that want human-assisted production for a technical launch can visit [Flowtake Release Studio](https://jnx03.github.io/Flowtake/). It is a separate, optional service; Flowtake's desktop recorder and editor remain the primary open-source product.
 
+Through July 23, 2026, Flowtake will publicly reply with a no-obligation six-beat storyboard to up to the first three maintainers who [share a complete, publicly documented developer-tool workflow](https://github.com/JNX03/Flowtake/discussions/169). No separate Flowtake signup, footage, or payment is required.
+
 ## Development
 
 ### Prerequisites
