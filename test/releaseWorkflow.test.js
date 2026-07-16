@@ -150,3 +150,12 @@ test("release automation pins actions, minimizes write access, and binds manual 
         /git rev-list -n 1 "refs\/tags\/\$RELEASE_TAG"\)" = "\$EXPECTED_COMMIT"/
     )
 })
+
+test("Pages deployment waits for the matching hardened release", () => {
+    assert.match(pagesWorkflow, /"on":\s*\n\s+workflow_dispatch:/)
+    assert.doesNotMatch(pagesWorkflow, /\n\s+push:/)
+    assert.match(pagesWorkflow, /Require the matching hardened release and checksums/)
+    assert.match(pagesWorkflow, /releases\/latest/)
+    assert.match(pagesWorkflow, /actual_tag.*expected_tag/)
+    assert.match(pagesWorkflow, /SHA256SUMS\.txt/)
+})

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jnx03.github.io/Flowtake/sitemap.xml
