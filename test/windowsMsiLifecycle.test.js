@@ -225,6 +225,10 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     assert.doesNotMatch(lifecycleScript, /Get-MpThreatDetection[^\r\n]*SilentlyContinue/)
     assert.doesNotMatch(lifecycleScript, /&\s+\$wingetPath\s+settings\s+--disable/)
     assert.doesNotMatch(lifecycleScript, /InvokeMember\("OpenDatabase"/)
+    assert.equal(
+        lifecycleScript.match(/= @\(Get-CoveringDefenderExclusions -TargetPath \$TargetPath\)/g)?.length,
+        2
+    )
 
     const exclusionCheck = lifecycleScript.slice(
         lifecycleScript.indexOf("function Assert-DefenderTargetNotExcluded"),
