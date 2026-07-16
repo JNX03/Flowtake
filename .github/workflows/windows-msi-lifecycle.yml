@@ -51,18 +51,6 @@ jobs:
           $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
 
           $command = Get-Command winget -ErrorAction SilentlyContinue
-          if (-not $command) {
-            try {
-              Add-AppxPackage -RegisterByFamilyName `
-                -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe `
-                -ErrorAction Stop
-            }
-            catch {
-              Write-Host "The provisioned App Installer family was not immediately registrable: $($_.Exception.Message)"
-            }
-            $command = Get-Command winget -ErrorAction SilentlyContinue
-          }
-
           $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
           if ($actualVersion -ne $expectedVersion) {
             $moduleArchive = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client.$env:WINGET_BOOTSTRAP_VERSION.zip"
@@ -143,18 +131,6 @@ jobs:
           $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
 
           $command = Get-Command winget -ErrorAction SilentlyContinue
-          if (-not $command) {
-            try {
-              Add-AppxPackage -RegisterByFamilyName `
-                -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe `
-                -ErrorAction Stop
-            }
-            catch {
-              Write-Host "The provisioned App Installer family was not immediately registrable: $($_.Exception.Message)"
-            }
-            $command = Get-Command winget -ErrorAction SilentlyContinue
-          }
-
           $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
           if ($actualVersion -ne $expectedVersion) {
             $moduleArchive = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client.$env:WINGET_BOOTSTRAP_VERSION.zip"

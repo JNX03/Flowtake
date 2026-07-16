@@ -122,7 +122,7 @@ test("installer proof uses immutable actions and a pinned official WinGet bootst
     assert.match(workflowSource, /\$module\.Author -ne "Microsoft Corporation"/m)
     assert.doesNotMatch(
         workflowSource,
-        /continue-on-error|contents:\s*write|secrets\.|pull_request_target|Install-Module|Install-PackageProvider|Set-PSRepository/
+        /continue-on-error|contents:\s*write|secrets\.|pull_request_target|Add-AppxPackage|Install-Module|Install-PackageProvider|Set-PSRepository/
     )
 })
 
