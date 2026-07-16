@@ -267,7 +267,7 @@ button.text-link {
 
 .hero-lede {
   max-width: 520px;
-  margin: 0 0 32px;
+  margin: 0;
 }
 
 .hero-actions {
@@ -338,7 +338,7 @@ button.text-link {
 }
 
 .price-line {
-  margin-top: 34px;
+  margin: 30px 0 22px;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;

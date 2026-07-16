@@ -165,3 +165,21 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
   assert.equal(intakeSource.includes("import.meta.env"), false);
   assert.equal(intakeSource.includes("Too many attempts from this network."), true);
 });
+
+test("the hero leads with the qualification-first paid offer and keeps the free app secondary", async () => {
+  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
+  const hero = source.slice(source.indexOf('<section className="hero section"'), source.indexOf('<div className="hero-visual"'));
+  const requestIndex = hero.indexOf("Request a sample storyboard");
+  const downloadIndex = hero.indexOf("Download Flowtake free");
+
+  assert.equal(hero.includes("$99"), true);
+  assert.equal(hero.includes("Four 30–90 second demos"), true);
+  assert.ok(requestIndex >= 0 && requestIndex < downloadIndex, "paid request must precede the free download");
+  assert.equal(source.includes("Request a founding slot"), false);
+  assert.equal(source.match(/onClick=\{\(event\) => openBrief\(event\.currentTarget\)\}/gu)?.length, 3);
+  assert.equal(source.includes('track("founding_cta_clicked")'), false);
+
+  const metadata = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  assert.equal(metadata.includes("free recorder and developer demo studio"), true);
+  assert.equal(metadata.includes("$99/month Release Studio"), true);
+});

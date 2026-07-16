@@ -105,11 +105,6 @@ export function App() {
     setBriefOpen(true);
   };
 
-  const reserve = (trigger) => {
-    track("founding_cta_clicked");
-    openBrief(trigger);
-  };
-
   useEffect(() => {
     track("page_viewed");
   }, []);
@@ -193,19 +188,29 @@ export function App() {
           <div className="hero-copy">
             <p className="eyebrow">
               <span className="eyebrow-line" aria-hidden="true" />
-              Free MIT desktop app · optional production help
+              Free MIT recorder · optional $99/month production
             </p>
             <h1>
               Record the build.
               <span>Ship a clear <em>demo.</em></span>
             </h1>
             <p className="hero-lede">
-              Capture IDE, terminal, browser, and desktop sources locally, then shape the real workflow into a polished developer-product story.
+              Capture IDE, terminal, browser, and desktop sources locally with the free app. Release Studio turns approved workflows into polished launch demos.
             </p>
 
+            <div className="price-line">
+              <span className="price">$99</span>
+              <span className="price-period">/ month</span>
+              <span className="price-note">Four 30–90 second demos · 16:9 masters + social cutdowns</span>
+            </div>
+
             <div className="hero-actions">
+              <button className="button button-primary" type="button" onClick={(event) => openBrief(event.currentTarget)}>
+                Request a sample storyboard
+                <ArrowRightIcon aria-hidden="true" />
+              </button>
               <a
-                className="button button-primary"
+                className="button button-quiet"
                 href="https://github.com/JNX03/Flowtake/releases/latest"
                 target="_blank"
                 rel="noreferrer"
@@ -214,7 +219,6 @@ export function App() {
                 Download Flowtake free
                 <ArrowRightIcon aria-hidden="true" />
               </a>
-              <a className="button button-quiet" href="#founding-plan">See Release Studio</a>
             </div>
 
             <p className="honest-note">
@@ -318,8 +322,8 @@ export function App() {
               ))}
             </ul>
             <div className="plan-action">
-              <button className="button button-primary" type="button" onClick={(event) => reserve(event.currentTarget)}>
-                Request a founding slot
+              <button className="button button-primary" type="button" onClick={(event) => openBrief(event.currentTarget)}>
+                Request a sample storyboard
                 <ArrowRightIcon aria-hidden="true" />
               </button>
               <p>$99 recurring monthly after written scope confirmation. Cancel before renewal. Checkout stays private until timing, safe capture, and terms are accepted.</p>
