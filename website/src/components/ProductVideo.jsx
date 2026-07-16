@@ -85,7 +85,7 @@ export function ProductVideo({
         {webmSrc && <source src={webmSrc} type="video/webm" />}
         {mp4Src && <source src={mp4Src} type="video/mp4" />}
         {captionsSrc && (
-          <track src={captionsSrc} kind="captions" srcLang="en" label="English" default />
+          <track src={captionsSrc} kind="captions" srcLang="en" label="English" />
         )}
       </video>
       <figcaption className="product-media__sr-only">{label}</figcaption>

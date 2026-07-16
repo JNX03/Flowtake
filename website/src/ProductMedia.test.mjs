@@ -48,4 +48,5 @@ test("genuine product media components are accessible, data-driven, and never si
   assert.equal(styles.includes("aspect-ratio: 16 / 10"), false);
   assert.equal(styles.includes("object-fit: cover"), false);
   assert.equal(video.includes("Use the video controls or download link"), false);
+  assert.equal(video.includes('label="English" default'), false);
 });
