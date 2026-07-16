@@ -16,9 +16,47 @@ const [home, comparison, guide, sitemap] = await Promise.all([
 ]);
 
 const count = (value, needle) => value.split(needle).length - 1;
+const assertPagesRuntimeAssets = (html, label) => {
+  assert.match(
+    html,
+    /<script[^>]+src="\/Flowtake\/assets\/[^"]+\.js"[^>]*><\/script>/u,
+    `${label} runtime script must use the Pages base`,
+  );
+  assert.match(
+    html,
+    /<link[^>]+href="\/Flowtake\/assets\/[^"]+\.css"[^>]*>/u,
+    `${label} stylesheet must use the Pages base`,
+  );
+  assert.equal(
+    /(?:src|href)="\/assets\//u.test(html),
+    false,
+    `${label} must not contain root-based runtime assets`,
+  );
+};
+
+for (const [label, html] of [
+  ["homepage", home],
+  ["comparison", comparison],
+  ["storyboard guide", guide],
+]) {
+  assertPagesRuntimeAssets(html, label);
+}
 
 assert.equal(home.includes('href="https://jnx03.github.io/Flowtake/"'), true, "homepage canonical changed");
-assert.equal(home.includes("free recorder and developer demo studio"), true, "homepage metadata changed");
+assert.equal(home.includes("free, open-source screen recorder and editor"), true, "homepage metadata changed");
+assert.equal(count(home, "<title>"), 1, "homepage title must be unique");
+assert.equal(count(home, 'name="description"'), 1, "homepage description must be unique");
+assert.equal(count(home, 'rel="canonical"'), 1, "homepage canonical must be unique");
+assert.equal(count(home, 'property="og:url"'), 1, "homepage og:url must be unique");
+assert.equal(home.includes('content="https://jnx03.github.io/Flowtake/"'), true, "homepage og:url is wrong");
+
+const homeJsonLdBlocks = [...home.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gu)];
+assert.equal(homeJsonLdBlocks.length, 1, "homepage must have one JSON-LD block");
+const homeStructuredData = JSON.parse(homeJsonLdBlocks[0][1]);
+assert.equal(homeStructuredData["@type"], "SoftwareApplication", "homepage structured data must describe the app");
+assert.equal(homeStructuredData.isAccessibleForFree, true, "homepage must preserve the free-app boundary");
+assert.equal(home.includes("VideoObject"), false, "homepage must not claim a finished video");
+assert.equal(home.includes("AggregateRating"), false, "homepage must not claim unverified ratings");
 
 assert.equal(comparison.includes("A Screen Studio"), true, "comparison H1 content missing");
 assert.equal(comparison.includes("Where Screen Studio is still stronger"), true, "honesty section missing");
@@ -29,7 +67,6 @@ assert.equal(count(comparison, 'rel="canonical"'), 1, "comparison canonical must
 assert.equal(count(comparison, 'property="og:url"'), 1, "comparison og:url must be unique");
 assert.equal(comparison.includes(`href="${comparisonUrl}"`), true, "comparison canonical is wrong");
 assert.equal(comparison.includes(`content="${comparisonUrl}"`), true, "comparison og:url is wrong");
-assert.equal(comparison.includes("/Flowtake/assets/"), true, "Pages asset base is missing");
 
 const jsonLdBlocks = [...comparison.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gu)];
 assert.equal(jsonLdBlocks.length, 1, "comparison must have one JSON-LD block");
@@ -53,7 +90,6 @@ assert.equal(count(guide, 'rel="canonical"'), 1, "storyboard guide canonical mus
 assert.equal(count(guide, 'property="og:url"'), 1, "storyboard guide og:url must be unique");
 assert.equal(guide.includes(`href="${guideUrl}"`), true, "storyboard guide canonical is wrong");
 assert.equal(guide.includes(`content="${guideUrl}"`), true, "storyboard guide og:url is wrong");
-assert.equal(guide.includes("/Flowtake/assets/"), true, "storyboard guide Pages asset base is missing");
 
 const guideJsonLdBlocks = [...guide.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gu)];
 assert.equal(guideJsonLdBlocks.length, 1, "storyboard guide must have one JSON-LD block");
@@ -85,6 +121,20 @@ try {
   assert.equal(comparisonResponse.status, 200, "preview comparison route must return 200");
   assert.equal(guideResponse.status, 200, "preview storyboard guide route must return 200");
   assert.equal(unknownResponse.status, 404, "preview unknown route must remain a real 404");
+
+  const runtimeAssetPaths = [...new Set(
+    [home, comparison, guide].flatMap((html) =>
+      [...html.matchAll(/(?:src|href)="(\/Flowtake\/assets\/[^"]+)"/gu)].map((match) => match[1])
+    ),
+  )];
+  assert.ok(runtimeAssetPaths.length >= 6, "built pages must expose their runtime assets");
+  const runtimeAssetResponses = await Promise.all(
+    runtimeAssetPaths.map(async (assetPath) => [assetPath, await fetch(`${previewOrigin}${assetPath}`)]),
+  );
+  for (const [assetPath, response] of runtimeAssetResponses) {
+    assert.equal(response.status, 200, `preview asset must load: ${assetPath}`);
+  }
+
   assert.equal(
     (await comparisonResponse.text()).includes("A Screen Studio"),
     true,

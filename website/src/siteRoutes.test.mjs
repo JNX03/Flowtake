@@ -68,11 +68,13 @@ test("comparison copy preserves the product and security boundaries", async () =
 });
 
 test("the comparison route is discoverable and uses root privacy for the shared form", async () => {
-  const [app, enhancements, sitemap] = await Promise.all([
-    source("./App.jsx"),
+  const [home, dialog, enhancements, sitemap] = await Promise.all([
+    source("./HomePage.jsx"),
+    source("./BriefDialog.jsx"),
     source("./screenStudioAlternative.main.jsx"),
     source("../public/sitemap.xml"),
   ]);
+  const app = `${home}\n${dialog}`;
 
   assert.equal(app.includes("screen-studio-alternative-windows/"), true);
   assert.equal(app.includes('privacyHref = "#privacy"'), true);
@@ -168,7 +170,7 @@ test("storyboard guide includes six copyable beats and truthful boundaries", asy
 
 test("storyboard guide is linked, copy-enabled, and listed once in the sitemap", async () => {
   const [app, comparison, readme, enhancements, sitemap] = await Promise.all([
-    source("./App.jsx"),
+    source("./HomePage.jsx"),
     source("../screen-studio-alternative-windows/index.html"),
     source("../../README.md"),
     source("./developerToolDemoStoryboard.main.js"),

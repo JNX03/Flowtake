@@ -70,9 +70,9 @@ test("security policy describes the configured CSP without overstating it", asyn
 })
 
 test("launch copy keeps signing and preview support boundaries separate", async () => {
-    const website = await readRepoFile("website/src/App.jsx")
+    const website = await readRepoFile("website/src/HomePage.jsx")
     const heroNote = website.match(
-        /<p className="honest-note">\s*(Windows artifacts[\s\S]*?)\s*<\/p>/,
+        /<p className="home-fact-note">\s*(Windows artifacts[\s\S]*?)\s*<\/p>/,
     )
 
     assert.ok(heroNote, "expected the hero release-boundary note")
@@ -86,7 +86,7 @@ test("launch copy keeps signing and preview support boundaries separate", async 
 
 test("launch site does not publish stale or private product captures", async () => {
     const [website, indexHtml, readme, docsReadme, packageJson, appLogo, publicLogo] = await Promise.all([
-        readRepoFile("website/src/App.jsx"),
+        readRepoFile("website/src/HomePage.jsx"),
         readRepoFile("website/index.html"),
         readRepoFile("README.md"),
         readRepoFile("docs/README.md"),
