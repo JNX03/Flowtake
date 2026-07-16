@@ -54,6 +54,12 @@ The branch originally retained vulnerable `anyhow`, `quick-xml`, `quinn-proto`, 
 
 The audit runner downloads the official `cargo-audit 0.22.2` x86_64 Linux asset over HTTPS with bounded retries, verifies the pinned SHA-256 before extracting exactly the expected member, and runs from an empty working directory and `CARGO_HOME` so repository or runner advisory-ignore configuration cannot be inherited. It has no advisory ignores or best-effort fallback. The gate is mandatory in pull-request CI and the exact validated release commit, and a minimal-permission workflow audits the current `main` branch every day and on every manual dispatch. A fresh local audit scanned 601 lockfile dependencies with zero vulnerabilities and 18 visible unsound/unmaintained warnings; no warning or advisory is suppressed.
 
+## Fixed — website Vite Windows path-handling advisories (high)
+
+**Evidence:** `website/package.json`, `website/package-lock.json`, GitHub advisories `GHSA-fx2h-pf6j-xcff` and `GHSA-v6wh-96g9-6wx3`.
+
+The marketing-site toolchain resolved Vite 6.4.2, which is affected by a Windows alternate-path bypass of `server.fs.deny` and an NTLMv2 hash-disclosure path through `launch-editor`. The deployed Pages artifact is static and does not run the Vite development server, but maintainer workstations remained exposed. The website now pins the first patched release, Vite 6.4.3. A clean website install, production build, and package-specific npm audit complete with zero vulnerabilities.
+
 ## Fixed — arbitrary native URL-handler invocation (medium)
 
 **Evidence:** `src-tauri/src/commands/exporter.rs` and its unit tests.
