@@ -38,3 +38,22 @@ test("release manifests share the same app version", async () => {
     assert.match(cargoToml, new RegExp(`^version = "${releaseVersion}"$`, "m"))
     assert.equal(readCargoPackageVersion(cargoLock, "flowtake"), releaseVersion)
 })
+
+test("security support guidance cannot drift to a stale app version", async () => {
+    const securityPolicy = await readRepoFile("SECURITY.md")
+    const supportedVersions = securityPolicy.split("## Reporting a Vulnerability")[0]
+
+    assert.match(supportedVersions, /Latest published release/)
+    assert.doesNotMatch(supportedVersions, /\b\d+\.\d+(?:\.\d+|\.x)?\b/)
+})
+
+test("security policy describes the configured CSP without overstating it", async () => {
+    const [securityPolicy, tauriConfig] = await Promise.all([
+        readRepoFile("SECURITY.md"),
+        readRepoFile("src-tauri/tauri.conf.json").then(JSON.parse)
+    ])
+
+    assert.match(tauriConfig.app.security.csp, /'unsafe-inline'/)
+    assert.doesNotMatch(securityPolicy, /enforces a strict CSP/i)
+    assert.match(securityPolicy, /CSP reduction remains an active hardening area/i)
+})

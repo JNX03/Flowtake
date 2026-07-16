@@ -1,20 +1,24 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: ''
-labels: ''
+title: '[Feature] '
+labels: 'enhancement'
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+Before filing, search existing issues. Do not include private footage, credentials,
+customer data, or security vulnerability details.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**What problem would this solve?**
+Describe the recording, editing, export, or developer-demo workflow that is difficult today.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**What outcome would you like?**
+Describe the result rather than only a specific interface.
+
+**What alternatives have you tried?**
+Include any workaround and why it is insufficient.
 
 **Additional context**
-Add any other context or screenshots about the feature request here.
+Add redacted screenshots or examples if useful. Note the operating system when the
+request depends on capture or media behavior.
