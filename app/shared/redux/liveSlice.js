@@ -26,7 +26,7 @@ const initialState = {
     settings: {
         platform: 'youtube',         // youtube | twitch | facebook | custom
         rtmpUrl: PLATFORM_PRESETS.youtube,
-        streamKey: '',               // not persisted in plaintext if a secure store is wired later
+        hasStreamKey: false,          // credential itself stays in native session memory
         videoBitrateKbps: 6000,
         resolution: 'source',        // 720p30 | 1080p30 | 1080p60 | source
         framerate: 30,

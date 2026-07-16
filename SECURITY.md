@@ -52,7 +52,7 @@ Flowtake is a desktop application built with Tauri v2 and processes content loca
 - **FFmpeg Sidecar** — Flowtake bundles FFmpeg as an external binary. All FFmpeg commands are constructed server-side in Rust to prevent command injection.
 - **IPC Boundary** — Frontend-to-backend communication uses Tauri's typed command system. All inputs are validated on the Rust side.
 - **File Access** — The application accesses the filesystem for project files, recordings, and exports. File paths are validated and scoped.
-- **No Network by Default** — Core recording/editing functionality works entirely offline. Network access is only used for update checks and license validation.
+- **No Network by Default** — Core recording/editing functionality works entirely offline. Network access is used only for update checks and connected services that the user explicitly starts, such as social publishing.
 - **Content Security Policy** — The frontend enforces a strict CSP to prevent XSS attacks.
 - **Video Protocol** — The custom `video://` protocol handler validates and scopes all file access to known recording paths.
 

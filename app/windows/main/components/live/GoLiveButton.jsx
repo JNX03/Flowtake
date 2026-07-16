@@ -60,7 +60,7 @@ export default function GoLiveButton({ isRecordingSystemAudio, excludedAudioPids
         staleTime: Infinity,
     })
 
-    const hasStreamKey = !!(liveSettings?.streamKey && liveSettings.streamKey.trim().length > 0)
+    const hasStreamKey = Boolean(liveSettings?.hasStreamKey)
     const hasRtmp = !!(liveSettings?.rtmpUrl && liveSettings.rtmpUrl.trim().length > 0)
     const isConfigured = hasRtmp && hasStreamKey
 

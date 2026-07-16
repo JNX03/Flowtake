@@ -41,25 +41,11 @@ export default function TutorialProvider({ children }) {
     const mutationObserverRef = useRef(null)
 
     // Check on mount whether tutorial should start.
-    // Auto-skip if a previous installer-driven update bumped the version since last completion.
     useEffect(() => {
         const check = async () => {
             try {
                 const ipc = window.electron.ipcRenderer
-                const [done, completedAt, lastInstallerAt, currentVersion] = await Promise.all([
-                    ipc.invoke("store-get", "hasCompletedTutorial"),
-                    ipc.invoke("store-get", "tutorialCompletedAtVersion"),
-                    ipc.invoke("store-get", "lastInstallerLaunchedAt"),
-                    ipc.invoke("get-version").catch(() => null),
-                ])
-
-                // If user has completed the tutorial on a prior version AND launched an installer
-                // since then, treat this launch as a post-update one and don't show the tour again.
-                if (done && completedAt && currentVersion && completedAt !== currentVersion && lastInstallerAt) {
-                    await ipc.invoke("store-set", "tutorialCompletedAtVersion", currentVersion)
-                    setShouldRender(false)
-                    return
-                }
+                const done = await ipc.invoke("store-get", "hasCompletedTutorial")
 
                 if (done) {
                     setShouldRender(false)

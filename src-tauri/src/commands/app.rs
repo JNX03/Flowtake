@@ -3,7 +3,7 @@ use crate::error::AppError;
 use crate::error::AppResult;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt;
 
@@ -11,7 +11,6 @@ use tauri_plugin_dialog::DialogExt;
 pub struct UpdateInfo {
     pub has_update: bool,
     pub latest_version: String,
-    pub download_url: String,
     pub release_notes: String,
     pub published_at: String,
     pub current_version: String,
@@ -174,37 +173,105 @@ pub async fn check_permissions() -> AppResult<Value> {
     }
 }
 
-/// Compare two semver version strings (e.g. "1.2.3" > "1.2.1")
+const GITHUB_LATEST_RELEASE_API: &str =
+    "https://api.github.com/repos/JNX03/Flowtake/releases/latest";
+const GITHUB_RELEASES_URL: &str = "https://github.com/JNX03/Flowtake/releases/latest";
+
+#[derive(Debug, Deserialize)]
+struct GithubRelease {
+    tag_name: String,
+    #[serde(default)]
+    body: String,
+    #[serde(default)]
+    published_at: String,
+}
+
+fn update_error(message: impl Into<String>) -> crate::error::AppError {
+    crate::error::AppError::General(message.into())
+}
+
+/// Compare two semver version strings (e.g. "1.2.3" > "1.2.1").
 fn is_newer_version(latest: &str, current: &str) -> bool {
     let parse = |v: &str| -> Vec<u64> {
         v.trim_start_matches('v')
             .split('.')
-            .filter_map(|s| s.parse().ok())
+            .filter_map(|part| part.parse().ok())
             .collect()
     };
-    let l = parse(latest);
-    let c = parse(current);
-    for i in 0..l.len().max(c.len()) {
-        let lv = l.get(i).copied().unwrap_or(0);
-        let cv = c.get(i).copied().unwrap_or(0);
-        if lv > cv {
+    let latest = parse(latest);
+    let current = parse(current);
+    for index in 0..latest.len().max(current.len()) {
+        let latest_part = latest.get(index).copied().unwrap_or(0);
+        let current_part = current.get(index).copied().unwrap_or(0);
+        if latest_part > current_part {
             return true;
         }
-        if lv < cv {
+        if latest_part < current_part {
             return false;
         }
     }
     false
 }
 
-/// Get the platform-specific asset file extension patterns
-fn platform_asset_patterns() -> Vec<&'static str> {
-    match std::env::consts::OS {
-        "windows" => vec![".exe", ".msi"],
-        "macos" => vec![".dmg"],
-        "linux" => vec![".AppImage", ".deb"],
-        _ => vec![],
+fn normalized_version(version: &str) -> Option<&str> {
+    let normalized = version.strip_prefix('v').unwrap_or(version);
+    let parts: Vec<_> = normalized.split('.').collect();
+    if normalized.is_empty()
+        || normalized.len() > 32
+        || parts.is_empty()
+        || parts.len() > 4
+        || parts
+            .iter()
+            .any(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return None;
     }
+    Some(normalized)
+}
+
+fn trusted_release_api_url(url: &reqwest::Url) -> bool {
+    url.scheme() == "https"
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.host_str() == Some("api.github.com")
+        && url.port().is_none()
+        && url.path() == "/repos/JNX03/Flowtake/releases/latest"
+        && url.query().is_none()
+        && url.fragment().is_none()
+}
+
+fn update_http_client() -> AppResult<reqwest::Client> {
+    let redirect_policy = reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 5 || !trusted_release_api_url(attempt.url()) {
+            attempt.stop()
+        } else {
+            attempt.follow()
+        }
+    });
+    reqwest::Client::builder()
+        .redirect(redirect_policy)
+        .build()
+        .map_err(Into::into)
+}
+
+async fn fetch_latest_release(client: &reqwest::Client) -> AppResult<GithubRelease> {
+    let response = client
+        .get(GITHUB_LATEST_RELEASE_API)
+        .header("User-Agent", "Flowtake")
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        return Err(update_error(format!(
+            "GitHub release lookup returned HTTP {}",
+            response.status()
+        )));
+    }
+    if !trusted_release_api_url(response.url()) {
+        return Err(update_error(
+            "GitHub release lookup left the exact trusted API endpoint",
+        ));
+    }
+    response.json::<GithubRelease>().await.map_err(Into::into)
 }
 
 #[tauri::command]
@@ -214,372 +281,50 @@ pub async fn check_for_updates(app: AppHandle) -> AppResult<Value> {
         .version
         .clone()
         .unwrap_or_else(|| "0.0.0".to_string());
-
-    let client = reqwest::Client::new();
-    let response = client
-        .get("https://api.github.com/repos/JNX03/Flowtake/releases/latest")
-        .header("User-Agent", "Flowtake")
-        .send()
-        .await;
-
-    let response = match response {
-        Ok(r) => r,
-        Err(_) => {
-            return Ok(serde_json::to_value(UpdateInfo {
-                has_update: false,
-                latest_version: current_version.clone(),
-                download_url: String::new(),
-                release_notes: String::new(),
-                published_at: String::new(),
-                current_version,
-            })?);
-        }
+    let unavailable = || UpdateInfo {
+        has_update: false,
+        latest_version: current_version.clone(),
+        release_notes: String::new(),
+        published_at: String::new(),
+        current_version: current_version.clone(),
     };
 
-    let json: Value = match response.json().await {
-        Ok(j) => j,
-        Err(_) => {
-            return Ok(serde_json::to_value(UpdateInfo {
-                has_update: false,
-                latest_version: current_version.clone(),
-                download_url: String::new(),
-                release_notes: String::new(),
-                published_at: String::new(),
-                current_version,
-            })?);
-        }
+    let client = match update_http_client() {
+        Ok(client) => client,
+        Err(_) => return Ok(serde_json::to_value(unavailable())?),
     };
-
-    let tag = json
-        .get("tag_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("0.0.0");
-    let latest_version = tag.trim_start_matches('v').to_string();
-    let release_notes = json
-        .get("body")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let published_at = json
-        .get("published_at")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let html_url = json
-        .get("html_url")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    // Find platform-specific download asset
-    let patterns = platform_asset_patterns();
-    let download_url = json
-        .get("assets")
-        .and_then(|a| a.as_array())
-        .and_then(|assets| {
-            assets.iter().find_map(|asset| {
-                let name = asset.get("name").and_then(|n| n.as_str()).unwrap_or("");
-                let name_lower = name.to_lowercase();
-                if patterns
-                    .iter()
-                    .any(|p| name_lower.ends_with(&p.to_lowercase()))
-                {
-                    asset
-                        .get("browser_download_url")
-                        .and_then(|u| u.as_str())
-                        .map(|s| s.to_string())
-                } else {
-                    None
-                }
-            })
-        })
-        .unwrap_or(html_url);
-
+    let release = match fetch_latest_release(&client).await {
+        Ok(release) => release,
+        Err(_) => return Ok(serde_json::to_value(unavailable())?),
+    };
+    let latest_version = match normalized_version(&release.tag_name) {
+        Some(version) => version.to_string(),
+        None => return Ok(serde_json::to_value(unavailable())?),
+    };
     let has_update = is_newer_version(&latest_version, &current_version);
 
     Ok(serde_json::to_value(UpdateInfo {
         has_update,
         latest_version,
-        download_url,
-        release_notes,
-        published_at,
+        release_notes: release.body,
+        published_at: release.published_at,
         current_version,
     })?)
 }
 
+/// Open the exact official release page. Native installer download and launch are disabled.
 #[tauri::command]
-pub async fn install_update(download_url: String) -> AppResult<()> {
-    open::that(&download_url).map_err(|e| {
-        log::error!("[install_update] Failed to open URL: {}", e);
-        crate::error::AppError::General(format!("Failed to open download URL: {}", e))
+pub async fn install_update() -> AppResult<()> {
+    open::that(GITHUB_RELEASES_URL).map_err(|error| {
+        log::error!(
+            "[install_update] Failed to open official release page: {}",
+            error
+        );
+        update_error(format!(
+            "Failed to open official Flowtake release page: {}",
+            error
+        ))
     })?;
-    Ok(())
-}
-
-#[derive(Serialize, Clone)]
-pub struct DownloadProgress {
-    pub bytes_downloaded: u64,
-    pub total_bytes: u64,
-    pub percent: f64,
-}
-
-#[tauri::command]
-pub async fn download_update(
-    app: AppHandle,
-    download_url: String,
-    version: Option<String>,
-) -> AppResult<Value> {
-    use futures_util::StreamExt;
-    use std::io::Write;
-
-    log::info!(
-        "[download_update] Starting download from: {} (version={:?})",
-        download_url,
-        version
-    );
-
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&download_url)
-        .header("User-Agent", "Flowtake")
-        .send()
-        .await
-        .map_err(|e| crate::error::AppError::General(format!("Download failed: {}", e)))?;
-
-    if !response.status().is_success() {
-        return Err(crate::error::AppError::General(format!(
-            "Download returned HTTP {}",
-            response.status()
-        )));
-    }
-
-    let total_bytes = response.content_length().unwrap_or(0);
-
-    // Determine file extension from URL
-    let ext = download_url
-        .rsplit('/')
-        .next()
-        .and_then(|name| {
-            if name.to_lowercase().ends_with(".exe") {
-                Some("exe")
-            } else if name.to_lowercase().ends_with(".msi") {
-                Some("msi")
-            } else if name.to_lowercase().ends_with(".dmg") {
-                Some("dmg")
-            } else if name.to_lowercase().ends_with(".appimage") {
-                Some("AppImage")
-            } else if name.to_lowercase().ends_with(".deb") {
-                Some("deb")
-            } else {
-                None
-            }
-        })
-        .unwrap_or("bin");
-
-    let temp_path = std::env::temp_dir().join(format!("flowtake-update.{}", ext));
-
-    // Clean up any previous download
-    let _ = std::fs::remove_file(&temp_path);
-
-    let mut file = std::fs::File::create(&temp_path).map_err(|e| {
-        crate::error::AppError::General(format!("Failed to create temp file: {}", e))
-    })?;
-
-    let mut stream = response.bytes_stream();
-    let mut bytes_downloaded: u64 = 0;
-    let mut last_emitted_percent: f64 = -1.0;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| {
-            let _ = std::fs::remove_file(&temp_path);
-            crate::error::AppError::General(format!("Download stream error: {}", e))
-        })?;
-
-        file.write_all(&chunk).map_err(|e| {
-            let _ = std::fs::remove_file(&temp_path);
-            crate::error::AppError::General(format!("Failed to write chunk: {}", e))
-        })?;
-
-        bytes_downloaded += chunk.len() as u64;
-        let percent = if total_bytes > 0 {
-            (bytes_downloaded as f64 / total_bytes as f64 * 100.0).min(100.0)
-        } else {
-            0.0
-        };
-
-        // Emit progress every 1% to avoid flooding events
-        if (percent - last_emitted_percent) >= 1.0 || bytes_downloaded == total_bytes {
-            last_emitted_percent = percent;
-            app.emit_to(
-                "main",
-                "update-download-progress",
-                DownloadProgress {
-                    bytes_downloaded,
-                    total_bytes,
-                    percent,
-                },
-            )
-            .ok();
-        }
-    }
-
-    drop(file);
-
-    let installer_path = temp_path.to_string_lossy().to_string();
-    log::info!("[download_update] Download complete: {}", installer_path);
-
-    // Write sidecar JSON so we can resurface this download on next launch.
-    let sidecar_path = std::env::temp_dir().join("flowtake-update.json");
-    let sidecar = serde_json::json!({
-        "path": installer_path,
-        "version": version,
-    });
-    if let Err(e) = std::fs::write(
-        &sidecar_path,
-        serde_json::to_string(&sidecar).unwrap_or_default(),
-    ) {
-        log::warn!("[download_update] Failed to write sidecar JSON: {}", e);
-    }
-
-    Ok(serde_json::json!({ "installerPath": installer_path }))
-}
-
-#[tauri::command]
-pub async fn pending_installer_path(app: AppHandle) -> AppResult<Value> {
-    let sidecar_path = std::env::temp_dir().join("flowtake-update.json");
-    if !sidecar_path.exists() {
-        return Ok(Value::Null);
-    }
-
-    let raw = match std::fs::read_to_string(&sidecar_path) {
-        Ok(s) => s,
-        Err(e) => {
-            log::warn!("[pending_installer_path] Failed to read sidecar: {}", e);
-            return Ok(Value::Null);
-        }
-    };
-    let parsed: Value = match serde_json::from_str(&raw) {
-        Ok(v) => v,
-        Err(e) => {
-            log::warn!("[pending_installer_path] Invalid sidecar JSON: {}", e);
-            return Ok(Value::Null);
-        }
-    };
-
-    let path_str = match parsed.get("path").and_then(|v| v.as_str()) {
-        Some(p) => p.to_string(),
-        None => return Ok(Value::Null),
-    };
-    let version = parsed
-        .get("version")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    if !std::path::Path::new(&path_str).exists() {
-        // Installer missing — clean up the orphan sidecar.
-        let _ = std::fs::remove_file(&sidecar_path);
-        return Ok(Value::Null);
-    }
-
-    // If the sidecar version matches the running version, the install already happened.
-    if let Some(ref v) = version {
-        let current = app.config().version.clone().unwrap_or_default();
-        if v == &current {
-            let _ = std::fs::remove_file(&path_str);
-            let _ = std::fs::remove_file(&sidecar_path);
-            return Ok(Value::Null);
-        }
-    }
-
-    Ok(serde_json::json!({
-        "path": path_str,
-        "version": version,
-    }))
-}
-
-#[tauri::command]
-pub async fn launch_installer(installer_path: String) -> AppResult<()> {
-    use std::path::Path;
-
-    let path = Path::new(&installer_path);
-    if !path.exists() {
-        return Err(crate::error::AppError::General(
-            "Installer file not found".to_string(),
-        ));
-    }
-
-    log::info!("[launch_installer] Launching: {}", installer_path);
-
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-
-    match ext.as_str() {
-        #[cfg(target_os = "windows")]
-        "exe" => {
-            use std::os::windows::process::CommandExt;
-            std::process::Command::new(&installer_path)
-                .arg("/S")
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .spawn()
-                .map_err(|e| {
-                    crate::error::AppError::General(format!("Failed to launch installer: {}", e))
-                })?;
-        }
-        #[cfg(target_os = "windows")]
-        "msi" => {
-            use std::os::windows::process::CommandExt;
-            std::process::Command::new("msiexec")
-                .args(["/i", &installer_path, "/quiet", "/norestart"])
-                .creation_flags(0x08000000)
-                .spawn()
-                .map_err(|e| {
-                    crate::error::AppError::General(format!("Failed to launch MSI: {}", e))
-                })?;
-        }
-        #[cfg(target_os = "macos")]
-        "dmg" => {
-            open::that(&installer_path).map_err(|e| {
-                crate::error::AppError::General(format!("Failed to open DMG: {}", e))
-            })?;
-        }
-        #[cfg(target_os = "linux")]
-        "appimage" => {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&installer_path)
-                .map_err(|e| {
-                    crate::error::AppError::General(format!("Failed to get permissions: {}", e))
-                })?
-                .permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&installer_path, perms).map_err(|e| {
-                crate::error::AppError::General(format!("Failed to set permissions: {}", e))
-            })?;
-            std::process::Command::new(&installer_path)
-                .spawn()
-                .map_err(|e| {
-                    crate::error::AppError::General(format!("Failed to launch AppImage: {}", e))
-                })?;
-        }
-        #[cfg(target_os = "linux")]
-        "deb" => {
-            std::process::Command::new("pkexec")
-                .args(["dpkg", "-i", &installer_path])
-                .spawn()
-                .map_err(|e| {
-                    crate::error::AppError::General(format!("Failed to install deb: {}", e))
-                })?;
-        }
-        _ => {
-            // Fallback: open with default handler
-            open::that(&installer_path).map_err(|e| {
-                crate::error::AppError::General(format!("Failed to open installer: {}", e))
-            })?;
-        }
-    }
-
     Ok(())
 }
 
@@ -909,5 +654,51 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
             "success": false,
             "message": format!("Please install manually: {}", install_cmd)
         }));
+    }
+}
+
+#[cfg(test)]
+mod updater_security_tests {
+    use super::*;
+
+    #[test]
+    fn only_strict_numeric_versions_are_accepted_for_release_lookup() {
+        assert_eq!(normalized_version("v1.5.0"), Some("1.5.0"));
+        assert_eq!(normalized_version("2.0"), Some("2.0"));
+        assert_eq!(normalized_version("../../latest"), None);
+        assert_eq!(normalized_version("1.5.0-beta"), None);
+        assert_eq!(normalized_version("1..5"), None);
+    }
+
+    #[test]
+    fn version_comparison_rejects_downgrades() {
+        assert!(is_newer_version("1.5.1", "1.5.0"));
+        assert!(!is_newer_version("1.5.0", "1.5.0"));
+        assert!(!is_newer_version("1.4.9", "1.5.0"));
+    }
+
+    #[test]
+    fn update_endpoints_are_exact_official_https_urls() {
+        assert_eq!(
+            GITHUB_LATEST_RELEASE_API,
+            "https://api.github.com/repos/JNX03/Flowtake/releases/latest"
+        );
+        assert_eq!(
+            GITHUB_RELEASES_URL,
+            "https://github.com/JNX03/Flowtake/releases/latest"
+        );
+
+        let trusted = reqwest::Url::parse(GITHUB_LATEST_RELEASE_API).unwrap();
+        assert!(trusted_release_api_url(&trusted));
+        for hostile in [
+            "http://api.github.com/repos/JNX03/Flowtake/releases/latest",
+            "https://api.github.com.evil.example/repos/JNX03/Flowtake/releases/latest",
+            "https://api.github.com/repos/attacker/Flowtake/releases/latest",
+            "https://api.github.com/repos/JNX03/Flowtake/releases/latest?redirect=evil",
+            "https://api.github.com/repos/JNX03/Flowtake/releases/tags/v9.9.9",
+        ] {
+            let url = reqwest::Url::parse(hostile).unwrap();
+            assert!(!trusted_release_api_url(&url));
+        }
     }
 }

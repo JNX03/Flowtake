@@ -7,6 +7,7 @@ import {
     LIVE_SETTINGS_DEFAULTS as DEFAULTS,
     loadLiveSettings,
     saveLiveSettings,
+    setLiveStreamKey,
 } from "./liveSettingsStore"
 
 const PLATFORM_PRESETS = {
@@ -53,6 +54,8 @@ export default function LiveStreamingSettings() {
     })
 
     const [showKey, setShowKey] = useState(false)
+    const [streamKeyDraft, setStreamKeyDraft] = useState("")
+    const [streamKeyError, setStreamKeyError] = useState("")
     const [recordingHotkey, setRecordingHotkey] = useState(false)
     const [draftHotkey, setDraftHotkey] = useState("")
 
@@ -91,13 +94,50 @@ export default function LiveStreamingSettings() {
         refetch()
     }
 
-    const handlePlatformChange = (platform) => {
-        const preset = PLATFORM_PRESETS[platform]
-        update({
-            platform,
-            rtmpUrl: preset?.url ?? settings?.rtmpUrl ?? "",
-            videoBitrateKbps: preset?.recommendedBitrate ?? settings?.videoBitrateKbps,
-        })
+    const handlePlatformChange = async (platform) => {
+        try {
+            if (settings?.hasStreamKey) {
+                await setLiveStreamKey("", "")
+            }
+            setStreamKeyDraft("")
+            setShowKey(false)
+            setStreamKeyError("")
+            const preset = PLATFORM_PRESETS[platform]
+            await update({
+                platform,
+                rtmpUrl: preset?.url ?? settings?.rtmpUrl ?? "",
+                videoBitrateKbps: preset?.recommendedBitrate ?? settings?.videoBitrateKbps,
+            })
+        } catch (error) {
+            setStreamKeyError(typeof error === "string" ? error : error?.message || "Could not change destination")
+        }
+    }
+
+    const saveStreamKey = async () => {
+        const keyForNativeSession = streamKeyDraft
+        // Remove the reusable secret from visible/component state before control crosses
+        // the async native boundary, including when validation or storage fails.
+        setStreamKeyDraft("")
+        setShowKey(false)
+        setStreamKeyError("")
+        try {
+            await setLiveStreamKey(settings?.rtmpUrl || "", keyForNativeSession)
+            await refetch()
+        } catch (error) {
+            setStreamKeyError(typeof error === "string" ? error : error?.message || "Invalid stream key")
+        }
+    }
+
+    const clearStreamKey = async () => {
+        try {
+            await setLiveStreamKey("", "")
+            setStreamKeyDraft("")
+            setShowKey(false)
+            setStreamKeyError("")
+            await refetch()
+        } catch (error) {
+            setStreamKeyError(typeof error === "string" ? error : error?.message || "Could not clear stream key")
+        }
     }
 
     if (isPending || !settings) {
@@ -135,24 +175,48 @@ export default function LiveStreamingSettings() {
                     className="input input-sm w-full font-mono"
                     placeholder="rtmp://…"
                     value={settings.rtmpUrl}
-                    disabled={settings.platform !== "custom"}
+                    disabled={settings.platform !== "custom" || settings.hasStreamKey}
+                    title={settings.hasStreamKey ? "Clear the session key before changing its destination" : undefined}
                     onChange={(e) => update({ rtmpUrl: e.target.value })}
                 />
                 <div className="flex items-center gap-2">
                     <input
                         type={showKey ? "text" : "password"}
                         className="input input-sm w-full font-mono"
-                        placeholder="Stream key"
-                        value={settings.streamKey}
-                        onChange={(e) => update({ streamKey: e.target.value })}
+                        placeholder={settings.hasStreamKey ? "Configured for this session" : "Stream key (session only)"}
+                        value={streamKeyDraft}
+                        maxLength={2048}
+                        aria-describedby="stream-key-storage-note"
+                        onChange={(e) => {
+                            setStreamKeyDraft(e.target.value)
+                            setStreamKeyError("")
+                        }}
                     />
                     <button
+                        type="button"
                         className="btn btn-sm btn-ghost"
                         onClick={() => setShowKey(s => !s)}
                         title={showKey ? "Hide key" : "Show key"}>
                         {showKey ? <EyeSlashIcon className="size-4" /> : <EyeIcon className="size-4" />}
                     </button>
                 </div>
+                <p id="stream-key-storage-note" className="text-[11px] text-base-content/55">
+                    The key stays in memory only until Flowtake closes and is never written to settings.
+                    {settings.hasStreamKey && " A session key is configured."}
+                </p>
+                <button
+                    className="btn btn-sm btn-primary self-start"
+                    type="button"
+                    disabled={!streamKeyDraft || !settings.rtmpUrl}
+                    onClick={saveStreamKey}>
+                    Save session key
+                </button>
+                {settings.hasStreamKey && (
+                    <button className="btn btn-xs btn-ghost self-start" type="button" onClick={clearStreamKey}>
+                        Clear session key
+                    </button>
+                )}
+                {streamKeyError && <p className="text-xs text-error" role="alert">{streamKeyError}</p>}
             </Fieldset>
 
             <Fieldset legend="Quality">
