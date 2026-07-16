@@ -3,11 +3,11 @@
 set -euo pipefail
 
 readonly CARGO_AUDIT_VERSION="0.22.2"
-readonly CARGO_AUDIT_TARGET="x86_64-unknown-linux-gnu"
+readonly CARGO_AUDIT_TARGET="x86_64-unknown-linux-musl"
 readonly CARGO_AUDIT_ARCHIVE="cargo-audit-${CARGO_AUDIT_TARGET}-v${CARGO_AUDIT_VERSION}.tgz"
 readonly CARGO_AUDIT_ARCHIVE_ROOT="${CARGO_AUDIT_ARCHIVE%.tgz}"
 readonly CARGO_AUDIT_URL="https://github.com/rustsec/rustsec/releases/download/cargo-audit/v${CARGO_AUDIT_VERSION}/${CARGO_AUDIT_ARCHIVE}"
-readonly CARGO_AUDIT_SHA256="ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39"
+readonly CARGO_AUDIT_SHA256="7fb9497f8594b389e5fce5ef9b92db08432996895b2e0c5a0167a69ed445c428"
 
 if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   echo "ERROR: the pinned cargo-audit binary requires x86_64 Linux" >&2

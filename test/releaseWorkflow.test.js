@@ -128,14 +128,14 @@ test("every release path waits for an exact-commit test and security gate", () =
 
 test("cargo-audit runner pins and verifies the exact RustSec release asset", () => {
     assert.match(cargoAuditScript, /CARGO_AUDIT_VERSION="0\.22\.2"/)
-    assert.match(cargoAuditScript, /CARGO_AUDIT_TARGET="x86_64-unknown-linux-gnu"/)
+    assert.match(cargoAuditScript, /CARGO_AUDIT_TARGET="x86_64-unknown-linux-musl"/)
     assert.match(
         cargoAuditScript,
         /https:\/\/github\.com\/rustsec\/rustsec\/releases\/download\/cargo-audit\/v\$\{CARGO_AUDIT_VERSION\}\/\$\{CARGO_AUDIT_ARCHIVE\}/
     )
     assert.match(
         cargoAuditScript,
-        /CARGO_AUDIT_SHA256="ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39"/
+        /CARGO_AUDIT_SHA256="7fb9497f8594b389e5fce5ef9b92db08432996895b2e0c5a0167a69ed445c428"/
     )
     assert.match(cargoAuditScript, /sha256sum --check --strict -/)
     assert.match(cargoAuditScript, /--retry 3/)
