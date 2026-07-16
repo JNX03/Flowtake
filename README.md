@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/banner.png" alt="Flowtake" width="920">
+  <img src="website/public/assets/logo.png" alt="Flowtake app icon" width="160">
 </p>
 
 <h3 align="center">Record locally. Turn the capture into a polished product demo.</h3>
