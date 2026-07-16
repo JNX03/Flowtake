@@ -16,7 +16,9 @@ Public images used from React are joined to `import.meta.env.BASE_URL`. Vite rew
 
 ## Prepared workflow
 
-`.github/workflows/pages.yml` builds `website/dist` on pushes to `main` that change the website or workflow, then deploys that artifact to the `github-pages` environment. It can also be started manually.
+`.github/workflows/pages.yml` is manual-only. After the matching hardened GitHub Release is published, an administrator must dispatch the workflow from the `main` branch. The workflow rejects non-`main` dispatches, then confirms that GitHub's latest release matches the root package version and includes `SHA256SUMS.txt` before it builds `website/dist` or deploys to the `github-pages` environment.
+
+The intended launch sequence is: merge the release commit to `main`, publish its matching release and checksums, then run **Deploy marketing site to GitHub Pages** from `main`. Repository pushes do not deploy the site automatically.
 
 The build and deploy jobs are separated. The build job has read-only repository and Pages access; only the deploy job receives `pages: write` and `id-token: write`. Checkout does not persist credentials. All external actions are pinned to immutable commits:
 

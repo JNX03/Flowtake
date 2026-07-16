@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "live-overlay",
+  "description": "Least-privilege event access for the native live overlay window",
+  "windows": ["liveOverlay"],
+  "permissions": [
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

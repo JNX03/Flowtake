@@ -64,9 +64,103 @@ jobs:
           node -e "const version=require('./package.json').version; if ('v'+version !== process.env.RELEASE_TAG) { console.error('Tag does not match package version'); process.exit(1) }"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+  release_quality_gate:
+    name: Release test and security gate (validated commit)
+    needs: validate_release
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Checkout the validated release commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ needs.validate_release.outputs.commit }}
+          persist-credentials: false
+
+      - name: Verify checkout is the validated release commit
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ needs.validate_release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend dependencies from lockfile
+        run: npm ci
+
+      - name: Run release and security regression tests
+        run: >-
+          node --test
+          test/releaseWorkflow.test.js
+          test/versionConsistency.test.js
+          test/nativeCapabilitySecurity.test.js
+          test/nativePathSecurity.test.js
+          test/youtubeOAuthSecurity.test.js
+          test/liveStreamingSecurity.test.js
+          test/updatesSettings.test.js
+
+      - name: Run complete Node test suite
+        run: npm test
+
+      - name: Lint JavaScript with the repository warning policy
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libgtk-3-dev \
+            libx11-dev \
+            libxcb1-dev \
+            libxrandr-dev \
+            libpulse-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      # Tauri validates the configured sidecar during build-script execution.
+      # This compile-only gate uses a host executable; platform release jobs
+      # independently fetch and verify the real pinned FFmpeg artifacts.
+      - name: Prepare compile-only Linux sidecar
+        run: install -Dm755 /bin/true src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+
+      - name: Cargo check
+        run: cargo check --locked --all-targets
+        working-directory: src-tauri
+
+      - name: Cargo unit tests
+        run: cargo test --lib --locked
+        working-directory: src-tauri
+
+      - name: Cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings --allow dead_code
+        working-directory: src-tauri
+
   build-windows:
     name: Build (Windows x64)
-    needs: validate_release
+    needs: [validate_release, release_quality_gate]
     runs-on: windows-latest
     timeout-minutes: 60
 
@@ -176,7 +270,7 @@ jobs:
 
   build-linux:
     name: Build (Linux x64)
-    needs: validate_release
+    needs: [validate_release, release_quality_gate]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -304,7 +398,7 @@ jobs:
 
   build-macos:
     name: Build (macOS Universal)
-    needs: validate_release
+    needs: [validate_release, release_quality_gate]
     runs-on: macos-latest
     timeout-minutes: 60
 
@@ -432,8 +526,8 @@ jobs:
 
   release:
     name: Create Release
-    needs: [validate_release, build-windows, build-linux, build-macos]
-    if: always() && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' && needs.build-macos.result == 'success'
+    needs: [validate_release, release_quality_gate, build-windows, build-linux, build-macos]
+    if: always() && needs.release_quality_gate.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' && needs.build-macos.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

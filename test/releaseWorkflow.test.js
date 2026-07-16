@@ -18,7 +18,7 @@ const pagesWorkflow = await readFile(
 test("release publication fails closed across every supported platform", () => {
     assert.match(
         workflow,
-        /if: always\(\) && needs\.build-windows\.result == 'success' && needs\.build-linux\.result == 'success' && needs\.build-macos\.result == 'success'/
+        /if: always\(\) && needs\.release_quality_gate\.result == 'success' && needs\.build-windows\.result == 'success' && needs\.build-linux\.result == 'success' && needs\.build-macos\.result == 'success'/
     )
     assert.doesNotMatch(
         workflow,
@@ -53,6 +53,49 @@ test("platform jobs and the publisher reject missing release artifacts", () => {
         workflow,
         /cp src-tauri\/(?:target|binaries)\/[^\n]+\|\| true/,
         "required platform artifacts must never be copied best-effort"
+    )
+})
+
+test("every release path waits for an exact-commit test and security gate", () => {
+    const gateStart = workflow.indexOf("  release_quality_gate:")
+    const buildStart = workflow.indexOf("  build-windows:")
+    assert.ok(gateStart >= 0 && gateStart < buildStart, "release gate must run before platform builds")
+
+    const gate = workflow.slice(gateStart, buildStart)
+    assert.match(gate, /needs: validate_release/)
+    assert.match(gate, /ref: \$\{\{ needs\.validate_release\.outputs\.commit \}\}/)
+    assert.match(gate, /EXPECTED_COMMIT: \$\{\{ needs\.validate_release\.outputs\.commit \}\}/)
+    assert.match(gate, /test "\$\(git rev-parse HEAD\)" = "\$EXPECTED_COMMIT"/)
+
+    for (const requiredCommand of [
+        "npm ci",
+        "node --test",
+        "test/releaseWorkflow.test.js",
+        "test/nativeCapabilitySecurity.test.js",
+        "test/nativePathSecurity.test.js",
+        "test/youtubeOAuthSecurity.test.js",
+        "test/liveStreamingSecurity.test.js",
+        "test/updatesSettings.test.js",
+        "npm test",
+        "npm run lint",
+        "npm run build:frontend",
+        "cargo check --locked --all-targets",
+        "cargo test --lib --locked",
+        "cargo clippy --locked --all-targets -- -D warnings --allow dead_code",
+    ]) {
+        assert.ok(gate.includes(requiredCommand), `release gate is missing: ${requiredCommand}`)
+    }
+
+    assert.match(gate, /install -Dm755 \/bin\/true src-tauri\/binaries\/ffmpeg-x86_64-unknown-linux-gnu/)
+    assert.doesNotMatch(gate, /Download FFmpeg|FFMPEG_URL|Invoke-WebRequest/)
+    assert.equal(
+        workflow.match(/needs: \[validate_release, release_quality_gate\]/g)?.length,
+        3,
+        "every platform build must wait for the release gate"
+    )
+    assert.match(
+        workflow,
+        /needs: \[validate_release, release_quality_gate, build-windows, build-linux, build-macos\]/
     )
 })
 
@@ -141,8 +184,8 @@ test("release automation pins actions, minimizes write access, and binds manual 
     assert.match(workflow, /Tag does not match package version/)
     assert.equal(
         workflow.match(/ref: \$\{\{ needs\.validate_release\.outputs\.commit \}\}/g)?.length,
-        4,
-        "every build and the publisher must check out the validated commit"
+        5,
+        "the quality gate, every build, and the publisher must check out the validated commit"
     )
     assert.match(workflow, /Reverify immutable release target/)
     assert.match(
@@ -154,6 +197,12 @@ test("release automation pins actions, minimizes write access, and binds manual 
 test("Pages deployment waits for the matching hardened release", () => {
     assert.match(pagesWorkflow, /"on":\s*\n\s+workflow_dispatch:/)
     assert.doesNotMatch(pagesWorkflow, /\n\s+push:/)
+    const mainBranchGuard = pagesWorkflow.indexOf("Require a main-branch dispatch")
+    const releaseGate = pagesWorkflow.indexOf("Require the matching hardened release and checksums")
+    assert.ok(mainBranchGuard >= 0, "Pages deployment must reject non-main dispatches")
+    assert.ok(mainBranchGuard < releaseGate, "main-branch guard must run before the release gate")
+    assert.match(pagesWorkflow, /if \[\[ "\$GITHUB_REF" != "refs\/heads\/main" \]\]/)
+    assert.match(pagesWorkflow, /Pages deployments must be dispatched from refs\/heads\/main/)
     assert.match(pagesWorkflow, /Require the matching hardened release and checksums/)
     assert.match(pagesWorkflow, /releases\/latest/)
     assert.match(pagesWorkflow, /actual_tag.*expected_tag/)
