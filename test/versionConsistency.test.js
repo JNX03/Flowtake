@@ -67,3 +67,18 @@ test("security policy describes the configured CSP without overstating it", asyn
     assert.match(securityPolicy, /inline styles\/scripts and broad HTTPS\/WebSocket connections/i)
     assert.match(securityPolicy, /CSP reduction remains an active hardening area/i)
 })
+
+test("launch copy keeps signing and preview support boundaries separate", async () => {
+    const website = await readRepoFile("website/src/App.jsx")
+    const heroNote = website.match(
+        /<p className="honest-note">\s*(Windows artifacts[\s\S]*?)\s*<\/p>/,
+    )
+
+    assert.ok(heroNote, "expected the hero release-boundary note")
+
+    const note = heroNote[1].replace(/\s+/g, " ").trim()
+    assert.match(note, /Windows artifacts are unsigned/i)
+    assert.match(note, /macOS is ad-hoc signed but not notarized/i)
+    assert.match(note, /macOS and Linux remain preview builds/i)
+    assert.doesNotMatch(note, /release artifacts are unsigned|unsigned preview builds/i)
+})

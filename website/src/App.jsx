@@ -235,7 +235,7 @@ export function App() {
             </div>
 
             <p className="honest-note">
-              Current release artifacts are unsigned preview builds. Review the platform notes and checksums on GitHub before installing.
+              Windows artifacts are unsigned. macOS is ad-hoc signed but not notarized; macOS and Linux remain preview builds. Review the platform notes and checksums on GitHub before installing.
             </p>
           </div>
 
