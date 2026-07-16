@@ -22,17 +22,21 @@ Available installer formats:
 
 ## Windows Installation
 
-1. Download the `.exe` or `.msi` installer
-2. Run the installer and follow the on-screen steps
-3. Flowtake will appear in your Start Menu
+Install from the public WinGet catalog:
 
-> **Note**: Windows may show a SmartScreen warning on first run since the app is not yet widely distributed. Click **More info → Run anyway** to proceed.
+```powershell
+winget install --id JNX03.Flowtake -e --source winget
+```
+
+Alternatively, download the `.exe` or `.msi` from the official GitHub release and verify the published checksum before running it. Flowtake will appear in your Start Menu after installation.
+
+> **Note**: Current Windows artifacts are not Authenticode-signed. If Windows blocks execution, stop and verify that the package came from WinGet or the official GitHub release and that its checksum matches. Do not bypass a warning for an unverified copy.
 
 ## macOS Installation
 
 1. Download the `.dmg` file
 2. Open the DMG and drag Flowtake to your Applications folder
-3. On first launch, right-click the app and choose **Open** to bypass Gatekeeper
+3. Current builds are ad-hoc signed and not notarized. If Gatekeeper blocks the app, stop and verify the official release source and checksum before deciding whether to proceed.
 
 ## Uninstall
 

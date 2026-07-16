@@ -163,7 +163,10 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
         <div className="dialog-intro">
           <p className="kicker">Sample storyboard request</p>
           <h2 id="brief-title">Give us the release in five minutes.</h2>
-          <p id="brief-description">We’ll use this only to assess the demo story and the safest next capture.</p>
+          <p id="brief-description">
+            Release Studio is optional human production work. It does not unlock Flowtake app features. We’ll use
+            this request only to assess the demo story and the safest next capture.
+          </p>
         </div>
 
         {outcome ? (

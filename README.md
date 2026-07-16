@@ -40,16 +40,25 @@ The desktop recorder and editor are free to use, inspect, modify, and redistribu
 
 ## 60-second quickstart
 
-1. Download the build for your OS from the [latest release](https://github.com/JNX03/Flowtake/releases/latest). On Windows, the `x64-setup.exe` is the simplest starting point.
-2. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
-3. Start recording and use the compact recorder controls to pause or stop.
-4. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export** to render an MP4.
+On Windows 10 or 11, install the published package through WinGet:
+
+```powershell
+winget install --id JNX03.Flowtake -e --source winget
+```
+
+Or download the build for your OS from the [latest release](https://github.com/JNX03/Flowtake/releases/latest). On Windows, the `x64-setup.exe` is the simplest release asset.
+
+Then:
+
+1. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
+2. Start recording and use the compact recorder controls to pause or stop.
+3. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export** to render an MP4.
 
 Your OS may ask for screen-recording, camera, or microphone permission on first use. Current platform-signing limitations can also produce a Windows SmartScreen or macOS Gatekeeper warning; see the status note below before proceeding.
 
 ## Download and platform status
 
-All published artifacts are on the official [GitHub Releases page](https://github.com/JNX03/Flowtake/releases).
+Windows users can install v1.6.0 from the public WinGet catalog with `winget install --id JNX03.Flowtake -e --source winget`. All published artifacts and checksums remain available on the official [GitHub Releases page](https://github.com/JNX03/Flowtake/releases).
 
 | Platform | Published artifacts | Current support boundary |
 |---|---|---|

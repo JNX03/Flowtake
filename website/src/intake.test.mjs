@@ -189,19 +189,20 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
 test("the hero leads with the free product and keeps Release Studio secondary", async () => {
   const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
   const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-demo home-section"'));
-  const downloadIndex = hero.indexOf("Download free");
-  const planIndex = hero.indexOf("View the 42-second demo plan");
+  const downloadIndex = hero.indexOf("Download for Windows");
+  const workflowIndex = hero.indexOf("See how Flowtake works");
   const productIndex = source.indexOf('<section className="home-product home-section"');
-  const serviceIndex = source.indexOf('<section className="home-service home-section"');
+  const serviceIndex = source.indexOf("<AppAndService");
 
-  assert.equal(hero.includes("Record the build."), true);
-  assert.equal(hero.includes("Show what <em>changed.</em>"), true);
+  assert.equal(hero.includes("Create polished screen demos on Windows."), true);
+  assert.equal(hero.includes("cursor-driven zooms"), true);
   assert.equal(hero.includes("$99"), false);
   assert.equal(hero.includes("Four 30–90 second demos"), false);
-  assert.ok(downloadIndex >= 0 && downloadIndex < planIndex, "free download must be the first hero CTA");
+  assert.ok(downloadIndex >= 0 && downloadIndex < workflowIndex, "free download must be the first hero CTA");
   assert.ok(productIndex >= 0 && serviceIndex > productIndex, "Release Studio must follow product proof");
+  assert.equal(source.includes('onGitHub={() => track("github_clicked")}'), true);
   assert.equal(source.includes("Request a founding slot"), false);
-  assert.ok((source.match(/onClick=\{\(event\) => openBrief\(event\.currentTarget\)\}/gu) || []).length >= 1);
+  assert.equal(source.includes("onRequestStudio={(event) => openBrief(event.currentTarget)}"), true);
   assert.ok(
     (source.match(/track\("github_clicked"\)/gu) || []).length >= 4,
     "homepage repository and release interest must remain measurable",
@@ -220,15 +221,14 @@ test("the homepage proof uses three truthful product beats and no fake demo", as
 
   assert.equal((features.match(/number: "0[1-3]"/gu) || []).length, 3);
   for (const required of [
-    "Capture the right window.",
-    "Shape the timeline.",
-    "Export locally.",
+    "Choose what to capture.",
+    "Edit the recording.",
+    "Export the finished MP4.",
   ]) {
     assert.equal(features.includes(required), true, `missing product beat: ${required}`);
   }
 
   for (const required of [
-    "View the 42-second demo plan",
     "Real demo queued for isolated capture",
     "Concept frame—not product footage, customer work, or a finished video.",
     "Concept illustration—not product footage.",

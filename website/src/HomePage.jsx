@@ -2,7 +2,6 @@ import {
   ArrowDownTrayIcon,
   ArrowRightIcon,
   CheckBadgeIcon,
-  CheckIcon,
   ChevronDownIcon,
   CodeBracketIcon,
   ComputerDesktopIcon,
@@ -13,6 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState } from "react";
 import { BriefDialog } from "./BriefDialog.jsx";
+import { AppAndService } from "./components/AppAndService.jsx";
 import { sendEvent } from "./intake.js";
 
 const CONTACT_EMAIL = "jnxstartup@gmail.com";
@@ -26,21 +26,21 @@ const assetUrl = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 const productFeatures = [
   {
     number: "01",
-    title: "Capture the right window.",
+    title: "Choose what to capture.",
     body: "Record an IDE, terminal, browser, full screen, or selected area. Keep the frame on the work you actually need to explain.",
     image: "marketing/capture-window.webp",
     alt: "Abstract illustration of a window capture selection",
   },
   {
     number: "02",
-    title: "Shape the timeline.",
+    title: "Edit the recording.",
     body: "Trim, split, reorder, and refine the take without flattening it. Add captions, zoom, cursor treatment, or redaction where the explanation needs help.",
     image: "marketing/timeline-edit.webp",
     alt: "Abstract illustration of editable video clips and a timeline playhead",
   },
   {
     number: "03",
-    title: "Export locally.",
+    title: "Export the finished MP4.",
     body: "Render an MP4 with FFmpeg on your machine. Ordinary projects and exports stay local unless you choose a feature that explicitly uses the network.",
     image: "marketing/local-export.webp",
     alt: "Abstract illustration of a local MP4 export file",
@@ -68,13 +68,6 @@ const productFacts = [
     body: "Preview builds ship with current platform limits.",
     icon: ComputerDesktopIcon,
   },
-];
-
-const deliverables = [
-  "Four 30–90 second release demos each paid month",
-  "One 16:9 master and one social cutdown per demo",
-  "Captions, cursor treatment, and scene cleanup",
-  "Private review and one focused revision",
 ];
 
 const faqs = [
@@ -151,8 +144,7 @@ export function HomePage() {
         <nav className="home-desktop-nav" aria-label="Primary navigation">
           <a href="#product">Product</a>
           <a href="#demo">Demo</a>
-          <a href="#open-source">Open source</a>
-          <a href="#founding-plan">Release Studio</a>
+          <a href="#open-source-vs-studio">Open source vs Studio</a>
           <a href="#faq">FAQ</a>
         </nav>
 
@@ -191,8 +183,7 @@ export function HomePage() {
           <nav className="home-mobile-nav" id="home-mobile-navigation" aria-label="Mobile navigation">
             <a href="#product" onClick={() => setMobileOpen(false)}>Product</a>
             <a href="#demo" onClick={() => setMobileOpen(false)}>Demo</a>
-            <a href="#open-source" onClick={() => setMobileOpen(false)}>Open source</a>
-            <a href="#founding-plan" onClick={() => setMobileOpen(false)}>Release Studio</a>
+            <a href="#open-source-vs-studio" onClick={() => setMobileOpen(false)}>Open source vs Studio</a>
             <a href="#faq" onClick={() => setMobileOpen(false)}>FAQ</a>
             <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
             <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download current release</a>
@@ -203,13 +194,10 @@ export function HomePage() {
       <main id="main-content" {...backgroundState}>
         <section className="home-hero home-section" id="top">
           <div className="home-hero-copy">
-            <p className="home-chip">Free MIT-licensed desktop app</p>
-            <h1>
-              Record the build.
-              <span>Show what <em>changed.</em></span>
-            </h1>
+            <p className="home-chip">Open-source Windows recorder and editor</p>
+            <h1>Create polished screen demos on Windows.</h1>
             <p className="home-hero-lede">
-              Capture an IDE, terminal, browser, or desktop source. Edit the take on a timeline, add captions or redaction, and export a local MP4.
+              Capture a screen, window, or area. Flowtake adds cursor-driven zooms, lets you edit on a timeline, and exports MP4 locally.
             </p>
             <div className="home-hero-actions">
               <a
@@ -220,15 +208,15 @@ export function HomePage() {
                 onClick={() => track("download_clicked")}
               >
                 <ArrowDownTrayIcon aria-hidden="true" />
-                Download free
+                Download for Windows
               </a>
-              <a className="home-button home-button-secondary" href="#demo">
-                View the 42-second demo plan
+              <a className="home-button home-button-secondary" href="#product">
+                See how Flowtake works
               </a>
             </div>
             <p className="home-platform-line">
-              Free · MIT licensed · Windows primary
-              <span>macOS / Linux preview · unsigned Windows builds</span>
+              Windows 10/11 · WinGet and GitHub Releases
+              <span>Free · MIT licensed · current Windows artifacts are unsigned</span>
             </p>
           </div>
 
@@ -286,9 +274,9 @@ export function HomePage() {
 
         <section className="home-product home-section" id="product" aria-labelledby="product-title">
           <header className="home-section-heading">
-            <p>One take. Still editable.</p>
-            <h2 id="product-title">From raw capture to local MP4.</h2>
-            <span>Three clear steps from source selection to final MP4.</span>
+            <p>How it works</p>
+            <h2 id="product-title">Record, edit, and export in one app.</h2>
+            <span>Choose the source, refine the recording on a timeline, and render the finished MP4 on your machine.</span>
           </header>
 
           <ol className="home-feature-list">
@@ -321,63 +309,18 @@ export function HomePage() {
           </p>
         </section>
 
-        <section className="home-open-source home-section" aria-labelledby="open-source-title">
-          <div className="home-open-source-mark">
-            <img src={assetUrl("logo.svg")} alt="" />
-            <span>MIT</span>
-          </div>
-          <div>
-            <p>Open source, on purpose</p>
-            <h2 id="open-source-title">The recorder stays free.</h2>
-          </div>
-          <div>
-            <p>
-              Use, inspect, fork, and improve Flowtake. The optional production service is separate from the published application.
-            </p>
-            <a
-              className="home-inline-link"
-              href={REPOSITORY_URL}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => track("github_clicked")}
-            >
-              View the repository <ArrowRightIcon aria-hidden="true" />
-            </a>
-            <a className="home-inline-link" href={`${import.meta.env.BASE_URL}screen-studio-alternative-windows/`}>
-              Compare Flowtake with Screen Studio on Windows
-            </a>
-          </div>
-        </section>
-
-        <section className="home-service home-section" id="founding-plan" aria-labelledby="service-title">
-          <div className="home-service-copy">
-            <p>Optional human production help</p>
-            <h2 id="service-title">Release Studio</h2>
-            <span>For teams that want finished release-demo assets without another editing queue.</span>
-          </div>
-          <div className="home-service-price">
-            <strong>$99</strong>
-            <span>/ month · founding rate</span>
-          </div>
-          <ul>
-            {deliverables.map((item) => (
-              <li key={item}><CheckIcon aria-hidden="true" /> {item}</li>
-            ))}
-          </ul>
-          <div className="home-service-action">
-            <button className="home-button home-button-secondary" type="button" onClick={(event) => openBrief(event.currentTarget)}>
-              Request a sample storyboard <ArrowRightIcon aria-hidden="true" />
-            </button>
-            <p>
-              Recurring only after written scope confirmation. Cancel before renewal. No checkout or customer-file upload is open today.
-            </p>
-          </div>
-        </section>
+        <AppAndService
+          comparisonUrl={`${import.meta.env.BASE_URL}screen-studio-alternative-windows/`}
+          downloadUrl={DOWNLOAD_URL}
+          onDownload={() => track("download_clicked")}
+          onGitHub={() => track("github_clicked")}
+          onRequestStudio={(event) => openBrief(event.currentTarget)}
+        />
 
         <section className="home-trust home-section" id="trust" aria-labelledby="trust-title">
           <header className="home-section-heading home-section-heading-compact">
-            <p>Before payment or footage</p>
-            <h2 id="trust-title">The boundaries are part of the product.</h2>
+            <p>Release Studio terms</p>
+            <h2 id="trust-title">Know the scope before you send footage or pay.</h2>
           </header>
           <div className="home-disclosure-list">
             <details id="service-terms">
@@ -417,8 +360,8 @@ export function HomePage() {
 
         <section className="home-faq home-section" id="faq" aria-labelledby="faq-title">
           <header>
-            <p>Questions before the first take</p>
-            <h2 id="faq-title">Plain answers.</h2>
+            <p>Before you install</p>
+            <h2 id="faq-title">Common questions.</h2>
           </header>
           <div>
             {faqs.map((item) => (
@@ -433,8 +376,8 @@ export function HomePage() {
         <section className="home-final-cta home-section" aria-labelledby="final-cta-title">
           <img src={assetUrl("logo.svg")} alt="" />
           <div>
-            <p>Free · open source · local-first</p>
-            <h2 id="final-cta-title">Ready to record what changed?</h2>
+            <p>Windows 10/11 · free · MIT licensed</p>
+            <h2 id="final-cta-title">Download Flowtake for Windows.</h2>
           </div>
           <a
             className="home-button home-button-primary"

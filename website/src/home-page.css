@@ -159,34 +159,20 @@ html:has(.home-page) {
 .home-page .home-chip {
   width: fit-content;
   margin: 0 0 24px;
-  padding: 7px 12px;
-  border: 1px solid rgba(170, 152, 255, 0.42);
-  border-radius: 999px;
-  color: #d9d0ff;
-  font-size: 12px;
+  padding: 0;
+  color: var(--home-violet-soft);
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .home-page .home-hero h1 {
   max-width: 690px;
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(56px, 4.9vw, 76px);
-  font-weight: 430;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(52px, 4.7vw, 68px);
+  font-weight: 600;
   letter-spacing: -0.045em;
-  line-height: 0.99;
-}
-
-.home-page .home-hero h1 span {
-  display: block;
-  color: #d7d3d8;
-}
-
-.home-page .home-hero h1 em {
-  color: var(--home-violet-soft);
-  font-weight: 430;
+  line-height: 1.05;
 }
 
 .home-page .home-hero-lede {
@@ -277,9 +263,9 @@ html:has(.home-page) {
 
 .home-page .home-release-main h2 {
   margin: 0 0 14px;
-  font-family: "Fraunces", Georgia, serif;
-  font-size: 45px;
-  font-weight: 430;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  font-size: 39px;
+  font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
 }
@@ -364,9 +350,9 @@ html:has(.home-page) {
 
 .home-page .home-demo-copy h2 {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(42px, 4vw, 58px);
-  font-weight: 430;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(36px, 3.6vw, 50px);
+  font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1.04;
 }
@@ -421,11 +407,11 @@ html:has(.home-page) {
 .home-page .home-faq h2,
 .home-page .home-final-cta h2 {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(42px, 4.4vw, 64px);
-  font-weight: 430;
-  letter-spacing: -0.04em;
-  line-height: 1.04;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(36px, 3.8vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
 }
 
 .home-page .home-section-heading > span {
@@ -487,11 +473,11 @@ html:has(.home-page) {
 
 .home-page .home-feature-copy h3 {
   margin: 12px 0 14px;
-  font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(38px, 4vw, 56px);
-  font-weight: 430;
-  letter-spacing: -0.04em;
-  line-height: 1.06;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(32px, 3.4vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
 }
 
 .home-page .home-feature-copy p {
@@ -640,7 +626,7 @@ html:has(.home-page) {
 }
 
 .home-page .home-service-price strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
   font-size: 54px;
   font-weight: 430;
   line-height: 1;
@@ -815,7 +801,7 @@ html:has(.home-page) {
 }
 
 .home-page .home-final-cta h2 {
-  font-size: 34px;
+  font-size: 32px;
 }
 
 .home-page .home-footer {
@@ -1048,7 +1034,7 @@ html:has(.home-page) {
   }
 
   .home-page .home-hero h1 {
-    font-size: clamp(44px, 13vw, 62px);
+    font-size: clamp(36px, 10vw, 46px);
   }
 
   .home-page .home-hero-lede {
