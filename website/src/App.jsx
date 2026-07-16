@@ -18,6 +18,7 @@ import { createLeadPayload, describeLeadFailure, sendEvent, submitLead } from ".
 const CONTACT_EMAIL = "jnxstartup@gmail.com";
 const RELEASE_VERSION = "1.6.0";
 const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
+const PUBLIC_STORYBOARD_URL = "https://github.com/JNX03/Flowtake/discussions/169";
 const assetUrl = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const workflow = [
@@ -54,6 +55,51 @@ const deliverables = [
   "One 16:9 master plus one social cutdown per demo",
   "Private review link and one focused revision round",
   "First cut within 3 business days of a usable brief and capture",
+];
+
+const storyboardBeats = [
+  {
+    number: "01",
+    time: "0–3s",
+    title: "Open the recorder",
+    caption: "Record the build once.",
+    plannedEvidence: "Flowtake brand and recorder shell",
+  },
+  {
+    number: "02",
+    time: "3–10s",
+    title: "Select safe sources",
+    caption: "Capture the IDE, terminal, browser, or desktop.",
+    plannedEvidence: "Source controls and recording state",
+  },
+  {
+    number: "03",
+    time: "10–18s",
+    title: "Open the saved take",
+    caption: "Keep the take editable.",
+    plannedEvidence: "Project handoff and timeline",
+  },
+  {
+    number: "04",
+    time: "18–28s",
+    title: "Shape one motion beat",
+    caption: "Shape the motion around the explanation.",
+    plannedEvidence: "Preview, properties, and timeline response",
+  },
+  {
+    number: "05",
+    time: "28–36s",
+    title: "Export locally",
+    caption: "Export locally with FFmpeg.",
+    plannedEvidence: "Export controls and a locally rendered MP4",
+  },
+  {
+    number: "06",
+    time: "36–42s",
+    title: "Hold on the end card",
+    caption: "Free. Local-first. MIT licensed.",
+    plannedEvidence: "Public repository and download action",
+  },
 ];
 
 const faqs = [
@@ -286,19 +332,46 @@ export function App() {
           </ol>
         </section>
 
-        <section className="section proof-section proof-section-copy-only">
+        <section className="section proof-section" aria-labelledby="storyboard-proof-title">
           <div className="proof-copy">
-            <p className="kicker">Why the capture matters</p>
-            <h2>Technical demos break when every scene is flattened too early.</h2>
+            <p className="kicker">Pre-production example · Flowtake v1.6.0</p>
+            <h2 id="storyboard-proof-title">See the six beats before the footage.</h2>
             <p>
-              Flowtake keeps the real product flow visible while the production pass handles framing, pace, captions, cursor treatment, and handoffs.
+              This capture plan maps a real recorder, editor, and export workflow in the published app. It shows how one technical release becomes a focused 42-second story before production starts.
             </p>
-            <ul className="check-list">
-              <li><CheckIcon /> Show the command and the result in one coherent story.</li>
-              <li><CheckIcon /> Reframe a scene without asking engineering to record the whole launch again.</li>
-              <li><CheckIcon /> Export a master and social cutdown from the same approved narrative.</li>
-            </ul>
+            <p className="proof-boundary" role="note">
+              <strong>Pre-production example—not customer work or a finished video.</strong>
+              Capture is still pending a privacy-safe isolated session, so this page makes no footage or delivery claim.
+            </p>
+            <a
+              className="button button-quiet proof-clinic-action"
+              href={PUBLIC_STORYBOARD_URL}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => track("github_clicked")}
+            >
+              Get a public six-beat storyboard
+              <ArrowRightIcon aria-hidden="true" />
+            </a>
+            <p className="proof-clinic-note">
+              Through July 23, 2026, up to the first three maintainers with a complete public developer-tool workflow can receive a no-obligation storyboard. GitHub sign-in is required; there is no separate Flowtake signup, footage request, or payment.
+            </p>
           </div>
+          <ol className="storyboard-list" aria-label="Flowtake v1.6.0 pre-production storyboard">
+            {storyboardBeats.map(({ number, time, title, caption, plannedEvidence }) => (
+              <li key={number} className="storyboard-beat">
+                <div className="storyboard-beat-meta">
+                  <span className="storyboard-number">{number}</span>
+                  <span className="storyboard-time">{time}</span>
+                </div>
+                <div>
+                  <h3>{title}</h3>
+                  <p className="storyboard-caption">“{caption}”</p>
+                  <p className="storyboard-evidence">Planned evidence: {plannedEvidence}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="section founding-section" id="founding-plan">
@@ -381,7 +454,7 @@ export function App() {
               <h3>Privacy and business contact</h3>
               <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service so we can assess and reply. Lead records are encrypted at rest and declined or inactive leads are deleted within 90 days.</p>
               <p>This page also sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count - not event details, page URLs, device identifiers, or form content. IP addresses are used in server memory for abuse-rate limiting and are not written to lead or event files. No nonessential cookies are used.</p>
-              <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>; expected reply time is two business days. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
+              <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. Direct email response is still being verified for the founding pilot; the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> is the currently reply-capable route. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
             </article>
           </div>
           <p className="trust-status">Effective pilot disclosure: July 16, 2026. Checkout remains disabled until the secure review path and final contracting details are verified.</p>
@@ -446,7 +519,7 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [briefText, setBriefText] = useState("");
-  const [briefSubject, setBriefSubject] = useState("");
+  const [leadReference, setLeadReference] = useState("");
   const [fallbackAllowed, setFallbackAllowed] = useState(false);
   const firstInput = useRef(null);
   const dialogRef = useRef(null);
@@ -492,7 +565,7 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
     event.preventDefault();
     setError("");
     setBriefText("");
-    setBriefSubject("");
+    setLeadReference("");
     setFallbackAllowed(false);
     setStatus("sending");
 
@@ -515,10 +588,10 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
       payload.story,
     ].join("\n");
     setBriefText(text);
-    setBriefSubject(`Flowtake Release Studio brief - ${payload.company}`);
 
     try {
-      await submitLead(payload);
+      const result = await submitLead(payload);
+      setLeadReference(result.id);
       track("brief_submitted");
       setStatus("submitted");
     } catch (submissionError) {
@@ -529,13 +602,6 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
     }
   };
 
-  const openEmailFallback = () => {
-    if (!fallbackAllowed || !briefText) return;
-    track("brief_handoff_started");
-    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(briefSubject)}&body=${encodeURIComponent(briefText)}`;
-    setStatus("email");
-  };
-
   const copyBrief = async () => {
     if (!briefText || (status === "idle" && !fallbackAllowed)) return;
     try {
@@ -544,7 +610,7 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
       setStatus("copied");
       track("brief_copied");
     } catch {
-      setError(`Clipboard access failed. Select the brief manually or email ${CONTACT_EMAIL}.`);
+      setError("Clipboard access failed. Try again or use the public storyboard clinic.");
     }
   };
 
@@ -552,15 +618,13 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
     if (status === "submitted") {
       return {
         title: "Brief received.",
-        body: "We’ll review the workflow and reply with the next concrete step. No payment was taken.",
+        body: "Your encrypted request is stored for review. Save the reference below; no payment was taken.",
       };
     }
-    if (["email", "copied"].includes(status)) {
+    if (status === "copied") {
       return {
-        title: status === "copied" ? "Brief copied." : "Email draft opened.",
-        body: status === "copied"
-          ? `Paste it into an email to ${CONTACT_EMAIL}. Nothing was submitted automatically.`
-          : `Send the draft from your email app to complete the request. Nothing was submitted automatically.`,
+        title: "Private brief copied.",
+        body: "Keep the copied version private. Nothing was submitted automatically.",
       };
     }
     return null;
@@ -586,6 +650,12 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
             <CheckIcon aria-hidden="true" />
             <h3>{outcome.title}</h3>
             <p>{outcome.body}</p>
+            {leadReference && (
+              <p className="lead-reference">
+                <span>Private request reference — do not post publicly</span>
+                <code>{leadReference}</code>
+              </p>
+            )}
             {error && <p className="form-error" role="alert">{error}</p>}
             {briefText && status !== "submitted" && (
               <button className="button button-quiet" type="button" onClick={copyBrief}>
@@ -649,10 +719,23 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
             </div>
             {error && <p className="form-error" role="alert">{error}</p>}
             {error && fallbackAllowed && briefText && (
-              <div className="form-fallback-actions">
-                <button className="button button-quiet" type="button" onClick={openEmailFallback}>Open email draft instead</button>
-                <button className="text-link" type="button" onClick={copyBrief}>Copy brief</button>
-              </div>
+              <>
+                <p className="form-safety">
+                  The clinic requires GitHub sign-in and is public. Write a separate public-only summary with only a public project URL and workflow—never paste your email, this private brief, credentials, or customer data there.
+                </p>
+                <div className="form-fallback-actions">
+                  <a
+                    className="button button-quiet"
+                    href={PUBLIC_STORYBOARD_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => track("github_clicked")}
+                  >
+                    Open public clinic with a separate public-only summary
+                  </a>
+                  <button className="text-link" type="button" onClick={copyBrief}>Copy private brief</button>
+                </div>
+              </>
             )}
             <p className="form-status" aria-live="polite">{status === "sending" ? "Sending your brief..." : ""}</p>
             <button className="button button-primary form-submit" type="submit" disabled={status === "sending"}>
