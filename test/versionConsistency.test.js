@@ -7,6 +7,7 @@ import test from "node:test"
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 const readRepoFile = file => readFile(path.join(repoRoot, file), "utf8")
+const readRepoBytes = file => readFile(path.join(repoRoot, file))
 
 function readCargoPackageVersion(source, packageName) {
     const packageMatch = source.match(new RegExp(`\\[\\[package\\]\\]\\r?\\nname = "${packageName}"\\r?\\nversion = "([^"]+)"`))
@@ -84,13 +85,17 @@ test("launch copy keeps signing and preview support boundaries separate", async 
 })
 
 test("launch site does not publish stale or private product captures", async () => {
-    const [website, indexHtml, readme, packageJson] = await Promise.all([
+    const [website, indexHtml, readme, docsReadme, packageJson, appLogo, publicLogo] = await Promise.all([
         readRepoFile("website/src/App.jsx"),
         readRepoFile("website/index.html"),
         readRepoFile("README.md"),
+        readRepoFile("docs/README.md"),
         readRepoFile("package.json").then(JSON.parse),
+        readRepoBytes("app/shared/assets/logo.png"),
+        readRepoBytes("website/public/assets/logo.png"),
     ])
     const staleCaptures = [
+        "resources/banner.png",
         "website/public/assets/flowtake-editor.jpg",
         "website/public/assets/flowtake-recorder.jpg",
     ]
@@ -100,7 +105,10 @@ test("launch site does not publish stale or private product captures", async () 
     assert.match(website, /logo\.png/)
     assert.match(indexHtml, /<meta property="og:image" content="https:\/\/jnx03\.github\.io\/Flowtake\/assets\/logo\.png"/)
     assert.match(indexHtml, /<meta name="twitter:card" content="summary"/)
-    assert.doesNotMatch(`${website}\n${indexHtml}\n${readme}`, /flowtake-(?:editor|recorder)\.jpg/)
+    assert.match(readme, /website\/public\/assets\/logo\.png/)
+    assert.match(docsReadme, /\.\.\/website\/public\/assets\/logo\.png/)
+    assert.deepEqual(publicLogo, appLogo, "public marketing logo must match the real application asset")
+    assert.doesNotMatch(`${website}\n${indexHtml}\n${readme}\n${docsReadme}`, /flowtake-(?:editor|recorder)\.jpg|resources\/banner\.png/)
 
     for (const capture of staleCaptures) {
         await assert.rejects(
