@@ -74,6 +74,9 @@ jobs:
       - name: Build for the repository Pages base path
         run: npm run build -- --mode pages
 
+      - name: Verify Pages routes and metadata
+        run: npm run verify:build
+
       - name: Require production intake endpoints in the built site
         shell: bash
         run: |

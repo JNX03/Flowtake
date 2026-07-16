@@ -347,6 +347,9 @@ export function App() {
             <a className="button button-quiet" href="https://github.com/JNX03/Flowtake" target="_blank" rel="noreferrer">
               View the repository <ArrowRightIcon aria-hidden="true" />
             </a>
+            <a className="text-link comparison-context-link" href={`${import.meta.env.BASE_URL}screen-studio-alternative-windows/`}>
+              Compare Flowtake with Screen Studio on Windows
+            </a>
           </div>
         </section>
 
@@ -421,6 +424,7 @@ export function App() {
         <p>Open-source recorder. Optional release production.</p>
         <div>
           <a href="https://github.com/JNX03/Flowtake" target="_blank" rel="noreferrer">GitHub</a>
+          <a href={`${import.meta.env.BASE_URL}screen-studio-alternative-windows/`}>Windows comparison</a>
           <a href="#service-terms">Terms</a>
           <a href="#privacy">Privacy</a>
           <a href="#cancellation-policy">Cancellation</a>
@@ -438,7 +442,7 @@ export function App() {
   );
 }
 
-function BriefDialog({ onClose, restoreFocusTo }) {
+export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" }) {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [briefText, setBriefText] = useState("");
@@ -480,7 +484,7 @@ function BriefDialog({ onClose, restoreFocusTo }) {
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
-      restoreFocusTo?.focus?.();
+      queueMicrotask(() => restoreFocusTo?.focus?.());
     };
   }, [onClose, restoreFocusTo]);
 
@@ -626,7 +630,7 @@ function BriefDialog({ onClose, restoreFocusTo }) {
             </p>
             <label className="consent-row">
               <input name="privacyAccepted" type="checkbox" required />
-              <span>I've read the <a href="#privacy" target="_blank" rel="noreferrer">privacy disclosure</a> and agree to Flowtake using this brief to assess and reply. I understand this is not a purchase.</span>
+              <span>I've read the <a href={privacyHref} target="_blank" rel="noreferrer">privacy disclosure</a> and agree to Flowtake using this brief to assess and reply. I understand this is not a purchase.</span>
             </label>
             <div className="form-honeypot" aria-hidden="true" inert={true}>
               <label>
