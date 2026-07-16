@@ -21,9 +21,13 @@ concurrency:
 env:
   FLOWTAKE_MANIFEST_DIR: packaging/winget/JNX03.Flowtake/1.6.0
   WINGET_BOOTSTRAP_VERSION: "1.29.280"
-  WINGET_MODULE_URL: https://www.powershellgallery.com/api/v2/package/Microsoft.WinGet.Client/1.29.280
-  WINGET_MODULE_SIZE: "20883488"
-  WINGET_MODULE_SHA512: DE5818DA64D4362904FFE35737A2D7DFC7179CB4D248E5816CE89AFE7E08C0A8AC63012F5489095F49724E1BEC0EAA2E53A90593AEF204979DE6CB27534A91A6
+  WINGET_PACKAGE_VERSION: "1.29.280.0"
+  WINGET_BUNDLE_URL: https://github.com/microsoft/winget-cli/releases/download/v1.29.280/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+  WINGET_BUNDLE_SIZE: "216775738"
+  WINGET_BUNDLE_SHA256: 0809FA9F52E395D6E7DE692331DCE847AC991952675116BB4D8AAE2DDCC20946
+  WINGET_DEPENDENCIES_URL: https://github.com/microsoft/winget-cli/releases/download/v1.29.280/DesktopAppInstaller_Dependencies.zip
+  WINGET_DEPENDENCIES_SIZE: "97760717"
+  WINGET_DEPENDENCIES_SHA256: 3BBFCAA5CB011C48FAC48D896D64A5C7C6898859A9F3D01555C8CD000F4E2962
 
 jobs:
   validate-manifest:
@@ -53,45 +57,73 @@ jobs:
           $command = Get-Command winget -ErrorAction SilentlyContinue
           $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
           if ($actualVersion -ne $expectedVersion) {
-            $moduleArchive = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client.$env:WINGET_BOOTSTRAP_VERSION.zip"
-            $moduleRoot = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client-$env:WINGET_BOOTSTRAP_VERSION"
-            if (Test-Path -LiteralPath $moduleRoot) {
-              throw "The isolated WinGet module directory already exists: $moduleRoot"
+            $bootstrapRoot = Join-Path $env:RUNNER_TEMP "winget-$env:WINGET_BOOTSTRAP_VERSION"
+            if (Test-Path -LiteralPath $bootstrapRoot) {
+              throw "The isolated WinGet bootstrap directory already exists: $bootstrapRoot"
             }
+            New-Item -ItemType Directory -Path $bootstrapRoot | Out-Null
+            $bundlePath = Join-Path $bootstrapRoot "Microsoft.DesktopAppInstaller.msixbundle"
+            $dependenciesArchive = Join-Path $bootstrapRoot "DesktopAppInstaller_Dependencies.zip"
+            $dependenciesRoot = Join-Path $bootstrapRoot "dependencies"
             Invoke-WebRequest `
               -UseBasicParsing `
               -MaximumRetryCount 3 `
               -RetryIntervalSec 2 `
-              -Uri $env:WINGET_MODULE_URL `
-              -OutFile $moduleArchive
-            if ((Get-Item -LiteralPath $moduleArchive).Length -ne [int64]$env:WINGET_MODULE_SIZE) {
-              throw "The Microsoft.WinGet.Client archive size did not match the reviewed package."
+              -Uri $env:WINGET_BUNDLE_URL `
+              -OutFile $bundlePath
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -MaximumRetryCount 3 `
+              -RetryIntervalSec 2 `
+              -Uri $env:WINGET_DEPENDENCIES_URL `
+              -OutFile $dependenciesArchive
+            if ((Get-Item -LiteralPath $bundlePath).Length -ne [int64]$env:WINGET_BUNDLE_SIZE) {
+              throw "The WinGet MSIX bundle size did not match the reviewed release asset."
             }
-            $moduleHash = (Get-FileHash -LiteralPath $moduleArchive -Algorithm SHA512).Hash.ToUpperInvariant()
-            if ($moduleHash -ne $env:WINGET_MODULE_SHA512) {
-              throw "The Microsoft.WinGet.Client archive SHA-512 did not match the reviewed package."
+            if ((Get-Item -LiteralPath $dependenciesArchive).Length -ne [int64]$env:WINGET_DEPENDENCIES_SIZE) {
+              throw "The WinGet dependencies archive size did not match the reviewed release asset."
             }
-            Expand-Archive -LiteralPath $moduleArchive -DestinationPath $moduleRoot
-            $moduleManifest = Join-Path $moduleRoot "Microsoft.WinGet.Client.psd1"
-            $module = Test-ModuleManifest -Path $moduleManifest
-            if (
-              $module.Name -ne "Microsoft.WinGet.Client" -or
-              $module.Version.ToString() -ne $env:WINGET_BOOTSTRAP_VERSION -or
-              $module.Author -ne "Microsoft Corporation"
-            ) {
-              throw "The hash-verified Microsoft.WinGet.Client module identity could not be verified."
+            $bundleHash = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToUpperInvariant()
+            $dependenciesHash = (Get-FileHash -LiteralPath $dependenciesArchive -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($bundleHash -ne $env:WINGET_BUNDLE_SHA256) {
+              throw "The WinGet MSIX bundle SHA-256 did not match the reviewed release asset."
             }
-            Import-Module -Name $moduleManifest -Force
-            $repairExit = Repair-WinGetPackageManager `
-              -Version $env:WINGET_BOOTSTRAP_VERSION `
-              -AllUsers `
-              -Force
-            if ([int]$repairExit -ne 0) {
-              throw "Repair-WinGetPackageManager exited with code $repairExit."
+            if ($dependenciesHash -ne $env:WINGET_DEPENDENCIES_SHA256) {
+              throw "The WinGet dependencies archive SHA-256 did not match the reviewed release asset."
+            }
+            Expand-Archive -LiteralPath $dependenciesArchive -DestinationPath $dependenciesRoot
+            $dependencyPaths = @(Get-ChildItem -LiteralPath (Join-Path $dependenciesRoot "x64") -Filter "*.appx" -File | Select-Object -ExpandProperty FullName)
+            $expectedDependencyNames = @(
+              "Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx",
+              "Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx",
+              "Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx"
+            )
+            $actualDependencyNames = @($dependencyPaths | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+            $missingDependencies = @($expectedDependencyNames | Where-Object { $actualDependencyNames -notcontains $_ })
+            if ($actualDependencyNames.Count -ne 3 -or $missingDependencies.Count -ne 0) {
+              throw "The WinGet x64 dependency set did not match the reviewed release asset."
+            }
+            Add-AppxPackage `
+              -Path $bundlePath `
+              -DependencyPath $dependencyPaths `
+              -ForceApplicationShutdown `
+              -ErrorAction Stop
+            $appInstaller = @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Where-Object {
+              $_.Version.ToString() -eq $env:WINGET_PACKAGE_VERSION -and
+              $_.Architecture.ToString() -eq "X64" -and
+              $_.PackageFamilyName -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -and
+              $_.PublisherId -eq "8wekyb3d8bbwe"
+            })
+            if ($appInstaller.Count -ne 1) {
+              throw "The exact x64 Microsoft Desktop App Installer bundle was not registered."
             }
           }
 
-          $command = Get-Command winget -ErrorAction SilentlyContinue
+          for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            $command = Get-Command winget -ErrorAction SilentlyContinue
+            if ($command) { break }
+            Start-Sleep -Seconds 1
+          }
           if (-not $command) {
             throw "The WinGet bootstrap did not expose winget.exe."
           }
@@ -133,45 +165,73 @@ jobs:
           $command = Get-Command winget -ErrorAction SilentlyContinue
           $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
           if ($actualVersion -ne $expectedVersion) {
-            $moduleArchive = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client.$env:WINGET_BOOTSTRAP_VERSION.zip"
-            $moduleRoot = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client-$env:WINGET_BOOTSTRAP_VERSION"
-            if (Test-Path -LiteralPath $moduleRoot) {
-              throw "The isolated WinGet module directory already exists: $moduleRoot"
+            $bootstrapRoot = Join-Path $env:RUNNER_TEMP "winget-$env:WINGET_BOOTSTRAP_VERSION"
+            if (Test-Path -LiteralPath $bootstrapRoot) {
+              throw "The isolated WinGet bootstrap directory already exists: $bootstrapRoot"
             }
+            New-Item -ItemType Directory -Path $bootstrapRoot | Out-Null
+            $bundlePath = Join-Path $bootstrapRoot "Microsoft.DesktopAppInstaller.msixbundle"
+            $dependenciesArchive = Join-Path $bootstrapRoot "DesktopAppInstaller_Dependencies.zip"
+            $dependenciesRoot = Join-Path $bootstrapRoot "dependencies"
             Invoke-WebRequest `
               -UseBasicParsing `
               -MaximumRetryCount 3 `
               -RetryIntervalSec 2 `
-              -Uri $env:WINGET_MODULE_URL `
-              -OutFile $moduleArchive
-            if ((Get-Item -LiteralPath $moduleArchive).Length -ne [int64]$env:WINGET_MODULE_SIZE) {
-              throw "The Microsoft.WinGet.Client archive size did not match the reviewed package."
+              -Uri $env:WINGET_BUNDLE_URL `
+              -OutFile $bundlePath
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -MaximumRetryCount 3 `
+              -RetryIntervalSec 2 `
+              -Uri $env:WINGET_DEPENDENCIES_URL `
+              -OutFile $dependenciesArchive
+            if ((Get-Item -LiteralPath $bundlePath).Length -ne [int64]$env:WINGET_BUNDLE_SIZE) {
+              throw "The WinGet MSIX bundle size did not match the reviewed release asset."
             }
-            $moduleHash = (Get-FileHash -LiteralPath $moduleArchive -Algorithm SHA512).Hash.ToUpperInvariant()
-            if ($moduleHash -ne $env:WINGET_MODULE_SHA512) {
-              throw "The Microsoft.WinGet.Client archive SHA-512 did not match the reviewed package."
+            if ((Get-Item -LiteralPath $dependenciesArchive).Length -ne [int64]$env:WINGET_DEPENDENCIES_SIZE) {
+              throw "The WinGet dependencies archive size did not match the reviewed release asset."
             }
-            Expand-Archive -LiteralPath $moduleArchive -DestinationPath $moduleRoot
-            $moduleManifest = Join-Path $moduleRoot "Microsoft.WinGet.Client.psd1"
-            $module = Test-ModuleManifest -Path $moduleManifest
-            if (
-              $module.Name -ne "Microsoft.WinGet.Client" -or
-              $module.Version.ToString() -ne $env:WINGET_BOOTSTRAP_VERSION -or
-              $module.Author -ne "Microsoft Corporation"
-            ) {
-              throw "The hash-verified Microsoft.WinGet.Client module identity could not be verified."
+            $bundleHash = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToUpperInvariant()
+            $dependenciesHash = (Get-FileHash -LiteralPath $dependenciesArchive -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($bundleHash -ne $env:WINGET_BUNDLE_SHA256) {
+              throw "The WinGet MSIX bundle SHA-256 did not match the reviewed release asset."
             }
-            Import-Module -Name $moduleManifest -Force
-            $repairExit = Repair-WinGetPackageManager `
-              -Version $env:WINGET_BOOTSTRAP_VERSION `
-              -AllUsers `
-              -Force
-            if ([int]$repairExit -ne 0) {
-              throw "Repair-WinGetPackageManager exited with code $repairExit."
+            if ($dependenciesHash -ne $env:WINGET_DEPENDENCIES_SHA256) {
+              throw "The WinGet dependencies archive SHA-256 did not match the reviewed release asset."
+            }
+            Expand-Archive -LiteralPath $dependenciesArchive -DestinationPath $dependenciesRoot
+            $dependencyPaths = @(Get-ChildItem -LiteralPath (Join-Path $dependenciesRoot "x64") -Filter "*.appx" -File | Select-Object -ExpandProperty FullName)
+            $expectedDependencyNames = @(
+              "Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx",
+              "Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx",
+              "Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx"
+            )
+            $actualDependencyNames = @($dependencyPaths | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+            $missingDependencies = @($expectedDependencyNames | Where-Object { $actualDependencyNames -notcontains $_ })
+            if ($actualDependencyNames.Count -ne 3 -or $missingDependencies.Count -ne 0) {
+              throw "The WinGet x64 dependency set did not match the reviewed release asset."
+            }
+            Add-AppxPackage `
+              -Path $bundlePath `
+              -DependencyPath $dependencyPaths `
+              -ForceApplicationShutdown `
+              -ErrorAction Stop
+            $appInstaller = @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Where-Object {
+              $_.Version.ToString() -eq $env:WINGET_PACKAGE_VERSION -and
+              $_.Architecture.ToString() -eq "X64" -and
+              $_.PackageFamilyName -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -and
+              $_.PublisherId -eq "8wekyb3d8bbwe"
+            })
+            if ($appInstaller.Count -ne 1) {
+              throw "The exact x64 Microsoft Desktop App Installer bundle was not registered."
             }
           }
 
-          $command = Get-Command winget -ErrorAction SilentlyContinue
+          for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            $command = Get-Command winget -ErrorAction SilentlyContinue
+            if ($command) { break }
+            Start-Sleep -Seconds 1
+          }
           if (-not $command) {
             throw "The WinGet bootstrap did not expose winget.exe."
           }

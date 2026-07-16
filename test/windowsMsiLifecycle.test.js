@@ -106,23 +106,41 @@ test("installer proof uses immutable actions and a pinned official WinGet bootst
     )
     assert.equal(workflowSource.match(/persist-credentials: false/g)?.length, 2)
     assert.equal(workflow.env.WINGET_BOOTSTRAP_VERSION, "1.29.280")
+    assert.equal(workflow.env.WINGET_PACKAGE_VERSION, "1.29.280.0")
     assert.equal(
-        workflow.env.WINGET_MODULE_URL,
-        "https://www.powershellgallery.com/api/v2/package/Microsoft.WinGet.Client/1.29.280"
+        workflow.env.WINGET_BUNDLE_URL,
+        "https://github.com/microsoft/winget-cli/releases/download/v1.29.280/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
     )
-    assert.equal(workflow.env.WINGET_MODULE_SIZE, "20883488")
+    assert.equal(workflow.env.WINGET_BUNDLE_SIZE, "216775738")
     assert.equal(
-        workflow.env.WINGET_MODULE_SHA512,
-        "DE5818DA64D4362904FFE35737A2D7DFC7179CB4D248E5816CE89AFE7E08C0A8AC63012F5489095F49724E1BEC0EAA2E53A90593AEF204979DE6CB27534A91A6"
+        workflow.env.WINGET_BUNDLE_SHA256,
+        "0809FA9F52E395D6E7DE692331DCE847AC991952675116BB4D8AAE2DDCC20946"
     )
-    assert.equal(workflowSource.match(/Microsoft\.WinGet\.Client/g)?.length >= 6, true)
-    assert.equal(workflowSource.match(/Get-FileHash[^\n]+-Algorithm SHA512/g)?.length, 2)
-    assert.equal(workflowSource.match(/Test-ModuleManifest -Path \$moduleManifest/g)?.length, 2)
-    assert.match(workflowSource, /Repair-WinGetPackageManager/g)
-    assert.match(workflowSource, /\$module\.Author -ne "Microsoft Corporation"/m)
+    assert.equal(
+        workflow.env.WINGET_DEPENDENCIES_URL,
+        "https://github.com/microsoft/winget-cli/releases/download/v1.29.280/DesktopAppInstaller_Dependencies.zip"
+    )
+    assert.equal(workflow.env.WINGET_DEPENDENCIES_SIZE, "97760717")
+    assert.equal(
+        workflow.env.WINGET_DEPENDENCIES_SHA256,
+        "3BBFCAA5CB011C48FAC48D896D64A5C7C6898859A9F3D01555C8CD000F4E2962"
+    )
+    assert.equal(workflowSource.match(/Get-FileHash[^\n]+-Algorithm SHA256/g)?.length, 4)
+    assert.equal(workflowSource.match(/Add-AppxPackage/g)?.length, 2)
+    assert.equal(workflowSource.match(/-DependencyPath \$dependencyPaths/g)?.length, 2)
+    assert.equal(workflowSource.match(/Get-AppxPackage -Name Microsoft\.DesktopAppInstaller/g)?.length, 2)
+    assert.equal(workflowSource.match(/PackageFamilyName -eq "Microsoft\.DesktopAppInstaller_8wekyb3d8bbwe"/g)?.length, 2)
+    assert.equal(workflowSource.match(/PublisherId -eq "8wekyb3d8bbwe"/g)?.length, 2)
+    for (const dependencyName of [
+        "Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx",
+        "Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx",
+        "Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx",
+    ]) {
+        assert.equal(workflowSource.match(new RegExp(dependencyName.replaceAll(".", "\\."), "g"))?.length, 2)
+    }
     assert.doesNotMatch(
         workflowSource,
-        /continue-on-error|contents:\s*write|secrets\.|pull_request_target|Add-AppxPackage|Install-Module|Install-PackageProvider|Set-PSRepository/
+        /continue-on-error|contents:\s*write|secrets\.|pull_request_target|RegisterByFamilyName|Repair-WinGetPackageManager|WINGET_MODULE|Install-Module|Install-PackageProvider|Set-PSRepository/
     )
 })
 
