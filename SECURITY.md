@@ -2,12 +2,14 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| 1.23.x  | Yes       |
-| < 1.23  | No        |
+| Release channel | Supported |
+|-----------------|-----------|
+| Latest published release | Yes |
+| Earlier releases | No |
 
-Only the latest release receives security updates. We recommend always running the most recent version.
+Only the latest published release receives security updates. Download it from the
+[official GitHub Releases page](https://github.com/JNX03/Flowtake/releases/latest) and verify it against the
+published `SHA256SUMS.txt` when that asset is available.
 
 ## Reporting a Vulnerability
 
@@ -26,6 +28,8 @@ If you discover a security vulnerability in Flowtake, please report it responsib
    - Suggested fix (if you have one)
 
 ### What to Expect
+
+These are response targets, not guaranteed resolution times:
 
 | Step | Timeline |
 |------|----------|
@@ -49,12 +53,12 @@ If you discover a security vulnerability in Flowtake, please report it responsib
 
 Flowtake is a desktop application built with Tauri v2 and processes content locally. Key security considerations:
 
-- **FFmpeg Sidecar** — Flowtake bundles FFmpeg as an external binary. All FFmpeg commands are constructed server-side in Rust to prevent command injection.
-- **IPC Boundary** — Frontend-to-backend communication uses Tauri's typed command system. All inputs are validated on the Rust side.
-- **File Access** — The application accesses the filesystem for project files, recordings, and exports. File paths are validated and scoped.
-- **No Network by Default** — Core recording/editing functionality works entirely offline. Network access is used only for update checks and connected services that the user explicitly starts, such as social publishing.
-- **Content Security Policy** — The frontend enforces a strict CSP to prevent XSS attacks.
-- **Video Protocol** — The custom `video://` protocol handler validates and scopes all file access to known recording paths.
+- **FFmpeg Sidecar** — Flowtake bundles FFmpeg as an external binary. Commands and arguments are constructed in Rust, and paths are derived from validated project/render identifiers and backend-owned roots.
+- **IPC Boundary** — Frontend-to-backend communication uses Tauri commands and least-privilege window capabilities. Security-sensitive input is validated in Rust.
+- **File Access** — Project files, recordings, and exports are restricted to validated project/render roots and explicitly configured asset scopes.
+- **Network Behavior** — Core recording and editing work locally. The app may perform a metadata-only update check after startup; network access is also used by connected services a user explicitly starts.
+- **Content Security Policy** — A CSP limits allowed sources. The current policy still permits inline styles/scripts and broad HTTPS/WebSocket connections for compatibility, so CSP reduction remains an active hardening area.
+- **Video Protocol** — The custom `video://` protocol validates project identity, media kind, and file location before serving a recording.
 
 ### What We Consider In Scope
 
@@ -71,7 +75,7 @@ Flowtake is a desktop application built with Tauri v2 and processes content loca
 - Vulnerabilities requiring physical access to the device
 - Social engineering attacks
 - Denial of service against the local application
-- Issues in third-party dependencies (report upstream; notify us if it affects Flowtake)
+- Vulnerabilities that exist only in a third-party dependency and cannot affect a supported Flowtake release (report upstream; notify us if you believe Flowtake is affected)
 - Vulnerabilities in outdated versions
 
 ## Security Best Practices for Contributors

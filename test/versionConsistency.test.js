@@ -38,3 +38,32 @@ test("release manifests share the same app version", async () => {
     assert.match(cargoToml, new RegExp(`^version = "${releaseVersion}"$`, "m"))
     assert.equal(readCargoPackageVersion(cargoLock, "flowtake"), releaseVersion)
 })
+
+test("security support guidance cannot drift to a stale app version", async () => {
+    const securityPolicy = await readRepoFile("SECURITY.md")
+    const supportedVersions = securityPolicy.split("## Reporting a Vulnerability")[0]
+
+    assert.match(supportedVersions, /Latest published release/)
+    assert.doesNotMatch(supportedVersions, /\b\d+\.\d+(?:\.\d+|\.x)?\b/)
+})
+
+test("security policy describes the configured CSP without overstating it", async () => {
+    const [securityPolicy, tauriConfig] = await Promise.all([
+        readRepoFile("SECURITY.md"),
+        readRepoFile("src-tauri/tauri.conf.json").then(JSON.parse)
+    ])
+
+    const directives = Object.fromEntries(tauriConfig.app.security.csp
+        .split(";")
+        .map(directive => directive.trim().split(/\s+/))
+        .filter(parts => parts[0])
+        .map(([name, ...sources]) => [name, sources]))
+
+    assert.ok(directives["script-src"].includes("'unsafe-inline'"))
+    assert.ok(directives["style-src"].includes("'unsafe-inline'"))
+    assert.ok(directives["connect-src"].includes("https:"))
+    assert.ok(directives["connect-src"].includes("wss:"))
+    assert.doesNotMatch(securityPolicy, /\bstrict\s+(?:content security policy|CSP)\b|\bCSP\b.{0,40}\bstrict\b/is)
+    assert.match(securityPolicy, /inline styles\/scripts and broad HTTPS\/WebSocket connections/i)
+    assert.match(securityPolicy, /CSP reduction remains an active hardening area/i)
+})
