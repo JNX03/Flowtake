@@ -265,7 +265,7 @@ function Enable-DefenderForTarget {
         Assert-Condition ($null -ne (Get-Command $requiredCommand -ErrorAction SilentlyContinue)) "Required Defender command is unavailable: $requiredCommand"
     }
 
-    $coveringExclusions = Get-CoveringDefenderExclusions -TargetPath $TargetPath
+    $coveringExclusions = @(Get-CoveringDefenderExclusions -TargetPath $TargetPath)
     foreach ($exclusion in $coveringExclusions) {
         Write-Evidence "Removing Defender exclusion that covers the scan target: $exclusion"
         Remove-MpPreference -ExclusionPath $exclusion
@@ -280,7 +280,7 @@ function Enable-DefenderForTarget {
         -PUAProtection Enabled
     Update-MpSignature | Out-Null
 
-    $remainingExclusions = Get-CoveringDefenderExclusions -TargetPath $TargetPath
+    $remainingExclusions = @(Get-CoveringDefenderExclusions -TargetPath $TargetPath)
     Assert-Condition ($remainingExclusions.Count -eq 0) "A Defender exclusion still covers the scan target: $($remainingExclusions -join ', ')"
 
     $preference = Get-MpPreference
