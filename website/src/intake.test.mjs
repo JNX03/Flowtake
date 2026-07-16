@@ -96,6 +96,10 @@ test("lead submission requires an explicit 201 accepted response", async () => {
     submitLead(payload, { fetchImpl: async () => ({ status: 201, json: async () => { throw new Error("bad json"); } }) }),
     (error) => error instanceof LeadSubmissionError && error.status === 201,
   );
+  await assert.rejects(
+    submitLead(payload, { fetchImpl: async () => ({ status: 201, json: async () => ({ accepted: true }) }) }),
+    (error) => error instanceof LeadSubmissionError && error.status === 201,
+  );
 });
 
 test("lead submission aborts a stalled request within the configured deadline", async () => {
@@ -133,14 +137,20 @@ test("lead submission aborts a stalled request within the configured deadline", 
   );
 });
 
-test("only recoverable transport and rate failures expose email or copy fallback", () => {
+test("only recoverable transport and rate failures expose a public or copy fallback", () => {
   assert.deepEqual(describeLeadFailure({ status: 400 }), {
     fallbackAllowed: false,
     message: "Please check the entered fields and try again.",
   });
   assert.equal(describeLeadFailure({ status: 413 }).fallbackAllowed, false);
-  assert.equal(describeLeadFailure({ status: 429 }).fallbackAllowed, true);
-  assert.equal(describeLeadFailure({ status: 500 }).fallbackAllowed, true);
+  assert.deepEqual(describeLeadFailure({ status: 429 }), {
+    fallbackAllowed: true,
+    message: "Too many attempts from this network. Wait 15 minutes or use the safe options below.",
+  });
+  assert.deepEqual(describeLeadFailure({ status: 500 }), {
+    fallbackAllowed: true,
+    message: "We couldn't confirm that your brief was received. Try again or use the safe options below.",
+  });
   assert.equal(describeLeadFailure({ status: 0 }).fallbackAllowed, true);
 });
 
@@ -149,15 +159,21 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
   for (const required of [
     'name="website"',
     'maxLength="2000"',
-    "Open email draft instead",
-    "Copy brief",
+    "Open public clinic with a separate public-only summary",
+    "Copy private brief",
     "Try again",
     "stores only UTC day, action name, and count",
     "setFallbackAllowed(failure.fallbackAllowed)",
     "error && fallbackAllowed && briefText",
+    "Private request reference — do not post publicly",
+    "setLeadReference(result.id)",
+    "Direct email response is still being verified",
   ]) {
     assert.equal(source.includes(required), true, `missing ${required}`);
   }
+  assert.equal(source.includes("Open email draft instead"), false);
+  assert.equal(source.includes("expected reply time is two business days"), false);
+  assert.equal(source.includes("reply with the next concrete step"), false);
   assert.equal(source.includes("sendBeacon"), false);
   assert.equal(source.includes("analytics is unconfigured"), false);
 
@@ -182,4 +198,57 @@ test("the hero leads with the qualification-first paid offer and keeps the free 
   const metadata = await readFile(new URL("../index.html", import.meta.url), "utf8");
   assert.equal(metadata.includes("free recorder and developer demo studio"), true);
   assert.equal(metadata.includes("$99/month Release Studio"), true);
+});
+
+test("the homepage proof is a truthful six-beat pre-production storyboard", async () => {
+  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
+  const storyboard = source.slice(source.indexOf("const storyboardBeats = ["), source.indexOf("const faqs = ["));
+  const proof = source.slice(source.indexOf('<section className="section proof-section"'), source.indexOf('<section className="section founding-section"'));
+
+  assert.equal((storyboard.match(/number: "0[1-6]"/gu) || []).length, 6);
+  for (const required of [
+    "Record the build once.",
+    "Capture the IDE, terminal, browser, or desktop.",
+    "Keep the take editable.",
+    "Shape the motion around the explanation.",
+    "Export locally with FFmpeg.",
+    "Free. Local-first. MIT licensed.",
+  ]) {
+    assert.equal(storyboard.includes(required), true, `missing storyboard beat: ${required}`);
+  }
+
+  for (const required of [
+    "Pre-production example—not customer work or a finished video.",
+    "https://github.com/JNX03/Flowtake/discussions/169",
+    "Through July 23, 2026",
+    "first three maintainers",
+    "GitHub sign-in is required",
+    "no separate Flowtake signup",
+    "no footage or delivery claim",
+  ]) {
+    assert.equal(source.includes(required), true, `missing proof boundary: ${required}`);
+  }
+  assert.equal(proof.includes("storyboardBeats.map"), true);
+  assert.equal(proof.includes("Planned evidence:"), true);
+  assert.equal(storyboard.includes("plannedEvidence"), true);
+  assert.equal(storyboard.includes("completed MP4"), false);
+  assert.equal(proof.includes("Proof:"), false);
+  assert.equal(proof.includes("<img"), false);
+  assert.equal(proof.includes("<video"), false);
+  assert.equal(proof.includes("<canvas"), false);
+});
+
+test("private outcomes stay private and the public fallback warns before linking", async () => {
+  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
+  const outcome = source.slice(source.indexOf("{outcome ? ("), source.indexOf(") : (", source.indexOf("{outcome ? (")));
+  const fallback = source.slice(source.indexOf("{error && fallbackAllowed && briefText"), source.indexOf("{status === \"sending\""));
+
+  assert.equal(outcome.includes("PUBLIC_STORYBOARD_URL"), false);
+  assert.equal(outcome.includes("Private request reference — do not post publicly"), true);
+  assert.equal(fallback.includes("separate public-only summary"), true);
+  assert.equal(
+    fallback.indexOf("The clinic requires GitHub sign-in and is public")
+      < fallback.indexOf("href={PUBLIC_STORYBOARD_URL}"),
+    true,
+  );
 });

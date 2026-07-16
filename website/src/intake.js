@@ -10,7 +10,6 @@ const EVENT_NAMES = new Set([
   "github_clicked",
   "download_clicked",
   "brief_submitted",
-  "brief_handoff_started",
   "brief_copied",
 ]);
 
@@ -36,12 +35,12 @@ export function describeLeadFailure(error) {
   if (error?.status === 429) {
     return {
       fallbackAllowed: true,
-      message: "Too many attempts from this network. Wait 15 minutes or use email instead.",
+      message: "Too many attempts from this network. Wait 15 minutes or use the safe options below.",
     };
   }
   return {
     fallbackAllowed: true,
-    message: "We couldn't confirm that your brief was received. Try again or use email instead.",
+    message: "We couldn't confirm that your brief was received. Try again or use the safe options below.",
   };
 }
 
@@ -128,7 +127,12 @@ export async function submitLead(
       }
       // A malformed success response must never be shown as received.
     }
-    if (response.status !== 201 || result?.accepted !== true) {
+    if (
+      response.status !== 201
+      || result?.accepted !== true
+      || typeof result.id !== "string"
+      || result.id.trim() === ""
+    ) {
       throw new LeadSubmissionError("request_not_accepted", response.status);
     }
     return result;
