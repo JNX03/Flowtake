@@ -49,9 +49,10 @@ jobs:
           persist-credentials: false
 
       - name: Provision the pinned Microsoft WinGet client
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
           $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
 
           $command = Get-Command winget -ErrorAction SilentlyContinue
@@ -67,14 +68,10 @@ jobs:
             $dependenciesRoot = Join-Path $bootstrapRoot "dependencies"
             Invoke-WebRequest `
               -UseBasicParsing `
-              -MaximumRetryCount 3 `
-              -RetryIntervalSec 2 `
               -Uri $env:WINGET_BUNDLE_URL `
               -OutFile $bundlePath
             Invoke-WebRequest `
               -UseBasicParsing `
-              -MaximumRetryCount 3 `
-              -RetryIntervalSec 2 `
               -Uri $env:WINGET_DEPENDENCIES_URL `
               -OutFile $dependenciesArchive
             if ((Get-Item -LiteralPath $bundlePath).Length -ne [int64]$env:WINGET_BUNDLE_SIZE) {
@@ -157,9 +154,10 @@ jobs:
           persist-credentials: false
 
       - name: Provision the pinned Microsoft WinGet client
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
           $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
 
           $command = Get-Command winget -ErrorAction SilentlyContinue
@@ -175,14 +173,10 @@ jobs:
             $dependenciesRoot = Join-Path $bootstrapRoot "dependencies"
             Invoke-WebRequest `
               -UseBasicParsing `
-              -MaximumRetryCount 3 `
-              -RetryIntervalSec 2 `
               -Uri $env:WINGET_BUNDLE_URL `
               -OutFile $bundlePath
             Invoke-WebRequest `
               -UseBasicParsing `
-              -MaximumRetryCount 3 `
-              -RetryIntervalSec 2 `
               -Uri $env:WINGET_DEPENDENCIES_URL `
               -OutFile $dependenciesArchive
             if ((Get-Item -LiteralPath $bundlePath).Length -ne [int64]$env:WINGET_BUNDLE_SIZE) {

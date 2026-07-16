@@ -105,6 +105,13 @@ test("installer proof uses immutable actions and a pinned official WinGet bootst
         ]
     )
     assert.equal(workflowSource.match(/persist-credentials: false/g)?.length, 2)
+    const bootstrapSteps = Object.values(workflow.jobs).map(job =>
+        job.steps.find(step => step.name === "Provision the pinned Microsoft WinGet client")
+    )
+    assert.equal(bootstrapSteps.length, 2)
+    assert.equal(bootstrapSteps.every(step => step?.shell === "powershell"), true)
+    assert.equal(bootstrapSteps.every(step => step?.run.includes('$ProgressPreference = "SilentlyContinue"')), true)
+    assert.doesNotMatch(bootstrapSteps.map(step => step.run).join("\n"), /MaximumRetryCount|RetryIntervalSec/)
     assert.equal(workflow.env.WINGET_BOOTSTRAP_VERSION, "1.29.280")
     assert.equal(workflow.env.WINGET_PACKAGE_VERSION, "1.29.280.0")
     assert.equal(
