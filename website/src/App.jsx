@@ -356,6 +356,9 @@ export function App() {
             <p className="proof-clinic-note">
               Through July 23, 2026, up to the first three maintainers with a complete public developer-tool workflow can receive a no-obligation storyboard. GitHub sign-in is required; there is no separate Flowtake signup, footage request, or payment.
             </p>
+            <a className="text-link comparison-context-link" href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}>
+              Use the full developer-tool demo storyboard template
+            </a>
           </div>
           <ol className="storyboard-list" aria-label="Flowtake v1.6.0 pre-production storyboard">
             {storyboardBeats.map(({ number, time, title, caption, plannedEvidence }) => (
@@ -497,6 +500,7 @@ export function App() {
         <p>Open-source recorder. Optional release production.</p>
         <div>
           <a href="https://github.com/JNX03/Flowtake" target="_blank" rel="noreferrer">GitHub</a>
+          <a href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}>Storyboard guide</a>
           <a href={`${import.meta.env.BASE_URL}screen-studio-alternative-windows/`}>Windows comparison</a>
           <a href="#service-terms">Terms</a>
           <a href="#privacy">Privacy</a>
