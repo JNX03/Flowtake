@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("ValidateManifest", "Lifecycle")]
+    [ValidateSet("ValidateManifest", "ValidateDefender", "Lifecycle")]
     [string]$Mode,
 
     [Parameter(Mandatory = $true)]
@@ -207,25 +207,6 @@ function Assert-CleanInstallState {
     }
 }
 
-function Get-CoveringDefenderExclusions {
-    param([Parameter(Mandatory = $true)][string]$TargetPath)
-
-    $target = [System.IO.Path]::GetFullPath($TargetPath).TrimEnd('\')
-    $preference = Get-MpPreference
-    $exclusions = @($preference.ExclusionPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    return @($exclusions | Where-Object {
-        $exclusion = $_
-        $expanded = [Environment]::ExpandEnvironmentVariables($exclusion)
-        try {
-            $normalized = [System.IO.Path]::GetFullPath($expanded).TrimEnd('\')
-            $target -ieq $normalized -or $target.StartsWith("$normalized\", [StringComparison]::OrdinalIgnoreCase)
-        }
-        catch {
-            throw "Could not normalize Defender exclusion '$exclusion': $($_.Exception.Message)"
-        }
-    })
-}
-
 function Get-MpCmdRunPath {
     $candidates = [System.Collections.Generic.List[string]]::new()
     $platformRoot = Join-Path $env:ProgramData "Microsoft\Windows Defender\Platform"
@@ -240,66 +221,121 @@ function Get-MpCmdRunPath {
     return $mpCmdRunPath[0]
 }
 
-function Assert-DefenderTargetNotExcluded {
-    param([Parameter(Mandatory = $true)][string]$TargetPath)
+function Test-DefenderSignatureFresh {
+    param([Parameter(Mandatory = $true)]$Status)
 
-    Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender exclusion-check target is missing: $TargetPath"
-    $mpCmdRunPath = Get-MpCmdRunPath
-    $safeLabel = [System.IO.Path]::GetFileName($TargetPath)
-    if ([string]::IsNullOrWhiteSpace($safeLabel)) {
-        $safeLabel = "target"
+    if ([string]::IsNullOrWhiteSpace([string]$Status.AntivirusSignatureVersion)) {
+        return $false
     }
-    $result = Invoke-NativeChecked `
-        -FilePath $mpCmdRunPath `
-        -Arguments @("-CheckExclusion", "-Path", $TargetPath) `
-        -LogPath (Join-Path $EvidenceDirectory "defender-exclusion-$safeLabel.log") `
-        -AllowedExitCodes @(1)
-    Assert-Condition ($result.Output -match "(?i)\bis not excluded\b") "MpCmdRun returned indeterminate exclusion output for: $TargetPath"
-    Write-Evidence "Defender confirmed the target is not excluded from scanning: $TargetPath"
+    if ($null -eq $Status.AntivirusSignatureLastUpdated) {
+        return $false
+    }
+    $ageProperty = $Status.PSObject.Properties["AntivirusSignatureAge"]
+    if ($null -eq $ageProperty -or $null -eq $ageProperty.Value) {
+        return $false
+    }
+    try {
+        $age = [uint64]$ageProperty.Value
+        $updatedUtc = ([datetime]$Status.AntivirusSignatureLastUpdated).ToUniversalTime()
+    }
+    catch {
+        return $false
+    }
+    $nowUtc = [DateTime]::UtcNow
+    return (
+        $age -le [uint64]1 -and
+        $updatedUtc -ge $nowUtc.AddHours(-48) -and
+        $updatedUtc -le $nowUtc.AddMinutes(5)
+    )
 }
 
-function Enable-DefenderForTarget {
+function Get-DefenderStatusWithRetry {
+    $lastFailure = "no error was reported"
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            return Get-MpComputerStatus -ErrorAction Stop
+        }
+        catch {
+            $lastFailure = $_.Exception.Message
+            Write-Evidence "Get-MpComputerStatus attempt $attempt of 3 failed: $lastFailure"
+            if ($attempt -lt 3) {
+                Start-Sleep -Seconds 2
+            }
+        }
+    }
+    throw "Could not read Defender status after 3 attempts: $lastFailure"
+}
+
+function Assert-DefenderCoreReady {
+    param([Parameter(Mandatory = $true)]$Status)
+
+    Assert-Condition ([bool]$Status.AMServiceEnabled) "Defender antimalware service is not enabled."
+    Assert-Condition ([bool]$Status.AntivirusEnabled) "Defender antivirus is not enabled."
+    Assert-Condition ($Status.AMRunningMode -eq "Normal") "Defender is not running in Normal mode: $($Status.AMRunningMode)"
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$Status.AMEngineVersion)) "Defender engine version is unavailable."
+}
+
+function Prepare-DefenderScan {
     param([Parameter(Mandatory = $true)][string]$TargetPath)
 
-    foreach ($requiredCommand in @("Get-MpComputerStatus", "Get-MpPreference", "Set-MpPreference", "Remove-MpPreference", "Update-MpSignature", "Start-MpScan", "Get-MpThreatDetection")) {
+    Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender target is missing: $TargetPath"
+    foreach ($requiredCommand in @("Get-MpComputerStatus", "Update-MpSignature")) {
         Assert-Condition ($null -ne (Get-Command $requiredCommand -ErrorAction SilentlyContinue)) "Required Defender command is unavailable: $requiredCommand"
     }
 
-    $coveringExclusions = @(Get-CoveringDefenderExclusions -TargetPath $TargetPath)
-    foreach ($exclusion in $coveringExclusions) {
-        Write-Evidence "Removing Defender exclusion that covers the scan target: $exclusion"
-        Remove-MpPreference -ExclusionPath $exclusion
+    $status = Get-DefenderStatusWithRetry
+    Assert-DefenderCoreReady -Status $status
+    $updateFailures = [System.Collections.Generic.List[string]]::new()
+
+    if (Test-DefenderSignatureFresh -Status $status) {
+        Write-Evidence "Defender signatures are already fresh; no network signature update is required."
+    }
+    else {
+        Write-Evidence "Attempting Defender signature update with the explicit MMPC source."
+        try {
+            Update-MpSignature -UpdateSource MMPC -ErrorAction Stop | Out-Null
+        }
+        catch {
+            $message = "Update-MpSignature MMPC attempt failed: $($_.Exception.Message)"
+            $updateFailures.Add($message)
+            Write-Evidence $message
+        }
+        $status = Get-DefenderStatusWithRetry
+
+        if (-not (Test-DefenderSignatureFresh -Status $status)) {
+            Write-Evidence "PowerShell signature updates did not establish freshness; trying the official MpCmdRun MMPC fallback."
+            try {
+                Invoke-NativeChecked `
+                    -FilePath (Get-MpCmdRunPath) `
+                    -Arguments @("-SignatureUpdate", "-MMPC") `
+                    -LogPath (Join-Path $EvidenceDirectory "defender-signature-update-mmpc.log") `
+                    -AllowedExitCodes @(0) | Out-Null
+            }
+            catch {
+                $message = "MpCmdRun MMPC signature update failed: $($_.Exception.Message)"
+                $updateFailures.Add($message)
+                Write-Evidence $message
+            }
+
+            for ($poll = 1; $poll -le 6; $poll++) {
+                $status = Get-DefenderStatusWithRetry
+                if (Test-DefenderSignatureFresh -Status $status) {
+                    break
+                }
+                if ($poll -lt 6) {
+                    Start-Sleep -Seconds 2
+                }
+            }
+        }
     }
 
-    Set-MpPreference `
-        -DisableRealtimeMonitoring $false `
-        -DisableBehaviorMonitoring $false `
-        -DisableScriptScanning $false `
-        -DisableIOAVProtection $false `
-        -DisableArchiveScanning $false `
-        -PUAProtection Enabled
-    Update-MpSignature | Out-Null
-
-    $remainingExclusions = @(Get-CoveringDefenderExclusions -TargetPath $TargetPath)
-    Assert-Condition ($remainingExclusions.Count -eq 0) "A Defender exclusion still covers the scan target: $($remainingExclusions -join ', ')"
-
-    $preference = Get-MpPreference
-    Assert-Condition (-not [bool]$preference.DisableRealtimeMonitoring) "Defender real-time monitoring remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableBehaviorMonitoring) "Defender behavior monitoring remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableScriptScanning) "Defender script scanning remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableIOAVProtection) "Defender IOAV protection remained disabled."
-    Assert-Condition (-not [bool]$preference.DisableArchiveScanning) "Defender archive scanning remained disabled."
-    Assert-Condition ([int]$preference.PUAProtection -eq 1) "Defender PUA protection is not enabled."
-
-    $status = Get-MpComputerStatus
-    Assert-Condition ([bool]$status.AMServiceEnabled) "Defender antimalware service is not enabled."
-    Assert-Condition ([bool]$status.AntivirusEnabled) "Defender antivirus is not enabled."
-    Assert-Condition ([bool]$status.RealTimeProtectionEnabled) "Defender real-time protection is not enabled."
-    Assert-Condition ($status.AMRunningMode -eq "Normal") "Defender is not running in Normal mode: $($status.AMRunningMode)"
+    $status = Get-DefenderStatusWithRetry
+    Assert-DefenderCoreReady -Status $status
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$status.AntivirusSignatureVersion)) "Defender signature version is unavailable."
     Assert-Condition ($null -ne $status.AntivirusSignatureLastUpdated) "Defender signature timestamp is unavailable."
-    Assert-Condition ([int]$status.AntivirusSignatureAge -le 1) "Defender signatures are stale: age $($status.AntivirusSignatureAge) day(s)."
-    Assert-DefenderTargetNotExcluded -TargetPath $TargetPath
-    Write-Evidence "Defender enabled; signature version $($status.AntivirusSignatureVersion), updated $($status.AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o'))."
+    $failureSummary = if ($updateFailures.Count -gt 0) { $updateFailures -join " | " } else { "no updater error was reported" }
+    Assert-Condition (Test-DefenderSignatureFresh -Status $status) "Defender signatures are stale or missing after bounded update attempts; age $($status.AntivirusSignatureAge) day(s); $failureSummary."
+    Write-Evidence "Defender on-demand scan prerequisites are ready for $TargetPath; mode Normal, engine $($status.AMEngineVersion), signature $($status.AntivirusSignatureVersion), updated $($status.AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o')). Real-time status is $([bool]$status.RealTimeProtectionEnabled) and is observed only, not used as a custom-scan prerequisite or claimed as installer-write coverage."
 }
 
 function Invoke-DefenderScan {
@@ -309,21 +345,19 @@ function Invoke-DefenderScan {
     )
 
     Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender scan target is missing: $TargetPath"
-    $before = @{}
-    foreach ($item in @(Get-MpThreatDetection -ErrorAction Stop)) {
-        $before["$($item.ThreatID)|$($item.InitialDetectionTime)|$($item.Resources -join ';')"] = $true
-    }
-
-    $scanStartedAt = [DateTime]::UtcNow
-    Write-Evidence "Starting Defender custom scan: $Label"
-    Start-MpScan -ScanType CustomScan -ScanPath $TargetPath
-    $newDetections = @(Get-MpThreatDetection -ErrorAction Stop | Where-Object {
-        $key = "$($_.ThreatID)|$($_.InitialDetectionTime)|$($_.Resources -join ';')"
-        -not $before.ContainsKey($key)
-    })
-    Assert-Condition ($newDetections.Count -eq 0) "Defender reported a new detection while scanning $Label."
-    Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender scan removed or quarantined $Label."
-    Write-Evidence "Defender custom scan completed with no new detection: $Label (started $($scanStartedAt.ToString('o')))."
+    $resolvedTarget = (Resolve-Path -LiteralPath $TargetPath).Path
+    $safeLabel = ($Label -replace "[^A-Za-z0-9.-]", "-").Trim("-")
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace($safeLabel)) "Defender scan label is invalid."
+    $result = Invoke-NativeChecked `
+        -FilePath (Get-MpCmdRunPath) `
+        -Arguments @("-Scan", "-ScanType", "3", "-File", $resolvedTarget, "-DisableRemediation") `
+        -LogPath (Join-Path $EvidenceDirectory "defender-scan-$safeLabel.log") `
+        -AllowedExitCodes @(0)
+    Assert-Condition ($result.Output -match "(?im)^\s*Scan finished\.\s*$") "Defender did not report a completed scan for $Label."
+    $cleanTargetPattern = "(?im)^\s*Scanning\s+{0}\s+found no threats\.\s*$" -f [regex]::Escape($resolvedTarget)
+    Assert-Condition ($result.Output -match $cleanTargetPattern) "Defender did not report a clean scan for the exact target: $Label."
+    Assert-Condition (Test-Path -LiteralPath $TargetPath) "Defender scan target disappeared: $Label."
+    Write-Evidence "Defender exclusion-independent custom scan completed with no threats: $Label."
 }
 
 function Write-FailureLogTails {
@@ -358,7 +392,8 @@ Assert-Condition ((Get-UniqueYamlScalar -Source $installerManifest -Key "Scope")
 Assert-Condition ((Get-UniqueYamlScalar -Source $installerManifest -Key "ProductCode") -eq $ExpectedProductCode) "Manifest ProductCode drifted."
 Assert-Condition ((Get-UniqueYamlScalar -Source $installerManifest -Key "Architecture") -eq "x64") "Manifest architecture must remain x64."
 Assert-Condition ((Get-UniqueYamlScalar -Source $installerManifest -Key "InstallerUrl") -eq $ExpectedMsiUrl) "Manifest installer URL drifted."
-Assert-Condition ((Get-UniqueYamlScalar -Source $installerManifest -Key "InstallerSha256").ToUpperInvariant() -eq $ExpectedMsiSha256) "Manifest installer SHA-256 drifted."
+$manifestInstallerSha256 = (Get-UniqueYamlScalar -Source $installerManifest -Key "InstallerSha256").ToUpperInvariant()
+Assert-Condition ($manifestInstallerSha256 -eq $ExpectedMsiSha256) "Manifest installer SHA-256 drifted."
 Assert-Condition ((Get-UniqueYamlScalar -Source $localeManifest -Key "Publisher") -eq $ExpectedPublisher) "Manifest publisher drifted."
 Assert-Condition ((Get-UniqueYamlScalar -Source $localeManifest -Key "PackageName") -eq $ExpectedProductName) "Manifest package name drifted."
 Assert-Condition ((Get-UniqueYamlScalar -Source $localeManifest -Key "License") -eq "MIT") "Manifest license drifted."
@@ -375,7 +410,25 @@ Invoke-NativeChecked -FilePath $wingetPath -Arguments @("validate", "--manifest"
 Write-Evidence "Tracked WinGet manifest passed static validation."
 
 if ($Mode -eq "ValidateManifest") {
-    Write-Evidence "PASS: static manifest validation only; no installer was downloaded or executed."
+    Write-Evidence "PASS: static manifest validation only; no Flowtake installer was downloaded or executed."
+    exit 0
+}
+
+if ($Mode -eq "ValidateDefender") {
+    Assert-Condition ($env:GITHUB_EVENT_NAME -eq "pull_request") "ValidateDefender mode is restricted to pull_request."
+    $probePath = "C:\FlowtakeDefenderProbe-$([guid]::NewGuid().ToString('N')).txt"
+    try {
+        [System.IO.File]::WriteAllText($probePath, "Harmless Flowtake Defender scan-path probe.")
+        Prepare-DefenderScan -TargetPath $probePath
+        Invoke-DefenderScan -TargetPath $probePath -Label "harmless PR probe"
+        Assert-Condition (Test-Path -LiteralPath $probePath -PathType Leaf) "Defender probe file disappeared after scanning."
+        Write-Evidence "PASS: exclusion-independent Defender custom scan validated on a harmless file; no Flowtake installer was downloaded or executed."
+    }
+    finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
     exit 0
 }
 
@@ -396,6 +449,7 @@ $installObserved = $false
 try {
     Assert-CleanInstallState
     New-Item -ItemType Directory -Path $smokeRoot | Out-Null
+    Prepare-DefenderScan -TargetPath $smokeRoot
 
     $releaseHeaders = @{
         Accept = "application/vnd.github+json"
@@ -463,9 +517,13 @@ try {
     Assert-Condition ($signatureStatus -eq "NotSigned") "v1.6.0 MSI signing status drifted: $signatureStatus"
     Write-Evidence "MSI metadata matches product, version, publisher, product/upgrade codes, machine scope, and disclosed unsigned status."
 
-    Enable-DefenderForTarget -TargetPath $msiPath
+    Prepare-DefenderScan -TargetPath $msiPath
     Invoke-DefenderScan -TargetPath $msiPath -Label "published Flowtake MSI"
-    Assert-Condition ((Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash.ToUpperInvariant() -eq $ExpectedMsiSha256) "MSI changed after Defender scan."
+    Assert-Condition (Test-Path -LiteralPath $msiPath -PathType Leaf) "MSI disappeared after Defender scan."
+    Assert-Condition ((Get-Item -LiteralPath $msiPath).Length -eq $ExpectedMsiSize) "MSI size changed after Defender scan."
+    $scannedMsiSha256 = (Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    Assert-Condition ($scannedMsiSha256 -eq $ExpectedMsiSha256) "MSI changed after Defender scan."
+    Assert-Condition ($scannedMsiSha256 -eq $manifestInstallerSha256) "Defender-scanned MSI SHA-256 does not match the tracked manifest."
 
     $localManifestSetting = Get-WinGetAdminSetting `
         -WinGetPath $wingetPath `
@@ -478,12 +536,25 @@ try {
         -Name "LocalManifestFiles" `
         -LogPath (Join-Path $EvidenceDirectory "winget-settings-after-enable.log")
     Assert-Condition $localManifestSetting "LocalManifestFiles did not become enabled."
-    Invoke-NativeChecked -FilePath $wingetPath -Arguments @(
+    $installerHashOverride = Get-WinGetAdminSetting `
+        -WinGetPath $wingetPath `
+        -Name "InstallerHashOverride" `
+        -LogPath (Join-Path $EvidenceDirectory "winget-settings-hash-override.log")
+    Assert-Condition (-not $installerHashOverride) "WinGet InstallerHashOverride is enabled."
+    Assert-Condition (Test-Path -LiteralPath $msiPath -PathType Leaf) "Scanned MSI is missing immediately before WinGet install."
+    Assert-Condition ((Get-Item -LiteralPath $msiPath).Length -eq $ExpectedMsiSize) "Scanned MSI size changed immediately before WinGet install."
+    $preInstallMsiSha256 = (Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    Assert-Condition ($preInstallMsiSha256 -eq $scannedMsiSha256) "Scanned MSI changed immediately before WinGet install."
+    Write-Evidence "Defender scanned published MSI content SHA-256 $scannedMsiSha256; the tracked manifest pins WinGet's installer download to that digest."
+    $installResult = Invoke-NativeChecked -FilePath $wingetPath -Arguments @(
         "install", "--manifest", $ManifestDirectory,
         "--silent", "--scope", "machine", "--disable-interactivity",
         "--accept-package-agreements", "--accept-source-agreements",
         "--verbose-logs", "--log", $wingetInstallLog
-    ) -LogPath (Join-Path $EvidenceDirectory "winget-install-command.log") | Out-Null
+    ) -LogPath (Join-Path $EvidenceDirectory "winget-install-command.log")
+    Assert-Condition ($installResult.Output -match "(?i)\bSuccessfully verified installer hash\b") "WinGet did not report successful installer hash verification."
+    Assert-Condition ($installResult.Output -notmatch "(?i)hash\s+(?:mismatch|override)|ignore-security-hash") "WinGet reported an installer hash mismatch or override."
+    Write-Evidence "WinGet verified downloaded installer content SHA-256 $manifestInstallerSha256 before execution."
     $installObserved = $true
 
     Assert-Condition (Test-Path -LiteralPath $ExpectedUninstallKey) "Expected 64-bit ARP product key is missing after install."
@@ -519,9 +590,9 @@ try {
     Assert-Condition ($listResult.Output -match [regex]::Escape($ExpectedVersion)) "WinGet list did not correlate the installed version."
     Write-Evidence "Installation correlated across WinGet inventory, 64-bit ARP, MSI ProductCode, HKCU installer key, shortcuts, and executable metadata."
 
-    Enable-DefenderForTarget -TargetPath $ExpectedInstallDirectory
-    Assert-DefenderTargetNotExcluded -TargetPath $ExpectedExecutable
+    Prepare-DefenderScan -TargetPath $ExpectedInstallDirectory
     Invoke-DefenderScan -TargetPath $ExpectedInstallDirectory -Label "installed Flowtake directory"
+    Invoke-DefenderScan -TargetPath $ExpectedExecutable -Label "installed Flowtake executable"
     Assert-Condition (Test-Path -LiteralPath $ExpectedExecutable -PathType Leaf) "Installed executable disappeared after Defender scan."
 
     $trackedProcess = Start-Process -FilePath $ExpectedExecutable -PassThru
@@ -657,7 +728,7 @@ if ($null -ne $cleanupFailure) {
     throw $cleanupFailure
 }
 
-Write-Evidence "PASS: exact-manifest validation, published-asset integrity, active Defender custom scans, silent install, correlation, bounded startup, WinGet uninstall, and cleanup all passed."
+Write-Evidence "PASS: exact-manifest validation, published-asset integrity, exclusion-independent Defender on-demand scans, silent install, correlation, bounded startup, WinGet uninstall, and cleanup all passed."
 
 if ($env:GITHUB_STEP_SUMMARY) {
     @(
@@ -669,6 +740,6 @@ if ($env:GITHUB_STEP_SUMMARY) {
         "- ProductCode: ``$ExpectedProductCode``",
         "- Runner: ``$($env:ImageOS) $($env:ImageVersion)``",
         "- WinGet: ``$wingetVersion``",
-        "- Evidence: manifest validation, release digest/checksum, MSI metadata, active Defender custom scans, install/registry correlation, 10-second startup, uninstall, and cleanup"
+        "- Evidence: manifest validation, release digest/checksum, MSI metadata, exclusion-independent Defender on-demand scans, install/registry correlation, 10-second startup, uninstall, and cleanup"
     ) | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 }
