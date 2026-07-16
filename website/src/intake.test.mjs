@@ -155,7 +155,11 @@ test("only recoverable transport and rate failures expose a public or copy fallb
 });
 
 test("the request form exposes privacy-safe limits and explicit failure fallbacks", async () => {
-  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
+  const [homeSource, dialogSource] = await Promise.all([
+    readFile(new URL("./HomePage.jsx", import.meta.url), "utf8"),
+    readFile(new URL("./BriefDialog.jsx", import.meta.url), "utf8"),
+  ]);
+  const source = `${homeSource}\n${dialogSource}`;
   for (const required of [
     'name="website"',
     'maxLength="2000"',
@@ -182,64 +186,67 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
   assert.equal(intakeSource.includes("Too many attempts from this network."), true);
 });
 
-test("the hero leads with the qualification-first paid offer and keeps the free app secondary", async () => {
-  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
-  const hero = source.slice(source.indexOf('<section className="hero section"'), source.indexOf('<div className="hero-visual"'));
-  const requestIndex = hero.indexOf("Request a sample storyboard");
-  const downloadIndex = hero.indexOf("Download Flowtake free");
+test("the hero leads with the free product and keeps Release Studio secondary", async () => {
+  const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
+  const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-demo home-section"'));
+  const downloadIndex = hero.indexOf("Download free");
+  const planIndex = hero.indexOf("View the 42-second demo plan");
+  const productIndex = source.indexOf('<section className="home-product home-section"');
+  const serviceIndex = source.indexOf('<section className="home-service home-section"');
 
-  assert.equal(hero.includes("$99"), true);
-  assert.equal(hero.includes("Four 30–90 second demos"), true);
-  assert.ok(requestIndex >= 0 && requestIndex < downloadIndex, "paid request must precede the free download");
+  assert.equal(hero.includes("Record the build."), true);
+  assert.equal(hero.includes("Show what <em>changed.</em>"), true);
+  assert.equal(hero.includes("$99"), false);
+  assert.equal(hero.includes("Four 30–90 second demos"), false);
+  assert.ok(downloadIndex >= 0 && downloadIndex < planIndex, "free download must be the first hero CTA");
+  assert.ok(productIndex >= 0 && serviceIndex > productIndex, "Release Studio must follow product proof");
   assert.equal(source.includes("Request a founding slot"), false);
-  assert.equal(source.match(/onClick=\{\(event\) => openBrief\(event\.currentTarget\)\}/gu)?.length, 3);
+  assert.ok((source.match(/onClick=\{\(event\) => openBrief\(event\.currentTarget\)\}/gu) || []).length >= 1);
+  assert.ok(
+    (source.match(/track\("github_clicked"\)/gu) || []).length >= 4,
+    "homepage repository and release interest must remain measurable",
+  );
   assert.equal(source.includes('track("founding_cta_clicked")'), false);
 
   const metadata = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  assert.equal(metadata.includes("free recorder and developer demo studio"), true);
-  assert.equal(metadata.includes("$99/month Release Studio"), true);
+  assert.equal(metadata.includes("free, open-source screen recorder and editor"), true);
+  assert.equal(metadata.includes("$99/month Release Studio"), false);
 });
 
-test("the homepage proof is a truthful six-beat pre-production storyboard", async () => {
-  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
-  const storyboard = source.slice(source.indexOf("const storyboardBeats = ["), source.indexOf("const faqs = ["));
-  const proof = source.slice(source.indexOf('<section className="section proof-section"'), source.indexOf('<section className="section founding-section"'));
+test("the homepage proof uses three truthful product beats and no fake demo", async () => {
+  const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
+  const features = source.slice(source.indexOf("const productFeatures = ["), source.indexOf("const productFacts = ["));
+  const proof = source.slice(source.indexOf('<section className="home-demo home-section"'), source.indexOf('<section className="home-fact-band home-section"'));
 
-  assert.equal((storyboard.match(/number: "0[1-6]"/gu) || []).length, 6);
+  assert.equal((features.match(/number: "0[1-3]"/gu) || []).length, 3);
   for (const required of [
-    "Record the build once.",
-    "Capture the IDE, terminal, browser, or desktop.",
-    "Keep the take editable.",
-    "Shape the motion around the explanation.",
-    "Export locally with FFmpeg.",
-    "Free. Local-first. MIT licensed.",
+    "Capture the right window.",
+    "Shape the timeline.",
+    "Export locally.",
   ]) {
-    assert.equal(storyboard.includes(required), true, `missing storyboard beat: ${required}`);
+    assert.equal(features.includes(required), true, `missing product beat: ${required}`);
   }
 
   for (const required of [
-    "Pre-production example—not customer work or a finished video.",
-    "https://github.com/JNX03/Flowtake/discussions/169",
-    "Through July 23, 2026",
-    "first three maintainers",
-    "GitHub sign-in is required",
-    "no separate Flowtake signup",
-    "no footage or delivery claim",
+    "View the 42-second demo plan",
+    "Real demo queued for isolated capture",
+    "Concept frame—not product footage, customer work, or a finished video.",
+    "Concept illustration—not product footage.",
+    "developer-tool-demo-storyboard/",
   ]) {
     assert.equal(source.includes(required), true, `missing proof boundary: ${required}`);
   }
-  assert.equal(proof.includes("storyboardBeats.map"), true);
-  assert.equal(proof.includes("Planned evidence:"), true);
-  assert.equal(storyboard.includes("plannedEvidence"), true);
-  assert.equal(storyboard.includes("completed MP4"), false);
-  assert.equal(proof.includes("Proof:"), false);
-  assert.equal(proof.includes("<img"), false);
+  assert.equal(proof.includes("productFeatures.map"), true);
+  assert.equal(proof.includes("marketing/demo-theatre-background.webp"), true);
+  assert.equal(features.includes("completed MP4"), false);
   assert.equal(proof.includes("<video"), false);
   assert.equal(proof.includes("<canvas"), false);
+  assert.equal(source.includes("customer logo"), false);
+  assert.equal(source.includes("testimonial"), false);
 });
 
 test("private outcomes stay private and the public fallback warns before linking", async () => {
-  const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("./BriefDialog.jsx", import.meta.url), "utf8");
   const outcome = source.slice(source.indexOf("{outcome ? ("), source.indexOf(") : (", source.indexOf("{outcome ? (")));
   const fallback = source.slice(source.indexOf("{error && fallbackAllowed && briefText"), source.indexOf("{status === \"sending\""));
 
