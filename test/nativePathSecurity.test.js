@@ -2,12 +2,14 @@ import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
 
-const [projects, exporter, files, store, identifiers] = await Promise.all([
+const [projects, exporter, files, store, identifiers, cargoManifest, cargoLock] = await Promise.all([
     readFile(new URL("../src-tauri/src/commands/projects.rs", import.meta.url), "utf8"),
     readFile(new URL("../src-tauri/src/commands/exporter.rs", import.meta.url), "utf8"),
     readFile(new URL("../src-tauri/src/commands/files.rs", import.meta.url), "utf8"),
     readFile(new URL("../src-tauri/src/commands/store.rs", import.meta.url), "utf8"),
     readFile(new URL("../src-tauri/src/identifiers.rs", import.meta.url), "utf8"),
+    readFile(new URL("../src-tauri/Cargo.toml", import.meta.url), "utf8"),
+    readFile(new URL("../src-tauri/Cargo.lock", import.meta.url), "utf8"),
 ])
 
 test("project commands validate canonical ids before filesystem mutations", () => {
@@ -37,4 +39,13 @@ test("renderer store writes cannot forge the backend project library", () => {
 test("renderer project path overrides must match the active project", () => {
     assert.match(files, /Requested project is not the active project/)
     assert.match(files, /validate_project_id\(requested_project_id\)\?/)
+})
+
+test("project archives exclude unused zip codecs and encryption", () => {
+    assert.match(
+        cargoManifest,
+        /zip = \{ version = "8", default-features = false \}/
+    )
+    assert.match(projects, /CompressionMethod::Stored/)
+    assert.doesNotMatch(cargoLock, /\nname = "aes"\n/)
 })

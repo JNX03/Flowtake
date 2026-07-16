@@ -23,6 +23,7 @@
     "diagnose:recording": "node scripts/recording-diagnostics.mjs",
     "dev:frontend": "vite --config vite.config.mjs",
     "build:frontend": "vite build --config vite.config.mjs",
+    "build:site": "npm --prefix website run build",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri"
@@ -71,6 +72,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "js-yaml": "4.3.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
     "vite": "^8.0.16",

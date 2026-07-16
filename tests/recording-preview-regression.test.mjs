@@ -78,7 +78,7 @@ test("macOS recording errors only report permission denial after probing TCC", a
     const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
 
     assert.match(appCommands, /pub fn macos_has_screen_recording_permission/)
-    assert.match(appCommands, /ScreenCaptureAccess::default\(\)\.preflight\(\)/)
+    assert.match(appCommands, /ScreenCaptureAccess\.preflight\(\)/)
     assert.doesNotMatch(appCommands, /CGDisplay::screenshot/)
     assert.match(recording, /macos_ffmpeg_stderr_is_permission_error/)
     assert.match(recording, /macos_recording_error_code_for_empty_output/)

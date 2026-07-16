@@ -46,6 +46,14 @@ The YouTube desktop OAuth flow did not bind the callback to the initiating reque
 
 The release workflow used mutable FFmpeg aliases without a cryptographic integrity gate and could rebuild a moving tag target across jobs. Windows now uses BtbN's retained `autobuild-2026-06-30-13-34`; Linux uses the versioned John Van Sickle 7.0.2 archive; macOS uses eugeneware b6.0. Every platform downloads with fail-on-HTTP-error behavior and verifies a pinned SHA-256 value before extraction. All build and publish jobs check out the commit validated from the release tag, the validator requires that commit to be contained in `origin/main`, and the publisher re-verifies the tag-to-commit binding immediately before creating a release. An exact-commit quality gate runs the full Node suite, explicit release/security regressions, lint, frontend build, Cargo check, Rust unit tests, and clippy before any platform build can begin; the publisher also directly requires that gate to succeed. The publisher stages only the explicit artifact whitelist into a collision-checked flat directory, generates and verifies a basename-compatible `SHA256SUMS.txt`, and publishes exactly that directory. Tag pushes and manual dispatches for the same tag share one concurrency key. Actions are pinned to full commit SHAs and only the publisher receives `contents: write`. The Pages workflow is manual, rejects dispatches outside `refs/heads/main`, and refuses to deploy until GitHub's latest release matches the repository version and includes `SHA256SUMS.txt`.
 
+## Fixed — Rust dependency advisories and missing continuous audit gate (high)
+
+**Evidence:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `scripts/run-cargo-audit.sh`, `.github/workflows/ci.yml`, `.github/workflows/main.yml`, `.github/workflows/rust-security-audit.yml`, `test/nativePathSecurity.test.js`, and `test/releaseWorkflow.test.js`.
+
+The branch originally retained vulnerable `anyhow`, `quick-xml`, `quinn-proto`, `serde_with`, and `cmov` lockfile entries, while normal CI did not run RustSec. The lockfile now resolves `anyhow 1.0.103`, `quick-xml 0.41.0` through `plist 1.10.0`, `quinn-proto 0.11.15`, and `serde_with 3.21.0`; the unused `notify-rust` subtree was removed. Flowtake writes its own project archives with `CompressionMethod::Stored`, so the `zip` dependency now disables its broad default encryption and codec set. This removes the unused, yanked `aes 0.9.0` chain and twenty additional codec/cryptography packages without changing Flowtake-produced archive compatibility. Externally recompressed project archives are not a supported compatibility promise and may now be rejected.
+
+The audit runner downloads the official `cargo-audit 0.22.2` x86_64 Linux asset over HTTPS with bounded retries, verifies the pinned SHA-256 before extracting exactly the expected member, and runs from an empty working directory and `CARGO_HOME` so repository or runner advisory-ignore configuration cannot be inherited. It has no advisory ignores or best-effort fallback. The gate is mandatory in pull-request CI and the exact validated release commit, and a minimal-permission workflow audits the current `main` branch every day and on every manual dispatch. A fresh local audit scanned 601 lockfile dependencies with zero vulnerabilities and 18 visible unsound/unmaintained warnings; no warning or advisory is suppressed.
+
 ## Fixed — arbitrary native URL-handler invocation (medium)
 
 **Evidence:** `src-tauri/src/commands/exporter.rs` and its unit tests.
@@ -80,6 +88,12 @@ The UI clears its credential fields after handoff and tells users that credentia
 
 **Verification:** seven focused source regressions cover session-only storage, pre-renderer fail-closed startup migration, disconnect/exit cleanup, stale-work invalidation, status-generation rebinding, provider-error redaction, and the non-secret renderer/UI surface. A native unit regression covers generation replacement and full-session clearing.
 
+## Open — default-branch gates are not repository-enforced (medium)
+
+**Evidence:** the GitHub branch-protection and repository-rulesets APIs for `JNX03/Flowtake`.
+
+`main` currently has no branch protection or ruleset, so a maintainer could merge or push while CI or the Rust security audit is failing. The release workflow independently fails closed, but ordinary branch integrity is advisory until repository settings require the frontend, platform Rust, and RustSec checks. Enable an administrator-enforced pull-request rule after the new check names have completed successfully on this PR; keep force pushes and branch deletion disabled.
+
 ## Open — CSP grants broad script/network capability (medium)
 
 **Evidence:** `src-tauri/tauri.conf.json` and `index.html`.
@@ -92,6 +106,12 @@ The document policy includes `unsafe-inline`, the HTML policy additionally inclu
 
 Unsigned desktop installers create warning-heavy acquisition and weaken publisher identity. A paid launch should either obtain platform signing/notarization or clearly label early builds as preview artifacts, publish SHA-256 values and provenance, and avoid claiming OS-verified publisher trust.
 
+## Open — transitive Rust maintenance and unsoundness warnings (medium)
+
+**Evidence:** the current `cargo-audit 0.22.2` output and `cargo tree --locked --target all`.
+
+RustSec reports 18 non-vulnerability warnings that remain intentionally visible: the GTK3 binding family is unmaintained, `glib 0.18.5` has an unsound `VariantStrIter` implementation, and `fxhash`, `proc-macro-error`, plus five `unic` crates are unmaintained. The GTK/glib path is owned by Tauri's Linux WebKit stack, while the other paths are build/transitive utilities; neither Flowtake nor the inspected Tauri/wry/GTK paths call the affected glib iterator. Do not add audit ignores. Track upstream Tauri/WebKit migration and re-evaluate each warning on dependency updates; treat any future RustSec vulnerability classification as a release-blocking failure.
+
 ## Corrected documentation drift (low)
 
 `SECURITY.md` claimed network access for license validation although Flowtake has no license-validation feature. The statement now names only explicit update and user-initiated connected services, preserving the open-source boundary.
@@ -99,14 +119,16 @@ Unsigned desktop installers create warning-heavy acquisition and weaken publishe
 ## Final verification snapshot
 
 - Rust: 67 passed, 0 failed, 1 environment-dependent ignored.
-- Node: 109 passed, 0 failed.
+- Node: 117 passed, 0 failed.
 - Locked `cargo check`: passed.
 - `cargo clippy --all-targets -- -D warnings`: passed.
+- RustSec: 601 dependencies scanned, 0 vulnerabilities, 18 visible maintenance/unsoundness warnings.
+- npm audit: 0 production or development dependency vulnerabilities.
 - Frontend production build: passed.
 - ESLint: 0 errors and 41 existing warnings.
 - Marketing-site production build: passed.
-- JSON configuration parsing, three-workflow YAML parsing, and `git diff --check`: passed.
+- JSON configuration parsing, four-workflow YAML parsing, audit-script syntax, and `git diff --check`: passed.
 
 ## Release decision
 
-The critical updater boundary is resolved by removing native installer handling; native path boundaries, release-workflow integrity, renderer entitlement reduction, OAuth callback and token-storage boundaries, URL-handler boundary, and live-stream output/input boundary are resolved. YouTube upload now uses an intentionally session-only authorization model; persistent sign-in would still require OS-backed secret storage. Keep CSP reduction and platform signing as tracked desktop-release gates, and label manually downloaded unsigned installers clearly.
+The critical updater boundary is resolved by removing native installer handling; native path boundaries, release-workflow and dependency-advisory integrity, renderer entitlement reduction, OAuth callback and token-storage boundaries, URL-handler boundary, and live-stream output/input boundary are resolved. YouTube upload now uses an intentionally session-only authorization model; persistent sign-in would still require OS-backed secret storage. Keep CSP reduction, platform signing, and the visible transitive Rust maintenance warnings as tracked desktop-release gates, and label manually downloaded unsigned installers clearly.

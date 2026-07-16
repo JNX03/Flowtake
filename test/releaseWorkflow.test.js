@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
+import yaml from "js-yaml"
 
 const workflow = await readFile(
     new URL("../.github/workflows/main.yml", import.meta.url),
@@ -14,6 +15,31 @@ const pagesWorkflow = await readFile(
     new URL("../.github/workflows/pages.yml", import.meta.url),
     "utf8"
 )
+const rustAuditWorkflow = await readFile(
+    new URL("../.github/workflows/rust-security-audit.yml", import.meta.url),
+    "utf8"
+)
+const cargoAuditScript = await readFile(
+    new URL("../scripts/run-cargo-audit.sh", import.meta.url),
+    "utf8"
+)
+
+const parsedReleaseWorkflow = yaml.load(workflow)
+const parsedCiWorkflow = yaml.load(ciWorkflow)
+const parsedPagesWorkflow = yaml.load(pagesWorkflow)
+const parsedRustAuditWorkflow = yaml.load(rustAuditWorkflow)
+
+test("tracked GitHub workflows remain valid YAML", () => {
+    for (const [name, parsed] of [
+        ["release", parsedReleaseWorkflow],
+        ["CI", parsedCiWorkflow],
+        ["Pages", parsedPagesWorkflow],
+        ["scheduled Rust audit", parsedRustAuditWorkflow],
+    ]) {
+        assert.ok(parsed && typeof parsed === "object", `${name} workflow must parse as YAML`)
+        assert.ok(parsed.jobs && typeof parsed.jobs === "object", `${name} workflow must define jobs`)
+    }
+})
 
 test("release publication fails closed across every supported platform", () => {
     assert.match(
@@ -79,6 +105,7 @@ test("every release path waits for an exact-commit test and security gate", () =
         "npm test",
         "npm run lint",
         "npm run build:frontend",
+        "bash ./scripts/run-cargo-audit.sh",
         "cargo check --locked --all-targets",
         "cargo test --lib --locked",
         "cargo clippy --locked --all-targets -- -D warnings --allow dead_code",
@@ -97,6 +124,65 @@ test("every release path waits for an exact-commit test and security gate", () =
         workflow,
         /needs: \[validate_release, release_quality_gate, build-windows, build-linux, build-macos\]/
     )
+})
+
+test("cargo-audit runner pins and verifies the exact RustSec release asset", () => {
+    assert.match(cargoAuditScript, /CARGO_AUDIT_VERSION="0\.22\.2"/)
+    assert.match(cargoAuditScript, /CARGO_AUDIT_TARGET="x86_64-unknown-linux-gnu"/)
+    assert.match(
+        cargoAuditScript,
+        /https:\/\/github\.com\/rustsec\/rustsec\/releases\/download\/cargo-audit\/v\$\{CARGO_AUDIT_VERSION\}\/\$\{CARGO_AUDIT_ARCHIVE\}/
+    )
+    assert.match(
+        cargoAuditScript,
+        /CARGO_AUDIT_SHA256="ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39"/
+    )
+    assert.match(cargoAuditScript, /sha256sum --check --strict -/)
+    assert.match(cargoAuditScript, /--retry 3/)
+    assert.match(cargoAuditScript, /--retry-all-errors/)
+    assert.match(cargoAuditScript, /"\$\{CARGO_AUDIT_ARCHIVE_ROOT\}\/cargo-audit"/)
+    assert.match(cargoAuditScript, /"\$\{cargo_audit_bin\}" audit --file "\$\{lockfile\}"/)
+
+    const verifyIndex = cargoAuditScript.indexOf("sha256sum --check --strict -")
+    const extractIndex = cargoAuditScript.indexOf("tar \\")
+    const executeIndex = cargoAuditScript.indexOf('"${cargo_audit_bin}" audit --file')
+    assert.ok(verifyIndex >= 0 && verifyIndex < extractIndex, "archive hash must be verified before extraction")
+    assert.ok(extractIndex < executeIndex, "the verified binary must be extracted before execution")
+})
+
+test("cargo-audit runs without advisory ignores or inherited audit configuration", () => {
+    assert.doesNotMatch(cargoAuditScript, /(?:^|\s)--ignore(?:\s|=)/m)
+    assert.doesNotMatch(cargoAuditScript, /\|\|\s*true/)
+    assert.match(cargoAuditScript, /CARGO_HOME="\$\{cargo_home\}"/)
+    assert.match(cargoAuditScript, /cd -- "\$\{audit_workdir\}"/)
+})
+
+test("Rust security audit is required in CI, releases, and daily main monitoring", () => {
+    const ciAuditJob = parsedCiWorkflow.jobs["rust-security-audit"]
+    assert.equal(ciAuditJob.name, "Rust Security Audit")
+    assert.deepEqual(ciAuditJob.permissions, { contents: "read" })
+    assert.equal(ciAuditJob.if, undefined)
+    assert.equal(ciAuditJob["continue-on-error"], undefined)
+    assert.ok(ciAuditJob.steps.some(step => step.run === "bash ./scripts/run-cargo-audit.sh"))
+
+    const releaseGate = parsedReleaseWorkflow.jobs.release_quality_gate
+    assert.ok(releaseGate.steps.some(step => step.run === "bash ./scripts/run-cargo-audit.sh"))
+
+    assert.deepEqual(Object.keys(parsedRustAuditWorkflow.on).sort(), ["schedule", "workflow_dispatch"])
+    assert.equal(parsedRustAuditWorkflow.on.schedule.length, 1)
+    assert.equal(parsedRustAuditWorkflow.on.schedule[0].cron, "23 4 * * *")
+    assert.deepEqual(parsedRustAuditWorkflow.permissions, { contents: "read" })
+
+    const scheduledJob = parsedRustAuditWorkflow.jobs.audit
+    assert.equal(scheduledJob.if, undefined)
+    assert.deepEqual(scheduledJob.permissions, { contents: "read" })
+    assert.equal(scheduledJob["continue-on-error"], undefined)
+    assert.ok(scheduledJob.steps.some(step => step.run === "bash ./scripts/run-cargo-audit.sh"))
+    assert.equal(
+        scheduledJob.steps.find(step => step.uses?.startsWith("actions/checkout@"))?.with?.ref,
+        "refs/heads/main"
+    )
+    assert.doesNotMatch(rustAuditWorkflow, /issues:\s*write|create-issue|gh issue/)
 })
 
 test("release publication generates and verifies a checksum manifest", () => {
@@ -155,7 +241,7 @@ test("release FFmpeg archives are immutable and verified before extraction", () 
 })
 
 test("release automation pins actions, minimizes write access, and binds manual runs to a tag", () => {
-    const workflows = [workflow, ciWorkflow, pagesWorkflow]
+    const workflows = [workflow, ciWorkflow, pagesWorkflow, rustAuditWorkflow]
     const actionRefs = workflows.flatMap(contents => [
         ...contents.matchAll(/uses:\s+([^@\s]+)@([^\s#]+)/g),
     ])

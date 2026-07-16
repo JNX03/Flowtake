@@ -4588,6 +4588,10 @@ Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'screen.mp4':
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(writer.into_inner())).unwrap();
         assert_eq!(archive.len(), 3);
         assert_eq!(archive.by_name("screen.mp4").unwrap().size(), 12);
+        assert_eq!(
+            archive.by_name("screen.mp4").unwrap().compression(),
+            zip::CompressionMethod::Stored
+        );
         assert_eq!(archive.by_name("extra-2.mp4").unwrap().size(), 17);
         assert!(archive.by_name("extra-1.mp4").is_err());
 
