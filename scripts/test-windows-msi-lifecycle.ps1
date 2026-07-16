@@ -221,6 +221,60 @@ function Get-MpCmdRunPath {
     return $mpCmdRunPath[0]
 }
 
+function Test-DefenderSignatureFresh {
+    param([Parameter(Mandatory = $true)]$Status)
+
+    if ([string]::IsNullOrWhiteSpace([string]$Status.AntivirusSignatureVersion)) {
+        return $false
+    }
+    if ($null -eq $Status.AntivirusSignatureLastUpdated) {
+        return $false
+    }
+    $ageProperty = $Status.PSObject.Properties["AntivirusSignatureAge"]
+    if ($null -eq $ageProperty -or $null -eq $ageProperty.Value) {
+        return $false
+    }
+    try {
+        $age = [uint64]$ageProperty.Value
+        $updatedUtc = ([datetime]$Status.AntivirusSignatureLastUpdated).ToUniversalTime()
+    }
+    catch {
+        return $false
+    }
+    $nowUtc = [DateTime]::UtcNow
+    return (
+        $age -le [uint64]1 -and
+        $updatedUtc -ge $nowUtc.AddHours(-48) -and
+        $updatedUtc -le $nowUtc.AddMinutes(5)
+    )
+}
+
+function Get-DefenderStatusWithRetry {
+    $lastFailure = "no error was reported"
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            return Get-MpComputerStatus -ErrorAction Stop
+        }
+        catch {
+            $lastFailure = $_.Exception.Message
+            Write-Evidence "Get-MpComputerStatus attempt $attempt of 3 failed: $lastFailure"
+            if ($attempt -lt 3) {
+                Start-Sleep -Seconds 2
+            }
+        }
+    }
+    throw "Could not read Defender status after 3 attempts: $lastFailure"
+}
+
+function Assert-DefenderCoreReady {
+    param([Parameter(Mandatory = $true)]$Status)
+
+    Assert-Condition ([bool]$Status.AMServiceEnabled) "Defender antimalware service is not enabled."
+    Assert-Condition ([bool]$Status.AntivirusEnabled) "Defender antivirus is not enabled."
+    Assert-Condition ($Status.AMRunningMode -eq "Normal") "Defender is not running in Normal mode: $($Status.AMRunningMode)"
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$Status.AMEngineVersion)) "Defender engine version is unavailable."
+}
+
 function Prepare-DefenderScan {
     param([Parameter(Mandatory = $true)][string]$TargetPath)
 
@@ -229,16 +283,58 @@ function Prepare-DefenderScan {
         Assert-Condition ($null -ne (Get-Command $requiredCommand -ErrorAction SilentlyContinue)) "Required Defender command is unavailable: $requiredCommand"
     }
 
-    Update-MpSignature | Out-Null
+    $status = Get-DefenderStatusWithRetry
+    Assert-DefenderCoreReady -Status $status
+    $updateFailures = [System.Collections.Generic.List[string]]::new()
 
-    $status = Get-MpComputerStatus
-    Assert-Condition ([bool]$status.AMServiceEnabled) "Defender antimalware service is not enabled."
-    Assert-Condition ([bool]$status.AntivirusEnabled) "Defender antivirus is not enabled."
-    Assert-Condition ($status.AMRunningMode -eq "Normal") "Defender is not running in Normal mode: $($status.AMRunningMode)"
-    Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$status.AMEngineVersion)) "Defender engine version is unavailable."
+    if (Test-DefenderSignatureFresh -Status $status) {
+        Write-Evidence "Defender signatures are already fresh; no network signature update is required."
+    }
+    else {
+        Write-Evidence "Attempting Defender signature update with the explicit MMPC source."
+        try {
+            Update-MpSignature -UpdateSource MMPC -ErrorAction Stop | Out-Null
+        }
+        catch {
+            $message = "Update-MpSignature MMPC attempt failed: $($_.Exception.Message)"
+            $updateFailures.Add($message)
+            Write-Evidence $message
+        }
+        $status = Get-DefenderStatusWithRetry
+
+        if (-not (Test-DefenderSignatureFresh -Status $status)) {
+            Write-Evidence "PowerShell signature updates did not establish freshness; trying the official MpCmdRun MMPC fallback."
+            try {
+                Invoke-NativeChecked `
+                    -FilePath (Get-MpCmdRunPath) `
+                    -Arguments @("-SignatureUpdate", "-MMPC") `
+                    -LogPath (Join-Path $EvidenceDirectory "defender-signature-update-mmpc.log") `
+                    -AllowedExitCodes @(0) | Out-Null
+            }
+            catch {
+                $message = "MpCmdRun MMPC signature update failed: $($_.Exception.Message)"
+                $updateFailures.Add($message)
+                Write-Evidence $message
+            }
+
+            for ($poll = 1; $poll -le 6; $poll++) {
+                $status = Get-DefenderStatusWithRetry
+                if (Test-DefenderSignatureFresh -Status $status) {
+                    break
+                }
+                if ($poll -lt 6) {
+                    Start-Sleep -Seconds 2
+                }
+            }
+        }
+    }
+
+    $status = Get-DefenderStatusWithRetry
+    Assert-DefenderCoreReady -Status $status
     Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$status.AntivirusSignatureVersion)) "Defender signature version is unavailable."
     Assert-Condition ($null -ne $status.AntivirusSignatureLastUpdated) "Defender signature timestamp is unavailable."
-    Assert-Condition ([int]$status.AntivirusSignatureAge -le 1) "Defender signatures are stale: age $($status.AntivirusSignatureAge) day(s)."
+    $failureSummary = if ($updateFailures.Count -gt 0) { $updateFailures -join " | " } else { "no updater error was reported" }
+    Assert-Condition (Test-DefenderSignatureFresh -Status $status) "Defender signatures are stale or missing after bounded update attempts; age $($status.AntivirusSignatureAge) day(s); $failureSummary."
     Write-Evidence "Defender on-demand scan prerequisites are ready for $TargetPath; mode Normal, engine $($status.AMEngineVersion), signature $($status.AntivirusSignatureVersion), updated $($status.AntivirusSignatureLastUpdated.ToUniversalTime().ToString('o')). Real-time status is $([bool]$status.RealTimeProtectionEnabled) and is observed only, not used as a custom-scan prerequisite or claimed as installer-write coverage."
 }
 
@@ -353,6 +449,7 @@ $installObserved = $false
 try {
     Assert-CleanInstallState
     New-Item -ItemType Directory -Path $smokeRoot | Out-Null
+    Prepare-DefenderScan -TargetPath $smokeRoot
 
     $releaseHeaders = @{
         Accept = "application/vnd.github+json"

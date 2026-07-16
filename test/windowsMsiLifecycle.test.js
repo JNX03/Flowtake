@@ -172,6 +172,8 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     }
 
     const checksumIndex = lifecycleScript.indexOf("Downloaded MSI SHA-256 mismatch")
+    const preDownloadDefenderIndex = lifecycleScript.indexOf('Prepare-DefenderScan -TargetPath $smokeRoot')
+    const firstFlowtakeDownloadIndex = lifecycleScript.indexOf("Invoke-WebRequest -UseBasicParsing -MaximumRetryCount")
     const firstInstallerExecution = lifecycleScript.indexOf('"install", "--manifest"')
     const msiDefenderIndex = lifecycleScript.indexOf('Invoke-DefenderScan -TargetPath $msiPath')
     const scannedHashIndex = lifecycleScript.indexOf("$scannedMsiSha256 =")
@@ -185,7 +187,9 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
     const finallyIndex = lifecycleScript.indexOf("finally {")
     const fallbackUninstallIndex = lifecycleScript.indexOf('"msiexec.exe"', finallyIndex)
 
-    assert.ok(checksumIndex >= 0 && checksumIndex < msiDefenderIndex)
+    assert.ok(preDownloadDefenderIndex >= 0 && preDownloadDefenderIndex < firstFlowtakeDownloadIndex)
+    assert.ok(firstFlowtakeDownloadIndex < checksumIndex)
+    assert.ok(checksumIndex < msiDefenderIndex)
     assert.ok(msiDefenderIndex < scannedHashIndex)
     assert.ok(scannedHashIndex < manifestHashCorrelationIndex)
     assert.ok(manifestHashCorrelationIndex < installerHashOverrideIndex)
@@ -203,6 +207,16 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
         'GITHUB_EVENT_NAME -eq "pull_request"',
         "Get-MpComputerStatus",
         "Update-MpSignature",
+        "function Test-DefenderSignatureFresh",
+        "[uint64]$ageProperty.Value",
+        "AddHours(-48)",
+        "AddMinutes(5)",
+        "function Get-DefenderStatusWithRetry",
+        "for ($attempt = 1; $attempt -le 3; $attempt++)",
+        "Update-MpSignature -UpdateSource MMPC -ErrorAction Stop",
+        '"-SignatureUpdate", "-MMPC"',
+        "for ($poll = 1; $poll -le 6; $poll++)",
+        "Defender signatures are stale or missing after bounded update attempts",
         "AntivirusEnabled",
         "AMRunningMode",
         "AMEngineVersion",
@@ -247,6 +261,7 @@ test("lifecycle script fails closed around integrity, Defender, install, and cle
         /continue-on-error|LocalArchiveMalwareScanOverride|Win32_Product|\|\|\s*true|"--product-code"|-ReturnHR|Start-MpScan|Get-MpThreatDetection|Remove-MpPreference|Set-MpPreference|Get-MpPreference|-CheckExclusion/
     )
     assert.doesNotMatch(lifecycleScript, /["']--ignore-security-hash["']/)
+    assert.doesNotMatch(lifecycleScript, /while\s*\(/)
     assert.doesNotMatch(lifecycleScript, /&\s+\$wingetPath\s+settings\s+--disable/)
     assert.doesNotMatch(lifecycleScript, /InvokeMember\("OpenDatabase"/)
 
