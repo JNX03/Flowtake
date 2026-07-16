@@ -31,6 +31,8 @@ export function FeatureShowcase({ group }) {
             autoPlay
             label={selected.media.label}
             poster={selected.media.poster}
+            downloadSrc={selected.media.download}
+            downloadLabel={`Download ${selected.title} demo`}
             webmSrc={selected.media.webm}
             mp4Src={selected.media.mp4}
             captionsSrc={selected.media.captions}

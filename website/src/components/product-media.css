@@ -9,9 +9,9 @@
 
 .product-video video {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
   display: block;
-  object-fit: cover;
+  object-fit: contain;
   background: #05050a;
 }
 
@@ -23,6 +23,24 @@
   border: 1px solid var(--home-line-strong, rgba(246, 244, 238, 0.22));
   border-radius: 12px;
   font: 13px/1.65 "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+
+.product-video__error p {
+  margin: 0;
+}
+
+.product-video__download {
+  width: fit-content;
+  margin-top: 12px;
+  display: inline-flex;
+  color: var(--home-text, #f6f4ee);
+  font-weight: 600;
+  text-underline-offset: 4px;
+}
+
+.product-video__download:focus-visible {
+  outline: 3px solid var(--focus, #a99cff);
+  outline-offset: 4px;
 }
 
 .product-media__sr-only {

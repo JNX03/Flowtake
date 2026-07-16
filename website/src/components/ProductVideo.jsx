@@ -5,6 +5,8 @@ export function ProductVideo({
   active = true,
   autoPlay = false,
   captionsSrc,
+  downloadLabel = "Download video",
+  downloadSrc,
   id,
   label,
   loop = true,
@@ -16,6 +18,7 @@ export function ProductVideo({
   const videoRef = useRef(null);
   const [failed, setFailed] = useState(false);
   const hasSource = Boolean(webmSrc || mp4Src);
+  const fallbackSrc = downloadSrc || mp4Src || webmSrc;
 
   useEffect(() => {
     setFailed(false);
@@ -40,11 +43,28 @@ export function ProductVideo({
     onMediaError?.();
   };
 
-  if (!hasSource || failed) {
+  if (!hasSource) {
     return (
       <p className="product-video__error" id={id} role="status">
-        Product footage could not be loaded. Use the video controls or download link after the media is available.
+        Product footage is not available.
       </p>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="product-video__error" id={id} role="status">
+        <p>Product footage could not be loaded.</p>
+        {fallbackSrc && (
+          <a
+            className="product-video__download"
+            href={fallbackSrc}
+            download
+          >
+            {downloadLabel}
+          </a>
+        )}
+      </div>
     );
   }
 

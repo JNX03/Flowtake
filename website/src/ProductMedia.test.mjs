@@ -19,6 +19,10 @@ test("genuine product media components are accessible, data-driven, and never si
     'kind="captions"',
     "prefers-reduced-motion: reduce",
     "Product footage could not be loaded.",
+    "downloadSrc",
+    "href={fallbackSrc}",
+    "aspect-ratio: 16 / 9",
+    "object-fit: contain",
   ]) {
     assert.equal(`${video}\n${styles}`.includes(required), true, `missing media requirement: ${required}`);
   }
@@ -29,6 +33,7 @@ test("genuine product media components are accessible, data-driven, and never si
     "aria-controls={isSelected ? videoId : undefined}",
     "setSelectedId(feature.id)",
     "key={selected.id}",
+    "downloadSrc={selected.media.download}",
   ]) {
     assert.equal(showcase.includes(required), true, `missing showcase behavior: ${required}`);
   }
@@ -40,4 +45,7 @@ test("genuine product media components are accessible, data-driven, and never si
   assert.equal(video.includes("data:image"), false);
   assert.equal(video.includes("<svg"), false);
   assert.equal(showcase.includes("placeholder"), false);
+  assert.equal(styles.includes("aspect-ratio: 16 / 10"), false);
+  assert.equal(styles.includes("object-fit: cover"), false);
+  assert.equal(video.includes("Use the video controls or download link"), false);
 });
