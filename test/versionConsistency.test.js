@@ -53,7 +53,17 @@ test("security policy describes the configured CSP without overstating it", asyn
         readRepoFile("src-tauri/tauri.conf.json").then(JSON.parse)
     ])
 
-    assert.match(tauriConfig.app.security.csp, /'unsafe-inline'/)
-    assert.doesNotMatch(securityPolicy, /enforces a strict CSP/i)
+    const directives = Object.fromEntries(tauriConfig.app.security.csp
+        .split(";")
+        .map(directive => directive.trim().split(/\s+/))
+        .filter(parts => parts[0])
+        .map(([name, ...sources]) => [name, sources]))
+
+    assert.ok(directives["script-src"].includes("'unsafe-inline'"))
+    assert.ok(directives["style-src"].includes("'unsafe-inline'"))
+    assert.ok(directives["connect-src"].includes("https:"))
+    assert.ok(directives["connect-src"].includes("wss:"))
+    assert.doesNotMatch(securityPolicy, /\bstrict\s+(?:content security policy|CSP)\b|\bCSP\b.{0,40}\bstrict\b/is)
+    assert.match(securityPolicy, /inline styles\/scripts and broad HTTPS\/WebSocket connections/i)
     assert.match(securityPolicy, /CSP reduction remains an active hardening area/i)
 })
