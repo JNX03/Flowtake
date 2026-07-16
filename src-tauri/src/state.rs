@@ -12,6 +12,89 @@ use std::sync::Mutex;
 use tauri_plugin_shell::process::CommandChild;
 use tokio::sync::mpsc;
 
+#[derive(Clone)]
+pub struct LiveStreamCredential {
+    pub canonical_rtmp_url: String,
+    pub stream_key: String,
+}
+
+#[derive(Clone)]
+pub(crate) struct YoutubeOAuthCredentials {
+    pub(crate) client_id: String,
+    pub(crate) client_secret: String,
+}
+
+#[derive(Clone)]
+pub(crate) struct YoutubeOAuthTokens {
+    pub(crate) access_token: String,
+    pub(crate) refresh_token: Option<String>,
+    pub(crate) expires_at: i64,
+}
+
+/// Native-only YouTube authorization state. Credentials and reusable tokens are
+/// intentionally never serialized and must be entered again after restart.
+#[derive(Default)]
+pub(crate) struct YoutubeOAuthSession {
+    generation: u64,
+    credentials: Option<YoutubeOAuthCredentials>,
+    tokens: Option<YoutubeOAuthTokens>,
+}
+
+impl YoutubeOAuthSession {
+    fn advance_generation(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    pub(crate) fn set_credentials(&mut self, credentials: YoutubeOAuthCredentials) -> u64 {
+        self.advance_generation();
+        self.credentials = Some(credentials);
+        self.tokens = None;
+        self.generation
+    }
+
+    pub(crate) fn credentials(&self) -> Option<(u64, YoutubeOAuthCredentials)> {
+        self.credentials
+            .clone()
+            .map(|credentials| (self.generation, credentials))
+    }
+
+    pub(crate) fn snapshot(&self) -> Option<(u64, YoutubeOAuthCredentials, YoutubeOAuthTokens)> {
+        Some((
+            self.generation,
+            self.credentials.clone()?,
+            self.tokens.clone()?,
+        ))
+    }
+
+    pub(crate) fn status(&self) -> (bool, bool) {
+        (self.credentials.is_some(), self.tokens.is_some())
+    }
+
+    pub(crate) fn status_snapshot(&self) -> (u64, bool, bool) {
+        let (has_credentials, connected) = self.status();
+        (self.generation, has_credentials, connected)
+    }
+
+    pub(crate) fn commit_tokens(
+        &mut self,
+        expected_generation: u64,
+        tokens: YoutubeOAuthTokens,
+    ) -> Result<(), YoutubeOAuthTokens> {
+        if self.generation != expected_generation || self.credentials.is_none() {
+            return Err(tokens);
+        }
+        self.tokens = Some(tokens);
+        Ok(())
+    }
+
+    /// Invalidates in-flight OAuth/refresh work before releasing the secrets.
+    pub(crate) fn clear(&mut self) -> Option<YoutubeOAuthTokens> {
+        self.advance_generation();
+        self.credentials = None;
+        self.tokens.take()
+    }
+}
+
 /// Global application state managed by Tauri
 pub struct AppState {
     pub app_data_dir: PathBuf,
@@ -62,10 +145,15 @@ pub struct AppState {
     /// PIDs of audio sessions muted during recording (restored on stop)
     pub muted_audio_pids: Vec<u32>,
     // ── Live streaming ──────────────────────────────────────────────────
+    /// Serializes the live-stream process check, FFmpeg spawn, and state
+    /// publication so concurrent Start commands cannot orphan a second child.
+    pub live_stream_start_lock: Arc<tokio::sync::Mutex<()>>,
     /// FFmpeg process handling the live RTMP+local-file pipeline
     pub live_ffmpeg_process: Option<std::process::Child>,
     /// Channel for pushing webm/mkv chunks from the JS compositor to FFmpeg stdin
-    pub live_stdin_tx: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    pub live_stdin_tx: Option<mpsc::Sender<Vec<u8>>>,
+    /// Session-only credential bound to the exact validated RTMP destination selected at entry.
+    pub live_stream_credential: Option<LiveStreamCredential>,
     /// Stop flag for the live pipeline pump thread
     pub live_stop_flag: Arc<AtomicBool>,
     /// Latest parsed FFmpeg stats (fps, bitrate, dropped frames, …)
@@ -76,6 +164,8 @@ pub struct AppState {
     pub live_started_at_ms: Option<i64>,
     /// Currently registered live-zoom hotkey (so we can unregister on rebind)
     pub live_zoom_hotkey: Option<String>,
+    /// Session-only YouTube OAuth material. No renderer command exposes these values.
+    pub(crate) youtube_oauth: YoutubeOAuthSession,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -132,13 +222,16 @@ impl AppState {
             window_capture_thread: None,
             ffmpeg_process: None,
             muted_audio_pids: Vec::new(),
+            live_stream_start_lock: Arc::new(tokio::sync::Mutex::new(())),
             live_ffmpeg_process: None,
             live_stdin_tx: None,
+            live_stream_credential: None,
             live_stop_flag: Arc::new(AtomicBool::new(false)),
             live_stats: Arc::new(Mutex::new(LiveStats::default())),
             live_local_path: None,
             live_started_at_ms: None,
             live_zoom_hotkey: None,
+            youtube_oauth: YoutubeOAuthSession::default(),
         }
     }
 
@@ -179,5 +272,52 @@ impl AppState {
         dirs::video_dir()
             .unwrap_or_else(|| dirs::home_dir().unwrap_or_default())
             .join("Flowtake")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{YoutubeOAuthCredentials, YoutubeOAuthSession, YoutubeOAuthTokens};
+
+    fn credentials(suffix: &str) -> YoutubeOAuthCredentials {
+        YoutubeOAuthCredentials {
+            client_id: format!("client-{suffix}"),
+            client_secret: format!("secret-{suffix}"),
+        }
+    }
+
+    fn tokens(suffix: &str) -> YoutubeOAuthTokens {
+        YoutubeOAuthTokens {
+            access_token: format!("access-{suffix}"),
+            refresh_token: Some(format!("refresh-{suffix}")),
+            expires_at: 123,
+        }
+    }
+
+    #[test]
+    fn youtube_oauth_session_rejects_stale_results_and_clears_every_secret() {
+        let mut session = YoutubeOAuthSession::default();
+        let stale_generation = session.set_credentials(credentials("first"));
+        let current_generation = session.set_credentials(credentials("second"));
+
+        assert!(session
+            .commit_tokens(stale_generation, tokens("stale"))
+            .is_err());
+        assert!(session
+            .commit_tokens(current_generation, tokens("current"))
+            .is_ok());
+        assert_eq!(session.status(), (true, true));
+        assert_eq!(session.status_snapshot(), (current_generation, true, true));
+
+        let removed = session.clear().expect("connected session had tokens");
+        assert_eq!(removed.access_token, "access-current");
+        assert_eq!(session.status(), (false, false));
+        assert_eq!(
+            session.status_snapshot(),
+            (current_generation + 1, false, false)
+        );
+        assert!(session
+            .commit_tokens(current_generation, tokens("late"))
+            .is_err());
     }
 }

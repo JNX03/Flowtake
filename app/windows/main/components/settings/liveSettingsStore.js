@@ -16,7 +16,7 @@ export const LIVE_SETTINGS_STORE_KEY = "live.settings"
 export const LIVE_SETTINGS_DEFAULTS = {
     platform: "youtube",
     rtmpUrl: PLATFORM_PRESETS.youtube,
-    streamKey: "",
+    hasStreamKey: false,
     videoBitrateKbps: 6000,
     resolution: "source",
     saveLocal: true,
@@ -30,13 +30,22 @@ export const LIVE_SETTINGS_DEFAULTS = {
 
 export async function loadLiveSettings() {
     try {
-        const stored = await window.electron.ipcRenderer.invoke("store-get", LIVE_SETTINGS_STORE_KEY)
-        return { ...LIVE_SETTINGS_DEFAULTS, ...(stored || {}) }
+        const [stored, hasStreamKey] = await Promise.all([
+            window.electron.ipcRenderer.invoke("store-get", LIVE_SETTINGS_STORE_KEY),
+            window.electron.ipcRenderer.invoke("has-live-stream-key"),
+        ])
+        const { streamKey: _legacyStreamKey, stream_key: _legacySnakeCase, ...safeStored } = stored || {}
+        return { ...LIVE_SETTINGS_DEFAULTS, ...safeStored, hasStreamKey: Boolean(hasStreamKey) }
     } catch {
         return { ...LIVE_SETTINGS_DEFAULTS }
     }
 }
 
 export async function saveLiveSettings(next) {
-    await window.electron.ipcRenderer.invoke("store-set", LIVE_SETTINGS_STORE_KEY, next)
+    const { streamKey: _streamKey, stream_key: _streamKeySnakeCase, hasStreamKey: _status, ...persisted } = next
+    await window.electron.ipcRenderer.invoke("store-set", LIVE_SETTINGS_STORE_KEY, persisted)
+}
+
+export async function setLiveStreamKey(rtmpUrl, streamKey) {
+    await window.electron.ipcRenderer.invoke("set-live-stream-key", rtmpUrl, streamKey)
 }

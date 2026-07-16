@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::identifiers::{validate_project_id, validate_render_id};
 use crate::state::{AppState, RenderState};
 use serde_json::Value;
 use std::sync::Mutex;
@@ -79,10 +80,7 @@ pub async fn close_exporter_window(app: AppHandle) -> AppResult<()> {
 pub async fn get_project_for_export(app: AppHandle) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
     let state = state.lock().unwrap();
-    let project_id = state
-        .project_id
-        .clone()
-        .ok_or(AppError::NoProjectOpen)?;
+    let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
     let json_path = state.project_json_file(&project_id);
     drop(state);
 
@@ -106,7 +104,11 @@ pub async fn get_project_state(app: AppHandle) -> AppResult<Value> {
 pub async fn get_open_section(app: AppHandle) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
     let state = state.lock().unwrap();
-    Ok(state.export_section.clone().map(Value::String).unwrap_or(Value::Null))
+    Ok(state
+        .export_section
+        .clone()
+        .map(Value::String)
+        .unwrap_or(Value::Null))
 }
 
 #[tauri::command]
@@ -118,6 +120,7 @@ pub async fn queue_render(app: AppHandle, render: Value) -> AppResult<()> {
         .filter(|s| !s.is_empty())
         .ok_or_else(|| AppError::General("Render is missing an id".to_string()))?
         .to_string();
+    validate_render_id(&render_id)?;
 
     // Require an open project. Falling back to "" copied the whole temp root and produced
     // an empty render dir, which later failed cryptically with "Render failed".
@@ -125,9 +128,18 @@ pub async fn queue_render(app: AppHandle, render: Value) -> AppResult<()> {
         let state = state.lock().unwrap();
         state.project_id.clone().ok_or(AppError::NoProjectOpen)?
     };
+    validate_project_id(&project_id)?;
 
     let mut state = state.lock().unwrap();
+    if state.renders.contains_key(&render_id) {
+        return Err(AppError::General("Render id is already in use".to_string()));
+    }
     let render_temp = state.render_temp_dir(&render_id);
+    if render_temp.exists() {
+        return Err(AppError::General(
+            "Render workspace already exists".to_string(),
+        ));
+    }
     std::fs::create_dir_all(&render_temp)?;
 
     // Copy project files (screen.mp4, camera.webm, project.json, ...) into the render temp dir.
@@ -164,11 +176,21 @@ pub async fn queue_render(app: AppHandle, render: Value) -> AppResult<()> {
         .unwrap_or("Flowtake Recording");
     let safe_name: String = raw_name
         .chars()
-        .map(|c| if c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim()
         .to_string();
-    let safe_name = if safe_name.is_empty() { "Flowtake Recording".to_string() } else { safe_name };
+    let safe_name = if safe_name.is_empty() {
+        "Flowtake Recording".to_string()
+    } else {
+        safe_name
+    };
     let output_path = unique_output_path(&export_dir, &safe_name);
 
     state.renders.insert(
@@ -270,14 +292,25 @@ pub async fn copy_to_videos_folder(app: AppHandle, render_id: String) -> AppResu
     let (source, dest) = {
         let state = state.lock().unwrap();
         if let Some(render) = state.renders.get(&render_id) {
-            (render.temp_dir.join("output.mp4"), render.output_path.clone())
+            (
+                render.temp_dir.join("output.mp4"),
+                render.output_path.clone(),
+            )
         } else {
             log::error!("[copy_to_videos] Render not found: {}", render_id);
-            return Err(AppError::General(format!("Render not found: {}", render_id)));
+            return Err(AppError::General(format!(
+                "Render not found: {}",
+                render_id
+            )));
         }
     };
 
-    log::info!("[copy_to_videos] source={:?} exists={} dest={:?}", source, source.exists(), dest);
+    log::info!(
+        "[copy_to_videos] source={:?} exists={} dest={:?}",
+        source,
+        source.exists(),
+        dest
+    );
 
     if source.exists() {
         let source_size = source.metadata().map(|m| m.len()).unwrap_or(0);
@@ -293,7 +326,10 @@ pub async fn copy_to_videos_folder(app: AppHandle, render_id: String) -> AppResu
         log::info!("[copy_to_videos] Copied to {:?}", dest);
     } else {
         log::error!("[copy_to_videos] Output file not found at {:?}", source);
-        return Err(AppError::General(format!("Output video not found: {:?}", source)));
+        return Err(AppError::General(format!(
+            "Output video not found: {:?}",
+            source
+        )));
     }
     Ok(())
 }
@@ -332,8 +368,11 @@ pub async fn cancel_render(app: AppHandle, render_id: String) -> AppResult<()> {
 
 #[tauri::command]
 pub async fn send_notification(app: AppHandle, render_id: String) -> AppResult<()> {
-    app.emit("export-completed", serde_json::json!({ "renderId": render_id }))
-        .ok();
+    app.emit(
+        "export-completed",
+        serde_json::json!({ "renderId": render_id }),
+    )
+    .ok();
     Ok(())
 }
 
@@ -377,26 +416,103 @@ pub async fn get_render_video_path(app: AppHandle, render_id: String) -> AppResu
     }
 }
 
+fn validated_external_url(url: &str) -> AppResult<String> {
+    #[cfg(target_os = "macos")]
+    if url == "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" {
+        return Ok(url.to_string());
+    }
+
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|_| AppError::General("Invalid external URL".to_string()))?;
+    if parsed.scheme() != "https"
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return Err(AppError::General(
+            "Only credential-free HTTPS URLs may be opened".to_string(),
+        ));
+    }
+    Ok(parsed.to_string())
+}
+
 #[tauri::command]
 pub async fn open_url_in_browser(_app: AppHandle, url: String) -> AppResult<()> {
+    let url = validated_external_url(&url)?;
     open::that(&url).map_err(|e| AppError::General(format!("Failed to open URL: {}", e)))?;
     Ok(())
 }
 
-fn copy_dir_contents(
-    src: &std::path::Path,
-    dst: &std::path::Path,
-) -> std::io::Result<()> {
+fn copy_dir_contents(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
+        let metadata = std::fs::symlink_metadata(&src_path)?;
+        if metadata.file_type().is_symlink() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Project workspace contains an unsupported symbolic link",
+            ));
+        }
+        if metadata.is_dir() {
             copy_dir_contents(&src_path, &dst_path)?;
-        } else {
+        } else if metadata.is_file() {
             std::fs::copy(&src_path, &dst_path)?;
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Project workspace contains an unsupported file type",
+            ));
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod external_url_tests {
+    use super::validated_external_url;
+
+    #[test]
+    fn external_handler_accepts_normal_https_urls() {
+        assert_eq!(
+            validated_external_url("https://github.com/JNX03/Flowtake?tab=readme#install").unwrap(),
+            "https://github.com/JNX03/Flowtake?tab=readme#install"
+        );
+    }
+
+    #[test]
+    fn external_handler_rejects_local_and_active_schemes() {
+        for url in [
+            "http://example.com",
+            "file:///tmp/installer",
+            "javascript:alert(1)",
+            "data:text/html,hello",
+            "C:\\Windows\\System32\\calc.exe",
+            "custom-handler:payload",
+            "https://user:secret@example.com/",
+        ] {
+            assert!(validated_external_url(url).is_err(), "accepted {url}");
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn apple_settings_handler_is_rejected_off_macos() {
+        assert!(validated_external_url(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        )
+        .is_err());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn exact_screen_capture_settings_handler_is_allowed_on_macos() {
+        assert!(validated_external_url(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        )
+        .is_ok());
+        assert!(validated_external_url("x-apple.systempreferences:attacker").is_err());
+    }
 }

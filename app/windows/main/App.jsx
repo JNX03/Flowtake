@@ -15,8 +15,7 @@ import {
     openProject,
     TOAST_ERROR_CAPTURE,
     TOAST_EXPORT_COMPLETED,
-    TOAST_UPDATE,
-    TOAST_UPDATE_READY
+    TOAST_UPDATE
 } from "@shared/helpers"
 import { addErrorToast } from "@shared/errorToastHelper"
 import { initSystemInfo } from "@shared/errorReporting"
@@ -225,23 +224,8 @@ export default function App() {
     }, [dismissSplash])
 
     useEffect(() => {
-        // Defer update check to not block startup. First, surface a pending installer
-        // (downloaded earlier but not yet installed). Otherwise fall back to a fresh check.
+        // Defer the metadata-only update check so startup stays responsive.
         const timer = setTimeout(async () => {
-            try {
-                const pending = await window.electron.ipcRenderer.invoke("get-pending-installer")
-                if (pending?.path) {
-                    dispatch(addToast({
-                        type: TOAST_UPDATE_READY,
-                        installerPath: pending.path,
-                        version: pending.version || undefined,
-                        autoDismiss: false,
-                    }))
-                    return
-                }
-            } catch (e) {
-                console.warn("[Flowtake] Pending installer check failed:", e)
-            }
             try {
                 const info = await window.electron.ipcRenderer.invoke("check-for-updates")
                 if (info?.has_update) {

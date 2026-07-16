@@ -4,7 +4,8 @@ import {
     useSelector
 } from "react-redux"
 import { subscribe, isDragActive, getHoverTarget } from "../../dragState"
-import { OVERLAY_TRACKS, pxToMs } from "@shared/helpers"
+import { clamp, OVERLAY_TRACKS, pxToMs } from "@shared/helpers"
+import { getGroup, withGroup } from "@shared/redux/actionEnhancers"
 import {
     addOverlay,
     addOverlayTrack,
@@ -29,6 +30,7 @@ export default function OverlayTracks() {
     const isMinimized = useSelector(selectIsMaskingModeEnabled)
     const duration = useSelector(selectDuration)
     const pxPerMs = useSelector(selectPxPerMs)
+    const nextTrackId = useSelector(selectNextOverlayTrackId)
     const [dragOverTrack, setDragOverTrack] = useState(null)
 
     const overlaysByTrack = useMemo(() => {
@@ -44,9 +46,10 @@ export default function OverlayTracks() {
     useEffect(() => subscribe(() => {
         if (!isDragActive()) { setDragOverTrack(null); return }
         const hover = getHoverTarget()
-        if (hover?.zone === "overlay-track") setDragOverTrack(hover.trackId)
+        const hoveredTrack = tracks.find(track => track.id === hover?.trackId)
+        if (hover?.zone === "overlay-track" && hoveredTrack && !hoveredTrack.locked) setDragOverTrack(hover.trackId)
         else setDragOverTrack(null)
-    }), [])
+    }), [tracks])
 
     const handleDoubleClick = useCallback((time, trackId) => {
         const start = Math.max(time - 2000, 0)
@@ -74,35 +77,45 @@ export default function OverlayTracks() {
             if (target.zone !== "overlay-track") return
             // Audio goes to audio tracks only
             if (data.type === "audio" || data.category === "audio") return
+            if (!["text", "shape", "image"].includes(data.type)) return
+            if (!duration) return
 
-            const trackId = target.trackId
             const offsetX = clientX - target.rect.left
-            const time = pxToMs(offsetX, pxPerMs)
-            const start = Math.max(0, time)
-            const end = Math.min(time + 4000, duration)
+            const start = clamp(pxToMs(offsetX, pxPerMs), 0, Math.max(0, duration - Math.min(4000, duration)))
+            const end = Math.min(start + 4000, duration)
+            const isTrackAvailable = track => !track.locked && !allOverlays.some(overlay =>
+                overlay.trackIndex === track.id && overlay.start < end && overlay.end > start
+            )
+            const preferredTrack = tracks.find(track => track.id === target.trackId)
+            const availableTrack = preferredTrack && isTrackAvailable(preferredTrack)
+                ? preferredTrack
+                : tracks.find(isTrackAvailable)
+            const trackId = availableTrack?.id ?? nextTrackId
+            const group = getGroup("overlay-drop")
+            if (!availableTrack) dispatch(withGroup(addOverlayTrack(), group))
             const base = {
                 id: `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 start, end, trackIndex: trackId, opacity: 1, position: { x: 0.5, y: 0.5 },
             }
 
             if (data.type === "text") {
-                dispatch(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
+                dispatch(withGroup(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
                     fontSize: data.config?.fontSize || 32, fontWeight: data.config?.fontWeight || 600,
-                    color: data.config?.color || "#ffffff" }))
+                    color: data.config?.color || "#ffffff" }), group))
             } else if (data.type === "shape") {
-                dispatch(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
+                dispatch(withGroup(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
                     fill: data.config?.fill || "#6C5CE7", stroke: data.config?.stroke || "none",
                     strokeWidth: data.config?.strokeWidth || 0, width: data.config?.width || 200,
                     height: data.config?.height || 100, borderRadius: data.config?.borderRadius || 0,
-                    radius: data.config?.radius || 0 }))
-            } else if (data.type === "image" || data.type === "video") {
-                dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
-                    src: data.src || null, width: 320, height: 240 }))
+                    radius: data.config?.radius || 0 }), group))
+            } else if (data.type === "image") {
+                dispatch(withGroup(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
+                    src: data.src || null, width: 320, height: 240 }), group))
             }
         }
         window.addEventListener("flowtake-drop", handleDrop)
         return () => window.removeEventListener("flowtake-drop", handleDrop)
-    }, [dispatch, duration, pxPerMs])
+    }, [allOverlays, dispatch, duration, nextTrackId, pxPerMs, tracks])
 
     if (tracks.length === 0) return null
 
@@ -117,7 +130,7 @@ export default function OverlayTracks() {
                 className="h-12"
                 animIds={(overlaysByTrack[track.id] || []).map(o => o.id)}
                 action={OverlayItem}
-                onDoubleClick={time => handleDoubleClick(time, track.id)}
+                onDoubleClick={time => { if (!track.locked) handleDoubleClick(time, track.id) }}
                 isMinimized={isMinimized}
             />
             {(overlaysByTrack[track.id] || []).length === 0 && !isMinimized && (
@@ -125,10 +138,11 @@ export default function OverlayTracks() {
                     <button
                         type="button"
                         onClick={() => handleDoubleClick(0, track.id)}
+                        disabled={track.locked}
                         className="pointer-events-auto text-xs opacity-60 hover:opacity-100 border border-dashed border-base-content/25 hover:border-accent hover:bg-accent/10 rounded-md px-3 py-1 transition-all flex items-center gap-1.5"
                     >
-                        <span className="text-base leading-none">+</span>
-                        Click to add text or image
+                        <span className="text-base leading-none">{track.locked ? "" : "+"}</span>
+                        {track.locked ? "Track locked" : "Click to add text or image"}
                     </button>
                 </div>
             )}

@@ -1,0 +1,30 @@
+name: Scheduled Rust Security Audit
+
+"on":
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-rust-security-audit-main
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Rust Security Audit (main)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+
+      - name: Audit Rust dependencies
+        shell: bash
+        run: bash ./scripts/run-cargo-audit.sh

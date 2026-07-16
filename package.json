@@ -1,7 +1,7 @@
 {
   "name": "flowtake",
   "productName": "Flowtake",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Screen recorder with automatic zoom animations",
   "type": "module",
   "author": {
@@ -23,6 +23,7 @@
     "diagnose:recording": "node scripts/recording-diagnostics.mjs",
     "dev:frontend": "vite --config vite.config.mjs",
     "build:frontend": "vite build --config vite.config.mjs",
+    "build:site": "npm --prefix website run build",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri"
@@ -71,6 +72,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "js-yaml": "4.3.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
     "vite": "^8.0.16",
@@ -87,13 +89,6 @@
     "@tanstack/react-query": "^5.101.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
-    "@tauri-apps/plugin-fs": "^2.5.0",
-    "@tauri-apps/plugin-notification": "^2.3.3",
-    "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-shell": "^2.3.5",
-    "@tauri-apps/plugin-store": "^2.4.3",
-    "@tauri-apps/plugin-updater": "^2.10.1",
-    "@tauri-apps/plugin-window-state": "^2.4.1",
     "d3-ease": "^3.0.1",
     "debounce": "^3.0.0",
     "fast-fuzzy": "^1.12.0",

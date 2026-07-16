@@ -70,17 +70,29 @@ export default function ExportButton() {
         openExportWindow(EXPORTER_SECTION_QUEUE)
     }, [openExportWindow])
 
+    const handleRenderQueueProgress = useCallback((_event, progress) => {
+        dispatch(setRenderQueueProgress(progress))
+    }, [dispatch])
+
+    const handleHasExports = useCallback((_event, nextHasExports) => {
+        dispatch(setHasExports(nextHasExports))
+    }, [dispatch])
+
     useHotkeys('ctrl+e', () => { if (hasProject) onNew(); else onShowQueue() },
         { enabled: areHotkeysEnabled && !isClicked },
         [hasProject, areHotkeysEnabled, isClicked])
 
     useEffect(() => {
-        window.electron.ipcRenderer.on('render-queue-progress', (_e, progress) => dispatch(setRenderQueueProgress(progress)))
-    }, [dispatch])
+        const ipcRenderer = window.electron.ipcRenderer
 
-    useEffect(() => {
-        window.electron.ipcRenderer.on('has-exports', (_e, hasExports) => dispatch(setHasExports(hasExports)))
-    }, [dispatch])
+        ipcRenderer.on('render-queue-progress', handleRenderQueueProgress)
+        ipcRenderer.on('has-exports', handleHasExports)
+
+        return () => {
+            ipcRenderer.removeListener('render-queue-progress', handleRenderQueueProgress)
+            ipcRenderer.removeListener('has-exports', handleHasExports)
+        }
+    }, [handleHasExports, handleRenderQueueProgress])
 
     return (<>
         {hasExports && <div className="dropdown">

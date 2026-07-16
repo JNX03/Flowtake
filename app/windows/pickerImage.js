@@ -1,21 +1,7 @@
-import { convertFileSrc } from "@tauri-apps/api/core"
-import { readFile } from "@tauri-apps/plugin-fs"
+export async function loadPickerImageSrc(imageSource) {
+    if (!imageSource || imageSource.startsWith("data:image/")) return imageSource
 
-const getMimeType = filePath => filePath?.toLowerCase().endsWith(".bmp")
-    ? "image/bmp"
-    : "image/png"
-
-export async function loadPickerImageSrc(filePath) {
-    if (!filePath || filePath.startsWith("data:")) return filePath
-
-    try {
-        const bytes = await readFile(filePath)
-        const blob = new Blob([bytes], { type: getMimeType(filePath) })
-        return URL.createObjectURL(blob)
-    } catch (e) {
-        console.warn("[PickerImage] Falling back to asset URL:", e)
-        return convertFileSrc(filePath)
-    }
+    throw new Error("Picker screenshots must be supplied by the trusted backend as image data URLs")
 }
 
 export function releasePickerImageSrc(src) {

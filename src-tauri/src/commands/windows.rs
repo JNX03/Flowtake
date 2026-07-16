@@ -2,7 +2,7 @@ use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 use base64::Engine as _;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_store::StoreExt;
 
 /// Read the content-protection preference from the store.
@@ -83,10 +83,8 @@ pub async fn close_window(app: AppHandle) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn destroy_window(app: AppHandle) -> AppResult<()> {
-    if let Some(window) = app.get_webview_window("main") {
-        window.destroy().map_err(AppError::Tauri)?;
-    }
+pub async fn destroy_window(window: WebviewWindow) -> AppResult<()> {
+    window.destroy().map_err(AppError::Tauri)?;
     Ok(())
 }
 
