@@ -1,0 +1,216 @@
+name: Windows MSI Lifecycle Proof
+
+"on":
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "packaging/winget/**"
+      - "scripts/test-windows-msi-lifecycle.ps1"
+      - "test/windowsMsiLifecycle.test.js"
+      - ".github/workflows/windows-msi-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-msi-lifecycle-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLOWTAKE_MANIFEST_DIR: packaging/winget/JNX03.Flowtake/1.6.0
+  WINGET_BOOTSTRAP_VERSION: "1.29.280"
+  WINGET_MODULE_URL: https://www.powershellgallery.com/api/v2/package/Microsoft.WinGet.Client/1.29.280
+  WINGET_MODULE_SIZE: "20883488"
+  WINGET_MODULE_SHA512: DE5818DA64D4362904FFE35737A2D7DFC7179CB4D248E5816CE89AFE7E08C0A8AC63012F5489095F49724E1BEC0EAA2E53A90593AEF204979DE6CB27534A91A6
+
+jobs:
+  validate-manifest:
+    name: Validate WinGet manifest
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Require main for a lifecycle dispatch
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -ne "refs/heads/main") {
+            throw "Lifecycle dispatches must use refs/heads/main."
+          }
+
+      - name: Checkout the reviewed source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Provision the pinned Microsoft WinGet client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
+
+          $command = Get-Command winget -ErrorAction SilentlyContinue
+          if (-not $command) {
+            try {
+              Add-AppxPackage -RegisterByFamilyName `
+                -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe `
+                -ErrorAction Stop
+            }
+            catch {
+              Write-Host "The provisioned App Installer family was not immediately registrable: $($_.Exception.Message)"
+            }
+            $command = Get-Command winget -ErrorAction SilentlyContinue
+          }
+
+          $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
+          if ($actualVersion -ne $expectedVersion) {
+            $moduleArchive = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client.$env:WINGET_BOOTSTRAP_VERSION.zip"
+            $moduleRoot = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client-$env:WINGET_BOOTSTRAP_VERSION"
+            if (Test-Path -LiteralPath $moduleRoot) {
+              throw "The isolated WinGet module directory already exists: $moduleRoot"
+            }
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -MaximumRetryCount 3 `
+              -RetryIntervalSec 2 `
+              -Uri $env:WINGET_MODULE_URL `
+              -OutFile $moduleArchive
+            if ((Get-Item -LiteralPath $moduleArchive).Length -ne [int64]$env:WINGET_MODULE_SIZE) {
+              throw "The Microsoft.WinGet.Client archive size did not match the reviewed package."
+            }
+            $moduleHash = (Get-FileHash -LiteralPath $moduleArchive -Algorithm SHA512).Hash.ToUpperInvariant()
+            if ($moduleHash -ne $env:WINGET_MODULE_SHA512) {
+              throw "The Microsoft.WinGet.Client archive SHA-512 did not match the reviewed package."
+            }
+            Expand-Archive -LiteralPath $moduleArchive -DestinationPath $moduleRoot
+            $moduleManifest = Join-Path $moduleRoot "Microsoft.WinGet.Client.psd1"
+            $module = Test-ModuleManifest -Path $moduleManifest
+            if (
+              $module.Name -ne "Microsoft.WinGet.Client" -or
+              $module.Version.ToString() -ne $env:WINGET_BOOTSTRAP_VERSION -or
+              $module.Author -ne "Microsoft Corporation"
+            ) {
+              throw "The hash-verified Microsoft.WinGet.Client module identity could not be verified."
+            }
+            Import-Module -Name $moduleManifest -Force
+            $repairExit = Repair-WinGetPackageManager `
+              -Version $env:WINGET_BOOTSTRAP_VERSION `
+              -AllUsers `
+              -Force
+            if ([int]$repairExit -ne 0) {
+              throw "Repair-WinGetPackageManager exited with code $repairExit."
+            }
+          }
+
+          $command = Get-Command winget -ErrorAction SilentlyContinue
+          if (-not $command) {
+            throw "The WinGet bootstrap did not expose winget.exe."
+          }
+          $actualVersion = ((& $command.Source --version 2>&1) -join " ").Trim()
+          if ($actualVersion -ne $expectedVersion) {
+            throw "Expected WinGet $expectedVersion, found $actualVersion."
+          }
+          & $command.Source --info
+          if ($LASTEXITCODE -ne 0) {
+            throw "winget --info failed."
+          }
+
+      - name: Validate immutable package metadata
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-msi-lifecycle.ps1 `
+            -Mode ValidateManifest `
+            -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR
+
+  installer-lifecycle:
+    name: Install, scan, launch, and uninstall exact MSI
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs:
+      - validate-manifest
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Provision the pinned Microsoft WinGet client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
+
+          $command = Get-Command winget -ErrorAction SilentlyContinue
+          if (-not $command) {
+            try {
+              Add-AppxPackage -RegisterByFamilyName `
+                -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe `
+                -ErrorAction Stop
+            }
+            catch {
+              Write-Host "The provisioned App Installer family was not immediately registrable: $($_.Exception.Message)"
+            }
+            $command = Get-Command winget -ErrorAction SilentlyContinue
+          }
+
+          $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
+          if ($actualVersion -ne $expectedVersion) {
+            $moduleArchive = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client.$env:WINGET_BOOTSTRAP_VERSION.zip"
+            $moduleRoot = Join-Path $env:RUNNER_TEMP "Microsoft.WinGet.Client-$env:WINGET_BOOTSTRAP_VERSION"
+            if (Test-Path -LiteralPath $moduleRoot) {
+              throw "The isolated WinGet module directory already exists: $moduleRoot"
+            }
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -MaximumRetryCount 3 `
+              -RetryIntervalSec 2 `
+              -Uri $env:WINGET_MODULE_URL `
+              -OutFile $moduleArchive
+            if ((Get-Item -LiteralPath $moduleArchive).Length -ne [int64]$env:WINGET_MODULE_SIZE) {
+              throw "The Microsoft.WinGet.Client archive size did not match the reviewed package."
+            }
+            $moduleHash = (Get-FileHash -LiteralPath $moduleArchive -Algorithm SHA512).Hash.ToUpperInvariant()
+            if ($moduleHash -ne $env:WINGET_MODULE_SHA512) {
+              throw "The Microsoft.WinGet.Client archive SHA-512 did not match the reviewed package."
+            }
+            Expand-Archive -LiteralPath $moduleArchive -DestinationPath $moduleRoot
+            $moduleManifest = Join-Path $moduleRoot "Microsoft.WinGet.Client.psd1"
+            $module = Test-ModuleManifest -Path $moduleManifest
+            if (
+              $module.Name -ne "Microsoft.WinGet.Client" -or
+              $module.Version.ToString() -ne $env:WINGET_BOOTSTRAP_VERSION -or
+              $module.Author -ne "Microsoft Corporation"
+            ) {
+              throw "The hash-verified Microsoft.WinGet.Client module identity could not be verified."
+            }
+            Import-Module -Name $moduleManifest -Force
+            $repairExit = Repair-WinGetPackageManager `
+              -Version $env:WINGET_BOOTSTRAP_VERSION `
+              -AllUsers `
+              -Force
+            if ([int]$repairExit -ne 0) {
+              throw "Repair-WinGetPackageManager exited with code $repairExit."
+            }
+          }
+
+          $command = Get-Command winget -ErrorAction SilentlyContinue
+          if (-not $command) {
+            throw "The WinGet bootstrap did not expose winget.exe."
+          }
+          $actualVersion = ((& $command.Source --version 2>&1) -join " ").Trim()
+          if ($actualVersion -ne $expectedVersion) {
+            throw "Expected WinGet $expectedVersion, found $actualVersion."
+          }
+          & $command.Source --info
+          if ($LASTEXITCODE -ne 0) {
+            throw "winget --info failed."
+          }
+
+      - name: Prove the exact published MSI lifecycle
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-msi-lifecycle.ps1 `
+            -Mode Lifecycle `
+            -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR
