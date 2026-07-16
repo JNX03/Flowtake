@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { preview } from "vite";
 
 const comparisonUrl = "https://jnx03.github.io/Flowtake/screen-studio-alternative-windows/";
 const distUrl = new URL("../dist/", import.meta.url);
@@ -32,5 +34,37 @@ assert.equal(jsonLdBlocks.length, 1, "comparison must have one JSON-LD block");
 for (const block of jsonLdBlocks) JSON.parse(block[1]);
 
 assert.equal(count(sitemap, `<loc>${comparisonUrl}</loc>`), 1, "comparison sitemap entry must be unique");
+
+const previewServer = await preview({
+  root: fileURLToPath(new URL("../", import.meta.url)),
+  mode: "pages",
+  preview: {
+    host: "127.0.0.1",
+    port: 4174,
+    strictPort: true,
+  },
+});
+
+try {
+  const previewOrigin = "http://127.0.0.1:4174";
+  const [homeResponse, comparisonResponse, unknownResponse] = await Promise.all([
+    fetch(`${previewOrigin}/Flowtake/`),
+    fetch(`${previewOrigin}/Flowtake/screen-studio-alternative-windows/`),
+    fetch(`${previewOrigin}/Flowtake/not-a-real-page/`),
+  ]);
+
+  assert.equal(homeResponse.status, 200, "preview homepage must return 200");
+  assert.equal(comparisonResponse.status, 200, "preview comparison route must return 200");
+  assert.equal(unknownResponse.status, 404, "preview unknown route must remain a real 404");
+  assert.equal(
+    (await comparisonResponse.text()).includes("A Screen Studio"),
+    true,
+    "preview comparison response must contain its static body",
+  );
+} finally {
+  await new Promise((resolve, reject) => {
+    previewServer.httpServer.close((error) => (error ? reject(error) : resolve()));
+  });
+}
 
 process.stdout.write("Verified root and Screen Studio alternative Pages artifacts.\n");
