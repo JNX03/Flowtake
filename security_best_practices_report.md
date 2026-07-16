@@ -88,11 +88,11 @@ The UI clears its credential fields after handoff and tells users that credentia
 
 **Verification:** seven focused source regressions cover session-only storage, pre-renderer fail-closed startup migration, disconnect/exit cleanup, stale-work invalidation, status-generation rebinding, provider-error redaction, and the non-secret renderer/UI surface. A native unit regression covers generation replacement and full-session clearing.
 
-## Open — default-branch gates are not repository-enforced (medium)
+## Fixed — default-branch gates are repository-enforced (medium)
 
 **Evidence:** the GitHub branch-protection and repository-rulesets APIs for `JNX03/Flowtake`.
 
-`main` currently has no branch protection or ruleset, so a maintainer could merge or push while CI or the Rust security audit is failing. The release workflow independently fails closed, but ordinary branch integrity is advisory until repository settings require the frontend, platform Rust, and RustSec checks. Enable an administrator-enforced pull-request rule after the new check names have completed successfully on this PR; keep force pushes and branch deletion disabled.
+`main` now requires an up-to-date pull request with successful Frontend Quality, Rust Security Audit, Windows/macOS/Linux Rust, and GitGuardian checks. The rule is enforced for administrators, requires resolved review conversations, and disables force pushes and branch deletion. The approving-review count is intentionally zero for the current solo-maintainer repository, but direct merges or pushes cannot bypass the required checks.
 
 ## Open — CSP grants broad script/network capability (medium)
 
