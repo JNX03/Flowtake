@@ -82,3 +82,31 @@ test("launch copy keeps signing and preview support boundaries separate", async 
     assert.match(note, /macOS and Linux remain preview builds/i)
     assert.doesNotMatch(note, /release artifacts are unsigned|unsigned preview builds/i)
 })
+
+test("launch site does not publish stale or private product captures", async () => {
+    const [website, indexHtml, readme, packageJson] = await Promise.all([
+        readRepoFile("website/src/App.jsx"),
+        readRepoFile("website/index.html"),
+        readRepoFile("README.md"),
+        readRepoFile("package.json").then(JSON.parse),
+    ])
+    const staleCaptures = [
+        "website/public/assets/flowtake-editor.jpg",
+        "website/public/assets/flowtake-recorder.jpg",
+    ]
+
+    assert.match(website, new RegExp(`const RELEASE_VERSION = "${packageJson.version.replaceAll(".", "\\.")}"`))
+    assert.match(website, /const RELEASE_URL = `https:\/\/github\.com\/JNX03\/Flowtake\/releases\/tag\/v\$\{RELEASE_VERSION\}`/)
+    assert.match(website, /logo\.png/)
+    assert.match(indexHtml, /<meta property="og:image" content="https:\/\/jnx03\.github\.io\/Flowtake\/assets\/logo\.png"/)
+    assert.match(indexHtml, /<meta name="twitter:card" content="summary"/)
+    assert.doesNotMatch(`${website}\n${indexHtml}\n${readme}`, /flowtake-(?:editor|recorder)\.jpg/)
+
+    for (const capture of staleCaptures) {
+        await assert.rejects(
+            readFile(path.join(repoRoot, capture)),
+            error => error?.code === "ENOENT",
+            `${capture} must stay off the public site`,
+        )
+    }
+})

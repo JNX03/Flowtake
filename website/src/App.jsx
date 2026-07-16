@@ -17,6 +17,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 const LEAD_ENDPOINT = import.meta.env.VITE_LEAD_ENDPOINT?.trim() || "";
 const EVENT_ENDPOINT = import.meta.env.VITE_EVENT_ENDPOINT?.trim() || "";
 const CONTACT_EMAIL = "jnxstartup@gmail.com";
+const RELEASE_VERSION = "1.6.0";
+const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
 const assetUrl = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const workflow = [
@@ -239,25 +241,33 @@ export function App() {
             </p>
           </div>
 
-          <div className="hero-visual" aria-label="Flowtake editor showing a technical product recording">
+          <div className="hero-visual" aria-label={`Flowtake v${RELEASE_VERSION} release summary`}>
             <div className="visual-meta">
-              <span>Take 001 · Technical release</span>
-              <span className="visual-status"><i /> In review</span>
+              <span>Published desktop release</span>
+              <span className="visual-status"><i /> Verified</span>
             </div>
-            <figure className="product-frame">
-              <img
-                src={assetUrl("flowtake-editor.jpg")}
-                alt="Flowtake editor with a browser and developer workflow on the stage and a clip on the timeline"
-              />
+            <figure className="product-frame release-frame">
+              <div className="release-product">
+                <img src={assetUrl("logo.png")} alt="" />
+                <div className="release-product-copy">
+                  <span>Free and MIT licensed</span>
+                  <strong>{`Flowtake v${RELEASE_VERSION}`}</strong>
+                  <p>Local recording, an editable timeline, captions, cursor treatment, and MP4 export in the published desktop app.</p>
+                  <a href={RELEASE_URL} target="_blank" rel="noreferrer">
+                    View release assets and checksums
+                    <ArrowRightIcon aria-hidden="true" />
+                  </a>
+                </div>
+              </div>
               <figcaption>
-                <span>Separate the sources</span>
-                <span>Keep the story editable</span>
+                <span>Exact release: July 16, 2026</span>
+                <span>Checksums published</span>
               </figcaption>
             </figure>
-            <div className="source-rail" aria-label="Example capture sources">
-              <span><CodeBracketIcon /> IDE</span>
-              <span><CommandLineIcon /> Terminal</span>
-              <span><WindowIcon /> Browser</span>
+            <div className="source-rail" aria-label="Published platform support">
+              <span><WindowIcon /> Windows</span>
+              <span><CodeBracketIcon /> macOS preview</span>
+              <span><CommandLineIcon /> Linux preview</span>
             </div>
           </div>
         </section>
@@ -291,13 +301,7 @@ export function App() {
           </ol>
         </section>
 
-        <section className="section proof-section">
-          <div className="proof-media">
-            <img
-              src={assetUrl("flowtake-recorder.jpg")}
-              alt="Flowtake recorder previewing a real desktop capture with source and audio controls"
-            />
-          </div>
+        <section className="section proof-section proof-section-copy-only">
           <div className="proof-copy">
             <p className="kicker">Why the capture matters</p>
             <h2>Technical demos break when every scene is flattened too early.</h2>

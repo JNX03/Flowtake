@@ -17,7 +17,6 @@
 
 <p align="center">
   <a href="#60-second-quickstart">Quickstart</a> &bull;
-  <a href="#screenshots">Screenshots</a> &bull;
   <a href="#download-and-platform-status">Downloads</a> &bull;
   <a href="#privacy-and-open-source-boundary">Privacy</a> &bull;
   <a href="#development">Development</a> &bull;
@@ -39,18 +38,6 @@ Flowtake keeps the recording workflow in one desktop app:
 
 The desktop recorder and editor are free to use, inspect, modify, and redistribute under the [MIT License](LICENSE).
 
-## Screenshots
-
-<p align="center">
-  <img src="website/public/assets/flowtake-recorder.jpg" alt="Flowtake recording setup with screen, window, area, camera, microphone, system audio, and quality controls" width="900">
-  <br><em>Choose the source and devices before recording.</em>
-</p>
-
-<p align="center">
-  <img src="website/public/assets/flowtake-editor.jpg" alt="Flowtake editor with video preview, effect controls, and timeline" width="900">
-  <br><em>Edit the capture with visual controls and a multi-track timeline.</em>
-</p>
-
 ## 60-second quickstart
 
 1. Download the build for your OS from the [latest release](https://github.com/JNX03/Flowtake/releases/latest). On Windows, the `x64-setup.exe` is the simplest starting point.
@@ -70,7 +57,7 @@ All published artifacts are on the official [GitHub Releases page](https://githu
 | **macOS 10.15+ Universal** | `.dmg`, portable `.zip` | Preview. Apple Silicon and Intel builds are published; expect rough edges and report reproducible issues. FFmpeg is bundled. |
 | **Linux x64** | `.AppImage`, `.deb`, `.rpm`, portable `.tar.gz` | Preview. Screen capture requires X11 or XWayland; pure Wayland capture is not supported. The `.deb` and `.rpm` declare required system packages. |
 
-> **Platform signing:** the current Windows artifacts are not Authenticode-signed, and the macOS artifacts are not signed with an Apple Developer ID or notarized. SmartScreen or Gatekeeper may warn. Download Flowtake only from this repository's release page, and do not bypass a warning for a copy obtained elsewhere.
+> **Platform signing:** the current Windows artifacts are not Authenticode-signed. The macOS artifacts are ad-hoc signed, not signed with an Apple Developer ID, and not notarized. SmartScreen or Gatekeeper may warn. Download Flowtake only from this repository's release page, and do not bypass a warning for a copy obtained elsewhere.
 
 ## Product highlights
 
