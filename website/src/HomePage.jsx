@@ -41,7 +41,7 @@ const productFeatures = [
   {
     number: "03",
     title: "Export the finished MP4.",
-    body: "Render an MP4 with FFmpeg on your machine. Ordinary projects and exports stay local unless you choose a feature that explicitly uses the network.",
+    body: "Export a local AVC MP4. Mediabunny handles video encoding on your machine; the current edited export is video-only.",
     image: "marketing/local-export.webp",
     alt: "Abstract illustration of a local MP4 export file",
   },

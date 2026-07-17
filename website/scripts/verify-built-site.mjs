@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
+import {
+  extractExportCopyLiterals,
+  findExportTruthViolations,
+} from "./export-truth-guard.mjs";
 
 const comparisonUrl = "https://jnx03.github.io/Flowtake/screen-studio-alternative-windows/";
 const guideUrl = "https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/";
@@ -14,8 +18,26 @@ const [home, comparison, guide, sitemap] = await Promise.all([
   readFile(new URL("developer-tool-demo-storyboard/index.html", distUrl), "utf8"),
   readFile(new URL("sitemap.xml", distUrl), "utf8"),
 ]);
+const assetNames = await readdir(new URL("assets/", distUrl));
+const runtimeSource = (await Promise.all(
+  assetNames
+    .filter((name) => name.endsWith(".js"))
+    .map((name) => readFile(new URL(`assets/${name}`, distUrl), "utf8")),
+)).join("\n");
+const runtimeExportCopy = extractExportCopyLiterals(runtimeSource).join("\n");
+const comparisonFlowtakeCopy = [
+  comparison.match(/<th scope="row">Export<\/th>\s*<td>([\s\S]*?)<\/td>/u)?.[1],
+  comparison.match(/<p class="comparison-card-label">Export<\/p>[\s\S]*?<p>([\s\S]*?)<\/p>/u)?.[1],
+].filter(Boolean).join("\n");
+const storyboardFlowtakeExportCopy = [
+  guide.match(/<h3>Export locally<\/h3>\s*<p class="storyboard-caption">([\s\S]*?)<\/p>/u)?.[1],
+  guide.match(/<h3>Record and edit on the published app\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
+].filter(Boolean).join("\n");
 
 const count = (value, needle) => value.split(needle).length - 1;
+const assertNoUnsupportedExportClaims = (value, label) => {
+  assert.deepEqual(findExportTruthViolations(value), [], `${label} contains a false export claim`);
+};
 const assertPagesRuntimeAssets = (html, label) => {
   assert.match(
     html,
@@ -57,6 +79,13 @@ assert.equal(homeStructuredData["@type"], "SoftwareApplication", "homepage struc
 assert.equal(homeStructuredData.isAccessibleForFree, true, "homepage must preserve the free-app boundary");
 assert.equal(home.includes("VideoObject"), false, "homepage must not claim a finished video");
 assert.equal(home.includes("AggregateRating"), false, "homepage must not claim unverified ratings");
+assert.equal(
+  runtimeSource.includes("Export a local AVC MP4."),
+  true,
+  "built homepage must state the current local AVC MP4 output",
+);
+assert.equal(runtimeSource.includes("Mediabunny handles video encoding on your machine"), true, "built homepage must name the current encoder");
+assert.equal(runtimeSource.includes("the current edited export is video-only"), true, "built homepage must disclose the audio boundary");
 
 assert.equal(comparison.includes("A Screen Studio"), true, "comparison H1 content missing");
 assert.equal(comparison.includes("Where Screen Studio is still stronger"), true, "honesty section missing");
@@ -67,6 +96,11 @@ assert.equal(count(comparison, 'rel="canonical"'), 1, "comparison canonical must
 assert.equal(count(comparison, 'property="og:url"'), 1, "comparison og:url must be unique");
 assert.equal(comparison.includes(`href="${comparisonUrl}"`), true, "comparison canonical is wrong");
 assert.equal(comparison.includes(`content="${comparisonUrl}"`), true, "comparison og:url is wrong");
+assert.equal(
+  comparison.includes("Local AVC MP4 with resolution, 30/60 fps, and quality controls; the current edited output is video-only"),
+  true,
+  "comparison must preserve the implemented output controls and audio boundary",
+);
 
 const jsonLdBlocks = [...comparison.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gu)];
 assert.equal(jsonLdBlocks.length, 1, "comparison must have one JSON-LD block");
@@ -97,6 +131,15 @@ const guideStructuredData = JSON.parse(guideJsonLdBlocks[0][1]);
 assert.equal(guideStructuredData["@type"], "WebPage", "storyboard guide structured data must remain WebPage-only");
 assert.equal(guide.includes("VideoObject"), false, "storyboard guide must not claim video structured data");
 assert.equal(count(sitemap, `<loc>${guideUrl}</loc>`), 1, "storyboard guide sitemap entry must be unique");
+assert.equal(guide.includes("“Export a local MP4.”"), true, "storyboard must keep the factual export caption");
+assert.equal(
+  guide.includes("PixiJS composites the edited frames; Mediabunny encodes and muxes the local AVC MP4."),
+  true,
+  "storyboard must state the current final-export path",
+);
+assert.equal(guide.includes("The edited MP4 currently has no muxed audio."), true, "storyboard must disclose the audio boundary");
+assertNoUnsupportedExportClaims(`${runtimeExportCopy}\n${storyboardFlowtakeExportCopy}`, "built homepage/storyboard copy");
+assertNoUnsupportedExportClaims(comparisonFlowtakeCopy, "built comparison Flowtake copy");
 
 const previewServer = await preview({
   root: fileURLToPath(new URL("../", import.meta.url)),
