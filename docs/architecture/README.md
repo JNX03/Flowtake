@@ -27,7 +27,7 @@ Flowtake uses a hybrid desktop architecture: a **Rust backend** (Tauri v2) for s
 |                       (Tauri Commands)                             |
 |                                                                    |
 +------------------------------------------------------------------+
-|  Redux Toolkit (State)  |  Pixi.js (Render)  |  FFmpeg (Encode)  |
+| Redux Toolkit (State) | Pixi.js (Compose) | Mediabunny (AVC MP4) |
 +------------------------------------------------------------------+
 ```
 
@@ -40,7 +40,7 @@ Flowtake uses a hybrid desktop architecture: a **Rust backend** (Tauri v2) for s
 | **Frontend** | [React 18](https://react.dev/) + [Redux Toolkit](https://redux-toolkit.js.org/) |
 | **Styling** | [TailwindCSS 4](https://tailwindcss.com/) + [DaisyUI 5](https://daisyui.com/) |
 | **Graphics** | [Pixi.js 8](https://pixijs.com/) (2D animation rendering) |
-| **Video Encoding** | [FFmpeg](https://ffmpeg.org/) (bundled sidecar) |
+| **Edited MP4 Encoding** | [Mediabunny](https://mediabunny.dev/) encodes and muxes AVC MP4; FFmpeg remains bundled for capture and native media utilities |
 | **Build Tool** | [Vite 7](https://vite.dev/) |
 | **AI/ML** | [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/guide) + [HuggingFace Transformers](https://huggingface.co/docs/transformers.js) |
 
