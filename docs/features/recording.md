@@ -1,6 +1,6 @@
 # Recording
 
-Flowtake's recording engine captures your screen, camera, and audio simultaneously.
+Flowtake records your screen and optional camera stream for local editing.
 
 <!-- <img src="../screenshots/recorder.png" alt="Flowtake Recorder" width="600"> -->
 
@@ -29,9 +29,14 @@ Camera size, position, and shape (circle/rectangle) are adjustable in the record
 
 ## Audio
 
-- **Microphone** — Capture your voice from any connected microphone
-- **System Audio** — Capture sounds playing on your computer (apps, notifications, music)
-- Both sources can be enabled/disabled independently and mixed during export
+- **Microphone** — Select a connected microphone for supported recording and live workflows
+- **System Audio** — Select a loopback or virtual-audio source when one is available
+
+In Flowtake v1.6.0, these audio sources are **not muxed into the final edited MP4**. The edited MP4 export is currently video-only.
+
+## Edited MP4 Export
+
+The PixiJS render worker composites the edited video frames. Mediabunny encodes and muxes those frames as an AVC MP4, and the native app copies that local `output.mp4` to the selected destination. FFmpeg remains part of recording capture and native media utilities; it does not render the final edited MP4.
 
 ## Multi-Monitor
 

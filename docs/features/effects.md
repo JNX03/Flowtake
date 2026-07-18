@@ -11,20 +11,24 @@ Place images, shapes, and custom elements on top of your video. Each overlay:
 - Can be positioned, scaled, and rotated in the preview
 - Layers above or below other overlays via track order
 
-## Audio Tracks
+## Audio Tracks (Current Export Boundary)
 
-Import external audio files and mix them with your recording:
+Flowtake includes audio-related capture and timeline UI, but the final edited MP4 in v1.6.0 is video-only. Microphone, system-audio, and external-audio tracks are not currently muxed into that export.
 
-- Drag audio files onto the timeline
-- Adjust volume and fade in/out per clip
-- Supports MP3, WAV, and other common formats
+Do not rely on the edited MP4 export to preserve or mix audio.
 
 ## Subtitles & Captions
 
 - Built-in subtitle editor with frame-accurate timing
 - Speech recognition integration for auto-generated captions
 - Font, size, color, and position are fully configurable
-- Export subtitles baked into the video or as a separate `.srt` file
+- Render subtitles into the video frames
+
+Flowtake v1.6.0 does not provide a separate `.srt` export.
+
+## Edited MP4 Pipeline
+
+PixiJS composites the visual timeline in the render worker, and Mediabunny encodes and muxes the final AVC MP4. FFmpeg remains available for recording capture and native media utilities; it does not render the final edited MP4.
 
 ## Masks & Blur
 
