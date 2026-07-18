@@ -157,7 +157,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Local AVC/H.264 MP4 export
 
 ### Clarification
-- Earlier changelog text overstated the shipped output choices. In v1.6.0, Mediabunny encodes and muxes one video-only AVC MP4; the exporter has no H.265/WebM format or hardware-encoder selector.
+- Earlier changelog text overstated the shipped output choices. In v1.6.0, Mediabunny encodes and muxes one video-only AVC MP4; the exporter does not offer H.265 or WebM output and does not expose a hardware-encoder selector.
 
 [Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.4.1...HEAD
 [1.4.1]: https://github.com/JNX03/Flowtake/compare/v1.3.2...v1.4.1
