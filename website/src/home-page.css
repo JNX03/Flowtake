@@ -299,88 +299,8 @@ html:has(.home-page) {
   height: 16px;
 }
 
-.home-page .home-demo {
-  padding: 24px 0 112px;
-}
-
-.home-page .home-demo-theatre {
-  position: relative;
-  min-height: 520px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background: #0a0914;
-  border: 1px solid var(--home-line-strong);
-  border-radius: 14px;
-}
-
-.home-page .home-demo-background {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.home-page .home-demo-copy {
-  position: relative;
-  z-index: 1;
-  max-width: 580px;
-  padding: 80px 30px 92px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.home-page .home-demo-copy > img {
-  width: 54px;
-  height: 54px;
-  margin-bottom: 25px;
-}
-
-.home-page .home-demo-copy > p {
-  margin: 0 0 13px;
-  color: var(--home-violet-soft);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.home-page .home-demo-copy h2 {
-  margin: 0;
-  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(36px, 3.6vw, 50px);
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.04;
-}
-
-.home-page .home-demo-copy > span {
-  max-width: 480px;
-  margin: 18px 0 26px;
-  color: var(--home-muted);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.home-page .home-demo-boundary {
-  position: absolute;
-  z-index: 1;
-  right: 22px;
-  bottom: 17px;
-  left: 22px;
-  margin: 0;
-  color: #8d8998;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-align: center;
-  text-transform: uppercase;
-}
-
 .home-page .home-product {
-  padding: 20px 0 110px;
+  padding: 64px 0 110px;
 }
 
 .home-page .home-section-heading {
@@ -427,41 +347,21 @@ html:has(.home-page) {
   width: min(1060px, 100%);
   margin: 0 auto;
   padding: 0;
-  list-style: none;
-}
-
-.home-page .home-feature-list > li {
-  padding: 25px 0;
   display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
-  align-items: center;
-  gap: clamp(50px, 8vw, 120px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
   border-top: 1px solid var(--home-line);
-}
-
-.home-page .home-feature-list > li:last-child {
   border-bottom: 1px solid var(--home-line);
 }
 
-.home-page .home-feature-list figure {
-  margin: 0;
+.home-page .home-feature-list > li {
+  min-width: 0;
+  padding: 32px;
+  border-right: 1px solid var(--home-line);
 }
 
-.home-page .home-feature-list figure img {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  background: var(--home-surface);
-  border: 1px solid var(--home-line-strong);
-  border-radius: 10px;
-}
-
-.home-page .home-feature-list figcaption {
-  margin-top: 9px;
-  color: var(--home-dim);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.home-page .home-feature-list > li:last-child {
+  border-right: 0;
 }
 
 .home-page .home-feature-copy > span {
@@ -474,7 +374,7 @@ html:has(.home-page) {
 .home-page .home-feature-copy h3 {
   margin: 12px 0 14px;
   font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
-  font-size: clamp(32px, 3.4vw, 44px);
+  font-size: clamp(25px, 2.4vw, 34px);
   font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1.1;
@@ -948,12 +848,17 @@ html:has(.home-page) {
     margin-top: 0;
   }
 
-  .home-page .home-demo {
-    padding-top: 10px;
+  .home-page .home-feature-list {
+    grid-template-columns: 1fr;
   }
 
   .home-page .home-feature-list > li {
-    gap: 52px;
+    border-right: 0;
+    border-bottom: 1px solid var(--home-line);
+  }
+
+  .home-page .home-feature-list > li:last-child {
+    border-bottom: 0;
   }
 
   .home-page .home-fact-band {
@@ -1080,27 +985,6 @@ html:has(.home-page) {
     font-size: 12px;
   }
 
-  .home-page .home-demo {
-    padding-bottom: 86px;
-  }
-
-  .home-page .home-demo-theatre {
-    min-height: 540px;
-  }
-
-  .home-page .home-demo-copy {
-    padding: 78px 22px 110px;
-  }
-
-  .home-page .home-demo-copy h2 {
-    font-size: 40px;
-  }
-
-  .home-page .home-demo-boundary {
-    bottom: 16px;
-    line-height: 1.55;
-  }
-
   .home-page .home-product {
     padding-bottom: 86px;
   }
@@ -1117,8 +1001,16 @@ html:has(.home-page) {
 
   .home-page .home-feature-list > li {
     padding: 34px 0 40px;
+    border-right: 0;
+    border-bottom: 1px solid var(--home-line);
+  }
+
+  .home-page .home-feature-list > li:last-child {
+    border-bottom: 0;
+  }
+
+  .home-page .home-feature-list {
     grid-template-columns: 1fr;
-    gap: 26px;
   }
 
   .home-page .home-feature-copy h3 {

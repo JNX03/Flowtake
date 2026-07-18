@@ -21,7 +21,7 @@ test("AppAndService keeps the free app complete and the paid human service separ
     "Release Studio is an optional human production service at $99/month during the founding pilot.",
     "4 short demo packages each paid month",
     "A 16:9 master + social cutdown for each demo",
-    "Human polish for pacing, captions, cursor treatment, and cleanup",
+    "Human editing for pacing, captions, cursor treatment, and cleanup",
     "Private review + one focused revision",
     "Release Studio unlocks no Flowtake app features.",
     "Need an editor too?",
@@ -30,7 +30,9 @@ test("AppAndService keeps the free app complete and the paid human service separ
     "The complete MIT-licensed app",
     "A human editor works from your approved brief and sanitized capture",
     "first cut within 3 business days after usable inputs",
-    "Studio adds an editor and finished launch assets, not software access.",
+    "Use Flowtake yourself, or hire an editor.",
+    "Release Studio covers human editing and delivery. It does not change the software.",
+    "Compare Windows recording workflows",
     'app-and-service__sr-only">Flowtake app:',
     'app-and-service__sr-only">With Release Studio:',
   ]) {
@@ -44,6 +46,9 @@ test("AppAndService keeps the free app complete and the paid human service separ
   assert.equal(component.includes("onClick={onDownload}"), true);
   assert.equal(component.includes("onClick={onGitHub}"), true);
   assert.equal(component.includes("onClick={onRequestStudio}"), true);
+  assert.equal(component.includes("Human polish"), false);
+  assert.equal(component.includes("Compare with Screen Studio on Windows"), false);
+  assert.equal(component.includes("app-and-service__final-boundary"), false);
   assert.equal(component.includes("<section"), true);
   assert.equal(component.match(/<article/gu)?.length, 2);
   assert.equal(component.indexOf("app-and-service__panel--app") < component.indexOf("app-and-service__panel--service"), true);

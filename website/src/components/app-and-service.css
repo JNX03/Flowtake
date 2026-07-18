@@ -285,15 +285,6 @@
   border-left: 1px solid var(--home-line, rgba(244, 241, 232, 0.12));
 }
 
-.app-and-service__final-boundary {
-  margin: 18px 0 0;
-  padding-left: 15px;
-  color: var(--home-muted, #aaa7b4);
-  border-left: 3px solid #7562df;
-  font-size: 12px;
-  line-height: 1.7;
-}
-
 .app-and-service__sr-only {
   position: absolute;
   width: 1px;

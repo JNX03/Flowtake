@@ -171,7 +171,8 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
     "error && fallbackAllowed && briefText",
     "Private request reference — do not post publicly",
     "setLeadReference(result.id)",
-    "Direct email response is still being verified",
+    "do not send private footage by email",
+    "only for public, non-sensitive requests",
   ]) {
     assert.equal(source.includes(required), true, `missing ${required}`);
   }
@@ -188,13 +189,14 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
 
 test("the hero leads with the free product and keeps Release Studio secondary", async () => {
   const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
-  const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-demo home-section"'));
+  const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-product home-section"'));
   const downloadIndex = hero.indexOf("Download for Windows");
   const workflowIndex = hero.indexOf("See how Flowtake works");
   const productIndex = source.indexOf('<section className="home-product home-section"');
   const serviceIndex = source.indexOf("<AppAndService");
 
-  assert.equal(hero.includes("Create polished screen demos on Windows."), true);
+  assert.equal(hero.includes("Record, edit, and export screen demos on Windows."), true);
+  assert.equal(hero.includes("Create polished screen demos on Windows."), false);
   assert.equal(hero.includes("cursor-driven zooms"), true);
   assert.equal(hero.includes("$99"), false);
   assert.equal(hero.includes("Four 30–90 second demos"), false);
@@ -214,10 +216,10 @@ test("the hero leads with the free product and keeps Release Studio secondary", 
   assert.equal(metadata.includes("$99/month Release Studio"), false);
 });
 
-test("the homepage proof uses three truthful product beats and no fake demo", async () => {
+test("the homepage uses three truthful product beats without placeholder product evidence", async () => {
   const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
   const features = source.slice(source.indexOf("const productFeatures = ["), source.indexOf("const productFacts = ["));
-  const proof = source.slice(source.indexOf('<section className="home-demo home-section"'), source.indexOf('<section className="home-fact-band home-section"'));
+  const proof = source.slice(source.indexOf('<section className="home-product home-section"'), source.indexOf('<section className="home-fact-band home-section"'));
 
   assert.equal((features.match(/number: "0[1-3]"/gu) || []).length, 3);
   for (const required of [
@@ -228,17 +230,21 @@ test("the homepage proof uses three truthful product beats and no fake demo", as
     assert.equal(features.includes(required), true, `missing product beat: ${required}`);
   }
 
-  for (const required of [
+  for (const prohibited of [
+    'href="#demo"',
     "Real demo queued for isolated capture",
-    "Concept frame—not product footage, customer work, or a finished video.",
-    "Concept illustration—not product footage.",
-    "developer-tool-demo-storyboard/",
+    "The 42-second plan is ready.",
+    "isolated-session privacy review",
+    "Concept frame",
+    "Concept illustration",
+    "marketing/demo-theatre-background.webp",
   ]) {
-    assert.equal(source.includes(required), true, `missing proof boundary: ${required}`);
+    assert.equal(source.includes(prohibited), false, `placeholder evidence remains: ${prohibited}`);
   }
   assert.equal(proof.includes("productFeatures.map"), true);
-  assert.equal(proof.includes("marketing/demo-theatre-background.webp"), true);
+  assert.equal(features.includes("image:"), false);
   assert.equal(features.includes("completed MP4"), false);
+  assert.equal(proof.includes("<img"), false);
   assert.equal(proof.includes("<video"), false);
   assert.equal(proof.includes("<canvas"), false);
   assert.equal(source.includes("customer logo"), false);

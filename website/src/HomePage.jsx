@@ -28,22 +28,16 @@ const productFeatures = [
     number: "01",
     title: "Choose what to capture.",
     body: "Record an IDE, terminal, browser, full screen, or selected area. Keep the frame on the work you actually need to explain.",
-    image: "marketing/capture-window.webp",
-    alt: "Abstract illustration of a window capture selection",
   },
   {
     number: "02",
     title: "Edit the recording.",
     body: "Trim, split, reorder, and refine the take without flattening it. Add captions, zoom, cursor treatment, or redaction where the explanation needs help.",
-    image: "marketing/timeline-edit.webp",
-    alt: "Abstract illustration of editable video clips and a timeline playhead",
   },
   {
     number: "03",
     title: "Export the finished MP4.",
     body: "Export a local AVC MP4. Mediabunny handles video encoding on your machine; the current edited export is video-only.",
-    image: "marketing/local-export.webp",
-    alt: "Abstract illustration of a local MP4 export file",
   },
 ];
 
@@ -143,7 +137,6 @@ export function HomePage() {
 
         <nav className="home-desktop-nav" aria-label="Primary navigation">
           <a href="#product">Product</a>
-          <a href="#demo">Demo</a>
           <a href="#open-source-vs-studio">Open source vs Studio</a>
           <a href="#faq">FAQ</a>
         </nav>
@@ -182,7 +175,6 @@ export function HomePage() {
         {mobileOpen && (
           <nav className="home-mobile-nav" id="home-mobile-navigation" aria-label="Mobile navigation">
             <a href="#product" onClick={() => setMobileOpen(false)}>Product</a>
-            <a href="#demo" onClick={() => setMobileOpen(false)}>Demo</a>
             <a href="#open-source-vs-studio" onClick={() => setMobileOpen(false)}>Open source vs Studio</a>
             <a href="#faq" onClick={() => setMobileOpen(false)}>FAQ</a>
             <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
@@ -195,7 +187,7 @@ export function HomePage() {
         <section className="home-hero home-section" id="top">
           <div className="home-hero-copy">
             <p className="home-chip">Open-source Windows recorder and editor</p>
-            <h1>Create polished screen demos on Windows.</h1>
+            <h1>Record, edit, and export screen demos on Windows.</h1>
             <p className="home-hero-lede">
               Capture a screen, window, or area. Flowtake adds cursor-driven zooms, lets you edit on a timeline, and exports MP4 locally.
             </p>
@@ -243,35 +235,6 @@ export function HomePage() {
           </aside>
         </section>
 
-        <section className="home-demo home-section" id="demo" aria-labelledby="demo-title">
-          <div className="home-demo-theatre">
-            <img
-              className="home-demo-background"
-              src={assetUrl("marketing/demo-theatre-background.webp")}
-              alt=""
-              aria-hidden="true"
-              decoding="async"
-            />
-            <div className="home-demo-copy">
-              <img src={assetUrl("logo.svg")} alt="" />
-              <p>Real demo queued for isolated capture</p>
-              <h2 id="demo-title">The 42-second plan is ready.</h2>
-              <span>
-                The recorded Flowtake footage will replace this frame only after an isolated-session privacy review.
-              </span>
-              <a
-                className="home-button home-button-secondary"
-                href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}
-              >
-                View the capture plan <ArrowRightIcon aria-hidden="true" />
-              </a>
-            </div>
-            <p className="home-demo-boundary">
-              Concept frame—not product footage, customer work, or a finished video.
-            </p>
-          </div>
-        </section>
-
         <section className="home-product home-section" id="product" aria-labelledby="product-title">
           <header className="home-section-heading">
             <p>How it works</p>
@@ -280,12 +243,8 @@ export function HomePage() {
           </header>
 
           <ol className="home-feature-list">
-            {productFeatures.map(({ number, title, body, image, alt }) => (
+            {productFeatures.map(({ number, title, body }) => (
               <li key={number}>
-                <figure>
-                  <img src={assetUrl(image)} alt={alt} loading="lazy" decoding="async" />
-                  <figcaption>Concept illustration—not product footage.</figcaption>
-                </figure>
                 <div className="home-feature-copy">
                   <span>{number}</span>
                   <h3>{title}</h3>
@@ -340,7 +299,7 @@ export function HomePage() {
             <details id="data-handling">
               <summary>Content, IP, and file handling <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>Never submit credentials, customer data, private repositories, or production access. Customer footage is accepted only through an approved access-controlled path—not the current VPS—and working copies are deleted within 30 days after delivery unless a shorter period is agreed.</p>
+                <p>Never submit credentials, customer data, private repositories, or production access. Customer footage is accepted only through an access-controlled transfer method agreed before work begins. Working copies are deleted within 30 days after delivery unless a shorter period is agreed.</p>
                 <p>After payment, the customer owns the custom delivered master and cutdown. Flowtake retains its MIT app and pre-existing templates. Nothing enters a public portfolio without written permission.</p>
               </div>
             </details>
@@ -349,12 +308,12 @@ export function HomePage() {
               <div>
                 <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service. Lead records are encrypted at rest and declined or inactive leads are deleted within 90 days.</p>
                 <p>This page sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count—not event details, page URLs, device identifiers, or form content. IP addresses are used only in server memory for abuse-rate limiting. No nonessential cookies are used.</p>
-                <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. Direct email response is still being verified; the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> is currently reply-capable. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
+                <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, but do not send private footage by email. Use the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> only for public, non-sensitive requests. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
               </div>
             </details>
           </div>
           <p className="home-trust-status">
-            <LockClosedIcon aria-hidden="true" /> Checkout remains disabled until the secure review path and final contracting details are verified.
+            <LockClosedIcon aria-hidden="true" /> Checkout is not available. Scope, identity, delivery, and payment terms are confirmed in writing before any payment request.
           </p>
         </section>
 

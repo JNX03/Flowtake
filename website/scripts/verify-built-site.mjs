@@ -118,6 +118,16 @@ assert.equal(
   "storyboard copy privacy boundary missing",
 );
 assert.equal(guide.includes("Pre-production example—not customer work or a finished video"), true, "storyboard truth boundary missing");
+assert.doesNotMatch(
+  guide,
+  /\b(?:through|until|by|ends?|expires?)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?,\s+20\d{2}\b/iu,
+  "storyboard guide must not publish a fixed natural-language offer deadline",
+);
+assert.equal(
+  guide.includes("Maintainers can bring one complete public developer-tool workflow to the public clinic and request a no-obligation storyboard."),
+  true,
+  "storyboard guide must keep the approved evergreen public-workflow request",
+);
 assert.equal(count(guide, "<title>"), 1, "storyboard guide title must be unique");
 assert.equal(count(guide, 'name="description"'), 1, "storyboard guide description must be unique");
 assert.equal(count(guide, 'rel="canonical"'), 1, "storyboard guide canonical must be unique");

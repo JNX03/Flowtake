@@ -168,6 +168,37 @@ test("storyboard guide includes six copyable beats and truthful boundaries", asy
   assert.equal(page.includes("<canvas"), false);
 });
 
+test("the public storyboard offer is evergreen and keeps its public-workflow boundary", async () => {
+  const [page, readme] = await Promise.all([
+    source("../developer-tool-demo-storyboard/index.html"),
+    source("../../README.md"),
+  ]);
+  const finalCtaStart = page.indexOf('<section class="section final-cta comparison-final-cta guide-final-cta">');
+  const finalCta = page.slice(finalCtaStart, page.indexOf("</section>", finalCtaStart));
+  const studioStart = readme.indexOf("## Optional: Release Studio");
+  const readmeStudioSection = readme.slice(studioStart, readme.indexOf("## Development", studioStart));
+  const fixedOfferDeadline =
+    /\b(?:through|until|by|ends?|expires?)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?,\s+20\d{2}\b/iu;
+
+  assert.ok(finalCtaStart >= 0, "missing storyboard final call to action");
+  assert.ok(studioStart >= 0, "missing README Release Studio section");
+  assert.doesNotMatch(finalCta, fixedOfferDeadline);
+  assert.doesNotMatch(readmeStudioSection, fixedOfferDeadline);
+  assert.equal(`${finalCta}\n${readmeStudioSection}`.includes("July 23, 2026"), false);
+  assert.equal(
+    finalCta.includes("Maintainers can bring one complete public developer-tool workflow to the public clinic and request a no-obligation storyboard."),
+    true,
+  );
+  assert.equal(
+    readmeStudioSection.includes("Maintainers can request a no-obligation six-beat storyboard by"),
+    true,
+  );
+  assert.equal(
+    readmeStudioSection.includes("Requests must contain only public, non-sensitive information."),
+    true,
+  );
+});
+
 test("storyboard guide is linked, copy-enabled, and listed once in the sitemap", async () => {
   const [app, comparison, readme, enhancements, sitemap] = await Promise.all([
     source("./HomePage.jsx"),

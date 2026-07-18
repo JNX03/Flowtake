@@ -56,21 +56,21 @@ The independent review raised the small-print contrast token from `#777482` to `
 - Typography: passed. Display hierarchy, serif/sans contrast, line length, weight, and mobile scaling match the selected direction.
 - Spacing and layout: passed. No clipped sections, overlapping controls, or unexplained white gaps were found at desktop or 390 px mobile.
 - Color and borders: passed. The near-black canvas, soft violet surfaces, restrained borders, and muted secondary text are consistent with the source.
-- Image fidelity: passed. Generated raster assets fit their measured slots and carry explicit concept labels. No placeholder boxes, CSS drawings, or fake product screenshots are presented as evidence.
+- Image fidelity: passed for the current truthful no-demo state. The homepage does not present generated scenes, placeholder boxes, or fake product screenshots as product evidence.
 - Copy and content: passed. The free MIT app is the primary story and CTA. The optional $99/month service appears only after product proof. Platform, signing, privacy, recurring-billing, and checkout boundaries remain visible.
 - Responsiveness: passed. At 390 CSS px, `documentElement.scrollWidth` equaled its 375 px content width; there was no horizontal overflow. Hero buttons, release card, menu, and product rows remained usable.
-- Interactions: passed. A real scoped `Demo` anchor click, mobile menu open/close, Escape close, intake-dialog initial focus, focus trap, backdrop/Escape close, form labels, and focus restoration were exercised in Chrome.
+- Interactions: passed. Mobile menu open/close, Escape close, intake-dialog initial focus, focus trap, backdrop/Escape close, form labels, and focus restoration were exercised in Chrome.
 - Accessibility structure: passed for this build review. The page retains a skip link, one `h1`, sequential section headings, semantic landmarks, visible focus states, native FAQ disclosure controls, reduced-motion handling, and explicit form status/error regions.
 - Shared-route regression: passed. The Screen Studio comparison and developer-tool storyboard routes rendered at desktop and 390 px mobile with no horizontal overflow, failed images, or page-origin console warnings/errors.
 
 ## Intentional truth-preserving differences
 
-- The source's `Watch the 42-second demo` control is implemented as `View the 42-second demo plan` until real isolated-session footage exists.
-- The hero uses the published v1.6.0 release and checksum link instead of implying that a concept frame is recorded product footage.
-- Every generated product scene is labeled as a concept illustration, not customer work or a finished video.
+- No demo control or product-media theatre is shown until genuine isolated-session footage exists.
+- The hero uses the published v1.6.0 release and checksum link as current product evidence.
+- Record, Edit, and Export are presented as factual text summaries, not generated screenshots.
 
 ## Remaining P3 follow-up
 
-- Replace the labeled concept frames with privacy-reviewed real Flowtake footage after the isolated demo-capture environment passes its release and security checks.
+- Add privacy-reviewed real Flowtake footage after the isolated demo-capture environment passes its release and security checks.
 
 final result: passed

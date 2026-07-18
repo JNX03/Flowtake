@@ -109,7 +109,7 @@ Teams that want human-assisted production for a technical launch can visit [Flow
 
 Maintainers planning their own release can use the free [six-beat developer-tool demo storyboard template](https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/) before recording. The guide includes a copyable brief, safe-capture exclusions, and a clearly labelled Flowtake v1.6.0 pre-production example.
 
-Through July 23, 2026, Flowtake will publicly reply with a no-obligation six-beat storyboard to up to the first three maintainers who [share a complete, publicly documented developer-tool workflow](https://github.com/JNX03/Flowtake/discussions/169). No separate Flowtake signup, footage, or payment is required.
+Maintainers can request a no-obligation six-beat storyboard by [sharing one complete, publicly documented developer-tool workflow](https://github.com/JNX03/Flowtake/discussions/169). Requests must contain only public, non-sensitive information. No separate Flowtake signup, footage, or payment is required.
 
 ## Development
 

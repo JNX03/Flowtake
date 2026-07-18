@@ -13,7 +13,7 @@ const appFeatures = [
 const studioDeliverables = [
   "4 short demo packages each paid month",
   "A 16:9 master + social cutdown for each demo",
-  "Human polish for pacing, captions, cursor treatment, and cleanup",
+  "Human editing for pacing, captions, cursor treatment, and cleanup",
   "Private review + one focused revision",
 ];
 
@@ -56,8 +56,8 @@ export function AppAndService({
     <section className="app-and-service" id={id} aria-labelledby={sectionTitleId}>
       <header className="app-and-service__intro">
         <p className="app-and-service__eyebrow">Open-source software and optional editing help</p>
-        <h2 id={sectionTitleId}>Use Flowtake yourself, or have us finish the demos.</h2>
-        <p>Release Studio does not unlock premium Flowtake features. You are paying for human production work.</p>
+        <h2 id={sectionTitleId}>Use Flowtake yourself, or hire an editor.</h2>
+        <p>Release Studio covers human editing and delivery. It does not change the software.</p>
       </header>
 
       <div className="app-and-service__options">
@@ -103,7 +103,7 @@ export function AppAndService({
             </a>
             {comparisonUrl && (
               <a className="app-and-service__source-link" href={comparisonUrl}>
-                Compare with Screen Studio on Windows
+                Compare Windows recording workflows
               </a>
             )}
           </div>
@@ -169,9 +169,6 @@ export function AppAndService({
         </dl>
       </div>
 
-      <p className="app-and-service__final-boundary">
-        The same free MIT-licensed Flowtake app is available to everyone. Studio adds an editor and finished launch assets, not software access.
-      </p>
     </section>
   );
 }
