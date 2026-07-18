@@ -13,7 +13,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { BriefDialog } from "./BriefDialog.jsx";
 import { AppAndService } from "./components/AppAndService.jsx";
+import {
+  ReviewedDemoShowcase,
+  ReviewedHeroVideo,
+} from "./components/ReviewedDemoMedia.jsx";
 import { sendEvent } from "./intake.js";
+import { hasReviewedDemoMedia } from "./reviewedDemoMedia.js";
 
 const CONTACT_EMAIL = "jnxstartup@gmail.com";
 const RELEASE_VERSION = "1.6.0";
@@ -122,6 +127,8 @@ export function HomePage() {
   }, [mobileOpen]);
 
   const backgroundState = briefOpen ? { inert: true, "aria-hidden": "true" } : {};
+  const productEvidenceTarget = hasReviewedDemoMedia ? "#demo" : "#product";
+  const productEvidenceLabel = hasReviewedDemoMedia ? "Watch the real demo" : "See how Flowtake works";
 
   return (
     <div className="site-shell home-page">
@@ -137,6 +144,7 @@ export function HomePage() {
 
         <nav className="home-desktop-nav" aria-label="Primary navigation">
           <a href="#product">Product</a>
+          {hasReviewedDemoMedia && <a href={productEvidenceTarget}>Demo</a>}
           <a href="#open-source-vs-studio">Open source vs Studio</a>
           <a href="#faq">FAQ</a>
         </nav>
@@ -175,6 +183,7 @@ export function HomePage() {
         {mobileOpen && (
           <nav className="home-mobile-nav" id="home-mobile-navigation" aria-label="Mobile navigation">
             <a href="#product" onClick={() => setMobileOpen(false)}>Product</a>
+            {hasReviewedDemoMedia && <a href={productEvidenceTarget} onClick={() => setMobileOpen(false)}>Demo</a>}
             <a href="#open-source-vs-studio" onClick={() => setMobileOpen(false)}>Open source vs Studio</a>
             <a href="#faq" onClick={() => setMobileOpen(false)}>FAQ</a>
             <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
@@ -202,8 +211,8 @@ export function HomePage() {
                 <ArrowDownTrayIcon aria-hidden="true" />
                 Download for Windows
               </a>
-              <a className="home-button home-button-secondary" href="#product">
-                See how Flowtake works
+              <a className="home-button home-button-secondary" href={productEvidenceTarget}>
+                {productEvidenceLabel}
               </a>
             </div>
             <p className="home-platform-line">
@@ -212,28 +221,34 @@ export function HomePage() {
             </p>
           </div>
 
-          <aside className="home-release-card" aria-label={`Flowtake v${RELEASE_VERSION} published release`}>
-            <div className="home-release-meta">
-              <span>Published desktop release</span>
-              <span><CheckBadgeIcon aria-hidden="true" /> July 16, 2026</span>
-            </div>
-            <div className="home-release-main">
-              <img src={assetUrl("logo.png")} alt="" />
-              <div>
-                <p>Free and MIT licensed</p>
-                <h2>
-                  Flowtake
-                  <br />
-                  {`v${RELEASE_VERSION}`}
-                </h2>
-                <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export.</span>
+          {hasReviewedDemoMedia ? (
+            <ReviewedHeroVideo />
+          ) : (
+            <aside className="home-release-card" aria-label={`Flowtake v${RELEASE_VERSION} published release`}>
+              <div className="home-release-meta">
+                <span>Published desktop release</span>
+                <span><CheckBadgeIcon aria-hidden="true" /> July 16, 2026</span>
               </div>
-            </div>
-            <a href={RELEASE_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>
-              Release assets and checksums <ArrowRightIcon aria-hidden="true" />
-            </a>
-          </aside>
+              <div className="home-release-main">
+                <img src={assetUrl("logo.png")} alt="" />
+                <div>
+                  <p>Free and MIT licensed</p>
+                  <h2>
+                    Flowtake
+                    <br />
+                    {`v${RELEASE_VERSION}`}
+                  </h2>
+                  <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export.</span>
+                </div>
+              </div>
+              <a href={RELEASE_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>
+                Release assets and checksums <ArrowRightIcon aria-hidden="true" />
+              </a>
+            </aside>
+          )}
         </section>
+
+        <ReviewedDemoShowcase />
 
         <section className="home-product home-section" id="product" aria-labelledby="product-title">
           <header className="home-section-heading">
@@ -303,7 +318,7 @@ export function HomePage() {
                 <p>After payment, the customer owns the custom delivered master and cutdown. Flowtake retains its MIT app and pre-existing templates. Nothing enters a public portfolio without written permission.</p>
               </div>
             </details>
-            <details id="privacy">
+            <details id="privacy" open>
               <summary>Privacy and business contact <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
                 <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service. Lead records are encrypted at rest and declined or inactive leads are deleted within 90 days.</p>

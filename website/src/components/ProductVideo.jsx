@@ -44,11 +44,7 @@ export function ProductVideo({
   };
 
   if (!hasSource) {
-    return (
-      <p className="product-video__error" id={id} role="status">
-        Product footage is not available.
-      </p>
-    );
+    return null;
   }
 
   if (failed) {

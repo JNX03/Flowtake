@@ -7,10 +7,27 @@ import {
   extractExportCopyLiterals,
   findExportTruthViolations,
 } from "./export-truth-guard.mjs";
+import { verifyReviewedDemoMediaTree } from "./verify-reviewed-demo-media.mjs";
 
 const comparisonUrl = "https://jnx03.github.io/Flowtake/screen-studio-alternative-windows/";
 const guideUrl = "https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/";
 const distUrl = new URL("../dist/", import.meta.url);
+const sourceReviewedDemo = await verifyReviewedDemoMediaTree({
+  publicRootUrl: new URL("../public/assets/product-media/public/", import.meta.url),
+});
+const builtReviewedDemo = await verifyReviewedDemoMediaTree({
+  publicRootUrl: new URL("../dist/assets/product-media/public/", import.meta.url),
+});
+assert.equal(
+  builtReviewedDemo.active,
+  sourceReviewedDemo.active,
+  "built reviewed-demo activation must match the source publication manifest",
+);
+assert.deepEqual(
+  builtReviewedDemo.assetPaths,
+  sourceReviewedDemo.assetPaths,
+  "built reviewed-demo assets must exactly match the verified source tree",
+);
 
 const [home, comparison, guide, sitemap] = await Promise.all([
   readFile(new URL("index.html", distUrl), "utf8"),
@@ -24,7 +41,12 @@ const runtimeSource = (await Promise.all(
     .filter((name) => name.endsWith(".js"))
     .map((name) => readFile(new URL(`assets/${name}`, distUrl), "utf8")),
 )).join("\n");
-const runtimeExportCopy = extractExportCopyLiterals(runtimeSource).join("\n");
+const homeRuntimeSource = (await Promise.all(
+  assetNames
+    .filter((name) => name.startsWith("home-") && name.endsWith(".js"))
+    .map((name) => readFile(new URL(`assets/${name}`, distUrl), "utf8")),
+)).join("\n");
+const runtimeExportCopy = extractExportCopyLiterals(homeRuntimeSource).join("\n");
 const comparisonFlowtakeCopy = [
   comparison.match(/<th scope="row">Export<\/th>\s*<td>([\s\S]*?)<\/td>/u)?.[1],
   comparison.match(/<p class="comparison-card-label">Export<\/p>[\s\S]*?<p>([\s\S]*?)<\/p>/u)?.[1],
@@ -186,6 +208,16 @@ try {
   );
   for (const [assetPath, response] of runtimeAssetResponses) {
     assert.equal(response.status, 200, `preview asset must load: ${assetPath}`);
+  }
+
+  const reviewedDemoResponses = await Promise.all(
+    builtReviewedDemo.pagesPaths.map(async (assetPath) => [
+      assetPath,
+      await fetch(`${previewOrigin}${assetPath}`),
+    ]),
+  );
+  for (const [assetPath, response] of reviewedDemoResponses) {
+    assert.equal(response.status, 200, `preview reviewed demo asset must load: ${assetPath}`);
   }
 
   assert.equal(

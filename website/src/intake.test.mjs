@@ -173,6 +173,7 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
     "setLeadReference(result.id)",
     "do not send private footage by email",
     "only for public, non-sensitive requests",
+    '<details id="privacy" open>',
   ]) {
     assert.equal(source.includes(required), true, `missing ${required}`);
   }
@@ -191,13 +192,17 @@ test("the hero leads with the free product and keeps Release Studio secondary", 
   const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
   const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-product home-section"'));
   const downloadIndex = hero.indexOf("Download for Windows");
-  const workflowIndex = hero.indexOf("See how Flowtake works");
+  const workflowIndex = hero.indexOf("{productEvidenceLabel}");
   const productIndex = source.indexOf('<section className="home-product home-section"');
   const serviceIndex = source.indexOf("<AppAndService");
 
   assert.equal(hero.includes("Record, edit, and export screen demos on Windows."), true);
   assert.equal(hero.includes("Create polished screen demos on Windows."), false);
   assert.equal(hero.includes("cursor-driven zooms"), true);
+  assert.equal(
+    source.includes('const productEvidenceLabel = hasReviewedDemoMedia ? "Watch the real demo" : "See how Flowtake works";'),
+    true,
+  );
   assert.equal(hero.includes("$99"), false);
   assert.equal(hero.includes("Four 30–90 second demos"), false);
   assert.ok(downloadIndex >= 0 && downloadIndex < workflowIndex, "free download must be the first hero CTA");

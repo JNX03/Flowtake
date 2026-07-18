@@ -3,9 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("genuine product media components are accessible, data-driven, and never simulate footage", async () => {
-  const [video, showcase, styles] = await Promise.all([
+  const [video, showcase, reviewed, manifest, home, styles] = await Promise.all([
     readFile(new URL("./components/ProductVideo.jsx", import.meta.url), "utf8"),
     readFile(new URL("./components/FeatureShowcase.jsx", import.meta.url), "utf8"),
+    readFile(new URL("./components/ReviewedDemoMedia.jsx", import.meta.url), "utf8"),
+    readFile(new URL("./reviewedDemoMedia.js", import.meta.url), "utf8"),
+    readFile(new URL("./HomePage.jsx", import.meta.url), "utf8"),
     readFile(new URL("./components/product-media.css", import.meta.url), "utf8"),
   ]);
 
@@ -26,6 +29,8 @@ test("genuine product media components are accessible, data-driven, and never si
   ]) {
     assert.equal(`${video}\n${styles}`.includes(required), true, `missing media requirement: ${required}`);
   }
+  assert.equal(video.includes("if (!hasSource)"), true);
+  assert.equal(video.includes("Product footage is not available."), false);
 
   for (const required of [
     "group.features",
@@ -49,4 +54,44 @@ test("genuine product media components are accessible, data-driven, and never si
   assert.equal(styles.includes("object-fit: cover"), false);
   assert.equal(video.includes("Use the video controls or download link"), false);
   assert.equal(video.includes('label="English" default'), false);
+
+  for (const required of [
+    "if (!hasReviewedDemoMedia) return null;",
+    "reviewedDemoMedia.master",
+    "reviewedDemoMedia.features.map",
+    "downloadSrc: assetUrl(entry.media.mp4)",
+    "captionsSrc: assetUrl(entry.media.captions)",
+    "loop={false}",
+  ]) {
+    assert.equal(reviewed.includes(required), true, `missing reviewed-media gate: ${required}`);
+  }
+  assert.equal((reviewed.match(/if \(!hasReviewedDemoMedia\) return null;/gu) || []).length, 2);
+  assert.equal(reviewed.includes("placeholder"), false);
+  assert.equal(reviewed.includes("concept"), false);
+
+  for (const required of [
+    "export const reviewedDemoMediaCandidate = null;",
+    "status !== \"APPROVED_PUBLIC\"",
+    "privacyReview !== \"PASS\"",
+    "truthReview !== \"PASS\"",
+    "secondReview !== \"PASS\"",
+    "product-media/public/",
+    "raw|source|master|private|manifest|contact-sheet|unreviewed|do-not-publish",
+  ]) {
+    assert.equal(manifest.includes(required), true, `missing fail-closed manifest rule: ${required}`);
+  }
+
+  for (const required of [
+    "hasReviewedDemoMedia ? \"#demo\" : \"#product\"",
+    "hasReviewedDemoMedia && <a href={productEvidenceTarget}>Demo</a>",
+    "hasReviewedDemoMedia ? (",
+    "<ReviewedHeroVideo />",
+    "<ReviewedDemoShowcase />",
+  ]) {
+    assert.equal(home.includes(required), true, `missing homepage media gate: ${required}`);
+  }
+  assert.equal(home.includes("Real demo queued for isolated capture"), false);
+  assert.equal(home.includes("The 42-second plan is ready."), false);
+  assert.equal(home.includes("Concept frame"), false);
+  assert.equal(home.includes("Concept illustration"), false);
 });
