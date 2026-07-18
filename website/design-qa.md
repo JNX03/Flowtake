@@ -1,76 +1,55 @@
 # Flowtake marketing-site design QA
 
-## Review target
+## Current review target
 
-- Selected source: `design-evidence/selected-option-product-cinema.png`
-- Implementation: local Vite homepage at `http://127.0.0.1:4173/`
-- Browser: the user's Chrome session
-- Desktop viewport: 1440 CSS px wide; captured content area 1425 x 757 px
-- Mobile viewport: 390 x 844 CSS px; captured content area 375 x 812 px
-- State: default homepage, demo section, product section, service section, intake dialog, and mobile menu
+- Branch: `feature/product-site-v2`
+- Reviewed commit: `586d3c390e0f09a45e84ae2607977637cb256f16`
+- Local Pages preview: `http://127.0.0.1:4174/Flowtake/`
+- Viewports exercised: 1440, 941, 940, 700, and 390 CSS px
+- Routes exercised: homepage, Screen Studio comparison, and developer-tool storyboard
+- State exercised: default homepage, mobile menu, request dialog, and open privacy disclosure
 
-## Comparison evidence
+## Truth boundary
 
-The source and implementation were placed into the same image before each visual judgment.
+This branch intentionally renders no product video, Demo navigation item, demo CTA, product-media theatre, generated screenshot, or placeholder while the reviewed-media manifest is inactive. The hero uses the published v1.6.0 release as the current product evidence. Record, Edit, and Export remain factual text summaries.
 
-- First desktop comparison: `design-evidence/homepage-desktop-comparison-pass-1.jpg`
-- Final desktop comparison: `design-evidence/homepage-desktop-comparison.jpg`
-- Final focused demo comparison: `design-evidence/demo-desktop-comparison.jpg`
+The earlier screenshot set was removed because it represented an older serif/concept-media pass and could not be used as evidence for the current Poppins/direct-copy build. New review captures must not be committed until genuine isolated-session footage passes privacy, truth, and second review.
 
-Supporting implementation captures:
+## Interim browser QA
 
-- `homepage-mobile.jpg`
-- `homepage-mobile-menu.jpg`
-- `product-mobile.jpg`
-- `release-studio-desktop.jpg`
-- `intake-dialog.jpg`
-- `comparison-route-mobile.jpg`
-- `storyboard-route-mobile.jpg`
+- Typography and hierarchy: passed for the direct Poppins product-site direction.
+- Layout: no clipped sections, overlapping controls, unexplained white gaps, or horizontal overflow were found across the exercised viewports.
+- Responsive navigation: desktop navigation remains present at 941 px; the mobile trigger takes over at 940 px and below.
+- Mobile menu: open and close paths passed.
+- Request dialog: opens with focus inside, closes with Escape, restores trigger focus, and restores body scrolling.
+- Privacy disclosure: remains open and directly reachable from the consent path.
+- Accessibility structure: skip link, one `h1`, sequential headings, landmarks, visible focus states, native FAQ controls, reduced-motion handling, and explicit form status/error regions remain present.
+- Shared routes: comparison and storyboard routes rendered without overflow, failed local assets, or page-origin console errors.
+- Console: no page-origin warning or error was observed in the exercised paths.
+- Product evidence: no placeholder, concept art, queued-demo promise, or hidden RapidDemo reference appeared.
 
-All source and QA captures above are tracked in `design-evidence/`.
+## Automated gates
 
-## Iteration history
+- Website tests: 28/28 passed.
+- Full repository tests: 159/159 passed.
+- Documentation truth tests: 2/2 passed.
+- ESLint: 0 errors; 41 pre-existing warnings.
+- Pages-mode production build: passed.
+- Built-site verifier: passed for all three routes.
+- Reviewed-media verifier: passed in the intentional inactive/fail-closed state.
+- Current-main export-truth hardening is included without weakening its adversarial guard or tests.
 
-### Pass 1
+## Remaining launch review
 
-The first combined desktop comparison found one P1 mismatch: the implementation headline wrapped to three lines because the left hero column was too narrow. The hero content also sat lower and farther from the release card than the selected source.
+This is an interim no-media QA result, not finished design approval and not launch approval.
 
-Changes made:
+After the genuine `flowtake-demo-source.mp4` is received:
 
-- Rebalanced the hero columns from a narrow-left layout to a 1.05 / 0.95 split.
-- Reduced the desktop column gap and top/bottom hero padding.
-- Increased the headline measure so it resolves to two lines at the reference viewport.
-- Aligned the release card timing and the first visible edge of the product theatre with the source.
-- Replaced the translucent sticky-header compositor with an opaque near-black surface after Chrome exposed missing navigation layers while scrolled.
+1. Complete normal-speed and frame-by-frame privacy/truth review.
+2. Derive and independently review the exact seven public candidates.
+3. Activate the reviewed-media manifest and repeat the full automated suite.
+4. Repeat desktop/mobile browser QA, including real video loading, fallback download, captions, reduced motion, and every public route.
+5. Capture a fresh evidence set from that exact reviewed commit.
+6. Send the finished design/domain/launch handoff for operator approval.
 
-### Pass 2
-
-The second combined desktop comparison and focused demo comparison found no remaining P0, P1, or P2 visual defects. The implementation preserves the source's hierarchy, near-black palette, warm serif display type, violet accent, split hero, large product theatre, and compact navigation rhythm.
-
-### Pass 3
-
-The independent review raised the small-print contrast token from `#777482` to `#8d8998` (4.93:1 or better on every used surface) and raised all homepage microcopy to at least 12 px. Chrome interaction QA then exposed a sticky-header paint defect after an in-page anchor click. The header now uses an opaque surface and its own isolated compositor layer; a real `Demo` navigation click was repeated and the complete navigation remained painted at the destination.
-
-## Rubric results
-
-- Typography: passed. Display hierarchy, serif/sans contrast, line length, weight, and mobile scaling match the selected direction.
-- Spacing and layout: passed. No clipped sections, overlapping controls, or unexplained white gaps were found at desktop or 390 px mobile.
-- Color and borders: passed. The near-black canvas, soft violet surfaces, restrained borders, and muted secondary text are consistent with the source.
-- Image fidelity: passed for the current truthful no-demo state. The homepage does not present generated scenes, placeholder boxes, or fake product screenshots as product evidence.
-- Copy and content: passed. The free MIT app is the primary story and CTA. The optional $99/month service appears only after product proof. Platform, signing, privacy, recurring-billing, and checkout boundaries remain visible.
-- Responsiveness: passed. At 390 CSS px, `documentElement.scrollWidth` equaled its 375 px content width; there was no horizontal overflow. Hero buttons, release card, menu, and product rows remained usable.
-- Interactions: passed. Mobile menu open/close, Escape close, intake-dialog initial focus, focus trap, backdrop/Escape close, form labels, and focus restoration were exercised in Chrome.
-- Accessibility structure: passed for this build review. The page retains a skip link, one `h1`, sequential section headings, semantic landmarks, visible focus states, native FAQ disclosure controls, reduced-motion handling, and explicit form status/error regions.
-- Shared-route regression: passed. The Screen Studio comparison and developer-tool storyboard routes rendered at desktop and 390 px mobile with no horizontal overflow, failed images, or page-origin console warnings/errors.
-
-## Intentional truth-preserving differences
-
-- No demo control or product-media theatre is shown until genuine isolated-session footage exists.
-- The hero uses the published v1.6.0 release and checksum link as current product evidence.
-- Record, Edit, and Export are presented as factual text summaries, not generated screenshots.
-
-## Remaining P3 follow-up
-
-- Add privacy-reviewed real Flowtake footage after the isolated demo-capture environment passes its release and security checks.
-
-final result: passed
+Current result: interim fail-closed build passed; genuine-media review pending.
