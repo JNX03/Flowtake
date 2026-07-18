@@ -33,7 +33,7 @@ Flowtake keeps the recording workflow in one desktop app:
 - Add camera, microphone, and supported system-audio sources.
 - Generate zoom and pan motion from cursor activity, then tune it on the timeline.
 - Trim and split clips; style cursor and click feedback; add masks, backgrounds, overlays, audio, and subtitles.
-- Save projects locally and export finished videos as MP4 with FFmpeg.
+- Save projects locally and export edited video as an AVC/H.264 MP4 through Mediabunny.
 - Experiment with separate app layers and scene layouts for multi-app technical demos.
 
 The desktop recorder and editor are free to use, inspect, modify, and redistribute under the [MIT License](LICENSE).
@@ -80,9 +80,9 @@ All published artifacts are on the official [GitHub Releases page](https://githu
 
 ### Export
 
-- Local FFmpeg-based MP4 rendering
-- Resolution, frame-rate, encoder, and bitrate controls
-- Presets for common output profiles
+- Local AVC/H.264 MP4 rendering through Mediabunny
+- Resolution, 30/60 fps, and output-quality controls
+- Video-only edited export in v1.6.0; microphone, system, and timeline audio are not muxed into the final MP4
 
 ## Privacy and open-source boundary
 
@@ -148,7 +148,7 @@ cargo check --manifest-path src-tauri/Cargo.toml --locked
 
 ### Architecture
 
-Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS renders the preview and effects, Web Workers keep preview/render work off the UI thread, and FFmpeg handles capture and encoding.
+Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, Mediabunny encodes and muxes the edited AVC MP4, and Rust copies the completed `output.mp4` into the local export folder. FFmpeg remains bundled for recording capture and native media utilities.
 
 The native app uses separate windows for the launcher/editor, recorder controls, exporter, source pickers, and annotations. Start with the [architecture docs](docs/architecture/README.md) or the [development guide](docs/getting-started/development.md) for a deeper tour.
 

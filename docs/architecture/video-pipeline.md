@@ -5,17 +5,18 @@ Flowtake's video pipeline has three stages: **Recording**, **Preview**, and **Ex
 ## 1. Recording
 
 ```
-Screen / Camera / Audio
+Screen / Window / Area
         │
         ▼
-  Rust Backend (Tauri)
-  - Platform screen capture APIs
-  - Camera via system media APIs
-  - Audio: microphone + system loopback
+  Rust Backend + FFmpeg Capture
+  - Records screen, window, or area into temporary screen.mp4
+  - Can include a supported system-audio source
         │
         ▼
-  Raw frames written to temp files
+  Temporary encoded media
   Mouse position events emitted to frontend
+
+Camera and microphone sources use a separate browser/device-media path and are saved alongside the screen capture.
 ```
 
 The Rust backend (`mouse_tracker.rs`) continuously emits cursor position events. These are recorded alongside the video frames and used to generate zoom/pan animations in the editor.
@@ -23,14 +24,18 @@ The Rust backend (`mouse_tracker.rs`) continuously emits cursor position events.
 ## 2. Preview (Editor)
 
 ```
-Raw video frames (temp files)
+Recorded media (temp files)
         │
         ▼
-  Web Worker (mediabunny decoder)
-  - Decodes video frames on demand
+  Browser video elements
+  - Decode recorded media
         │
         ▼
-  Pixi.js Renderer (main thread)
+  PreviewWorkerManager
+  - Creates and transfers VideoFrame objects
+        │
+        ▼
+  Pixi.js Renderer (preview worker)
   - Applies zoom/pan/cursor animations
   - Renders overlays, subtitles, masks
   - Driven by Redux timeline state
@@ -39,9 +44,9 @@ Raw video frames (temp files)
   Canvas element in editor preview
 ```
 
-The preview is entirely client-side. No FFmpeg is involved — raw frames are decoded by a Web Worker and composited by Pixi.js in real time.
+The preview is entirely client-side. No FFmpeg is involved — browser video elements decode recorded media, then `PreviewWorkerManager` transfers `VideoFrame` objects to the Pixi.js preview worker for compositing.
 
-The `video://` custom Tauri protocol streams raw frames from disk to the Web Worker without exposing the file path directly to the renderer.
+The `video://` protocol serves validated byte ranges from registered recorded media to the editor's browser video elements without exposing filesystem paths.
 
 ## 3. Export (Render)
 
@@ -55,16 +60,23 @@ Timeline state (Redux)
   - Outputs composited RGBA frames
         │
         ▼
-  FFmpeg sidecar (Rust → Shell)
-  - Receives frames via pipe
-  - Encodes to MP4 / WebM
-  - Mixes audio tracks
+  Mediabunny output writer (Render Worker)
+  - Encodes composited frames as AVC
+  - Muxes the video into output.mp4
+  - Writes through registered Tauri file handles
+        │
+        ▼
+  Rust exporter
+  - Resolves the backend-owned render path
+  - Copies output.mp4 to the local export folder
         │
         ▼
   Output video file
 ```
 
-The render worker reuses the same `Animator.js` scene engine as the preview, ensuring what you see in the editor matches the exported video exactly.
+The render worker reuses the Pixi.js scene used by the preview. In v1.6.0 the final edited-video path is an AVC MP4 encoded and muxed by Mediabunny. The Rust backend writes and copies the completed `output.mp4`; FFmpeg remains responsible for recording capture and native media utilities, not final edited-MP4 encoding.
+
+The current edited MP4 is video-only. The `process_audio` and `add_audio` commands are placeholders, so no microphone, system, or timeline audio track is muxed into the final edited export.
 
 ## Key Files
 
@@ -74,3 +86,5 @@ The render worker reuses the same `Animator.js` scene engine as the preview, ens
 | `src-tauri/src/mouse_tracker.rs` | Cursor position tracking |
 | `app/shared/scene/Animator.js` | Pixi.js animation orchestrator (preview + render) |
 | `app/shared/workers/` | Web Workers for frame decode and render |
+| `app/shared/workers/WorkerOutputWriter.js` | Mediabunny AVC video track and MP4 output writer |
+| `src-tauri/src/commands/exporter.rs` | Registered output path, final file copy, and current audio placeholders |

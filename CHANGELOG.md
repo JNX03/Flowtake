@@ -154,8 +154,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Multi-window Tauri v2 architecture (main, recorder, exporter, windowPicker, areaPicker, note)
 - Redux Toolkit state management
 - Pixi.js preview and export rendering
-- Multi-format export: MP4 H.264, MP4 H.265, WebM VP9
-- Hardware encoder support (NVENC, VideoToolbox)
+- Local AVC/H.264 MP4 export
+
+### Clarification
+- Earlier changelog text overstated the shipped output choices. In v1.6.0, Mediabunny encodes and muxes one video-only AVC MP4; the exporter does not offer H.265 or WebM output and does not expose a hardware-encoder selector.
 
 [Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.4.1...HEAD
 [1.4.1]: https://github.com/JNX03/Flowtake/compare/v1.3.2...v1.4.1
