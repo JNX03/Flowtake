@@ -433,6 +433,15 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Test native macOS capture helper
+        run: >-
+          swift run
+          --package-path src-tauri/native/macos-capture
+          flowtake-macos-capture-tests
+
+      - name: Build universal native macOS capture helper
+        run: bash scripts/build-macos-capture.sh --universal
+
       - name: Download FFmpeg (macOS)
         run: |
           set -euo pipefail
@@ -507,6 +516,14 @@ jobs:
             echo "ERROR: Tauri produced no macOS Flowtake.app bundle" >&2
             exit 1
           fi
+          MAC_CAPTURE_HELPER="$APP_PATH/Contents/Resources/binaries/flowtake-macos-capture-universal-apple-darwin"
+          if [ ! -x "$MAC_CAPTURE_HELPER" ]; then
+            echo "ERROR: Flowtake.app is missing the executable ScreenCaptureKit helper" >&2
+            exit 1
+          fi
+          file "$MAC_CAPTURE_HELPER" | grep -q "arm64"
+          file "$MAC_CAPTURE_HELPER" | grep -q "x86_64"
+          "$MAC_CAPTURE_HELPER" capabilities | grep -q '"captureEngine":"ScreenCaptureKit"'
           pushd "$(dirname "$APP_PATH")"
           zip -r -y "$GITHUB_WORKSPACE/installers/Flowtake-macos-universal.zip" Flowtake.app
           popd

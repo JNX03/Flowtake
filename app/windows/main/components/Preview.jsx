@@ -171,18 +171,42 @@ import AspectRatioDropdown from "./AspectRatioDropdown"
 import OverlayCanvas from "./OverlayCanvas"
 import VideoWrapper from "./VideoWrapper"
 
-function PreviewClockBridge({ manager }) {
+function PreviewClockBridge({ manager, screenVideoRef }) {
     const time = useSelector(selectTime)
+    const isPlaying = useSelector(selectIsPlaying)
+    const fallbackTimeRef = useRef(time)
 
     useEffect(() => {
-        manager?.postTime(time)
-    }, [manager, time])
+        fallbackTimeRef.current = time
+        if (!isPlaying) manager?.postTime(time)
+    }, [isPlaying, manager, time])
+
+    useEffect(() => {
+        if (!manager || !isPlaying) return
+
+        let animationFrame = null
+        const publishPlaybackTime = () => {
+            const currentTime = screenVideoRef.current?.currentTime
+            manager.postTime(
+                Number.isFinite(currentTime)
+                    ? currentTime * 1000
+                    : fallbackTimeRef.current
+            )
+            animationFrame = requestAnimationFrame(publishPlaybackTime)
+        }
+
+        publishPlaybackTime()
+        return () => {
+            if (animationFrame !== null) cancelAnimationFrame(animationFrame)
+        }
+    }, [isPlaying, manager, screenVideoRef])
 
     return null
 }
 
 PreviewClockBridge.propTypes = {
-    manager: PropTypes.instanceOf(PreviewWorkerManager)
+    manager: PropTypes.instanceOf(PreviewWorkerManager),
+    screenVideoRef: PropTypes.object.isRequired,
 }
 
 export default function Preview() {
@@ -882,7 +906,7 @@ export default function Preview() {
 
     return (
         <section className="flowtake-preview flex-1 min-w-0 min-h-0 flex flex-col relative" aria-label="Video preview">
-            <PreviewClockBridge manager={manager} />
+            <PreviewClockBridge manager={manager} screenVideoRef={screenVideoRef} />
             <header className="flowtake-preview__chrome h-11 shrink-0 flex items-center justify-between gap-2 px-2">
                 <div className="min-w-0 flex items-baseline gap-2">
                     <h2 className="text-xs font-semibold">Canvas</h2>

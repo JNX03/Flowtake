@@ -20,9 +20,11 @@
   "scripts": {
     "lint": "eslint --cache .",
     "test": "node --test",
+    "test:macos-capture": "swift run --package-path src-tauri/native/macos-capture flowtake-macos-capture-tests",
     "diagnose:recording": "node scripts/recording-diagnostics.mjs",
     "dev:frontend": "vite --config vite.config.mjs",
     "build:frontend": "vite build --config vite.config.mjs",
+    "build:macos-capture": "bash scripts/build-macos-capture.sh --native",
     "build:site": "npm --prefix website run build",
     "dev": "tauri dev",
     "build": "tauri build",

@@ -22,6 +22,7 @@ export default [
       "**/out",
       "**/.webpack",
       "**/.vite",
+      "**/.claude/**",
       "**/build",
       "**/target/**",
       "**/coverage",

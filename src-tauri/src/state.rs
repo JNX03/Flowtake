@@ -142,6 +142,8 @@ pub struct AppState {
     pub window_capture_thread: Option<std::thread::JoinHandle<()>>,
     /// FFmpeg process spawned via std::process::Command (for window capture pipeline)
     pub ffmpeg_process: Option<std::process::Child>,
+    /// ScreenCaptureKit helper used by the native macOS recording path.
+    pub macos_capture_process: Option<std::process::Child>,
     /// PIDs of audio sessions muted during recording (restored on stop)
     pub muted_audio_pids: Vec<u32>,
     // ── Live streaming ──────────────────────────────────────────────────
@@ -221,6 +223,7 @@ impl AppState {
             window_capture_stop: Arc::new(AtomicBool::new(false)),
             window_capture_thread: None,
             ffmpeg_process: None,
+            macos_capture_process: None,
             muted_audio_pids: Vec::new(),
             live_stream_start_lock: Arc::new(tokio::sync::Mutex::new(())),
             live_ffmpeg_process: None,

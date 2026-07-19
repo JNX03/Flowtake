@@ -98,9 +98,14 @@ test("preview worker teardown rejects requests and frame pumps always unlock", (
 })
 
 test("preview clock updates do not rerender the full preview editor", () => {
-    assert.match(previewSource, /function PreviewClockBridge\(\{ manager \}\)/)
+    assert.match(previewSource, /function PreviewClockBridge\(\{ manager, screenVideoRef \}\)/)
     assert.match(previewSource, /manager\?\.postTime\(time\)/)
-    assert.match(previewSource, /<PreviewClockBridge manager=\{manager\} \/>/)
+    assert.match(previewSource, /screenVideoRef\.current\?\.currentTime/)
+    assert.match(previewSource, /requestAnimationFrame\(publishPlaybackTime\)/)
+    assert.match(
+        previewSource,
+        /<PreviewClockBridge manager=\{manager\} screenVideoRef=\{screenVideoRef\} \/>/
+    )
     assert.match(previewSource, /const start = selectTime\(reduxStore\.getState\(\)\)/)
     assert.doesNotMatch(previewSource, /export default function Preview\(\)[\s\S]*const time = useSelector\(selectTime\)/)
 })

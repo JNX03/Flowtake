@@ -12,8 +12,8 @@ import {
 const initialState = animsAdapter.getInitialState({
     blurStrength: 0.5,
     targetScale: 2,
-    intro: 2000,
-    outro: 2000,
+    intro: 700,
+    outro: 700,
 })
 
 export const zoomSlice = createSlice({

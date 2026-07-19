@@ -8,6 +8,8 @@ mod commands;
 mod error;
 mod identifiers;
 mod keyboard_tracker;
+#[cfg(target_os = "macos")]
+mod macos_capture;
 mod mouse_tracker;
 mod process_containment;
 mod state;
@@ -75,7 +77,7 @@ fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
     use std::io::Write;
     use std::sync::atomic::Ordering;
 
-    let (main_capture, app_layers, live_stream, window_thread, camera_file) = {
+    let (main_capture, native_macos_capture, app_layers, live_stream, window_thread, camera_file) = {
         let state = app.state::<Mutex<AppState>>();
         let mut state = state.lock().unwrap();
         state.window_capture_stop.store(true, Ordering::Relaxed);
@@ -90,6 +92,7 @@ fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
         state.ffmpeg_child_id = None;
         (
             state.ffmpeg_process.take(),
+            state.macos_capture_process.take(),
             std::mem::take(&mut state.multi_app_children),
             state.live_ffmpeg_process.take(),
             state.window_capture_thread.take(),
@@ -102,6 +105,9 @@ fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
     }
     if let Some(child) = main_capture {
         process_containment::terminate_owned_child(child, "screen-capture FFmpeg").ok();
+    }
+    if let Some(child) = native_macos_capture {
+        process_containment::terminate_owned_child(child, "ScreenCaptureKit helper").ok();
     }
     process_containment::terminate_owned_children(app_layers, "App-layer FFmpeg");
     if let Some(child) = live_stream {

@@ -103,6 +103,8 @@ build/
 # Tauri
 src-tauri/target/
 src-tauri/gen/
+src-tauri/binaries/flowtake-macos-capture-*
+src-tauri/native/macos-capture/.build/
 
 # Sentry Config File
 .env.sentry-build-plugin
