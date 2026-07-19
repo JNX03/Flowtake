@@ -2,7 +2,7 @@
 
 ## Download
 
-Download the latest installer from the [Releases page](https://github.com/Jnx03/Flowtake/releases).
+Download the latest installer from the [Releases page](https://github.com/JNX03/Flowtake/releases).
 
 Available installer formats:
 
@@ -10,6 +10,7 @@ Available installer formats:
 |----------|--------|
 | Windows 10/11 | `.exe` (NSIS installer) or `.msi` |
 | macOS | `.dmg` |
+| Linux | `.AppImage`, `.deb`, or `.rpm` |
 
 ## System Requirements
 
@@ -22,11 +23,19 @@ Available installer formats:
 
 ## Windows Installation
 
-1. Download the `.exe` or `.msi` installer
+Install the published [WinGet package](https://github.com/microsoft/winget-pkgs/tree/master/manifests/j/JNX03/Flowtake/1.6.0):
+
+```powershell
+winget install --id JNX03.Flowtake --exact
+```
+
+Alternatively:
+
+1. Download the `.exe` or `.msi` installer from the official Releases page
 2. Run the installer and follow the on-screen steps
 3. Flowtake will appear in your Start Menu
 
-> **Note**: Windows may show a SmartScreen warning on first run since the app is not yet widely distributed. Click **More info → Run anyway** to proceed.
+> **Note**: The current Windows artifacts are not Authenticode-signed, so Windows may show a SmartScreen warning. Install only a copy obtained from the official Releases page or through the published WinGet manifest.
 
 ## macOS Installation
 
