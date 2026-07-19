@@ -10,14 +10,14 @@ import {
   WindowIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { BriefDialog } from "./BriefDialog.jsx";
 import { AppAndService } from "./components/AppAndService.jsx";
 import {
   ReviewedDemoShowcase,
   ReviewedHeroVideo,
 } from "./components/ReviewedDemoMedia.jsx";
-import { sendEvent } from "./intake.js";
+import { PRIVACY_NOTICE_VERSION, sendEvent } from "./intake.js";
 import { hasReviewedDemoMedia } from "./reviewedDemoMedia.js";
 
 const CONTACT_EMAIL = "jnxstartup@gmail.com";
@@ -27,6 +27,13 @@ const DOWNLOAD_URL = "https://github.com/JNX03/Flowtake/releases/latest";
 const REPOSITORY_URL = "https://github.com/JNX03/Flowtake";
 const PUBLIC_STORYBOARD_URL = "https://github.com/JNX03/Flowtake/discussions/169";
 const assetUrl = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
+
+const LocalDemoRecordingSlot = import.meta.env.DEV
+  ? lazy(async () => {
+      const module = await import("./components/DemoRecordingSlot.jsx");
+      return { default: module.DemoRecordingSlot };
+    })
+  : null;
 
 const productFeatures = [
   {
@@ -73,7 +80,7 @@ const faqs = [
   {
     question: "Is Flowtake really free?",
     answer:
-      "Yes. The published recorder and editor are free and MIT-licensed. Release Studio is optional human production help; it does not remove features from the open-source app.",
+      "Yes. The published recorder, editor, and local MP4 export are free and MIT-licensed. The planned Flowtake Cloud beta is a separate hosted review layer; it does not remove or paywall local app features.",
   },
   {
     question: "What can I record?",
@@ -91,9 +98,9 @@ const faqs = [
       "Preview builds are published for macOS and Linux. macOS is ad-hoc signed but not notarized, and pure Wayland capture is unsupported. Windows is the primary validated platform today.",
   },
   {
-    question: "What is Release Studio?",
+    question: "What is Flowtake Cloud?",
     answer:
-      "It is an optional $99/month founding service for teams that want four short release-demo packages, each with a 16:9 master, a social cutdown, private review, and one focused revision. Scope is confirmed in writing before checkout.",
+      "It is a planned optional beta for private video review links with expiry, revoke, delete, passcode, timestamp comments, and aggregate playback sessions. The $9/month price and limits are hypotheses; uploads, enrollment, and billing are not open yet.",
   },
 ];
 
@@ -114,6 +121,10 @@ export function HomePage() {
     setBriefOpen(true);
   };
 
+  const closeMobileNavigation = () => {
+    setMobileOpen(false);
+  };
+
   useEffect(() => {
     track("page_viewed");
   }, []);
@@ -123,15 +134,41 @@ export function HomePage() {
     const closeOnEscape = (event) => {
       if (event.key !== "Escape") return;
       setMobileOpen(false);
-      queueMicrotask(() => menuButtonRef.current?.focus());
+      queueMicrotask(() => menuButtonRef.current?.focus({ preventScroll: true }));
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [mobileOpen]);
 
   const backgroundState = briefOpen ? { inert: true, "aria-hidden": "true" } : {};
+  const hasProductDemo = hasReviewedDemoMedia;
   const productEvidenceTarget = hasReviewedDemoMedia ? "#demo" : "#product";
-  const productEvidenceLabel = hasReviewedDemoMedia ? "Watch the real demo" : "See how Flowtake works";
+  const productEvidenceLabel = hasReviewedDemoMedia
+    ? "Watch the real demo"
+    : "See how Flowtake works";
+  const releaseCard = (
+    <aside className="home-release-card" aria-label={`Flowtake v${RELEASE_VERSION} published release`}>
+      <div className="home-release-meta">
+        <span>Published desktop release</span>
+        <span><CheckBadgeIcon aria-hidden="true" /> July 16, 2026</span>
+      </div>
+      <div className="home-release-main">
+        <img src={assetUrl("logo.png")} alt="" />
+        <div>
+          <p>Free and MIT licensed</p>
+          <h2>
+            Flowtake
+            <br />
+            {`v${RELEASE_VERSION}`}
+          </h2>
+          <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export.</span>
+        </div>
+      </div>
+      <a href={RELEASE_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>
+        Release assets and checksums <ArrowRightIcon aria-hidden="true" />
+      </a>
+    </aside>
+  );
 
   return (
     <div className="site-shell home-page">
@@ -147,8 +184,8 @@ export function HomePage() {
 
         <nav className="home-desktop-nav" aria-label="Primary navigation">
           <a href="#product">Product</a>
-          {hasReviewedDemoMedia && <a href={productEvidenceTarget}>Demo</a>}
-          <a href="#open-source-vs-studio">Open source vs Studio</a>
+          {hasProductDemo && <a href={productEvidenceTarget}>Demo</a>}
+          <a href="#open-source-vs-cloud">Local app vs Cloud</a>
           <a href="#faq">FAQ</a>
         </nav>
 
@@ -186,10 +223,10 @@ export function HomePage() {
 
         {mobileOpen && (
           <nav className="home-mobile-nav" id="home-mobile-navigation" aria-label="Mobile navigation">
-            <a href="#product" onClick={() => setMobileOpen(false)}>Product</a>
-            {hasReviewedDemoMedia && <a href={productEvidenceTarget} onClick={() => setMobileOpen(false)}>Demo</a>}
-            <a href="#open-source-vs-studio" onClick={() => setMobileOpen(false)}>Open source vs Studio</a>
-            <a href="#faq" onClick={() => setMobileOpen(false)}>FAQ</a>
+            <a href="#product" onClick={closeMobileNavigation}>Product</a>
+            {hasProductDemo && <a href={productEvidenceTarget} onClick={closeMobileNavigation}>Demo</a>}
+            <a href="#open-source-vs-cloud" onClick={closeMobileNavigation}>Local app vs Cloud</a>
+            <a href="#faq" onClick={closeMobileNavigation}>FAQ</a>
             <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
             <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download current release</a>
           </nav>
@@ -227,29 +264,15 @@ export function HomePage() {
 
           {hasReviewedDemoMedia ? (
             <ReviewedHeroVideo />
-          ) : (
-            <aside className="home-release-card" aria-label={`Flowtake v${RELEASE_VERSION} published release`}>
-              <div className="home-release-meta">
-                <span>Published desktop release</span>
-                <span><CheckBadgeIcon aria-hidden="true" /> July 16, 2026</span>
-              </div>
-              <div className="home-release-main">
-                <img src={assetUrl("logo.png")} alt="" />
-                <div>
-                  <p>Free and MIT licensed</p>
-                  <h2>
-                    Flowtake
-                    <br />
-                    {`v${RELEASE_VERSION}`}
-                  </h2>
-                  <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export.</span>
-                </div>
-              </div>
-              <a href={RELEASE_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>
-                Release assets and checksums <ArrowRightIcon aria-hidden="true" />
-              </a>
-            </aside>
-          )}
+          ) : LocalDemoRecordingSlot ? (
+            <Suspense fallback={releaseCard}>
+              <LocalDemoRecordingSlot
+                fallback={releaseCard}
+                hasReviewedMedia={hasReviewedDemoMedia}
+                locationLike={globalThis.location}
+              />
+            </Suspense>
+          ) : releaseCard}
         </section>
 
         <ReviewedDemoShowcase />
@@ -292,51 +315,48 @@ export function HomePage() {
           downloadUrl={DOWNLOAD_URL}
           onDownload={() => track("download_clicked")}
           onGitHub={() => track("github_clicked")}
-          onRequestStudio={(event) => openBrief(event.currentTarget)}
+          onRequestCloud={(event) => openBrief(event.currentTarget)}
         />
 
         <section className="home-trust home-section" id="trust" aria-labelledby="trust-title">
           <header className="home-section-heading home-section-heading-compact">
-            <p>Release Studio terms</p>
-            <h2 id="trust-title">Know the scope before you send footage or pay.</h2>
+            <p>Flowtake Cloud beta boundary</p>
+            <h2 id="trust-title">Know what is proposed before you upload or pay.</h2>
           </header>
           <div className="home-disclosure-list">
             <details id="service-terms">
-              <summary>Scope and delivery <ChevronDownIcon aria-hidden="true" /></summary>
+              <summary>Planned beta scope <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>Four 30–90 second demos per paid month, each with one 16:9 master, one social cutdown, and one consolidated revision. The first cut is due within three business days after a usable brief and sanitized capture; the revision is due within two business days.</p>
-                <p>Source footage should be no more than 10 minutes per demo. Voiceover production, stock licensing, custom animation, and unused monthly capacity are excluded unless agreed separately.</p>
+                <p>The planned MVP is an intentional upload of a finished H.264 MP4 to a private review link with optional passcode, 1, 7, or 30-day expiry, immediate revoke or delete, timestamp comments, and aggregate playback sessions.</p>
+                <p>Proposed limits are 2 GB active storage, 10 active links, and 250 MB or 10 minutes per video. Native desktop upload, project sync, rendering, and realtime collaborative editing are planned later and are not part of this beta.</p>
               </div>
             </details>
             <details id="cancellation-policy">
               <summary>Billing, cancellation, and refunds <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>The founding pilot is $99 USD, recurring monthly only after written scope acceptance. Cancel before the next renewal to stop future billing; access continues through the paid period.</p>
-                <p>Work already started is normally non-refundable. If Flowtake cannot begin or meet the agreed delivery window, the affected order is refunded. Taxes and any future price change must be shown before checkout.</p>
+                <p>$9 USD per month is a founding-beta price hypothesis, not an active offer. Checkout is unavailable, and no Cloud subscription, payment, or entitlement can be created from this site.</p>
+                <p>Final recurring terms, cancellation controls, taxes, limits, and refund policy must be published and shown before any customer can purchase.</p>
               </div>
             </details>
             <details id="data-handling">
               <summary>Content, IP, and file handling <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>Never submit credentials, customer data, private repositories, or production access. Customer footage is accepted only through an access-controlled transfer method agreed before work begins. Working copies are deleted within 30 days after delivery unless a shorter period is agreed.</p>
-                <p>After payment, the customer owns the custom delivered master and cutdown. Flowtake retains its MIT app and pre-existing templates. Nothing enters a public portfolio without written permission.</p>
+                <p>The published desktop app does not automatically upload recordings, projects, or exports. A future Cloud upload must be an explicit user action and must reject credentials, private repositories, production access, and unsupported media.</p>
+                <p>Expiry, immediate revoke, and deletion are release requirements for the planned beta. Storage location, processor, controller identity, retention behavior, and transfer details must be published before uploads are accepted.</p>
               </div>
             </details>
             <details id="privacy" open>
               <summary>Privacy and business contact <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p><strong>Privacy notice version 2026-07-19.</strong> Flowtake / JNX03 is the project data controller for this founding pilot. Contact <a href={`mailto:${CONTACT_EMAIL}?subject=Privacy%20request`}>{CONTACT_EMAIL}</a> for privacy questions or rights requests. The operator's formal legal name and address will be supplied before any contract or payment; no private footage or payment is accepted before that disclosure.</p>
-                <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service. That information is used only to assess and reply to your request, take requested steps before a possible contract, and protect the service from abuse. The legal bases are pre-contractual steps at your request, your consent where the form asks for it, and the operator's legitimate interest in service security. It is not sold, used for advertising, or used for automated profiling.</p>
-                <p>Lead records are encrypted at rest. Declined or inactive leads are deleted within 90 days. If you enter an active paid scope, any longer contract, accounting, or legal retention period will be stated before payment. Working footage is deleted within 30 days after delivery unless a shorter period is agreed.</p>
-                <p>Lead data is available only to the Flowtake operator and the hosting or email providers needed to run the intake and reply. Infrastructure providers may process data outside Thailand. Before private footage is accepted, the transfer method, processors, locations, safeguards, and customer-specific data terms will be agreed in writing. Flowtake does not sell lead data.</p>
-                <p>This page also sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count—not event details, page URLs, device identifiers, or form content. IP addresses are used only in server memory for abuse-rate limiting. No nonessential cookies are used.</p>
-                <p>You may ask to access, receive a copy of, correct, delete, restrict, or object to processing of your personal data; withdraw consent; or request portability where applicable. Email <a href={`mailto:${CONTACT_EMAIL}?subject=Privacy%20request`}>{CONTACT_EMAIL}</a> with the subject “Privacy request.” Identity may be verified before a request is completed. You may also complain to Thailand's Office of the Personal Data Protection Committee; its official <a href="https://gppc.pdpc.or.th/contact-us/" target="_blank" rel="noreferrer">contact channels are published here</a>.</p>
-                <p>Please do not send private footage by email. Use the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> only for public, non-sensitive requests.</p>
+                <p><strong>Privacy notice version {PRIVACY_NOTICE_VERSION}.</strong> This form is disabled and collects nothing. It does not submit your name, email, company, product story, video, or payment.</p>
+                <p>This page sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count—not event details, page URLs, device identifiers, IP addresses, or form content. IP addresses are used only in server memory for abuse-rate limiting. No nonessential cookies are used.</p>
+                <p>For privacy or business questions, contact the Flowtake project operator at <a href={`mailto:${CONTACT_EMAIL}?subject=Privacy%20request`}>{CONTACT_EMAIL}</a>. No contract, payment, or video upload is accepted before the formal controller and processing disclosure is published.</p>
+                <p>Use the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> only for public, non-sensitive requests. Never post a private brief, credentials, customer data, or unpublished repository there.</p>
               </div>
             </details>
           </div>
           <p className="home-trust-status">
-            <LockClosedIcon aria-hidden="true" /> Checkout is not available. Scope, identity, delivery, and payment terms are confirmed in writing before any payment request.
+            <LockClosedIcon aria-hidden="true" /> Flowtake Cloud, uploads, and checkout are not available yet. The $9 price and beta limits are hypotheses, not an active offer.
           </p>
         </section>
 

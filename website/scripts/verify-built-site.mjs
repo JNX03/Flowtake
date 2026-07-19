@@ -41,6 +41,26 @@ const runtimeSource = (await Promise.all(
     .filter((name) => name.endsWith(".js"))
     .map((name) => readFile(new URL(`assets/${name}`, distUrl), "utf8")),
 )).join("\n");
+const stylesheetSource = (await Promise.all(
+  assetNames
+    .filter((name) => name.endsWith(".css"))
+    .map((name) => readFile(new URL(`assets/${name}`, distUrl), "utf8")),
+)).join("\n");
+const builtArtifactText = [home, comparison, guide, runtimeSource, stylesheetSource].join("\n");
+for (const privateLocalReviewMarker of [
+  "demo-review=recording",
+  "demo-recording-slot",
+  "flowtake-demo-source.mp4",
+  "FlowtakeDemo",
+  "Record the genuine Flowtake workflow.",
+  "Uninterrupted Windows source capture sequence",
+]) {
+  assert.equal(
+    builtArtifactText.includes(privateLocalReviewMarker),
+    false,
+    `Pages artifact must exclude local recording instructions: ${privateLocalReviewMarker}`,
+  );
+}
 const homeRuntimeSource = (await Promise.all(
   assetNames
     .filter((name) => name.startsWith("home-") && name.endsWith(".js"))

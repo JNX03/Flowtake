@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   health:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions: {}
@@ -24,7 +25,7 @@ jobs:
           response_file="$(mktemp)"
           trap 'rm -f "$response_file"' EXIT
           status="$(
-            curl --location --show-error --silent \
+            curl --show-error --silent \
               --connect-timeout 5 \
               --max-time 10 \
               --retry 2 \

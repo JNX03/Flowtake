@@ -52,11 +52,13 @@ test("public intake monitoring is external, exact, least-privilege, and privacy-
     assert.equal(parsedIntakeUptimeWorkflow.on.schedule[0].cron, "*/15 * * * *")
     assert.deepEqual(parsedIntakeUptimeWorkflow.permissions, {})
     assert.deepEqual(parsedIntakeUptimeWorkflow.jobs.health.permissions, {})
+    assert.equal(parsedIntakeUptimeWorkflow.jobs.health.if, "github.ref == 'refs/heads/main'")
     assert.equal(parsedIntakeUptimeWorkflow.jobs.health["timeout-minutes"], 3)
     assert.match(intakeUptimeWorkflow, /https:\/\/flowtake\.72-62-41-174\.sslip\.io\/v1\/health/)
     assert.match(intakeUptimeWorkflow, /\[\[ "\$status" != "200" \|\| "\$body" != '\{"ok":true\}' \]\]/)
     assert.match(intakeUptimeWorkflow, /secrets\.FLOWTAKE_DISCORD_WEBHOOK/)
     assert.match(intakeUptimeWorkflow, /No lead or customer data was accessed\./)
+    assert.doesNotMatch(intakeUptimeWorkflow, /curl --location/)
     assert.doesNotMatch(intakeUptimeWorkflow, /decrypt|leadRefs|ciphertext|FLOWTAKE_ENCRYPTION_KEY/)
 })
 

@@ -103,9 +103,11 @@ Windows users can install v1.6.0 from the public WinGet catalog with `winget ins
 
 For vulnerability reporting, follow the private process in [SECURITY.md](SECURITY.md).
 
-## Optional: Release Studio
+## Optional: Flowtake Cloud (planned beta)
 
-Teams that want human-assisted production for a technical launch can visit [Flowtake Release Studio](https://jnx03.github.io/Flowtake/). It is a separate, optional service; Flowtake's desktop recorder and editor remain the primary open-source product.
+Flowtake Cloud is a planned, separate hosted review layer for teams that want to share a finished H.264 MP4 through a private link. The complete desktop recorder, editor, and local export remain free and MIT licensed; the published v1.6.0 app does not include Flowtake Cloud or automatically upload recordings, projects, or exports.
+
+The founding-beta hypothesis is $9/month for 2 GB active storage, 10 active links, and videos up to 250 MB or 10 minutes, with at most 30-day expiry. The proposed MVP includes optional passcodes, expiry, immediate revoke or delete, timestamp comments, and aggregate playback sessions. Enrollment, uploads, entitlements, and billing are not open yet. Native desktop upload, project sync, and realtime collaborative editing are planned later and are not included in the MVP.
 
 Maintainers planning their own release can use the free [six-beat developer-tool demo storyboard template](https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/) before recording. The guide includes a copyable brief, safe-capture exclusions, and a clearly labelled Flowtake v1.6.0 pre-production example.
 

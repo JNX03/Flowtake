@@ -10,43 +10,43 @@ const appFeatures = [
   "Local MP4 export",
 ];
 
-const studioDeliverables = [
-  "4 short demo packages each paid month",
-  "A 16:9 master + social cutdown for each demo",
-  "Human editing for pacing, captions, cursor treatment, and cleanup",
-  "Private review + one focused revision",
+const cloudFeatures = [
+  "Private review links for uploaded H.264 MP4 exports",
+  "Optional passcode plus 1, 7, or 30-day expiry",
+  "Revoke or delete an active link at any time",
+  "Timestamp comments and aggregate playback sessions",
 ];
 
 const differences = [
   {
     label: "Software access",
     app: "The complete MIT-licensed app",
-    studio: "The same app; no exclusive features",
+    cloud: "A separate hosted review layer; no local app features are removed",
   },
   {
-    label: "Who edits",
+    label: "Where work happens",
     app: "You record, edit, and export",
-    studio: "A human editor works from your approved brief and sanitized capture",
+    cloud: "You intentionally upload a finished H.264 MP4 for private review",
   },
   {
-    label: "Finished assets",
-    app: "Whatever you create and export locally",
-    studio: "4 demo packages, each with a 16:9 master and social cutdown",
+    label: "Sharing",
+    app: "Files and projects remain on your device",
+    cloud: "Private links with passcode, expiry, revoke, and delete controls",
   },
   {
-    label: "Review and timing",
-    app: "Self-serve, on your schedule",
-    studio: "Private review, one focused revision, and a first cut within 3 business days after usable inputs",
+    label: "Feedback",
+    app: "No hosted review account is required",
+    cloud: "Timestamp comments and aggregate playback sessions, not identified viewer counts",
   },
 ];
 
 export function AppAndService({
   comparisonUrl,
   downloadUrl,
-  id = "open-source-vs-studio",
+  id = "open-source-vs-cloud",
   onDownload,
   onGitHub,
-  onRequestStudio,
+  onRequestCloud,
 }) {
   const sectionTitleId = useId();
   const appTitleId = useId();
@@ -55,9 +55,9 @@ export function AppAndService({
   return (
     <section className="app-and-service" id={id} aria-labelledby={sectionTitleId}>
       <header className="app-and-service__intro">
-        <p className="app-and-service__eyebrow">Open-source software and optional editing help</p>
-        <h2 id={sectionTitleId}>Use Flowtake yourself, or hire an editor.</h2>
-        <p>Release Studio covers human editing and delivery. It does not change the software.</p>
+        <p className="app-and-service__eyebrow">Free local app and optional hosted sharing</p>
+        <h2 id={sectionTitleId}>Edit locally. Share a finished video when you choose.</h2>
+        <p>Flowtake Cloud is a planned hosted review layer. It does not change or paywall the local app.</p>
       </header>
 
       <div className="app-and-service__options">
@@ -75,7 +75,7 @@ export function AppAndService({
 
           <p className="app-and-service__summary">
             The full MIT-licensed Flowtake app is $0. Its recorder, editor, and local export stay available without
-            buying Release Studio.
+            a Flowtake Cloud subscription.
           </p>
 
           <ul className="app-and-service__feature-list">
@@ -109,48 +109,50 @@ export function AppAndService({
           </div>
         </article>
 
-        <p className="app-and-service__mobile-divider"><span>Need an editor too?</span></p>
+        <p className="app-and-service__mobile-divider"><span>Need private sharing?</span></p>
 
         <article className="app-and-service__panel app-and-service__panel--service" aria-labelledby={serviceTitleId}>
           <header className="app-and-service__panel-header">
             <div>
-              <p className="app-and-service__label">Optional human production service</p>
-              <h3 id={serviceTitleId}>Release Studio</h3>
+              <p className="app-and-service__label">Planned hosted software beta</p>
+              <h3 id={serviceTitleId}>Flowtake Cloud</h3>
             </div>
-            <p className="app-and-service__price" aria-label="Ninety-nine dollars per month at the founding pilot rate">
-              <strong>$99</strong>
-              <span>/ month, founding pilot</span>
+            <p className="app-and-service__price" aria-label="Proposed nine dollars per month founding beta price">
+              <strong>$9</strong>
+              <span>/ month hypothesis</span>
             </p>
           </header>
 
           <p className="app-and-service__summary">
-            Release Studio is an optional human production service at $99/month during the founding pilot.
+            The planned founding beta adds private review links for finished videos. Enrollment, billing, and uploads
+            are not open yet.
           </p>
 
           <ul className="app-and-service__feature-list app-and-service__feature-list--service">
-            {studioDeliverables.map((deliverable) => <li key={deliverable}>{deliverable}</li>)}
+            {cloudFeatures.map((feature) => <li key={feature}>{feature}</li>)}
           </ul>
 
           <p className="app-and-service__boundary">
-            <strong>Separate from the app.</strong> Release Studio unlocks no Flowtake app features. It pays for
-            human production work only.
+            <strong>Proposed beta limits:</strong> 2 GB active storage, 10 active links, 250 MB and 10 minutes per
+            video, with at most 30-day expiry. Native desktop upload and realtime collaborative editing are planned,
+            not included in this beta.
           </p>
 
-          <button className="app-and-service__button app-and-service__button--secondary" type="button" onClick={onRequestStudio}>
-            Request a sample storyboard
+          <button className="app-and-service__button app-and-service__button--secondary" type="button" onClick={onRequestCloud}>
+            Check beta access
           </button>
         </article>
       </div>
 
-      <div className="app-and-service__difference" aria-label="What changes when you add Release Studio">
+      <div className="app-and-service__difference" aria-label="What changes when you add Flowtake Cloud">
         <header>
-          <h3>What you get when you add Studio</h3>
-          <p>The software stays the same. The work and deliverables change.</p>
+          <h3>What the planned Cloud beta adds</h3>
+          <p>The local app stays complete. Only the optional hosted review workflow changes.</p>
         </header>
         <div className="app-and-service__difference-head" aria-hidden="true">
           <span />
           <strong>Flowtake app</strong>
-          <strong>With Release Studio</strong>
+          <strong>With Flowtake Cloud</strong>
         </div>
         <dl>
           {differences.map((difference) => (
@@ -160,9 +162,9 @@ export function AppAndService({
                 <span className="app-and-service__sr-only">Flowtake app: </span>
                 {difference.app}
               </dd>
-              <dd data-label="With Release Studio">
-                <span className="app-and-service__sr-only">With Release Studio: </span>
-                {difference.studio}
+              <dd data-label="With Flowtake Cloud">
+                <span className="app-and-service__sr-only">With Flowtake Cloud: </span>
+                {difference.cloud}
               </dd>
             </div>
           ))}

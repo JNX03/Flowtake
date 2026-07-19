@@ -6,6 +6,8 @@ import {
   INTAKE_ORIGIN,
   LEAD_ENDPOINT,
   LEAD_TIMEOUT_MS,
+  PRIVATE_INTEREST_FORM_ENABLED,
+  PRIVACY_NOTICE_VERSION,
   LeadPayloadError,
   LeadSubmissionError,
   createLeadPayload,
@@ -40,8 +42,9 @@ test("lead payload allowlists fields, trims text, includes honeypot, and normali
     deadline: "2026-08-01",
     story: "Show the release workflow clearly and safely.",
     privacyAccepted: true,
+    privacyDisclosureVersion: PRIVACY_NOTICE_VERSION,
     website: "",
-    source: "release-studio-website",
+    source: "flowtake-cloud-website",
   });
 
   formData.set("url", "https://user:password@example.dev/launch");
@@ -154,7 +157,7 @@ test("only recoverable transport and rate failures expose a public or copy fallb
   assert.equal(describeLeadFailure({ status: 0 }).fallbackAllowed, true);
 });
 
-test("the request form exposes privacy-safe limits and explicit failure fallbacks", async () => {
+test("private intake is fail-closed while the public clinic remains available", async () => {
   const [homeSource, dialogSource] = await Promise.all([
     readFile(new URL("./HomePage.jsx", import.meta.url), "utf8"),
     readFile(new URL("./BriefDialog.jsx", import.meta.url), "utf8"),
@@ -166,16 +169,13 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
     "Open public clinic with a separate public-only summary",
     "Copy private brief",
     "Try again",
+    "This form is disabled.",
+    "This form is disabled and collects nothing.",
+    "No name, email, company, product story, video, or payment",
+    "does not submit your name, email, company, product story, video, or payment",
     "stores only UTC day, action name, and count",
-    "Privacy notice version 2026-07-19",
-    "project data controller",
-    "pre-contractual steps at your request",
-    "legitimate interest in service security",
-    "not sold, used for advertising, or used for automated profiling",
-    "Infrastructure providers may process data outside Thailand",
-    "withdraw consent",
-    "Office of the Personal Data Protection Committee",
-    "menuButtonRef.current?.focus()",
+    "PRIVACY_NOTICE_VERSION",
+    "menuButtonRef.current?.focus({ preventScroll: true })",
     "setFallbackAllowed(failure.fallbackAllowed)",
     "error && fallbackAllowed && briefText",
     "Private request reference — do not post publicly",
@@ -193,11 +193,20 @@ test("the request form exposes privacy-safe limits and explicit failure fallback
   assert.equal(source.includes("analytics is unconfigured"), false);
 
   const intakeSource = await readFile(new URL("./intake.js", import.meta.url), "utf8");
+  assert.equal(PRIVATE_INTEREST_FORM_ENABLED, false);
+  assert.equal(PRIVACY_NOTICE_VERSION, "2026-07-19-intake-v2");
   assert.equal(intakeSource.includes("import.meta.env"), false);
   assert.equal(intakeSource.includes("Too many attempts from this network."), true);
+  assert.equal(source.includes("Private lead intake is disabled"), false);
+  assert.equal(source.includes("Private intake is not open yet"), false);
+  const closeNavigation = homeSource.slice(
+    homeSource.indexOf("const closeMobileNavigation = () =>"),
+    homeSource.indexOf("useEffect(() =>", homeSource.indexOf("const closeMobileNavigation = () =>")),
+  );
+  assert.equal(closeNavigation.includes("focus("), false, "link activation must not steal focus");
 });
 
-test("the hero leads with the free product and keeps Release Studio secondary", async () => {
+test("the hero leads with the free product and keeps the planned Cloud beta secondary", async () => {
   const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
   const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-product home-section"'));
   const downloadIndex = hero.indexOf("Download for Windows");
@@ -208,17 +217,16 @@ test("the hero leads with the free product and keeps Release Studio secondary", 
   assert.equal(hero.includes("Record, edit, and export screen demos on Windows."), true);
   assert.equal(hero.includes("Create polished screen demos on Windows."), false);
   assert.equal(hero.includes("cursor-driven zooms"), true);
-  assert.equal(
-    source.includes('const productEvidenceLabel = hasReviewedDemoMedia ? "Watch the real demo" : "See how Flowtake works";'),
-    true,
-  );
+  assert.equal(source.includes("const hasProductDemo = hasReviewedDemoMedia;"), true);
+  assert.equal(source.includes('? "Watch the real demo"'), true);
+  assert.equal(source.includes(': "See how Flowtake works";'), true);
   assert.equal(hero.includes("$99"), false);
   assert.equal(hero.includes("Four 30–90 second demos"), false);
   assert.ok(downloadIndex >= 0 && downloadIndex < workflowIndex, "free download must be the first hero CTA");
-  assert.ok(productIndex >= 0 && serviceIndex > productIndex, "Release Studio must follow product proof");
+  assert.ok(productIndex >= 0 && serviceIndex > productIndex, "Flowtake Cloud must follow product proof");
   assert.equal(source.includes('onGitHub={() => track("github_clicked")}'), true);
   assert.equal(source.includes("Request a founding slot"), false);
-  assert.equal(source.includes("onRequestStudio={(event) => openBrief(event.currentTarget)}"), true);
+  assert.equal(source.includes("onRequestCloud={(event) => openBrief(event.currentTarget)}"), true);
   assert.ok(
     (source.match(/track\("github_clicked"\)/gu) || []).length >= 4,
     "homepage repository and release interest must remain measurable",
@@ -227,7 +235,10 @@ test("the hero leads with the free product and keeps Release Studio secondary", 
 
   const metadata = await readFile(new URL("../index.html", import.meta.url), "utf8");
   assert.equal(metadata.includes("free, open-source screen recorder and editor"), true);
-  assert.equal(metadata.includes("$99/month Release Studio"), false);
+  assert.equal(metadata.includes("Flowtake Cloud is available"), false);
+  assert.equal(source.includes("uploads, enrollment, and billing are not open yet"), true);
+  assert.equal(source.includes("realtime collaborative editing are planned"), true);
+  assert.equal(source.includes("Release Studio"), false);
 });
 
 test("the homepage uses three truthful product beats without placeholder product evidence", async () => {
@@ -267,9 +278,11 @@ test("the homepage uses three truthful product beats without placeholder product
 
 test("private outcomes stay private and the public fallback warns before linking", async () => {
   const source = await readFile(new URL("./BriefDialog.jsx", import.meta.url), "utf8");
-  const outcome = source.slice(source.indexOf("{outcome ? ("), source.indexOf(") : (", source.indexOf("{outcome ? (")));
+  const outcomeStart = source.indexOf(") : outcome ? (");
+  const outcome = source.slice(outcomeStart, source.indexOf(") : (", outcomeStart));
   const fallback = source.slice(source.indexOf("{error && fallbackAllowed && briefText"), source.indexOf("{status === \"sending\""));
 
+  assert.ok(source.indexOf("{!PRIVATE_INTEREST_FORM_ENABLED ? (") < outcomeStart);
   assert.equal(outcome.includes("PUBLIC_STORYBOARD_URL"), false);
   assert.equal(outcome.includes("Private request reference — do not post publicly"), true);
   assert.equal(fallback.includes("separate public-only summary"), true);

@@ -1,0 +1,138 @@
+.demo-recording-slot {
+  min-width: 0;
+  margin-top: 35px;
+  color: var(--home-text, #f6f4ee);
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+
+.demo-recording-slot__frame {
+  aspect-ratio: 16 / 9;
+  padding: clamp(22px, 4vw, 44px);
+  display: grid;
+  place-items: center;
+  background: #08080f;
+  border: 1px solid var(--home-line-strong, rgba(246, 244, 238, 0.22));
+  border-radius: 18px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
+}
+
+.demo-recording-slot__frame-copy {
+  max-width: 660px;
+  text-align: center;
+}
+
+.demo-recording-slot__frame-copy > p {
+  margin: 0 0 12px;
+  color: var(--home-teal, #61d5ca);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.demo-recording-slot__frame-copy h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.demo-recording-slot__frame-copy > span {
+  margin-top: 16px;
+  display: block;
+  color: var(--home-muted, #a8a5b2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.demo-recording-slot__frame-copy code {
+  color: var(--home-text, #f6f4ee);
+  font: 600 0.95em/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.demo-recording-slot__instructions {
+  margin-top: 18px;
+  padding: 20px;
+  background: var(--home-surface, #0b0b14);
+  border: 1px solid var(--home-line, rgba(246, 244, 238, 0.13));
+  border-radius: 14px;
+}
+
+.demo-recording-slot__instructions > p {
+  margin: 0;
+  color: var(--home-muted, #a8a5b2);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.demo-recording-slot__instructions > p + p {
+  margin-top: 12px;
+}
+
+.demo-recording-slot__instructions ol {
+  margin: 18px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+}
+
+.demo-recording-slot__instructions li {
+  padding: 13px 14px;
+  display: grid;
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+  gap: 4px 10px;
+  border-left: 2px solid var(--home-violet-soft, #aa98ff);
+}
+
+.demo-recording-slot__instructions li > span {
+  color: var(--home-violet-soft, #aa98ff);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.demo-recording-slot__instructions li > strong {
+  color: var(--home-text, #f6f4ee);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.demo-recording-slot__instructions li > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--home-muted, #a8a5b2);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.demo-recording-slot__instructions .demo-recording-slot__privacy {
+  color: var(--home-text, #f6f4ee);
+}
+
+@media (max-width: 800px) {
+  .demo-recording-slot__frame {
+    padding: 18px;
+  }
+
+  .demo-recording-slot__frame-copy > p {
+    margin-bottom: 8px;
+    font-size: 9px;
+  }
+
+  .demo-recording-slot__frame-copy h2 {
+    font-size: clamp(20px, 6vw, 30px);
+  }
+
+  .demo-recording-slot__frame-copy > span {
+    margin-top: 10px;
+    font-size: 10px;
+  }
+
+  .demo-recording-slot__instructions ol {
+    grid-template-columns: 1fr;
+  }
+}

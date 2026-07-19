@@ -29,7 +29,6 @@ export function ComparisonEnhancements() {
       mobileNav.hidden = !open;
       if (menuLabel) menuLabel.textContent = open ? "Close" : "Menu";
     };
-
     const onMenuClick = () => setMenuOpen(menuButton?.getAttribute("aria-expanded") !== "true");
     const onDocumentClick = (event) => {
       const openBriefButton = event.target.closest("[data-open-brief]");
@@ -44,12 +43,15 @@ export function ComparisonEnhancements() {
 
       const trackedLink = event.target.closest("[data-track]");
       if (trackedLink) track(trackedLink.dataset.track);
-      if (event.target.closest("[data-mobile-nav] a")) setMenuOpen(false);
+      const mobileNavLink = event.target.closest("[data-mobile-nav] a");
+      if (mobileNavLink) {
+        setMenuOpen(false);
+      }
     };
     const onKeyDown = (event) => {
       if (event.key !== "Escape" || menuButton?.getAttribute("aria-expanded") !== "true") return;
       setMenuOpen(false);
-      menuButton.focus();
+      queueMicrotask(() => menuButton?.focus({ preventScroll: true }));
     };
 
     menuButton?.addEventListener("click", onMenuClick);

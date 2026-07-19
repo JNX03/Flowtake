@@ -82,14 +82,34 @@ test("genuine product media components are accessible, data-driven, and never si
   }
 
   for (const required of [
-    "hasReviewedDemoMedia ? \"#demo\" : \"#product\"",
-    "hasReviewedDemoMedia && <a href={productEvidenceTarget}>Demo</a>",
+    "import.meta.env.DEV",
+    "lazy(async () =>",
+    'import("./components/DemoRecordingSlot.jsx")',
+    "const hasProductDemo = hasReviewedDemoMedia;",
+    'const productEvidenceTarget = hasReviewedDemoMedia ? "#demo" : "#product";',
+    "hasProductDemo && <a href={productEvidenceTarget}>Demo</a>",
     "hasReviewedDemoMedia ? (",
     "<ReviewedHeroVideo />",
+    ") : LocalDemoRecordingSlot ? (",
+    "<LocalDemoRecordingSlot",
+    "fallback={releaseCard}",
+    "hasReviewedMedia={hasReviewedDemoMedia}",
+    "locationLike={globalThis.location}",
+    ") : releaseCard}",
     "<ReviewedDemoShowcase />",
   ]) {
     assert.equal(home.includes(required), true, `missing homepage media gate: ${required}`);
   }
+  assert.ok(
+    home.indexOf("hasReviewedDemoMedia ? (")
+      < home.indexOf(") : LocalDemoRecordingSlot ? ("),
+    "reviewed media must take precedence over the local recording guide",
+  );
+  assert.ok(
+    home.indexOf("const releaseCard = (")
+      < home.indexOf("hasReviewedDemoMedia ? ("),
+    "the published release card must remain the default fallback",
+  );
   assert.equal(home.includes("Real demo queued for isolated capture"), false);
   assert.equal(home.includes("The 42-second plan is ready."), false);
   assert.equal(home.includes("Concept frame"), false);

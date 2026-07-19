@@ -79,8 +79,15 @@ test("the comparison route is discoverable and uses root privacy for the shared 
   assert.equal(app.includes("screen-studio-alternative-windows/"), true);
   assert.equal(app.includes('privacyHref = "#privacy"'), true);
   assert.equal(enhancements.includes('privacyHref={`${BASE_URL}#privacy`}'), true);
+  assert.equal(enhancements.includes("closeMenuAndRestoreFocus()"), false);
+  assert.equal(enhancements.includes("focus({ preventScroll: true })"), true);
   assert.equal(enhancements.includes('menuButton?.getAttribute("aria-expanded") !== "true"'), true);
-  assert.equal(enhancements.includes("menuButton.focus()"), true);
+  const mobileLinkClose = enhancements.slice(
+    enhancements.indexOf('const mobileNavLink = event.target.closest("[data-mobile-nav] a")'),
+    enhancements.indexOf("const onKeyDown", enhancements.indexOf('const mobileNavLink = event.target.closest("[data-mobile-nav] a")')),
+  );
+  assert.equal(mobileLinkClose.includes("setMenuOpen(false)"), true);
+  assert.equal(mobileLinkClose.includes("focus("), false);
   assert.equal(occurrences(sitemap, `<loc>${comparisonUrl}</loc>`), 1);
 });
 
@@ -177,28 +184,30 @@ test("the public storyboard offer is evergreen and keeps its public-workflow bou
   ]);
   const finalCtaStart = page.indexOf('<section class="section final-cta comparison-final-cta guide-final-cta">');
   const finalCta = page.slice(finalCtaStart, page.indexOf("</section>", finalCtaStart));
-  const studioStart = readme.indexOf("## Optional: Release Studio");
-  const readmeStudioSection = readme.slice(studioStart, readme.indexOf("## Development", studioStart));
+  const cloudStart = readme.indexOf("## Optional: Flowtake Cloud (planned beta)");
+  const readmeCloudSection = readme.slice(cloudStart, readme.indexOf("## Development", cloudStart));
   const fixedOfferDeadline =
     /\b(?:through|until|by|ends?|expires?)\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?,\s+20\d{2}\b/iu;
 
   assert.ok(finalCtaStart >= 0, "missing storyboard final call to action");
-  assert.ok(studioStart >= 0, "missing README Release Studio section");
+  assert.ok(cloudStart >= 0, "missing README Flowtake Cloud section");
   assert.doesNotMatch(finalCta, fixedOfferDeadline);
-  assert.doesNotMatch(readmeStudioSection, fixedOfferDeadline);
-  assert.equal(`${finalCta}\n${readmeStudioSection}`.includes("July 23, 2026"), false);
+  assert.doesNotMatch(readmeCloudSection, fixedOfferDeadline);
+  assert.equal(`${finalCta}\n${readmeCloudSection}`.includes("July 23, 2026"), false);
   assert.equal(
     finalCta.includes("Maintainers can bring one complete public developer-tool workflow to the public clinic and request a no-obligation storyboard."),
     true,
   );
   assert.equal(
-    readmeStudioSection.includes("Maintainers can request a no-obligation six-beat storyboard by"),
+    readmeCloudSection.includes("Maintainers can request a no-obligation six-beat storyboard by"),
     true,
   );
   assert.equal(
-    readmeStudioSection.includes("Requests must contain only public, non-sensitive information."),
+    readmeCloudSection.includes("Requests must contain only public, non-sensitive information."),
     true,
   );
+  assert.equal(readmeCloudSection.includes("Enrollment, uploads, entitlements, and billing are not open yet."), true);
+  assert.equal(readmeCloudSection.includes("realtime collaborative editing are planned later"), true);
 });
 
 test("storyboard guide is linked, copy-enabled, and listed once in the sitemap", async () => {

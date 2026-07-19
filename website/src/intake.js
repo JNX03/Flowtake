@@ -2,6 +2,8 @@ export const INTAKE_ORIGIN = "https://flowtake.72-62-41-174.sslip.io";
 export const LEAD_ENDPOINT = "https://flowtake.72-62-41-174.sslip.io/v1/leads";
 export const EVENT_ENDPOINT = "https://flowtake.72-62-41-174.sslip.io/v1/events";
 export const LEAD_TIMEOUT_MS = 12_000;
+export const PRIVACY_NOTICE_VERSION = "2026-07-19-intake-v2";
+export const PRIVATE_INTEREST_FORM_ENABLED = false;
 
 const EVENT_NAMES = new Set([
   "page_viewed",
@@ -71,8 +73,9 @@ export function createLeadPayload(formData) {
     deadline: value("deadline"),
     story: value("story").trim(),
     privacyAccepted: value("privacyAccepted") === "on",
+    privacyDisclosureVersion: PRIVACY_NOTICE_VERSION,
     website: value("website"),
-    source: "release-studio-website",
+    source: "flowtake-cloud-website",
   };
 }
 

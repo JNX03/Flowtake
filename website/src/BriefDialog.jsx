@@ -4,7 +4,13 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createLeadPayload, describeLeadFailure, sendEvent, submitLead } from "./intake.js";
+import {
+  createLeadPayload,
+  describeLeadFailure,
+  PRIVATE_INTEREST_FORM_ENABLED,
+  sendEvent,
+  submitLead,
+} from "./intake.js";
 
 const PUBLIC_STORYBOARD_URL = "https://github.com/JNX03/Flowtake/discussions/169";
 
@@ -86,7 +92,7 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
       `Launch URL: ${payload.url || "Not provided"}`,
       `Target date: ${payload.deadline || "Not provided"}`,
       "",
-      "Release story:",
+      "Cloud review workflow:",
       payload.story,
     ].join("\n");
     setBriefText(text);
@@ -161,15 +167,39 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
         </button>
 
         <div className="dialog-intro">
-          <p className="kicker">Sample storyboard request</p>
-          <h2 id="brief-title">Give us the release in five minutes.</h2>
+          <p className="kicker">Flowtake Cloud beta</p>
+          <h2 id="brief-title">Check the private review beta status.</h2>
           <p id="brief-description">
-            Release Studio is optional human production work. It does not unlock Flowtake app features. We’ll use
-            this request only to assess the demo story and the safest next capture.
+            Flowtake Cloud is a planned optional hosted review layer. It does not unlock or remove local app
+            features, and uploads, enrollment, and billing are not open yet.
           </p>
         </div>
 
-        {outcome ? (
+        {!PRIVATE_INTEREST_FORM_ENABLED ? (
+          <div className="dialog-outcome" role="status">
+            <CheckIcon aria-hidden="true" />
+            <h3>This form is disabled.</h3>
+            <p>
+              This form is disabled and collects nothing. No name, email, company, product story, video, or payment
+              is submitted from this dialog.
+            </p>
+            <p>
+              For now, use the public clinic only for public, non-sensitive project information. Never post a private
+              brief, credentials, customer data, or an unpublished repository there. Also, do not send private footage by email.
+            </p>
+            <a
+              ref={firstInput}
+              className="button button-quiet"
+              href={PUBLIC_STORYBOARD_URL}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => track("github_clicked")}
+            >
+              Open the public storyboard clinic
+            </a>
+            <button className="text-link" type="button" onClick={onClose}>Close</button>
+          </div>
+        ) : outcome ? (
           <div className="dialog-outcome" role="status">
             <CheckIcon aria-hidden="true" />
             <h3>{outcome.title}</h3>
@@ -216,7 +246,7 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
               <input name="deadline" type="date" />
             </label>
             <label>
-              What should a viewer understand after 45 seconds? <span>required</span>
+              What should reviewers be able to do with the finished video? <span>required</span>
               <textarea name="story" rows="4" minLength="20" maxLength="2000" required aria-describedby="brief-safety" />
             </label>
             <p className="form-safety" id="brief-safety">
@@ -224,7 +254,7 @@ export function BriefDialog({ onClose, restoreFocusTo, privacyHref = "#privacy" 
             </p>
             <label className="consent-row">
               <input name="privacyAccepted" type="checkbox" required />
-              <span>I've read the <a href={privacyHref} target="_blank" rel="noreferrer">privacy disclosure</a> and agree to Flowtake using this brief to assess and reply. I understand this is not a purchase.</span>
+              <span>I confirm that I've read the <a href={privacyHref} target="_blank" rel="noreferrer">privacy disclosure</a> and understand Flowtake will use this brief only to assess and reply. This is not a purchase.</span>
             </label>
             <div className="form-honeypot" aria-hidden="true" inert={true}>
               <label>
