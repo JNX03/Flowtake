@@ -12,11 +12,12 @@ enum CaptureConfigurationTests {
         try testRequiresStableWindowIdentifier()
         try testClampsAreaPercentagesToSelectedDisplay()
         try testRejectsFrameRatesThatAppDoesNotExpose()
+        try testRejectsInvalidExcludedProcess()
         try testFixedFrameCadenceFillsIrregularCaptureGaps()
         try testParsesPreviewProxyConfiguration()
         try testPreviewBoundsHandleLandscapeAndPortraitVideos()
         try testRejectsInvalidPreviewBounds()
-        print("Flowtake macOS capture tests passed (8 tests)")
+        print("Flowtake macOS capture tests passed (9 tests)")
     }
 
     static func expect(
@@ -51,6 +52,7 @@ enum CaptureConfigurationTests {
             "--height", "1081",
             "--fps", "60",
             "--bitrate", "12000000",
+            "--exclude-process-id", "4321",
             "--audio"
         ])
 
@@ -60,6 +62,7 @@ enum CaptureConfigurationTests {
         try expect(configuration.height == 1080, "Height was not normalized")
         try expect(configuration.framesPerSecond == 60, "Frame rate was not parsed")
         try expect(configuration.capturesSystemAudio, "Audio flag was not parsed")
+        try expect(configuration.excludedProcessID == 4321, "Excluded app process was not parsed")
     }
 
     static func testRequiresStableWindowIdentifier() throws {
@@ -95,6 +98,7 @@ enum CaptureConfigurationTests {
         try expect(configuration.areaYPercent == 20, "Area y changed unexpectedly")
         try expect(configuration.areaWidthPercent == 100, "Area width was not clamped")
         try expect(configuration.areaHeightPercent == 75, "Area height changed unexpectedly")
+        try expect(configuration.excludedProcessID == nil, "Unexpected app exclusion was enabled")
     }
 
     static func testRejectsFrameRatesThatAppDoesNotExpose() throws {
@@ -108,6 +112,21 @@ enum CaptureConfigurationTests {
                 "--height", "1080",
                 "--fps", "24",
                 "--bitrate", "9000000"
+            ])
+        }
+    }
+
+    static func testRejectsInvalidExcludedProcess() throws {
+        try expectError(.invalidValue("--exclude-process-id", "0")) {
+            _ = try CaptureConfiguration.parse(arguments: [
+                "record",
+                "--output", "/tmp/screen.mp4",
+                "--ready-file", "/tmp/ready",
+                "--source-type", "screen",
+                "--width", "1920",
+                "--height", "1080",
+                "--bitrate", "9000000",
+                "--exclude-process-id", "0"
             ])
         }
     }

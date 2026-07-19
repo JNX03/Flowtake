@@ -20,6 +20,7 @@ const [
     recorderTutorial,
     tutorialSteps,
     nativeRecording,
+    nativeWindows,
 ] = await Promise.all([
     readSource("../app/windows/main/App.jsx"),
     readSource("../app/windows/main/components/Launcher.jsx"),
@@ -36,6 +37,7 @@ const [
     readSource("../app/windows/recorder/components/RecorderTutorial.jsx"),
     readSource("../app/windows/main/components/tutorial/steps.js"),
     readSource("../src-tauri/src/commands/recording.rs"),
+    readSource("../src-tauri/src/commands/windows.rs"),
 ])
 
 test("cold hardware encoder probing does not hold the startup splash", () => {
@@ -102,6 +104,11 @@ test("settings show only controls backed by working behavior", () => {
     assert.match(recorderSettings, /store-get", "recordingQuality"/)
     assert.match(recorderSettings, /value="performance"/)
     assert.match(recorderSettings, /value="quality"/)
+    assert.match(generalSettings, /get-content-protection/)
+    assert.match(generalSettings, /macOS no longer lets apps block system screenshots or third-party captures/)
+    assert.match(generalSettings, /Window capture protection is unavailable on Linux/)
+    assert.match(nativeWindows, /stored\.unwrap_or\(!cfg!\(debug_assertions\)\)/)
+    assert.doesNotMatch(nativeWindows, /if cfg!\(debug_assertions\) \{[\s\S]*?return false/)
 })
 
 test("experimental page exposes runtime-backed built-ins without drop-in claims", () => {

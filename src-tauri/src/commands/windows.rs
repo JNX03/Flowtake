@@ -6,19 +6,24 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindo
 use tauri_plugin_store::StoreExt;
 
 /// Read the content-protection preference from the store.
-/// Release builds default to protected/hidden so Flowtake never appears in a
-/// user's recording. Debug builds are deliberately capturable, which keeps
-/// visual QA possible without weakening production privacy.
-pub fn is_content_protection_enabled(app: &AppHandle) -> bool {
-    if cfg!(debug_assertions) {
-        return false;
-    }
+/// Release builds default to protected. Debug builds default to capturable for
+/// visual QA, but an explicit user choice must still take effect.
+fn resolve_content_protection_preference(stored: Option<bool>) -> bool {
+    stored.unwrap_or(!cfg!(debug_assertions))
+}
 
-    app.store("store.json")
+pub fn is_content_protection_enabled(app: &AppHandle) -> bool {
+    let stored = app
+        .store("store.json")
         .ok()
         .and_then(|s| s.get("contentProtectionEnabled"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true)
+        .and_then(|v| v.as_bool());
+    resolve_content_protection_preference(stored)
+}
+
+#[tauri::command]
+pub fn get_content_protection(app: AppHandle) -> bool {
+    is_content_protection_enabled(&app)
 }
 
 #[tauri::command]
@@ -35,7 +40,13 @@ pub async fn set_content_protection(app: AppHandle, enabled: bool) -> AppResult<
         if label == "drawingOverlay" {
             continue;
         }
-        window.set_content_protected(enabled).ok();
+        if let Err(error) = window.set_content_protected(enabled) {
+            log::warn!(
+                "[content-protection] Could not update window {}: {}",
+                label,
+                error
+            );
+        }
     }
 
     Ok(())
@@ -1406,7 +1417,17 @@ pub async fn close_live_composer(app: AppHandle) -> AppResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::intersect_window_with_desktop;
+    use super::{intersect_window_with_desktop, resolve_content_protection_preference};
+
+    #[test]
+    fn explicit_content_protection_choice_overrides_build_default() {
+        assert!(resolve_content_protection_preference(Some(true)));
+        assert!(!resolve_content_protection_preference(Some(false)));
+        assert_eq!(
+            resolve_content_protection_preference(None),
+            !cfg!(debug_assertions)
+        );
+    }
 
     #[test]
     fn window_intersection_keeps_secondary_monitor_coordinates() {
