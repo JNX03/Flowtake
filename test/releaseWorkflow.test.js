@@ -19,6 +19,10 @@ const rustAuditWorkflow = await readFile(
     new URL("../.github/workflows/rust-security-audit.yml", import.meta.url),
     "utf8"
 )
+const intakeUptimeWorkflow = await readFile(
+    new URL("../.github/workflows/intake-uptime.yml", import.meta.url),
+    "utf8"
+)
 const cargoAuditScript = await readFile(
     new URL("../scripts/run-cargo-audit.sh", import.meta.url),
     "utf8"
@@ -28,6 +32,7 @@ const parsedReleaseWorkflow = yaml.load(workflow)
 const parsedCiWorkflow = yaml.load(ciWorkflow)
 const parsedPagesWorkflow = yaml.load(pagesWorkflow)
 const parsedRustAuditWorkflow = yaml.load(rustAuditWorkflow)
+const parsedIntakeUptimeWorkflow = yaml.load(intakeUptimeWorkflow)
 
 test("tracked GitHub workflows remain valid YAML", () => {
     for (const [name, parsed] of [
@@ -35,10 +40,24 @@ test("tracked GitHub workflows remain valid YAML", () => {
         ["CI", parsedCiWorkflow],
         ["Pages", parsedPagesWorkflow],
         ["scheduled Rust audit", parsedRustAuditWorkflow],
+        ["public intake uptime", parsedIntakeUptimeWorkflow],
     ]) {
         assert.ok(parsed && typeof parsed === "object", `${name} workflow must parse as YAML`)
         assert.ok(parsed.jobs && typeof parsed.jobs === "object", `${name} workflow must define jobs`)
     }
+})
+
+test("public intake monitoring is external, exact, least-privilege, and privacy-safe", () => {
+    assert.deepEqual(Object.keys(parsedIntakeUptimeWorkflow.on).sort(), ["schedule", "workflow_dispatch"])
+    assert.equal(parsedIntakeUptimeWorkflow.on.schedule[0].cron, "*/15 * * * *")
+    assert.deepEqual(parsedIntakeUptimeWorkflow.permissions, {})
+    assert.deepEqual(parsedIntakeUptimeWorkflow.jobs.health.permissions, {})
+    assert.equal(parsedIntakeUptimeWorkflow.jobs.health["timeout-minutes"], 3)
+    assert.match(intakeUptimeWorkflow, /https:\/\/flowtake\.72-62-41-174\.sslip\.io\/v1\/health/)
+    assert.match(intakeUptimeWorkflow, /\[\[ "\$status" != "200" \|\| "\$body" != '\{"ok":true\}' \]\]/)
+    assert.match(intakeUptimeWorkflow, /secrets\.FLOWTAKE_DISCORD_WEBHOOK/)
+    assert.match(intakeUptimeWorkflow, /No lead or customer data was accessed\./)
+    assert.doesNotMatch(intakeUptimeWorkflow, /decrypt|leadRefs|ciphertext|FLOWTAKE_ENCRYPTION_KEY/)
 })
 
 test("release publication fails closed across every supported platform", () => {
@@ -241,7 +260,7 @@ test("release FFmpeg archives are immutable and verified before extraction", () 
 })
 
 test("release automation pins actions, minimizes write access, and binds manual runs to a tag", () => {
-    const workflows = [workflow, ciWorkflow, pagesWorkflow, rustAuditWorkflow]
+    const workflows = [workflow, ciWorkflow, pagesWorkflow, rustAuditWorkflow, intakeUptimeWorkflow]
     const actionRefs = workflows.flatMap(contents => [
         ...contents.matchAll(/uses:\s+([^@\s]+)@([^\s#]+)/g),
     ])

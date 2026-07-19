@@ -47,7 +47,9 @@ export function ComparisonEnhancements() {
       if (event.target.closest("[data-mobile-nav] a")) setMenuOpen(false);
     };
     const onKeyDown = (event) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key !== "Escape" || menuButton?.getAttribute("aria-expanded") !== "true") return;
+      setMenuOpen(false);
+      menuButton.focus();
     };
 
     menuButton?.addEventListener("click", onMenuClick);

@@ -1,0 +1,60 @@
+name: Monitor public intake health
+
+"on":
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: flowtake-intake-uptime
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions: {}
+    steps:
+      - name: Require exact healthy public response
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(
+            curl --location --show-error --silent \
+              --connect-timeout 5 \
+              --max-time 10 \
+              --retry 2 \
+              --retry-all-errors \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              https://flowtake.72-62-41-174.sslip.io/v1/health
+          )"
+          body="$(tr -d '\r\n' < "$response_file")"
+          if [[ "$status" != "200" || "$body" != '{"ok":true}' ]]; then
+            echo "Flowtake intake health contract failed: HTTP $status with an unexpected body." >&2
+            exit 1
+          fi
+
+      - name: Alert Discord on confirmed failure
+        if: ${{ failure() }}
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.FLOWTAKE_DISCORD_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DISCORD_WEBHOOK_URL:-}" ]]; then
+            echo "FLOWTAKE_DISCORD_WEBHOOK is not configured." >&2
+            exit 1
+          fi
+          content="Flowtake intake health check failed at $(date -u +'%Y-%m-%dT%H:%M:%SZ'). No lead or customer data was accessed. Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          payload="$(jq -n --arg content "$content" '{content: $content}')"
+          curl --fail --show-error --silent \
+            --connect-timeout 5 \
+            --max-time 10 \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$DISCORD_WEBHOOK_URL" >/dev/null

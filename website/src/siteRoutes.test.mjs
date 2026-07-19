@@ -79,6 +79,8 @@ test("the comparison route is discoverable and uses root privacy for the shared 
   assert.equal(app.includes("screen-studio-alternative-windows/"), true);
   assert.equal(app.includes('privacyHref = "#privacy"'), true);
   assert.equal(enhancements.includes('privacyHref={`${BASE_URL}#privacy`}'), true);
+  assert.equal(enhancements.includes('menuButton?.getAttribute("aria-expanded") !== "true"'), true);
+  assert.equal(enhancements.includes("menuButton.focus()"), true);
   assert.equal(occurrences(sitemap, `<loc>${comparisonUrl}</loc>`), 1);
 });
 

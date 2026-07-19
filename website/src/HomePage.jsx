@@ -105,6 +105,7 @@ export function HomePage() {
   const [briefOpen, setBriefOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const briefTriggerRef = useRef(null);
+  const menuButtonRef = useRef(null);
 
   const openBrief = (trigger) => {
     track("brief_opened");
@@ -120,7 +121,9 @@ export function HomePage() {
   useEffect(() => {
     if (!mobileOpen) return undefined;
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key !== "Escape") return;
+      setMobileOpen(false);
+      queueMicrotask(() => menuButtonRef.current?.focus());
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
@@ -169,6 +172,7 @@ export function HomePage() {
             Download free
           </a>
           <button
+            ref={menuButtonRef}
             className="home-menu-button"
             type="button"
             aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
@@ -321,9 +325,13 @@ export function HomePage() {
             <details id="privacy" open>
               <summary>Privacy and business contact <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service. Lead records are encrypted at rest and declined or inactive leads are deleted within 90 days.</p>
-                <p>This page sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count—not event details, page URLs, device identifiers, or form content. IP addresses are used only in server memory for abuse-rate limiting. No nonessential cookies are used.</p>
-                <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>, but do not send private footage by email. Use the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> only for public, non-sensitive requests. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
+                <p><strong>Privacy notice version 2026-07-19.</strong> Flowtake / JNX03 is the project data controller for this founding pilot. Contact <a href={`mailto:${CONTACT_EMAIL}?subject=Privacy%20request`}>{CONTACT_EMAIL}</a> for privacy questions or rights requests. The operator's formal legal name and address will be supplied before any contract or payment; no private footage or payment is accepted before that disclosure.</p>
+                <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service. That information is used only to assess and reply to your request, take requested steps before a possible contract, and protect the service from abuse. The legal bases are pre-contractual steps at your request, your consent where the form asks for it, and the operator's legitimate interest in service security. It is not sold, used for advertising, or used for automated profiling.</p>
+                <p>Lead records are encrypted at rest. Declined or inactive leads are deleted within 90 days. If you enter an active paid scope, any longer contract, accounting, or legal retention period will be stated before payment. Working footage is deleted within 30 days after delivery unless a shorter period is agreed.</p>
+                <p>Lead data is available only to the Flowtake operator and the hosting or email providers needed to run the intake and reply. Infrastructure providers may process data outside Thailand. Before private footage is accepted, the transfer method, processors, locations, safeguards, and customer-specific data terms will be agreed in writing. Flowtake does not sell lead data.</p>
+                <p>This page also sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count—not event details, page URLs, device identifiers, or form content. IP addresses are used only in server memory for abuse-rate limiting. No nonessential cookies are used.</p>
+                <p>You may ask to access, receive a copy of, correct, delete, restrict, or object to processing of your personal data; withdraw consent; or request portability where applicable. Email <a href={`mailto:${CONTACT_EMAIL}?subject=Privacy%20request`}>{CONTACT_EMAIL}</a> with the subject “Privacy request.” Identity may be verified before a request is completed. You may also complain to Thailand's Office of the Personal Data Protection Committee; its official <a href="https://gppc.pdpc.or.th/contact-us/" target="_blank" rel="noreferrer">contact channels are published here</a>.</p>
+                <p>Please do not send private footage by email. Use the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> only for public, non-sensitive requests.</p>
               </div>
             </details>
           </div>
