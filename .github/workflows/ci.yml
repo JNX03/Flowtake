@@ -125,6 +125,17 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      - name: Test native macOS capture helper
+        if: runner.os == 'macOS'
+        run: >-
+          swift run
+          --package-path src-tauri/native/macos-capture
+          flowtake-macos-capture-tests
+
+      - name: Build native macOS capture helper
+        if: runner.os == 'macOS'
+        run: bash scripts/build-macos-capture.sh --native
+
       # Tauri validates that its configured sidecar exists during build-script
       # execution. Release builds download the real Linux FFmpeg binary; CI only
       # needs a host executable so Rust source can be checked without a network

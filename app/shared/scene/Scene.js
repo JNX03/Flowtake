@@ -51,13 +51,15 @@ import ZoomAnimator from "./zoom/ZoomAnimator"
 const SUBTITLE_FONT_FALLBACK = "Arial, Helvetica, sans-serif"
 
 export default class Scene {
-    constructor() {
+    constructor({ isPreview = false } = {}) {
         DOMAdapter.set(WebWorkerAdapter)
         extensions.remove(DOMPipe, AccessibilitySystem, EventSystem)
 
         Assets.add([{ src: Roboto, alias: "roboto" }])
 
         this.isDestroyed = false
+        this.isPreview = isPreview
+        this.isZoomBlurActive = false
 
         this.screen = null
 
@@ -86,11 +88,19 @@ export default class Scene {
 
         this.container = new Container()
         this.container.label = "main-container"
-        this.zoomBlur = new ZoomBlurFilter({ strength: 0 })
-        this.container.filters = [this.zoomBlur]
+        this.zoomBlur = new ZoomBlurFilter({
+            strength: 0,
+            maxKernelSize: this.isPreview ? 8 : 32
+        })
+        this.container.filters = null
         this.container.zIndex = 0
 
-        this.cursorShadow = new DropShadowFilter({ offsetX: 0, offsetY: 0, blur: 10, quality: 10 })
+        this.cursorShadow = new DropShadowFilter({
+            offsetX: 0,
+            offsetY: 0,
+            blur: 10,
+            quality: this.isPreview ? 3 : 10
+        })
         this.cursorShadow.padding = 50
         this.cursorImageContainer = new Container()
         this.cursorContainer = new Container()
@@ -261,7 +271,14 @@ export default class Scene {
 
         this.clickAnimator = new ClickAnimator(this.cursorImageContainer, this.cursorContainer)
 
-        this.cursorAnimator = new CursorAnimator(this.cursorContainer, this.motionBlur, mouseEvents, this.screen.dims, duration)
+        this.cursorAnimator = new CursorAnimator(
+            this.cursorContainer,
+            this.motionBlur,
+            mouseEvents,
+            this.screen.dims,
+            duration,
+            this.isPreview ? 11 : 25
+        )
 
         this.spotlightAnimator = new SpotlightAnimator(this.screen.spotlightContainer, this.cursorContainer, this.screen.dims)
 
@@ -309,8 +326,14 @@ export default class Scene {
         }
     }
 
-    initScreenVideo(dims, content = null) {
-        this.screen = new Screen(dims, this.app.screen, this.cursorContainer)
+    initScreenVideo(dims, content = null, textureDims = dims) {
+        this.screen = new Screen(
+            dims,
+            this.app.screen,
+            this.cursorContainer,
+            textureDims,
+            this.isPreview ? 3 : 10
+        )
         this.container.addChild(this.screen.container)
         this.setFrame(SCREEN_VIDEO, content)
     }
@@ -408,6 +431,11 @@ export default class Scene {
         const clipFrame = this.clipAnimator?.update(this.time)
         this.panAnimator?.update(this.time, clipFrame)
         this.zoomAnimator?.update(this.time, clipFrame)
+        const shouldApplyZoomBlur = Math.abs(this.zoomBlur.strength) > 0.0001
+        if (shouldApplyZoomBlur !== this.isZoomBlurActive) {
+            this.isZoomBlurActive = shouldApplyZoomBlur
+            this.container.filters = shouldApplyZoomBlur ? [this.zoomBlur] : null
+        }
         this.cameraZoomAnimator?.update(this.time, clipFrame)
         this.maskAnimator?.update(this.time)
         this.overlayAnimator?.update(this.time)

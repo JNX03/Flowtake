@@ -24,6 +24,8 @@ flowtake/
       windowPicker/       # Window selection
       note/               # Annotation overlay
   src-tauri/              # Backend (Rust, Tauri v2)
+    native/
+      macos-capture/      # Swift ScreenCaptureKit helper and executable tests
     src/
       commands/           # Tauri command handlers
       lib.rs              # App initialization, plugins, protocols
@@ -39,7 +41,7 @@ flowtake/
 | Layer | Technology |
 |-------|-----------|
 | Desktop framework | Tauri v2 |
-| Backend | Rust (tokio, serde) |
+| Backend | Rust (tokio, serde) + Swift ScreenCaptureKit helper on macOS |
 | Frontend | React 18 |
 | State management | Redux Toolkit |
 | Animation engine | Pixi.js 8 |
@@ -72,6 +74,6 @@ The main window entry point is `index.html` at the project root. Other windows u
 
 ## Video Pipeline
 
-1. **Recording**: Rust coordinates capture; FFmpeg records screen, window, and area sources into temporary media, while camera and microphone sources use the device-media path
-2. **Preview**: Browser video elements decode recorded media, `PreviewWorkerManager` transfers `VideoFrame` objects, and the Pixi.js preview worker composites animations
+1. **Recording**: Rust coordinates capture. On macOS 12.3+, the Swift ScreenCaptureKit helper writes the selected screen, window, or area through the native H.264 stack at a fixed 30/60 fps cadence; it handshakes before recording starts and closes its recording file before Rust validates it. FFmpeg/AVFoundation remains the compatibility fallback. Other platforms use their FFmpeg capture paths, while camera and microphone sources use the device-media path.
+2. **Preview**: Browser video elements decode recorded media, `PreviewWorkerManager` transfers `VideoFrame` objects, and the Pixi.js preview worker composites animations. Preview-only screen textures are bounded to 1280×720 and animation time is published at display cadence; source dimensions remain authoritative for coordinates and export.
 3. **Export**: Render Workers composite frames with Pixi.js, Mediabunny encodes and muxes the AVC MP4, and Rust copies `output.mp4` to the export folder

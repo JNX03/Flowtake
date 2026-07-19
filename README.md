@@ -131,6 +131,13 @@ powershell -ExecutionPolicy Bypass -File scripts/download-ffmpeg.ps1
 bash scripts/download-ffmpeg.sh
 ```
 
+On macOS, build the native ScreenCaptureKit helper as well:
+
+```bash
+npm run test:macos-capture
+npm run build:macos-capture
+```
+
 Then start the native app and frontend:
 
 ```bash
@@ -148,7 +155,7 @@ cargo check --manifest-path src-tauri/Cargo.toml --locked
 
 ### Architecture
 
-Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, Mediabunny encodes and muxes the edited AVC MP4, and Rust copies the completed `output.mp4` into the local export folder. FFmpeg remains bundled for recording capture and native media utilities.
+Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, Mediabunny encodes and muxes the edited AVC MP4, and Rust copies the completed `output.mp4` into the local export folder. On macOS 12.3+, a Swift ScreenCaptureKit helper writes fixed-cadence H.264 through the native media stack and cleanly falls back to FFmpeg/AVFoundation when unavailable. The editor bounds Retina preview textures while exports retain source resolution. FFmpeg remains bundled for compatibility capture and native media utilities.
 
 The native app uses separate windows for the launcher/editor, recorder controls, exporter, source pickers, and annotations. Start with the [architecture docs](docs/architecture/README.md) or the [development guide](docs/getting-started/development.md) for a deeper tour.
 

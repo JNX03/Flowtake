@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState = {
-    inertia: 650,
+    inertia: 300,
     cutOff: 0,
     isLoop: false,
     blurStrength: .3,

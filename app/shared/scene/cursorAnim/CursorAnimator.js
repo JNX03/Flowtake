@@ -26,7 +26,8 @@ export default class CursorAnimator extends Animator {
         motionBlur,
         mouseEvents,
         screenVideoDimensions,
-        duration
+        duration,
+        maxMotionBlurKernelSize = 25
     ) {
         super()
 
@@ -44,6 +45,7 @@ export default class CursorAnimator extends Animator {
         this.mouseEvents = mouseEvents
         this.screenVideoDimensions = screenVideoDimensions
         this.duration = duration
+        this.maxMotionBlurKernelSize = maxMotionBlurKernelSize
 
         this.pluginStyle = null
         this.styleEntities = []      // [{id, start, end, enabled?, inertia?, color?, showLabel?, label?, preset?}]
@@ -81,7 +83,10 @@ export default class CursorAnimator extends Animator {
         const blurScale = Math.min(speed * 0.005, 1.0) * this.blurStrength
 
         this.motionBlur.velocity.set(dx * blurScale, dy * blurScale)
-        this.motionBlur.kernelSize = Math.min(Math.max(Math.round(speed * 0.3), 3), 25)
+        this.motionBlur.kernelSize = Math.min(
+            Math.max(Math.round(speed * 0.3), 3),
+            this.maxMotionBlurKernelSize
+        )
 
         if (this.rotationStrength > 0) {
             let rotation = Math.min(this.calculateAveragedStrength(timestamp, coords, MOTION_ROTATION_FRAMES) * MOTION_ROTATION_FACTOR, MOTION_ROTATION_MAX_STRENGTH)
@@ -410,4 +415,3 @@ export default class CursorAnimator extends Animator {
         return totalStrength / numPreviousFrames
     }
 }
-

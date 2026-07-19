@@ -323,6 +323,109 @@ fn verify_capture_process_start(
     }
 }
 
+#[cfg(target_os = "macos")]
+fn spawn_macos_capture_stderr_reader(stderr: std::process::ChildStderr, app: AppHandle) {
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+
+        let reader = std::io::BufReader::new(stderr);
+        for line in reader.lines() {
+            match line {
+                Ok(line) if !line.trim().is_empty() => {
+                    log::warn!("[macos-capture] {}", line.trim());
+                    if line.contains("Native recording failed") {
+                        app.emit("recording-error", "CaptureError").ok();
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    log::debug!("[macos-capture] stderr reader stopped: {}", error);
+                    break;
+                }
+            }
+        }
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn spawn_macos_capture(
+    app: &AppHandle,
+    args: &[String],
+    ready_file: &std::path::Path,
+) -> AppResult<std::process::Child> {
+    use std::process::{Command, Stdio};
+
+    let helper = crate::macos_capture::find_helper(app).ok_or_else(|| {
+        AppError::General("ScreenCaptureKit helper is not installed".to_string())
+    })?;
+
+    if ready_file.exists() {
+        std::fs::remove_file(ready_file).map_err(|error| {
+            AppError::General(format!(
+                "Could not clear stale ScreenCaptureKit handshake: {}",
+                error
+            ))
+        })?;
+    }
+
+    log::info!(
+        "[macos-capture] Starting {:?} with native ScreenCaptureKit",
+        helper
+    );
+    let mut process = Command::new(&helper)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| {
+            AppError::General(format!(
+                "Could not start ScreenCaptureKit helper: {}",
+                error
+            ))
+        })?;
+    crate::process_containment::contain_owned_child(&process, "ScreenCaptureKit helper");
+
+    if let Some(stderr) = process.stderr.take() {
+        spawn_macos_capture_stderr_reader(stderr, app.clone());
+    }
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+    loop {
+        if ready_file.is_file() {
+            std::fs::remove_file(ready_file).ok();
+            return Ok(process);
+        }
+
+        match process.try_wait() {
+            Ok(Some(status)) => {
+                return Err(AppError::General(format!(
+                    "ScreenCaptureKit helper exited during startup with {}",
+                    status
+                )));
+            }
+            Ok(None) => {}
+            Err(error) => {
+                process.kill().ok();
+                process.wait().ok();
+                return Err(AppError::General(format!(
+                    "Could not verify ScreenCaptureKit startup: {}",
+                    error
+                )));
+            }
+        }
+
+        if std::time::Instant::now() >= deadline {
+            process.kill().ok();
+            process.wait().ok();
+            return Err(AppError::General(
+                "ScreenCaptureKit helper did not become ready within 6 seconds".to_string(),
+            ));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RecordingPreferences {
     fps: u32,
@@ -339,7 +442,10 @@ fn normalize_recording_quality(quality: Option<&str>) -> &'static str {
     }
 }
 
-async fn load_recording_preferences(app: &AppHandle) -> AppResult<RecordingPreferences> {
+async fn load_recording_preferences(
+    app: &AppHandle,
+    requires_system_audio: bool,
+) -> AppResult<RecordingPreferences> {
     let ffmpeg = find_ffmpeg_path()
         .ok_or_else(|| AppError::General("FFmpeg binary not found".to_string()))?;
     let store = app
@@ -368,11 +474,16 @@ async fn load_recording_preferences(app: &AppHandle) -> AppResult<RecordingPrefe
         .get("capturerMode")
         .and_then(|value| value.as_str().map(|mode| mode != "manual"))
         .unwrap_or(true);
-    let capturer = crate::commands::encoding::normalize_capturer(if automatic_capturer {
-        None
-    } else {
-        stored_capturer.as_deref()
-    });
+    let capturer = crate::commands::encoding::resolve_capturer(
+        app,
+        if automatic_capturer {
+            None
+        } else {
+            stored_capturer.as_deref()
+        },
+        requires_system_audio,
+    )
+    .await;
 
     let ffmpeg_for_probe = ffmpeg.clone();
     let requested_for_probe = if automatic_encoder {
@@ -489,6 +600,93 @@ fn estimated_recording_dimensions(
 
     // Every supported H.264 path requires even dimensions.
     ((width.max(16) & !1), (height.max(16) & !1))
+}
+
+#[cfg(target_os = "macos")]
+struct MacCaptureArgumentConfig<'a> {
+    source_type: &'a str,
+    output_path: &'a str,
+    ready_file_path: &'a str,
+    fps: u32,
+    width: u32,
+    height: u32,
+    quality: &'a str,
+    captures_system_audio: bool,
+}
+
+#[cfg(target_os = "macos")]
+fn macos_native_capture_arguments(
+    source: &Value,
+    config: MacCaptureArgumentConfig<'_>,
+) -> Vec<String> {
+    let MacCaptureArgumentConfig {
+        source_type,
+        output_path,
+        ready_file_path,
+        fps,
+        width,
+        height,
+        quality,
+        captures_system_audio,
+    } = config;
+    let mut args = vec![
+        "record".to_string(),
+        "--output".to_string(),
+        output_path.to_string(),
+        "--ready-file".to_string(),
+        ready_file_path.to_string(),
+        "--source-type".to_string(),
+        source_type.to_string(),
+        "--display-index".to_string(),
+        source
+            .get("monitorIndex")
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+            .max(0)
+            .to_string(),
+        "--width".to_string(),
+        width.to_string(),
+        "--height".to_string(),
+        height.to_string(),
+        "--fps".to_string(),
+        fps.to_string(),
+        "--bitrate".to_string(),
+        target_video_bitrate_kbps(width, height, fps, quality)
+            .saturating_mul(1_000)
+            .to_string(),
+    ];
+
+    if source_type == "window" {
+        args.extend([
+            "--window-id".to_string(),
+            source
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("0")
+                .to_string(),
+        ]);
+    } else if source_type == "area" {
+        for (option, key, default) in [
+            ("--x-percent", "x", 0.0),
+            ("--y-percent", "y", 0.0),
+            ("--width-percent", "width", 100.0),
+            ("--height-percent", "height", 100.0),
+        ] {
+            args.extend([
+                option.to_string(),
+                source
+                    .get(key)
+                    .and_then(Value::as_f64)
+                    .unwrap_or(default)
+                    .to_string(),
+            ]);
+        }
+    }
+
+    if captures_system_audio {
+        args.push("--audio".to_string());
+    }
+    args
 }
 
 fn recording_video_output_args(
@@ -1039,17 +1237,16 @@ async fn init_recording_impl(
     // Resolve persisted recorder settings before mutating recording state. The
     // encoder is tested with a real one-frame encode so a compiled-but-missing
     // GPU runtime cannot make the recording fail after the countdown.
-    let preferences = load_recording_preferences(&app).await?;
-    let fps = preferences.fps;
-    let encoder = preferences.encoder;
-    let capturer = preferences.capturer;
-    let quality = preferences.quality;
     let has_system_audio = match &system_audio {
         Value::String(device) => !device.is_empty(),
         Value::Bool(enabled) => *enabled,
         _ => false,
     };
-
+    let preferences = load_recording_preferences(&app, has_system_audio).await?;
+    let fps = preferences.fps;
+    let encoder = preferences.encoder;
+    let capturer = preferences.capturer;
+    let quality = preferences.quality;
     log::info!(
         "[recording] preferences: {} fps, encoder={}, capturer={}, quality={}, system_audio={}",
         fps,
@@ -1561,7 +1758,44 @@ async fn init_recording_impl(
             stop_on_video_eof: is_window_capture && cfg!(target_os = "windows"),
         },
     );
-    ffmpeg_args.push(screen_video_path);
+    ffmpeg_args.push(screen_video_path.clone());
+
+    #[cfg(target_os = "macos")]
+    let (native_capture_args, native_capture_ready_file) =
+        if capturer == "screencapturekit" && encoder == "h264_videotoolbox" {
+            let ready_file = {
+                let state = state.lock().unwrap();
+                state
+                    .project_temp_dir(&recording_id)
+                    .join("native-capture.ready")
+                    .to_string_lossy()
+                    .to_string()
+            };
+            (
+            Some(macos_native_capture_arguments(
+                &source,
+                MacCaptureArgumentConfig {
+                    source_type,
+                    output_path: &screen_video_path,
+                    ready_file_path: &ready_file,
+                    fps,
+                    width: recording_width,
+                    height: recording_height,
+                    quality: &quality,
+                    captures_system_audio: has_system_audio,
+                },
+            )),
+                Some(ready_file),
+            )
+        } else {
+            if capturer == "screencapturekit" {
+                log::info!(
+                    "[macos-capture] Using AVFoundation compatibility path because encoder {} was selected",
+                    encoder
+                );
+            }
+            (None, None)
+        };
 
     // Store config for start_recording
     {
@@ -1589,6 +1823,14 @@ async fn init_recording_impl(
             "quality": quality,
             "hasSystemAudio": has_system_audio,
         });
+
+        #[cfg(target_os = "macos")]
+        {
+            config["nativeCaptureArgs"] =
+                serde_json::to_value(native_capture_args).unwrap_or(Value::Null);
+            config["nativeCaptureReadyFile"] =
+                serde_json::to_value(native_capture_ready_file).unwrap_or(Value::Null);
+        }
 
         // Store window handle info for the capture thread
         if is_window_capture {
@@ -1795,6 +2037,7 @@ fn try_begin_recording_stop(state: &mut AppState) -> bool {
     if state.recording_stop_in_progress
         || (!state.is_recording
             && state.ffmpeg_process.is_none()
+            && state.macos_capture_process.is_none()
             && state.ffmpeg_child_id.is_none()
             && !has_pending_save)
     {
@@ -1815,6 +2058,7 @@ fn clear_failed_recording_start(state: &mut AppState) -> Vec<std::path::PathBuf>
     state.ffmpeg_child_id = None;
     state.ffmpeg_child = None;
     state.ffmpeg_process = None;
+    state.macos_capture_process = None;
     state.multi_app_tracks.clear();
     state.multi_app_init_in_progress = false;
     state.multi_app_stop_requested = false;
@@ -1950,7 +2194,65 @@ async fn start_recording_impl(app: AppHandle) -> AppResult<()> {
         (args, is_win, hwnd, ww, wh, fps)
     };
 
+    #[cfg(target_os = "macos")]
+    let (native_capture_args, native_capture_ready_file) = {
+        let state = state.lock().unwrap();
+        let config = state.camera_mic_config.as_ref();
+        let args = config
+            .and_then(|value| value.get("nativeCaptureArgs"))
+            .and_then(Value::as_array)
+            .map(|args| {
+                args.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|args| !args.is_empty());
+        let ready_file = config
+            .and_then(|value| value.get("nativeCaptureReadyFile"))
+            .and_then(Value::as_str)
+            .map(std::path::PathBuf::from);
+        (args, ready_file)
+    };
+
     if let Some(args) = ffmpeg_args {
+        #[cfg(target_os = "macos")]
+        let native_capture_started = if let (Some(native_args), Some(ready_file)) =
+            (native_capture_args.as_deref(), native_capture_ready_file.as_deref())
+        {
+            match spawn_macos_capture(&app, native_args, ready_file) {
+                Ok(mut process) => {
+                    let pid = process.id();
+                    let mut state = state.lock().unwrap();
+                    if !state.recording_capture_claimed || !state.is_recording {
+                        drop(state);
+                        process.kill().ok();
+                        process.wait().ok();
+                        return Err(AppError::General(
+                            "Recording start was canceled before native capture began.".to_string(),
+                        ));
+                    }
+                    state.macos_capture_process = Some(process);
+                    log::info!(
+                        "[start_recording] ScreenCaptureKit helper started with PID: {}",
+                        pid
+                    );
+                    true
+                }
+                Err(error) => {
+                    log::warn!(
+                        "[macos-capture] Native startup failed; using AVFoundation fallback: {}",
+                        error
+                    );
+                    false
+                }
+            }
+        } else {
+            false
+        };
+        #[cfg(not(target_os = "macos"))]
+        let native_capture_started = false;
+
         // Only use stdin pipe capture on Windows (PrintWindow API);
         // macOS/Linux window capture uses screen capture with crop via sidecar path
         #[cfg(target_os = "windows")]
@@ -1958,7 +2260,9 @@ async fn start_recording_impl(app: AppHandle) -> AppResult<()> {
         #[cfg(not(target_os = "windows"))]
         let use_stdin_pipe = false;
 
-        if use_stdin_pipe {
+        if native_capture_started {
+            log::info!("[start_recording] Native macOS capture path is active");
+        } else if use_stdin_pipe {
             // Window capture: spawn FFmpeg via std::process::Command for stdin pipe access
             let ffmpeg_path = find_ffmpeg_path()
                 .ok_or_else(|| AppError::General("FFmpeg binary not found".to_string()))?;
@@ -3031,6 +3335,7 @@ pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
         state.ffmpeg_child_id = None;
         state.ffmpeg_child = None;
         state.ffmpeg_process = None;
+        state.macos_capture_process = None;
         state.recording_id.clone()
     };
 
@@ -3095,6 +3400,7 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
         state.ffmpeg_child_id = None;
         state.ffmpeg_child = None;
         state.ffmpeg_process = None;
+        state.macos_capture_process = None;
         state.mouse_tracker.stop();
         close_camera_file_handle(&mut state);
         #[cfg(target_os = "macos")]
@@ -3346,8 +3652,77 @@ fn wait_for_capture_thread(
     thread.is_finished()
 }
 
+#[cfg(target_os = "macos")]
+fn stop_macos_capture_process(mut process: std::process::Child) {
+    use std::io::Write;
+
+    let pid = process.id();
+    if let Some(mut stdin) = process.stdin.take() {
+        if let Err(error) = stdin.write_all(b"stop\n").and_then(|_| stdin.flush()) {
+            log::warn!(
+                "[macos-capture] Could not request graceful stop for PID {}: {}",
+                pid,
+                error
+            );
+        }
+    }
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        match process.try_wait() {
+            Ok(Some(status)) => {
+                if status.success() {
+                    log::info!(
+                        "[macos-capture] ScreenCaptureKit helper PID {} finalized successfully",
+                        pid
+                    );
+                } else {
+                    log::error!(
+                        "[macos-capture] ScreenCaptureKit helper PID {} exited with {}",
+                        pid,
+                        status
+                    );
+                }
+                return;
+            }
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Ok(None) => {
+                log::error!(
+                    "[macos-capture] ScreenCaptureKit helper PID {} did not finalize in time",
+                    pid
+                );
+                process.kill().ok();
+                process.wait().ok();
+                return;
+            }
+            Err(error) => {
+                log::error!(
+                    "[macos-capture] Could not wait for helper PID {}: {}",
+                    pid,
+                    error
+                );
+                process.kill().ok();
+                process.wait().ok();
+                return;
+            }
+        }
+    }
+}
+
 fn kill_ffmpeg(app: &AppHandle) {
     let state = app.state::<Mutex<AppState>>();
+
+    #[cfg(target_os = "macos")]
+    {
+        let native_process = state.lock().unwrap().macos_capture_process.take();
+        if let Some(process) = native_process {
+            stop_macos_capture_process(process);
+            state.lock().unwrap().ffmpeg_child_id = None;
+            return;
+        }
+    }
 
     let is_window_capture = {
         let s = state.lock().unwrap();
