@@ -1,0 +1,159 @@
+name: Linux AppImage Quality
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/linux-appimage-quality.yml"
+      - ".github/workflows/main.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/validate-linux-appimage.sh"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/tauri.conf.json"
+      - "src-tauri/icons/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/linux-appimage-quality.yml"
+      - ".github/workflows/main.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/validate-linux-appimage.sh"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/tauri.conf.json"
+      - "src-tauri/icons/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appimage-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  appimage-quality:
+    name: Build, lint, and launch AppImage
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            desktop-file-utils \
+            libayatana-appindicator3-dev \
+            libfile-mimeinfo-perl \
+            libfuse2 \
+            libgtk-3-dev \
+            libpulse-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libx11-dev \
+            libxcb1-dev \
+            libxrandr-dev \
+            patchelf \
+            xdotool \
+            xvfb
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "20"
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: npm ci
+
+      - name: Download verified FFmpeg sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffmpeg_url="https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz"
+          ffmpeg_sha256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
+
+          curl --fail --location --show-error --silent \
+            "$ffmpeg_url" \
+            --output ffmpeg.tar.xz
+          printf '%s  %s\n' "$ffmpeg_sha256" ffmpeg.tar.xz | sha256sum --check --strict -
+
+          mkdir -p ffmpeg_tmp src-tauri/binaries
+          tar -xf ffmpeg.tar.xz -C ffmpeg_tmp
+          ffmpeg_bin="$(find ffmpeg_tmp -maxdepth 3 -name ffmpeg -type f -print -quit)"
+          test -n "$ffmpeg_bin"
+          install -m 755 "$ffmpeg_bin" src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+
+      - name: Build real AppImage
+        run: npm run tauri -- build --bundles appimage --target x86_64-unknown-linux-gnu
+
+      - name: Lint and verify relocatable AppImage metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          appimages=(src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage)
+          test "${#appimages[@]}" -eq 1
+          bash scripts/validate-linux-appimage.sh "${appimages[0]}"
+          printf '%s\n' "${appimages[0]}" > "$RUNNER_TEMP/appimage-path"
+
+      - name: Launch AppImage under X11
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$(cat "$RUNNER_TEMP/appimage-path")"
+          log="$RUNNER_TEMP/flowtake-appimage.log"
+
+          Xvfb :99 -screen 0 1280x800x24 >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          xvfb_pid=$!
+          app_pid=""
+          export DISPLAY=:99
+          cleanup() {
+            if [[ -n "$app_pid" ]]; then
+              kill "$app_pid" 2>/dev/null || true
+            fi
+            kill "$xvfb_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          "$appimage" >"$log" 2>&1 &
+          app_pid=$!
+
+          window_found=false
+          for _ in {1..30}; do
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              wait "$app_pid" || true
+              cat "$log"
+              echo "AppImage exited before showing a Flowtake window." >&2
+              exit 1
+            fi
+            if xdotool search --name Flowtake >/dev/null 2>&1; then
+              window_found=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$window_found" != true ]]; then
+            cat "$log"
+            echo "AppImage did not expose a Flowtake window within 30 seconds." >&2
+            exit 1
+          fi
+
+          kill "$app_pid"
+          wait "$app_pid" || true

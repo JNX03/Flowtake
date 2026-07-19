@@ -298,6 +298,8 @@ jobs:
             libxcb1-dev \
             libxrandr-dev \
             libpulse-dev \
+            desktop-file-utils \
+            libfile-mimeinfo-perl \
             rpm \
             patchelf
 
@@ -354,6 +356,18 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Validate AppImage metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if (( ${#appimages[@]} != 1 )); then
+            echo "ERROR: expected exactly one Linux AppImage, found ${#appimages[@]}" >&2
+            exit 1
+          fi
+          bash scripts/validate-linux-appimage.sh "${appimages[0]}"
 
       - name: Collect Linux installers and portable binary
         run: |
