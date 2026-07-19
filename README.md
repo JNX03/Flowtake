@@ -40,7 +40,7 @@ The desktop recorder and editor are free to use, inspect, modify, and redistribu
 
 ## 60-second quickstart
 
-1. Download the build for your OS from the [latest release](https://github.com/JNX03/Flowtake/releases/latest). On Windows, the `x64-setup.exe` is the simplest starting point.
+1. Install with `winget install --id JNX03.Flowtake --exact` on Windows, or download the build for your OS from the [latest release](https://github.com/JNX03/Flowtake/releases/latest).
 2. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
 3. Start recording and use the compact recorder controls to pause or stop.
 4. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export** to render an MP4.
@@ -56,6 +56,16 @@ All published artifacts are on the official [GitHub Releases page](https://githu
 | **Windows 10/11 x64** | `.exe`, `.msi`, portable `.zip` | Primary development and validation target. FFmpeg is bundled. |
 | **macOS 10.15+ Universal** | `.dmg`, portable `.zip` | Preview. Apple Silicon and Intel builds are published; expect rough edges and report reproducible issues. FFmpeg is bundled. |
 | **Linux x64** | `.AppImage`, `.deb`, `.rpm`, portable `.tar.gz` | Preview. Screen capture requires X11 or XWayland; pure Wayland capture is not supported. The `.deb` and `.rpm` declare required system packages. |
+
+### WinGet (Windows)
+
+Flowtake is published in the [Microsoft WinGet community repository](https://github.com/microsoft/winget-pkgs/tree/master/manifests/j/JNX03/Flowtake/1.6.0):
+
+```powershell
+winget install --id JNX03.Flowtake --exact
+```
+
+The WinGet package installs the same unsigned MSI published on the official release page, so the signing boundary below still applies.
 
 > **Platform signing:** the current Windows artifacts are not Authenticode-signed. The macOS artifacts are ad-hoc signed, not signed with an Apple Developer ID, and not notarized. SmartScreen or Gatekeeper may warn. Download Flowtake only from this repository's release page, and do not bypass a warning for a copy obtained elsewhere.
 

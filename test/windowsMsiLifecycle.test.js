@@ -16,6 +16,11 @@ const versionManifestSource = await readFile(new URL("JNX03.Flowtake.yaml", mani
 const localeManifestSource = await readFile(new URL("JNX03.Flowtake.locale.en-US.yaml", manifestRoot), "utf8")
 const installerManifestSource = await readFile(new URL("JNX03.Flowtake.installer.yaml", manifestRoot), "utf8")
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"))
+const readmeSource = await readFile(new URL("../README.md", import.meta.url), "utf8")
+const installationDocsSource = await readFile(
+    new URL("../docs/getting-started/installation.md", import.meta.url),
+    "utf8"
+)
 
 const workflow = yaml.load(workflowSource)
 const versionManifest = yaml.load(versionManifestSource)
@@ -62,6 +67,20 @@ test("tracked WinGet manifests describe the exact reviewed release", () => {
         InstallerUrl: expected.msiUrl,
         InstallerSha256: expected.msiSha256,
     })
+})
+
+test("public install guidance exposes the exact WinGet package", () => {
+    const installCommand = "winget install --id JNX03.Flowtake --exact"
+    const publicManifestUrl =
+        `https://github.com/microsoft/winget-pkgs/tree/master/manifests/j/JNX03/Flowtake/${expected.version}`
+
+    for (const source of [readmeSource, installationDocsSource]) {
+        assert.match(source, new RegExp(installCommand.replaceAll(".", "\\.")))
+        assert.match(source, new RegExp(publicManifestUrl.replaceAll(".", "\\.")))
+    }
+
+    assert.match(readmeSource, /same unsigned MSI published on the official release page/i)
+    assert.match(installationDocsSource, /not Authenticode-signed/i)
 })
 
 test("MSI execution is restricted to a manual main-branch dispatch", () => {
