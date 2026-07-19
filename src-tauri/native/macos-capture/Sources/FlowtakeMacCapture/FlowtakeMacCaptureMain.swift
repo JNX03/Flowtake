@@ -20,6 +20,12 @@ enum FlowtakeMacCaptureMain {
             switch command {
             case "capabilities":
                 try printCapabilities()
+            case "make-preview-proxy":
+                let configuration = try PreviewProxyConfiguration.parse(arguments: arguments)
+                let result = try await PreviewProxyTranscoder.transcode(
+                    configuration: configuration
+                )
+                try printJSON(result)
             case "record":
                 guard #available(macOS 12.3, *) else {
                     throw CaptureRuntimeError.unsupportedSystem
@@ -56,6 +62,10 @@ enum FlowtakeMacCaptureMain {
             captureEngine: "ScreenCaptureKit",
             minimumSystemVersion: "12.3"
         )
+        try printJSON(payload)
+    }
+
+    private static func printJSON<T: Encodable>(_ payload: T) throws {
         let data = try JSONEncoder().encode(payload)
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data("\n".utf8))

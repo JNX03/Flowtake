@@ -16,7 +16,7 @@ package enum ConfigurationError: LocalizedError, Equatable {
     package var errorDescription: String? {
         switch self {
         case .missingCommand:
-            return "Missing command. Use capabilities or record."
+            return "Missing command. Use capabilities, record, or make-preview-proxy."
         case .unsupportedCommand(let command):
             return "Unsupported command: \(command)"
         case .missingValue(let option):

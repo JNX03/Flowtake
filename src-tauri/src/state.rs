@@ -250,6 +250,32 @@ impl AppState {
         self.project_temp_dir(id).join("screen.mp4")
     }
 
+    pub fn preview_cache_dir(&self, id: &str) -> PathBuf {
+        self.app_data_dir.join("previews").join(id)
+    }
+
+    pub fn preview_video_file(&self, id: &str) -> PathBuf {
+        let source_size = self
+            .screen_video_file(id)
+            .metadata()
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        self.preview_cache_dir(id)
+            .join(format!("screen-{source_size}.mp4"))
+    }
+
+    pub fn editor_screen_video_file(&self, id: &str) -> PathBuf {
+        let preview = self.preview_video_file(id);
+        if preview
+            .metadata()
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+        {
+            preview
+        } else {
+            self.screen_video_file(id)
+        }
+    }
+
     pub fn camera_video_file(&self, id: &str) -> PathBuf {
         self.project_temp_dir(id).join("camera.webm")
     }
@@ -280,7 +306,7 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::{YoutubeOAuthCredentials, YoutubeOAuthSession, YoutubeOAuthTokens};
+    use super::{AppState, YoutubeOAuthCredentials, YoutubeOAuthSession, YoutubeOAuthTokens};
 
     fn credentials(suffix: &str) -> YoutubeOAuthCredentials {
         YoutubeOAuthCredentials {
@@ -322,5 +348,32 @@ mod tests {
         assert!(session
             .commit_tokens(current_generation, tokens("late"))
             .is_err());
+    }
+
+    #[test]
+    fn editor_screen_path_uses_size_keyed_preview_only_when_complete() {
+        let root = std::env::temp_dir().join(format!(
+            "flowtake-editor-preview-state-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let project_id = uuid::Uuid::new_v4().hyphenated().to_string();
+        let mut state = AppState::new();
+        state.app_data_dir = root.join("data");
+        state.temp_dir = root.join("temp");
+
+        let source = state.screen_video_file(&project_id);
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"full-resolution").unwrap();
+        assert_eq!(state.editor_screen_video_file(&project_id), source);
+
+        let preview = state.preview_video_file(&project_id);
+        assert!(preview.to_string_lossy().contains("screen-15.mp4"));
+        std::fs::create_dir_all(preview.parent().unwrap()).unwrap();
+        std::fs::write(&preview, []).unwrap();
+        assert_eq!(state.editor_screen_video_file(&project_id), source);
+
+        std::fs::write(&preview, b"preview").unwrap();
+        assert_eq!(state.editor_screen_video_file(&project_id), preview);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

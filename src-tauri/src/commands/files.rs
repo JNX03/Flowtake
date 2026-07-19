@@ -196,6 +196,7 @@ pub async fn get_video_path(
 
     let path = match video_type.as_str() {
         "screen" => state.screen_video_file(pid),
+        "screen-preview" => state.editor_screen_video_file(pid),
         "camera" | "microphone" => state.camera_video_file(pid),
         v if v.starts_with("extra-") => {
             let idx: usize = v

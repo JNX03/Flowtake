@@ -19,6 +19,7 @@ fn project_storage_paths(
 
 fn remove_project_storage(state: &AppState, project_id: &str) -> AppResult<()> {
     let (temp, zip) = project_storage_paths(state, project_id)?;
+    let preview_cache = state.preview_cache_dir(project_id);
     if let Err(error) = std::fs::remove_dir_all(&temp) {
         if error.kind() != std::io::ErrorKind::NotFound {
             log::warn!(
@@ -33,6 +34,15 @@ fn remove_project_storage(state: &AppState, project_id: &str) -> AppResult<()> {
             log::error!("[delete_project] remove zip failed ({:?}): {}", zip, error);
             AppError::General(format!("Failed to delete project file: {}", error))
         })?;
+    }
+    if let Err(error) = std::fs::remove_dir_all(&preview_cache) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            log::warn!(
+                "[delete_project] remove preview cache failed ({:?}): {}",
+                preview_cache,
+                error
+            );
+        }
     }
     Ok(())
 }
@@ -134,6 +144,28 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
             let mut state = state.lock().unwrap();
             state.project_id = None;
             return Ok(Value::Null);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let (screen_path, preview_path) = {
+            let state = state.lock().unwrap();
+            (state.screen_video_file(&id), state.preview_video_file(&id))
+        };
+        if !preview_path
+            .metadata()
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+        {
+            app.emit("load", "Optimizing editor preview...").ok();
+            if let Err(error) =
+                crate::macos_capture::ensure_preview_proxy(&app, &screen_path, &preview_path).await
+            {
+                log::warn!(
+                    "[open_project] Native preview unavailable; using full source: {}",
+                    error
+                );
+            }
         }
     }
 
@@ -476,13 +508,17 @@ mod path_boundary_tests {
         let project_id = uuid::Uuid::new_v4().hyphenated().to_string();
         let project_temp = state.project_temp_dir(&project_id);
         let project_zip = state.project_zip_path(&project_id);
+        let preview_cache = state.preview_cache_dir(&project_id);
         std::fs::create_dir_all(&project_temp).unwrap();
+        std::fs::create_dir_all(&preview_cache).unwrap();
         std::fs::write(project_temp.join("project.json"), b"{}").unwrap();
         std::fs::write(&project_zip, b"zip").unwrap();
+        std::fs::write(preview_cache.join("screen-10.mp4"), b"preview").unwrap();
         remove_project_storage(&state, &project_id).unwrap();
 
         assert!(!project_temp.exists());
         assert!(!project_zip.exists());
+        assert!(!preview_cache.exists());
         assert_eq!(std::fs::read(sentinel.join("keep.txt")).unwrap(), b"keep");
         let _ = std::fs::remove_dir_all(&root);
     }

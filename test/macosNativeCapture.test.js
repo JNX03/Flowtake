@@ -15,6 +15,7 @@ test('macOS native capture is built, bundled, and release-tested', () => {
     assert.match(packageJson.scripts['test:macos-capture'], /flowtake-macos-capture-tests/)
     assert.match(packageJson.scripts['build:macos-capture'], /build-macos-capture\.sh --native/)
     assert.ok(tauriConfig.bundle.resources.includes('binaries/*'))
+    assert.ok(tauriConfig.app.security.assetProtocol.scope.includes('$APPDATA/previews/**'))
     assert.match(ci, /Test native macOS capture helper/)
     assert.match(release, /build-macos-capture\.sh --universal/)
     assert.match(release, /flowtake-macos-capture-universal-apple-darwin/)
@@ -53,4 +54,34 @@ test('Rust lifecycle handshakes, finalizes, and keeps AVFoundation fallback', ()
     assert.match(encoding, /ScreenCaptureKit \(native\)/)
     assert.match(encoding, /AVFoundation \(compatibility\)/)
     assert.match(state, /macos_capture_process: Option<std::process::Child>/)
+})
+
+test('macOS editor uses an atomic AVFoundation preview cache with source fallback', () => {
+    const proxy = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCaptureCore',
+        'PreviewProxy.swift'
+    )
+    const main = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCapture',
+        'FlowtakeMacCaptureMain.swift'
+    )
+    const files = read('src-tauri', 'src', 'commands', 'files.rs')
+    const videoWrapper = read('app', 'windows', 'main', 'components', 'VideoWrapper.jsx')
+
+    assert.match(main, /make-preview-proxy/)
+    assert.match(proxy, /AVAssetExportSession/)
+    assert.match(proxy, /AVMutableVideoComposition/)
+    assert.match(proxy, /shouldOptimizeForNetworkUse = true/)
+    assert.match(proxy, /\.partial\.mp4/)
+    assert.match(proxy, /source audio track was not preserved/)
+    assert.match(files, /"screen-preview" => state\.editor_screen_video_file/)
+    assert.match(videoWrapper, /useVideoSrc\("screen-preview", projectId\)/)
 })

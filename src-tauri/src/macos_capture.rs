@@ -14,6 +14,18 @@ pub(crate) struct MacCaptureCapabilities {
     pub minimum_system_version: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PreviewProxyResult {
+    created: bool,
+    input_width: u32,
+    input_height: u32,
+    output_width: u32,
+    output_height: u32,
+    preserves_audio: bool,
+    elapsed_milliseconds: u64,
+}
+
 fn bundled_helper_names() -> &'static [&'static str] {
     #[cfg(target_arch = "aarch64")]
     {
@@ -189,9 +201,112 @@ pub(crate) async fn capabilities(app: &AppHandle) -> MacCaptureCapabilities {
     }
 }
 
+fn is_non_empty_file(path: &Path) -> bool {
+    path.metadata()
+        .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+}
+
+fn remove_partial_preview_files(output_path: &Path) {
+    let Some(parent) = output_path.parent() else {
+        return;
+    };
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_partial = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with('.') && name.ends_with(".partial.mp4"));
+        if is_partial {
+            std::fs::remove_file(path).ok();
+        }
+    }
+}
+
+pub(crate) async fn ensure_preview_proxy(
+    app: &AppHandle,
+    input_path: &Path,
+    output_path: &Path,
+) -> Result<bool, String> {
+    if is_non_empty_file(output_path) {
+        return Ok(true);
+    }
+    if !is_non_empty_file(input_path) {
+        return Err(format!(
+            "preview source is missing or empty: {:?}",
+            input_path
+        ));
+    }
+
+    let Some(helper) = find_helper(app) else {
+        return Err("native macOS helper is unavailable".to_string());
+    };
+    remove_partial_preview_files(output_path);
+
+    let mut command = tokio::process::Command::new(&helper);
+    command
+        .arg("make-preview-proxy")
+        .arg("--input")
+        .arg(input_path)
+        .arg("--output")
+        .arg(output_path)
+        .arg("--max-width")
+        .arg("1280")
+        .arg("--max-height")
+        .arg("720")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(60), command.output()).await;
+    let output = match result {
+        Ok(Ok(output)) if output.status.success() => output,
+        Ok(Ok(output)) => {
+            remove_partial_preview_files(output_path);
+            return Err(format!(
+                "helper exited with {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        Ok(Err(error)) => {
+            remove_partial_preview_files(output_path);
+            return Err(format!("could not launch {:?}: {}", helper, error));
+        }
+        Err(_) => {
+            remove_partial_preview_files(output_path);
+            return Err("native preview generation timed out after 60 seconds".to_string());
+        }
+    };
+
+    let result: PreviewProxyResult = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("invalid helper response: {error}"))?;
+    if result.created && !is_non_empty_file(output_path) {
+        return Err("helper reported success without a usable preview file".to_string());
+    }
+
+    log::info!(
+        "[macos-preview] created={}, {}x{} -> {}x{}, audio_preserved={}, elapsed={}ms",
+        result.created,
+        result.input_width,
+        result.input_height,
+        result.output_width,
+        result.output_height,
+        result.preserves_audio,
+        result.elapsed_milliseconds
+    );
+    Ok(result.created)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{bundled_helper_names, development_helper_names};
+    use super::{
+        bundled_helper_names, development_helper_names, is_non_empty_file,
+        remove_partial_preview_files,
+    };
 
     #[test]
     fn prefers_universal_helper_before_arch_specific_fallback() {
@@ -208,5 +323,41 @@ mod tests {
                 .first()
                 .is_some_and(|name| !name.contains("universal"))
         );
+    }
+
+    #[test]
+    fn preview_cache_accepts_only_non_empty_regular_files() {
+        let root = std::env::temp_dir().join(format!(
+            "flowtake-preview-file-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let empty = root.join("empty.mp4");
+        let usable = root.join("usable.mp4");
+        std::fs::write(&empty, []).unwrap();
+        std::fs::write(&usable, b"preview").unwrap();
+
+        assert!(!is_non_empty_file(&empty));
+        assert!(is_non_empty_file(&usable));
+        assert!(!is_non_empty_file(&root));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn preview_cleanup_removes_only_partial_mp4_files() {
+        let root = std::env::temp_dir().join(format!(
+            "flowtake-preview-cleanup-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let partial = root.join(".screen-a.partial.mp4");
+        let keep = root.join("screen-10.mp4");
+        std::fs::write(&partial, b"partial").unwrap();
+        std::fs::write(&keep, b"preview").unwrap();
+
+        remove_partial_preview_files(&keep);
+        assert!(!partial.exists());
+        assert!(keep.exists());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

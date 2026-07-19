@@ -2902,6 +2902,29 @@ async fn stop_recording_impl(app: AppHandle) -> AppResult<()> {
                     dest_video.metadata().map(|m| m.len()).unwrap_or(0)
                 );
 
+                #[cfg(target_os = "macos")]
+                {
+                    let preview_path = {
+                        let state = state.lock().unwrap();
+                        state.preview_video_file(pid)
+                    };
+                    app.emit_to("main", "load", "Optimizing editor preview...")
+                        .ok();
+                    if let Err(error) = crate::macos_capture::ensure_preview_proxy(
+                        &app,
+                        &dest_video,
+                        &preview_path,
+                    )
+                    .await
+                    {
+                        log::warn!(
+                            "[stop_recording] Native preview unavailable; editor will use full source: {}",
+                            error
+                        );
+                    }
+                    app.emit_to("main", "load", "Creating project...").ok();
+                }
+
                 let (
                     source_name,
                     left_trim,

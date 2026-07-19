@@ -20,7 +20,10 @@ export default class Screen extends CanvasWrapper {
         this.fg.position.set(screen.width * 0.5, screen.height * 0.5)
         this.fg.mask = new Graphics()
 
-        this.fg.pivot.set(dims.x * 0.5, dims.y * 0.5)
+        // Pivot coordinates are local to the backing texture. Using logical
+        // source dimensions here offsets a downscaled preview texture and
+        // leaves only a small corner visible.
+        this.fg.pivot.set(textureDims.x * 0.5, textureDims.y * 0.5)
         this.fg.position.set(dims.x * 0.5, dims.y * 0.5)
         this.fg.width = dims.x
         this.fg.height = dims.y

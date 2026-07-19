@@ -20,6 +20,24 @@ test("Retina recordings use a bounded editor texture without changing source coo
     )
 })
 
+test("downscaled preview textures stay centered in full-resolution scene coordinates", async () => {
+    const screenSource = await readFile(
+        new URL("../app/shared/scene/Screen.js", import.meta.url),
+        "utf8"
+    )
+
+    assert.match(
+        screenSource,
+        /this\.fg\.pivot\.set\(textureDims\.x \* 0\.5, textureDims\.y \* 0\.5\)/
+    )
+    assert.match(
+        screenSource,
+        /this\.fg\.position\.set\(dims\.x \* 0\.5, dims\.y \* 0\.5\)/
+    )
+    assert.match(screenSource, /this\.fg\.width = dims\.x/)
+    assert.match(screenSource, /this\.fg\.height = dims\.y/)
+})
+
 test("preview texture bounds preserve small and portrait aspect ratios", () => {
     assert.deepEqual(
         getPreviewTextureDimensions({ x: 1280, y: 720 }),
