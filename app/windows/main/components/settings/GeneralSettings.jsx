@@ -11,6 +11,10 @@ import Toggle from "../properties/Toggle"
 export default function GeneralSettings() {
 
     const dispatch = useDispatch()
+    const platform = window.electron?.process?.platform
+        || (navigator.platform?.includes("Mac") ? "darwin" : navigator.platform?.includes("Win") ? "win32" : "linux")
+    const isMacOS = platform === "darwin"
+    const isLinux = platform === "linux"
 
     const restartTutorial = useCallback(async () => {
         await window.electron.ipcRenderer.invoke("store-set", "hasCompletedTutorial", false)
@@ -33,7 +37,7 @@ export default function GeneralSettings() {
 
     const { data: contentProtectionEnabled, isPending: isContentProtPending, refetch: refetchContentProt } = useQuery({
         queryKey: ['contentProtectionEnabled'],
-        queryFn: () => window.electron.ipcRenderer.invoke("store-get", "contentProtectionEnabled"),
+        queryFn: () => window.electron.ipcRenderer.invoke("get-content-protection"),
         staleTime: Infinity
     })
 
@@ -58,11 +62,17 @@ export default function GeneralSettings() {
                 isIndeterminate={isAutoStartPending} />
         </Fieldset>
 
-        <Fieldset legend="Privacy" description="Control whether Flowtake is visible in screenshots and screen recordings.">
-            <Toggle leftLabel="Hide app from screenshots & recordings"
-                value={isContentProtPending ? true : (contentProtectionEnabled ?? true)}
-                onChange={onChangeContentProtection} disabled={isContentProtPending}
-                isIndeterminate={isContentProtPending} />
+        <Fieldset legend="Privacy" description={isMacOS
+            ? "Exclude Flowtake windows from Flowtake full-screen and area recordings. macOS no longer lets apps block system screenshots or third-party captures."
+            : isLinux
+                ? "Window capture protection is unavailable on Linux."
+                : "Control whether Flowtake is visible in screenshots and screen recordings."}>
+            {isLinux
+                ? <p className="text-sm text-base-content/70">Flowtake cannot request capture protection on this platform.</p>
+                : <Toggle leftLabel={isMacOS ? "Hide Flowtake from Flowtake recordings" : "Hide app from screenshots & recordings"}
+                    value={isContentProtPending ? true : (contentProtectionEnabled ?? true)}
+                    onChange={onChangeContentProtection} disabled={isContentProtPending}
+                    isIndeterminate={isContentProtPending} />}
         </Fieldset>
 
         <Button icon={FolderOpenIcon} onClick={openLogsDirectory}>Open logs folder</Button>

@@ -35,6 +35,7 @@ package struct CaptureConfiguration: Equatable, Sendable {
     package let source: CaptureSource
     package let displayIndex: Int
     package let windowID: UInt32?
+    package let excludedProcessID: Int32?
     package let width: Int
     package let height: Int
     package let framesPerSecond: Int
@@ -143,12 +144,23 @@ package struct CaptureConfiguration: Equatable, Sendable {
             throw ConfigurationError.invalidValue("--display-index", String(displayIndex))
         }
 
+        let excludedProcessID: Int32?
+        if let value = values["--exclude-process-id"] {
+            guard let parsed = Int32(value), parsed > 0 else {
+                throw ConfigurationError.invalidValue("--exclude-process-id", value)
+            }
+            excludedProcessID = parsed
+        } else {
+            excludedProcessID = nil
+        }
+
         return CaptureConfiguration(
             outputURL: URL(fileURLWithPath: try required("--output")),
             readyFileURL: URL(fileURLWithPath: try required("--ready-file")),
             source: source,
             displayIndex: displayIndex,
             windowID: windowID,
+            excludedProcessID: excludedProcessID,
             width: width.roundedDownToEven(minimum: 16),
             height: height.roundedDownToEven(minimum: 16),
             framesPerSecond: fps,

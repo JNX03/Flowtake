@@ -30,6 +30,15 @@ test('native capture uses ScreenCaptureKit with a real MP4 writer and bounded qu
         'FlowtakeMacCaptureCore',
         'CaptureSession.swift'
     )
+    const configuration = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCaptureCore',
+        'CaptureConfiguration.swift'
+    )
+    const recording = read('src-tauri', 'src', 'commands', 'recording.rs')
     const infoPlist = read('src-tauri', 'Info.plist')
 
     assert.match(capture, /import ScreenCaptureKit/)
@@ -38,6 +47,11 @@ test('native capture uses ScreenCaptureKit with a real MP4 writer and bounded qu
     assert.match(capture, /queueDepth = 5/)
     assert.match(capture, /capturesAudio = true/)
     assert.match(capture, /excludesCurrentProcessAudio = true/)
+    assert.match(configuration, /excludedProcessID: Int32\?/)
+    assert.match(recording, /"--exclude-process-id"/)
+    assert.match(capture, /excludingApplications: \[excludedApplication\]/)
+    assert.match(capture, /excludingWindows: excludedWindows/)
+    assert.doesNotMatch(capture, /ProcessInfo\.processInfo\.processIdentifier/)
     assert.match(infoPlist, /NSScreenCaptureUsageDescription/)
 })
 

@@ -607,6 +607,7 @@ pub fn run() {
             commands::windows::get_window_at_point,
             commands::windows::get_monitors,
             commands::windows::toggle_drawing_overlay,
+            commands::windows::get_content_protection,
             commands::windows::set_content_protection,
             // App
             commands::app::get_version,

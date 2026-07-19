@@ -95,6 +95,7 @@ const COMMAND_MAP = {
     'select-area': 'select_area',
     'add-note': 'add_note',
     'toggle-drawing-overlay': 'toggle_drawing_overlay',
+    'get-content-protection': 'get_content_protection',
     'set-content-protection': 'set_content_protection',
     'get-window-at-point': 'get_window_at_point',
     'get-monitors': 'get_monitors',

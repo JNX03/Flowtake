@@ -612,6 +612,7 @@ struct MacCaptureArgumentConfig<'a> {
     height: u32,
     quality: &'a str,
     captures_system_audio: bool,
+    excluded_process_id: Option<u32>,
 }
 
 #[cfg(target_os = "macos")]
@@ -628,6 +629,7 @@ fn macos_native_capture_arguments(
         height,
         quality,
         captures_system_audio,
+        excluded_process_id,
     } = config;
     let mut args = vec![
         "record".to_string(),
@@ -655,6 +657,10 @@ fn macos_native_capture_arguments(
             .saturating_mul(1_000)
             .to_string(),
     ];
+
+    if let Some(process_id) = excluded_process_id {
+        args.extend(["--exclude-process-id".to_string(), process_id.to_string()]);
+    }
 
     if source_type == "window" {
         args.extend([
@@ -1783,6 +1789,8 @@ async fn init_recording_impl(
                     height: recording_height,
                     quality: &quality,
                     captures_system_audio: has_system_audio,
+                    excluded_process_id: super::windows::is_content_protection_enabled(&app)
+                        .then_some(std::process::id()),
                 },
             )),
                 Some(ready_file),
@@ -4583,6 +4591,46 @@ mod tests {
             .position(|arg| arg == option)
             .and_then(|index| args.get(index + 1))
             .map(String::as_str)
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn native_capture_receives_the_flowtake_process_to_exclude() {
+        let source = serde_json::json!({"type": "screen", "monitorIndex": 0});
+        let protected = macos_native_capture_arguments(
+            &source,
+            MacCaptureArgumentConfig {
+                source_type: "screen",
+                output_path: "/tmp/screen.mp4",
+                ready_file_path: "/tmp/ready",
+                fps: 30,
+                width: 1920,
+                height: 1080,
+                quality: "balanced",
+                captures_system_audio: false,
+                excluded_process_id: Some(4242),
+            },
+        );
+        assert_eq!(
+            option_value(&protected, "--exclude-process-id"),
+            Some("4242")
+        );
+
+        let visible = macos_native_capture_arguments(
+            &source,
+            MacCaptureArgumentConfig {
+                source_type: "screen",
+                output_path: "/tmp/screen.mp4",
+                ready_file_path: "/tmp/ready",
+                fps: 30,
+                width: 1920,
+                height: 1080,
+                quality: "balanced",
+                captures_system_audio: false,
+                excluded_process_id: None,
+            },
+        );
+        assert_eq!(option_value(&visible, "--exclude-process-id"), None);
     }
 
     #[test]

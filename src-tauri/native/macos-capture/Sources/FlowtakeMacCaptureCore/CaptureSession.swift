@@ -433,14 +433,28 @@ package final class CaptureSession: NSObject, SCStreamOutput, SCStreamDelegate, 
                 throw CaptureRuntimeError.displayNotFound(configuration.displayIndex)
             }
             let display = content.displays[configuration.displayIndex]
-            let currentApplication = content.applications.first {
-                $0.processID == ProcessInfo.processInfo.processIdentifier
+            let excludedApplication = configuration.excludedProcessID.flatMap { processID in
+                content.applications.first { $0.processID == processID }
             }
-            let filter = SCContentFilter(
-                display: display,
-                excludingApplications: currentApplication.map { [$0] } ?? [],
-                exceptingWindows: []
-            )
+            let excludedWindows = configuration.excludedProcessID.map { processID in
+                content.windows.filter { $0.owningApplication?.processID == processID }
+            } ?? []
+            let filter: SCContentFilter
+            if let excludedApplication {
+                filter = SCContentFilter(
+                    display: display,
+                    excludingApplications: [excludedApplication],
+                    exceptingWindows: []
+                )
+            } else {
+                filter = SCContentFilter(
+                    display: display,
+                    excludingWindows: excludedWindows
+                )
+                if configuration.excludedProcessID != nil, excludedWindows.isEmpty {
+                    diagnostic("Requested app exclusion was not present in shareable content")
+                }
+            }
 
             if configuration.source == .area {
                 let width = Double(display.width)
