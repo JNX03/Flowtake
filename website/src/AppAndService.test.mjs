@@ -6,36 +6,42 @@ async function source(relativePath) {
   return readFile(new URL(relativePath, import.meta.url), "utf8");
 }
 
-test("AppAndService keeps the free app complete and labels the hosted Cloud beta as planned", async () => {
+test("AppAndService separates free local tools, the Pro review, and backend-gated hosting", async () => {
   const [component, styles] = await Promise.all([
     source("./components/AppAndService.jsx"),
     source("./components/app-and-service.css"),
   ]);
 
   for (const required of [
-    "The full MIT-licensed Flowtake app is $0.",
+    "The complete MIT-licensed Flowtake desktop app stays $0.",
     "Screen, window, and selected-area capture",
     "Editable timeline",
     "Zoom, cursor treatment, captions, and redaction",
-    "Local MP4 export",
-    "The planned founding beta adds private review links for finished videos.",
-    "Private review links for uploaded H.264 MP4 exports",
-    "Optional passcode plus 1, 7, or 30-day expiry",
-    "Revoke or delete an active link at any time",
+    "Local, video-only AVC MP4 export",
+    "Explicit browser picker for a tab, window, or screen",
+    "Local, video-only WebM preview and download",
+    "No account, automatic upload, microphone, or audio track",
+    "10-minute and 250 MiB local safety limits",
+    "Device-local trim and real-time, video-only WebM export",
+    "Manual smooth cursor path with no automatic cursor tracking",
+    "Manual zoom center and strength controls",
+    "Optional screen and camera composition",
+    "Private links with optional passcode and explicit expiry",
+    "Immediate revoke or delete controls",
     "Timestamp comments and aggregate playback sessions",
-    "Need private sharing?",
-    "What the planned Cloud beta adds",
-    "The local app stays complete. Only the optional hosted review workflow changes.",
-    "The complete MIT-licensed app",
-    "You intentionally upload a finished H.264 MP4 for private review",
-    "aggregate playback sessions, not identified viewer counts",
-    "Edit locally. Share a finished video when you choose.",
-    "Flowtake Cloud is a planned hosted review layer.",
-    "2 GB active storage, 10 active links, 250 MB and 10 minutes per",
-    "Native desktop upload and realtime collaborative editing are planned",
+    "A separate backend gate before any hosted transfer",
+    "What Pro would add",
+    "What the $9 hypothesis would add",
+    "The local desktop app stays complete.",
+    "The complete MIT desktop app stays free.",
+    "No account or upload is needed for either local workflow.",
+    "Keep the complete desktop app. Add a browser workflow only if it helps.",
+    "Pro is a private product-review hypothesis.",
+    "nothing on this site creates a Pro entitlement, starts billing, uploads",
+    "2 GB active storage, 10 active links",
     "Compare Windows recording workflows",
-    'app-and-service__sr-only">Flowtake app:',
-    'app-and-service__sr-only">With Flowtake Cloud:',
+    'app-and-service__sr-only">Free local tools:',
+    'app-and-service__sr-only">Pro private review:',
   ]) {
     assert.equal(component.includes(required), true, `missing truthful distinction: ${required}`);
   }
@@ -52,6 +58,11 @@ test("AppAndService keeps the free app complete and labels the hosted Cloud beta
   assert.equal(component.includes("human production"), false);
   assert.equal(component.includes("hire an editor"), false);
   assert.equal(component.includes("Compare with Screen Studio on Windows"), false);
+  assert.equal(component.includes("realtime collaborative"), false);
+  assert.equal(component.includes("automatic cursor tracking"), true);
+  assert.equal(component.includes("automatic cursor detection"), false);
+  assert.equal(component.includes("Flowtake Pro is available"), false);
+  assert.equal(component.includes("Start free trial"), false);
   assert.equal(component.includes("app-and-service__final-boundary"), false);
   assert.equal(component.includes("<section"), true);
   assert.equal(component.match(/<article/gu)?.length, 2);

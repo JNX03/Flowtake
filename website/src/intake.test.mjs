@@ -206,7 +206,7 @@ test("private intake is fail-closed while the public clinic remains available", 
   assert.equal(closeNavigation.includes("focus("), false, "link activation must not steal focus");
 });
 
-test("the hero leads with the free product and keeps the planned Cloud beta secondary", async () => {
+test("the hero leads with the free desktop product and keeps the private Pro hypothesis secondary", async () => {
   const source = await readFile(new URL("./HomePage.jsx", import.meta.url), "utf8");
   const hero = source.slice(source.indexOf('<section className="home-hero home-section"'), source.indexOf('<section className="home-product home-section"'));
   const downloadIndex = hero.indexOf("Download for Windows");
@@ -216,7 +216,7 @@ test("the hero leads with the free product and keeps the planned Cloud beta seco
 
   assert.equal(hero.includes("Record, edit, and export screen demos on Windows."), true);
   assert.equal(hero.includes("Create polished screen demos on Windows."), false);
-  assert.equal(hero.includes("cursor-driven zooms"), true);
+  assert.equal(hero.includes("add zooms and cursor treatment"), true);
   assert.equal(source.includes("const hasProductDemo = hasReviewedDemoMedia;"), true);
   assert.equal(source.includes('? "Watch the real demo"'), true);
   assert.equal(source.includes(': "See how Flowtake works";'), true);
@@ -236,8 +236,10 @@ test("the hero leads with the free product and keeps the planned Cloud beta seco
   const metadata = await readFile(new URL("../index.html", import.meta.url), "utf8");
   assert.equal(metadata.includes("free, open-source screen recorder and editor"), true);
   assert.equal(metadata.includes("Flowtake Cloud is available"), false);
-  assert.equal(source.includes("uploads, enrollment, and billing are not open yet"), true);
-  assert.equal(source.includes("realtime collaborative editing are planned"), true);
+  assert.equal(source.includes("No hosted review endpoint, upload flow, or checkout is exposed"), true);
+  assert.equal(source.includes("realtime collaborative editing"), false);
+  assert.equal(source.includes("automatic cursor tracking"), false);
+  assert.equal(source.includes("Flowtake Pro is available"), false);
   assert.equal(source.includes("Release Studio"), false);
 });
 

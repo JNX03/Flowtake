@@ -66,7 +66,13 @@ const homeRuntimeSource = (await Promise.all(
     .filter((name) => name.startsWith("home-") && name.endsWith(".js"))
     .map((name) => readFile(new URL(`assets/${name}`, distUrl), "utf8")),
 )).join("\n");
-const runtimeExportCopy = extractExportCopyLiterals(homeRuntimeSource).join("\n");
+const runtimeExportCopyLiterals = extractExportCopyLiterals(homeRuntimeSource);
+const browserWebmCopyLiterals = runtimeExportCopyLiterals.filter((literal) =>
+  /\bwebm\b/iu.test(literal)
+);
+const desktopRuntimeExportCopy = runtimeExportCopyLiterals
+  .filter((literal) => !/\bwebm\b/iu.test(literal))
+  .join("\n");
 const comparisonFlowtakeCopy = [
   comparison.match(/<th scope="row">Export<\/th>\s*<td>([\s\S]*?)<\/td>/u)?.[1],
   comparison.match(/<p class="comparison-card-label">Export<\/p>[\s\S]*?<p>([\s\S]*?)<\/p>/u)?.[1],
@@ -79,6 +85,24 @@ const storyboardFlowtakeExportCopy = [
 const count = (value, needle) => value.split(needle).length - 1;
 const assertNoUnsupportedExportClaims = (value, label) => {
   assert.deepEqual(findExportTruthViolations(value), [], `${label} contains a false export claim`);
+};
+const assertScopedBrowserWebmClaims = (literals) => {
+  assert.ok(literals.length >= 5, "built homepage must keep the reviewed browser WebM boundary");
+  for (const literal of literals) {
+    assert.match(literal, /\bvideo-only\b/iu, `browser WebM copy must disclose no audio: ${literal}`);
+    assert.match(
+      literal,
+      /\b(?:browser|web recorder|pro editor|pro review|device-local|local)\b/iu,
+      `browser WebM copy must name its product surface: ${literal}`,
+    );
+  }
+  const nonFormatViolations = findExportTruthViolations(literals.join("\n"))
+    .filter((violation) => violation.kind !== "unsupported-output");
+  assert.deepEqual(
+    nonFormatViolations,
+    [],
+    "browser WebM copy must preserve encoder, selector, and audio boundaries",
+  );
 };
 const assertPagesRuntimeAssets = (html, label) => {
   assert.match(
@@ -190,7 +214,8 @@ assert.equal(
   "storyboard must state the current final-export path",
 );
 assert.equal(guide.includes("The edited MP4 currently has no muxed audio."), true, "storyboard must disclose the audio boundary");
-assertNoUnsupportedExportClaims(`${runtimeExportCopy}\n${storyboardFlowtakeExportCopy}`, "built homepage/storyboard copy");
+assertScopedBrowserWebmClaims(browserWebmCopyLiterals);
+assertNoUnsupportedExportClaims(`${desktopRuntimeExportCopy}\n${storyboardFlowtakeExportCopy}`, "built homepage/storyboard copy");
 assertNoUnsupportedExportClaims(comparisonFlowtakeCopy, "built comparison Flowtake copy");
 
 const previewServer = await preview({

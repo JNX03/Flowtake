@@ -65,7 +65,10 @@ test("recording review component is a factual 16:9 Windows handoff, not simulate
     "hasReviewedMedia = hasReviewedDemoMedia",
     "if (!isVisible) return fallback;",
     "flowtake-demo-source.mp4",
-    "Local capture review · Windows 10/11",
+    "product-media/public/flowtake-v1.6.0-demo.mp4",
+    "Exact above-the-fold demo slot · Windows 10/11",
+    "The approved 42-second demo will replace this frame.",
+    "This exact 16:9 position will load",
     "separate non-admin",
     "1920×1080 at 30 fps",
     "OBS Window Capture",
@@ -79,6 +82,16 @@ test("recording review component is a factual 16:9 Windows handoff, not simulate
     "Codex will remove",
     "exact 42-second master",
     "should not be edited to 42 seconds",
+    "Approved-demo edit map",
+    "Six shots for the final 42-second cut.",
+    "These timings describe the later reviewed edit",
+    "Final reviewed demo shot list",
+    "0–3 seconds",
+    "3–10 seconds",
+    "10–18 seconds",
+    "18–28 seconds",
+    "28–36 seconds",
+    "36–42 seconds",
     "Recording - Flowtake",
     "Export - Flowtake",
     "Clean browser",
@@ -101,15 +114,6 @@ test("recording review component is a factual 16:9 Windows handoff, not simulate
     assert.equal(component.includes(forbidden), false, `recording slot must not simulate media: ${forbidden}`);
   }
 
-  for (const forbiddenTiming of [
-    "0–3 seconds",
-    "3–10 seconds",
-    "10–18 seconds",
-    "18–28 seconds",
-    "28–36 seconds",
-    "36–42 seconds",
-    "42-second Windows capture sequence",
-  ]) {
-    assert.equal(component.includes(forbiddenTiming), false, `raw source must not imply edited timing: ${forbiddenTiming}`);
-  }
+  assert.equal(component.includes("42-second Windows capture sequence"), false);
+  assert.equal(component.indexOf("The raw source") < component.indexOf("Approved-demo edit map"), true);
 });

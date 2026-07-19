@@ -5,6 +5,7 @@ import { hasReviewedDemoMedia } from "../reviewedDemoMedia.js";
 import "./demo-recording-slot.css";
 
 const RECORDING_FILENAME = "flowtake-demo-source.mp4";
+const PUBLIC_DEMO_FILENAME = "product-media/public/flowtake-v1.6.0-demo.mp4";
 
 const RECORDING_STEPS = [
   {
@@ -39,6 +40,39 @@ const RECORDING_STEPS = [
   },
 ];
 
+const FINAL_DEMO_SHOTS = [
+  {
+    timing: "0–3 seconds",
+    action: "Show the real Flowtake recorder ready on the approved Windows source.",
+    proof: "Flowtake shell and selected source are readable.",
+  },
+  {
+    timing: "3–10 seconds",
+    action: "Start recording and run the sanitized terminal workflow.",
+    proof: "The real recording state stays visible.",
+  },
+  {
+    timing: "10–18 seconds",
+    action: "Stop, save, and open the genuine recording in the editor.",
+    proof: "The saved take appears on the real timeline.",
+  },
+  {
+    timing: "18–28 seconds",
+    action: "Trim the take and add one cursor zoom.",
+    proof: "The timeline, preview, and edited motion respond.",
+  },
+  {
+    timing: "28–36 seconds",
+    action: "Export the local MP4 and show the Completed state.",
+    proof: "The real export status reaches Completed.",
+  },
+  {
+    timing: "36–42 seconds",
+    action: "Use Folder or Play for local-file proof, then hold the public release page.",
+    proof: "The exported file and published release are both visible.",
+  },
+];
+
 export function DemoRecordingSlot({
   fallback = null,
   hasReviewedMedia = hasReviewedDemoMedia,
@@ -59,10 +93,14 @@ export function DemoRecordingSlot({
     >
       <div className="demo-recording-slot__frame">
         <div className="demo-recording-slot__frame-copy">
-          <p>Local capture review · Windows 10/11</p>
-          <h2 id="demo-recording-slot-title">Record the genuine Flowtake workflow.</h2>
+          <p>Exact above-the-fold demo slot · Windows 10/11</p>
+          <h2 id="demo-recording-slot-title">The approved 42-second demo will replace this frame.</h2>
           <span>
-            Save the untouched OBS Window Capture as
+            This exact 16:9 position will load
+            {" "}
+            <code>{PUBLIC_DEMO_FILENAME}</code>
+            {" "}
+            only after the genuine media gate passes. Save the untouched OBS Window Capture as
             {" "}
             <code>{RECORDING_FILENAME}</code>
           </span>
@@ -96,6 +134,25 @@ export function DemoRecordingSlot({
           honest waits and cut the separate exact 42-second master. The raw source
           itself should not be edited to 42 seconds.
         </p>
+        <section className="demo-recording-slot__approved-cut" aria-labelledby="approved-demo-shot-list">
+          <header>
+            <p>Approved-demo edit map</p>
+            <h3 id="approved-demo-shot-list">Six shots for the final 42-second cut.</h3>
+            <span>
+              These timings describe the later reviewed edit, not the uninterrupted
+              raw OBS source above.
+            </span>
+          </header>
+          <ol aria-label="Final reviewed demo shot list">
+            {FINAL_DEMO_SHOTS.map((shot) => (
+              <li key={shot.timing}>
+                <span>{shot.timing}</span>
+                <strong>{shot.action}</strong>
+                <p>{shot.proof}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
       </div>
     </aside>
   );

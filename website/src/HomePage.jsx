@@ -80,27 +80,32 @@ const faqs = [
   {
     question: "Is Flowtake really free?",
     answer:
-      "Yes. The published recorder, editor, and local MP4 export are free and MIT-licensed. The planned Flowtake Cloud beta is a separate hosted review layer; it does not remove or paywall local app features.",
+      "Yes. The complete published desktop recorder, editor, and local MP4 export stay free and MIT-licensed. The free web recorder is a separate local capture workflow. Pro does not remove or paywall desktop features.",
   },
   {
-    question: "What can I record?",
+    question: "What does the free web recorder do?",
     answer:
-      "Flowtake can capture a full screen, a window, or a selected area with optional camera, microphone, and supported system audio. Platform support varies, so review the current release notes before installing.",
+      "The private review build uses the browser's explicit share picker to record a tab, window, or screen, then previews and downloads a local, video-only WebM. It creates no account, makes no automatic upload, and captures no microphone or audio track.",
+  },
+  {
+    question: "What would $9/month Pro add?",
+    answer:
+      "The price is a hypothesis, not an active offer. The private Pro review adds a device-local web editor with trim, a manual smooth cursor path, zoom controls, real-time video-only WebM export, and optional screen plus camera composition. It creates no entitlement and starts no billing.",
   },
   {
     question: "Where do projects and exports go?",
     answer:
-      "Ordinary projects and MP4 exports stay on your machine. Flowtake is local-first, not fully offline: update checks and any explicitly networked feature still use the network.",
+      "Desktop projects and MP4 exports stay on your machine. The web recorder and private Pro editor keep their source and generated video-only WebM on the device. Flowtake is local-first, not fully offline: update checks and any explicitly networked feature still use the network.",
   },
   {
-    question: "Does it work on macOS or Linux?",
+    question: "Which hosted review features are proposed?",
+    answer:
+      "Private links, passcodes, expiry, revoke, delete, timestamp comments, and aggregate playback sessions are a separate backend-gated proposal. No hosted review endpoint, upload flow, or checkout is exposed from this site.",
+  },
+  {
+    question: "Does the desktop app work on macOS or Linux?",
     answer:
       "Preview builds are published for macOS and Linux. macOS is ad-hoc signed but not notarized, and pure Wayland capture is unsupported. Windows is the primary validated platform today.",
-  },
-  {
-    question: "What is Flowtake Cloud?",
-    answer:
-      "It is a planned optional beta for private video review links with expiry, revoke, delete, passcode, timestamp comments, and aggregate playback sessions. The $9/month price and limits are hypotheses; uploads, enrollment, and billing are not open yet.",
   },
 ];
 
@@ -185,7 +190,7 @@ export function HomePage() {
         <nav className="home-desktop-nav" aria-label="Primary navigation">
           <a href="#product">Product</a>
           {hasProductDemo && <a href={productEvidenceTarget}>Demo</a>}
-          <a href="#open-source-vs-cloud">Local app vs Cloud</a>
+          <a href="#open-source-vs-cloud">Free vs Pro</a>
           <a href="#faq">FAQ</a>
         </nav>
 
@@ -225,7 +230,7 @@ export function HomePage() {
           <nav className="home-mobile-nav" id="home-mobile-navigation" aria-label="Mobile navigation">
             <a href="#product" onClick={closeMobileNavigation}>Product</a>
             {hasProductDemo && <a href={productEvidenceTarget} onClick={closeMobileNavigation}>Demo</a>}
-            <a href="#open-source-vs-cloud" onClick={closeMobileNavigation}>Local app vs Cloud</a>
+            <a href="#open-source-vs-cloud" onClick={closeMobileNavigation}>Free vs Pro</a>
             <a href="#faq" onClick={closeMobileNavigation}>FAQ</a>
             <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
             <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download current release</a>
@@ -239,7 +244,7 @@ export function HomePage() {
             <p className="home-chip">Open-source Windows recorder and editor</p>
             <h1>Record, edit, and export screen demos on Windows.</h1>
             <p className="home-hero-lede">
-              Capture a screen, window, or area. Flowtake adds cursor-driven zooms, lets you edit on a timeline, and exports MP4 locally.
+              Capture a screen, window, or area. Flowtake lets you edit on a timeline, add zooms and cursor treatment, and export MP4 locally.
             </p>
             <div className="home-hero-actions">
               <a
@@ -320,15 +325,15 @@ export function HomePage() {
 
         <section className="home-trust home-section" id="trust" aria-labelledby="trust-title">
           <header className="home-section-heading home-section-heading-compact">
-            <p>Flowtake Cloud beta boundary</p>
-            <h2 id="trust-title">Know what is proposed before you upload or pay.</h2>
+            <p>Flowtake Pro and hosted-review boundary</p>
+            <h2 id="trust-title">Know what stays local and what remains gated.</h2>
           </header>
           <div className="home-disclosure-list">
             <details id="service-terms">
               <summary>Planned beta scope <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
                 <p>The planned MVP is an intentional upload of a finished H.264 MP4 to a private review link with optional passcode, 1, 7, or 30-day expiry, immediate revoke or delete, timestamp comments, and aggregate playback sessions.</p>
-                <p>Proposed limits are 2 GB active storage, 10 active links, and 250 MB or 10 minutes per video. Native desktop upload, project sync, rendering, and realtime collaborative editing are planned later and are not part of this beta.</p>
+                <p>Proposed limits are 2 GB active storage, 10 active links, and 250 MB or 10 minutes per video. The hosted transfer, storage, link, and feedback endpoints remain separate backend gates and are not part of the device-local editor review.</p>
               </div>
             </details>
             <details id="cancellation-policy">
@@ -356,7 +361,7 @@ export function HomePage() {
             </details>
           </div>
           <p className="home-trust-status">
-            <LockClosedIcon aria-hidden="true" /> Flowtake Cloud, uploads, and checkout are not available yet. The $9 price and beta limits are hypotheses, not an active offer.
+            <LockClosedIcon aria-hidden="true" /> No Pro entitlement, hosted transfer, or checkout can be created here. The $9 price and hosted limits are hypotheses.
           </p>
         </section>
 
@@ -398,7 +403,7 @@ export function HomePage() {
           <img src={assetUrl("logo.svg")} alt="" />
           <span>Flowtake</span>
         </div>
-        <p>Free, open-source screen recorder and editor.</p>
+        <p>Free desktop and browser capture. Pro remains a private hypothesis.</p>
         <nav aria-label="Footer navigation">
           <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
           <a href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}>Storyboard guide</a>

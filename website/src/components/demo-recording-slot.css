@@ -113,6 +113,36 @@
   color: var(--home-text, #f6f4ee);
 }
 
+.demo-recording-slot__approved-cut {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--home-line, rgba(246, 244, 238, 0.13));
+}
+
+.demo-recording-slot__approved-cut header > p {
+  margin: 0 0 8px;
+  color: var(--home-violet-soft, #aa98ff);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.demo-recording-slot__approved-cut h3 {
+  margin: 0;
+  color: var(--home-text, #f6f4ee);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.demo-recording-slot__approved-cut header > span {
+  margin-top: 8px;
+  display: block;
+  color: var(--home-muted, #a8a5b2);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 @media (max-width: 800px) {
   .demo-recording-slot__frame {
     padding: 18px;
