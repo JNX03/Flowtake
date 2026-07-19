@@ -36,6 +36,7 @@
         "enable": true,
         "scope": [
           "$APPDATA/temp/**",
+          "$APPDATA/previews/**",
           "$VIDEO/Flowtake/**",
           "$HOME/Flowtake/**"
         ]

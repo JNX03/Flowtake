@@ -13,7 +13,10 @@ enum CaptureConfigurationTests {
         try testClampsAreaPercentagesToSelectedDisplay()
         try testRejectsFrameRatesThatAppDoesNotExpose()
         try testFixedFrameCadenceFillsIrregularCaptureGaps()
-        print("Flowtake macOS capture tests passed (5 tests)")
+        try testParsesPreviewProxyConfiguration()
+        try testPreviewBoundsHandleLandscapeAndPortraitVideos()
+        try testRejectsInvalidPreviewBounds()
+        print("Flowtake macOS capture tests passed (8 tests)")
     }
 
     static func expect(
@@ -125,5 +128,66 @@ enum CaptureConfigurationTests {
             cadence.frameIndex(forElapsedSeconds: 0.101) == 3,
             "Irregular source gaps must map to every missing fixed-cadence frame"
         )
+    }
+
+    static func testParsesPreviewProxyConfiguration() throws {
+        let configuration = try PreviewProxyConfiguration.parse(arguments: [
+            "make-preview-proxy",
+            "--input", "/tmp/source.mp4",
+            "--output", "/tmp/preview.mp4",
+            "--max-width", "1280",
+            "--max-height", "720"
+        ])
+
+        try expect(configuration.inputURL.path == "/tmp/source.mp4", "Proxy input was not parsed")
+        try expect(configuration.outputURL.path == "/tmp/preview.mp4", "Proxy output was not parsed")
+        try expect(configuration.maximumWidth == 1280, "Proxy width was not parsed")
+        try expect(configuration.maximumHeight == 720, "Proxy height was not parsed")
+    }
+
+    static func testPreviewBoundsHandleLandscapeAndPortraitVideos() throws {
+        let landscape = PreviewDimensions(width: 1280, height: 720)
+        let portrait = PreviewDimensions(width: 720, height: 1280)
+        let oversizedLandscape = PreviewDimensions(width: 2560, height: 1440)
+        let oversizedPortrait = PreviewDimensions(width: 1440, height: 2560)
+
+        try expect(
+            landscape.fits(maximumWidth: 1280, maximumHeight: 720),
+            "A 720p landscape preview must fit"
+        )
+        try expect(
+            portrait.fits(maximumWidth: 1280, maximumHeight: 720),
+            "A 720p portrait preview must fit with rotated limits"
+        )
+        try expect(
+            !oversizedLandscape.fits(maximumWidth: 1280, maximumHeight: 720),
+            "An oversized landscape recording must be transcoded"
+        )
+        try expect(
+            !oversizedPortrait.fits(maximumWidth: 1280, maximumHeight: 720),
+            "An oversized portrait recording must be transcoded"
+        )
+        try expect(
+            PreviewDimensions(width: 2940, height: 1912)
+                .scaledToFit(maximumWidth: 1280, maximumHeight: 720)
+                == PreviewDimensions(width: 1106, height: 720),
+            "A tall Mac display must fit within the complete 720p editor budget"
+        )
+        try expect(
+            oversizedPortrait.scaledToFit(maximumWidth: 1280, maximumHeight: 720)
+                == PreviewDimensions(width: 720, height: 1280),
+            "Portrait previews must rotate the editor bounds"
+        )
+    }
+
+    static func testRejectsInvalidPreviewBounds() throws {
+        try expectError(.invalidValue("--max-width", "0")) {
+            _ = try PreviewProxyConfiguration.parse(arguments: [
+                "make-preview-proxy",
+                "--input", "/tmp/source.mp4",
+                "--output", "/tmp/preview.mp4",
+                "--max-width", "0"
+            ])
+        }
     }
 }

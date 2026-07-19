@@ -47,7 +47,7 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
     const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
     const extraTracks = useSelector(selectExtraTracks)
 
-    const screenVideo = useVideoSrc("screen", projectId)
+    const screenVideo = useVideoSrc("screen-preview", projectId)
     const cameraVideo = useVideoSrc("camera", projectId)
     const microphoneAudio = useVideoSrc("microphone", projectId)
 

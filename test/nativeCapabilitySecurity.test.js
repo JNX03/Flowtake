@@ -78,6 +78,7 @@ test("production webviews cannot enable DevTools or read arbitrary asset paths",
     assert.doesNotMatch(cargoToml, /features\s*=\s*\[[^\]]*"devtools"/)
     assert.deepEqual(assetScope, [
         "$APPDATA/temp/**",
+        "$APPDATA/previews/**",
         "$VIDEO/Flowtake/**",
         "$HOME/Flowtake/**",
     ])
