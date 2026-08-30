@@ -148,10 +148,13 @@ jobs:
         shell: bash
         run: bash ./scripts/run-cargo-audit.sh
 
+  # This job stays a required status check, so it always runs and always
+  # reports. Every step is gated instead, which keeps a pull request that does
+  # not touch Rust down to runner startup rather than three full toolchain
+  # builds -- the macOS runner alone bills at ten times the Linux rate.
   check-rust:
     name: Rust Check (${{ matrix.platform.name }})
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -185,31 +188,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        if: needs.changes.outputs.rust == 'true'
         with:
           persist-credentials: false
 
       - name: Install system dependencies
-        if: matrix.platform.deps != ''
+        if: needs.changes.outputs.rust == 'true' && (matrix.platform.deps != '')
         run: ${{ matrix.platform.deps }}
 
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        if: needs.changes.outputs.rust == 'true'
         with:
           toolchain: stable
           targets: ${{ matrix.platform.target }}
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        if: needs.changes.outputs.rust == 'true'
         with:
           workspaces: './src-tauri -> target'
 
       - name: Test native macOS capture helper
-        if: runner.os == 'macOS'
+        if: needs.changes.outputs.rust == 'true' && (runner.os == 'macOS')
         run: >-
           swift run
           --package-path src-tauri/native/macos-capture
           flowtake-macos-capture-tests
 
       - name: Build native macOS capture helper
-        if: runner.os == 'macOS'
+        if: needs.changes.outputs.rust == 'true' && (runner.os == 'macOS')
         run: bash scripts/build-macos-capture.sh --native
 
       # Tauri validates that its configured sidecar exists during build-script
@@ -217,17 +223,20 @@ jobs:
       # needs a host executable so Rust source can be checked without a network
       # download from a mutable third-party release URL.
       - name: Prepare Linux sidecar for compile-only checks
-        if: runner.os == 'Linux'
+        if: needs.changes.outputs.rust == 'true' && (runner.os == 'Linux')
         run: install -Dm755 /bin/true src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
 
       - name: Cargo check
+        if: needs.changes.outputs.rust == 'true'
         run: cargo check --locked --all-targets
         working-directory: src-tauri
 
       - name: Cargo unit tests
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test --lib --locked
         working-directory: src-tauri
 
       - name: Cargo clippy
+        if: needs.changes.outputs.rust == 'true'
         run: cargo clippy --locked --all-targets -- -D warnings --allow dead_code
         working-directory: src-tauri
