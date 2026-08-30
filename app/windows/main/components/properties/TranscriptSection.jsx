@@ -4,6 +4,7 @@ import {
     ArrowsUpDownIcon,
     ArrowUturnLeftIcon,
     ChatBubbleOvalLeftEllipsisIcon,
+    DocumentArrowUpIcon,
     MagnifyingGlassIcon,
     TrashIcon
 } from "@heroicons/react/24/outline"
@@ -21,13 +22,22 @@ import {
 } from "react-redux"
 import Button from "../../../../components/Button"
 import Hint from "../../../../components/Hint"
+import { createCaptionEntities } from "@shared/captions/captionEntities"
+import {
+    CaptionParseError,
+    parseCaptionFile
+} from "@shared/captions/captionParser"
 import {
     formatPercent,
     TOAST_ERROR,
-    TOAST_SUCCESS
+    TOAST_SUCCESS,
+    TOAST_WARNING
 } from "@shared/helpers"
 import { addErrorToast } from "@shared/errorToastHelper"
-import { withGroup } from "@shared/redux/actionEnhancers"
+import {
+    getGroup,
+    withGroup
+} from "@shared/redux/actionEnhancers"
 import { addToast } from "@shared/redux/appSlice"
 import {
     selectHasMicrophoneAudio,
@@ -51,6 +61,7 @@ import {
     setWidth,
     updateSubtitle
 } from "@shared/redux/subtitleSlice"
+import { setSelectedIds } from "@shared/redux/timelineSlice"
 import SubtitlesGenerator from "../../subtitles/SubtitlesGenerator"
 import Card from "./Card"
 import CoordPicker from "./CoordPicker"
@@ -62,6 +73,7 @@ import Toggle from "./Toggle"
 const AUDIO_SOURCE_AUTO = "auto"
 const AUDIO_SOURCE_MICROPHONE = "microphone"
 const AUDIO_SOURCE_SYSTEM = "screen"
+const MAX_CAPTION_FILE_BYTES = 5 * 1024 * 1024
 
 function EditableWord({ config, isEditing, onStartEdit, onStopEdit, onNavigate, totalConfigs, index }) {
     const dispatch = useDispatch()
@@ -127,6 +139,9 @@ export default function TranscriptSection() {
     const [languageSearch, setLanguageSearch] = useState("")
     const [audioSource, setAudioSource] = useState(AUDIO_SOURCE_AUTO)
     const [editingIndex, setEditingIndex] = useState(null)
+    const [isImportingCaptions, setIsImportingCaptions] = useState(false)
+    const [captionImportAnnouncement, setCaptionImportAnnouncement] = useState("")
+    const captionFileInputRef = useRef(null)
 
     const backgroundColor = useSelector(selectBackgroundColor)
     const position = useSelector(selectPosition)
@@ -139,6 +154,55 @@ export default function TranscriptSection() {
     const hasSystemAudio = useSelector(selectHasSystemAudio)
 
     const dispatch = useDispatch()
+
+    const onImportCaptions = useCallback(async event => {
+        const input = event.currentTarget
+        const file = input.files?.[0]
+        if (!file) return
+
+        setIsImportingCaptions(true)
+        setCaptionImportAnnouncement(`Importing captions from ${file.name}.`)
+        try {
+            if (file.size > MAX_CAPTION_FILE_BYTES) {
+                throw new CaptionParseError("Caption files must be 5 MB or smaller.")
+            }
+
+            const source = await file.text()
+            const parsed = parseCaptionFile({ source, fileName: file.name })
+            const importedSubtitles = createCaptionEntities(parsed.cues, {
+                existingIds: configs.map(config => config.id)
+            })
+            const group = getGroup("import-captions")
+
+            dispatch(withGroup(setTranscript(null), group))
+            dispatch(withGroup(setSubtitles(importedSubtitles), group))
+            dispatch(withGroup(setSelectedIds([]), group))
+            const successText = `Imported ${importedSubtitles.length} ${importedSubtitles.length === 1 ? "caption" : "captions"} from ${file.name}.`
+            dispatch(addToast({
+                type: TOAST_SUCCESS,
+                text: successText
+            }))
+            if (parsed.warnings.length > 0) {
+                dispatch(addToast({ type: TOAST_WARNING, text: parsed.warnings.join(" ") }))
+            }
+            setCaptionImportAnnouncement([successText, ...parsed.warnings].join(" "))
+        } catch (error) {
+            const message = error instanceof CaptionParseError
+                ? error.message
+                : "Captions could not be imported. Check the file and try again."
+            dispatch(addToast({ type: TOAST_ERROR, text: message, autoDismiss: false }))
+            setCaptionImportAnnouncement(`Caption import failed. ${message}`)
+        } finally {
+            setIsImportingCaptions(false)
+            input.value = ""
+        }
+    }, [configs, dispatch])
+
+    const onDeleteSubtitles = useCallback(() => {
+        const group = getGroup("delete-subtitles")
+        dispatch(withGroup(setTranscript(null), group))
+        dispatch(withGroup(removeAllSubtitles(), group))
+    }, [dispatch])
 
     // Load stored default language preference
     const { data: storedDefaultLanguage } = useQuery({
@@ -266,16 +330,48 @@ export default function TranscriptSection() {
 
     const onChangeShadowAlpha = useCallback((value, group) => dispatch(withGroup(setShadowAlpha(value), group)), [dispatch])
 
-    return (<Card icon={<ChatBubbleOvalLeftEllipsisIcon className="w-6 h-6" />} title="Auto Transcribe">
+    return (<Card icon={<ChatBubbleOvalLeftEllipsisIcon className="w-6 h-6" />} title="Captions">
         <Hint>
-            Auto-generate subtitles from speech in your recording. Supports 99+ languages.
-            {!hasAnyAudioSource && " No audio source detected in this recording."}
+            Import timed captions, or generate them from speech when the recording includes audio.
+            {!hasAnyAudioSource && " Caption import is still available without audio."}
             {isPending && " First-time use downloads the AI model (~75MB)."}
         </Hint>
 
+        <Fieldset
+            legend="Import Captions"
+            description="Add timed captions from an SRT or ASS file. ASS styling is safely imported as plain text."
+        >
+            <input
+                ref={captionFileInputRef}
+                type="file"
+                accept=".srt,.ass,application/x-subrip,text/x-ass,text/x-ssa"
+                className="sr-only"
+                onChange={onImportCaptions}
+                aria-label="Choose an SRT or ASS caption file"
+                aria-describedby="caption-import-help"
+            />
+            <Button
+                type="button"
+                className="btn-outline w-full"
+                icon={DocumentArrowUpIcon}
+                onClick={() => captionFileInputRef.current?.click()}
+                disabled={isPending}
+                isLoading={isImportingCaptions}
+                aria-describedby="caption-import-help"
+            >
+                Import SRT or ASS
+            </Button>
+            <p id="caption-import-help" className="text-xs text-base-content/55">
+                Importing replaces current subtitles. You can undo the entire import in one step.
+            </p>
+            <p className="sr-only" role="status" aria-live="polite">
+                {captionImportAnnouncement}
+            </p>
+        </Fieldset>
+
         {totalConfigs > 0 && <>
 
-            <Fieldset legend="Transcript">
+            <Fieldset legend={transcript ? "Transcript" : "Imported Captions"}>
                 <div className="w-full max-h-80 overflow-y-auto text-xs leading-relaxed">
                     {configs.map((config, i) => (
                         <EditableWord key={config.id} config={config} index={i}
@@ -287,7 +383,7 @@ export default function TranscriptSection() {
                     ))}
                 </div>
                 <div className="text-xs opacity-50 mt-2">
-                    {totalConfigs} words detected &mdash; click any word to edit
+                    {totalConfigs} {transcript ? "words detected" : "captions imported"} &mdash; click any item to edit
                 </div>
             </Fieldset>
 
@@ -379,10 +475,10 @@ export default function TranscriptSection() {
                 )}
             </Fieldset>
 
-            {transcript && <div className="flex flex-col items-center gap-2 mt-4">
+            {totalConfigs > 0 && <div className="flex flex-col items-center gap-2 mt-4">
                 <Button
                     className="btn-error"
-                    onClick={() => { dispatch(setTranscript(null)); dispatch(removeAllSubtitles()) }}
+                    onClick={onDeleteSubtitles}
                     icon={TrashIcon}
                 >
                     Delete Subtitles

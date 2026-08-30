@@ -106,6 +106,18 @@ test("preview clock updates do not rerender the full preview editor", () => {
         previewSource,
         /<PreviewClockBridge manager=\{manager\} screenVideoRef=\{screenVideoRef\} \/>/
     )
-    assert.match(previewSource, /const start = selectTime\(reduxStore\.getState\(\)\)/)
-    assert.doesNotMatch(previewSource, /export default function Preview\(\)[\s\S]*const time = useSelector\(selectTime\)/)
+    // Anything that needs the clock imperatively reads it off the store rather
+    // than subscribing, so a tick never re-renders the editor shell.
+    assert.match(previewSource, /selectTime\(store\.getState\(\)\)/)
+
+    // The Preview body itself must never subscribe to time: the clock lives in
+    // PreviewClockBridge and the leaf transport component.
+    const previewBody = previewSource.slice(
+        previewSource.indexOf("export default function Preview()")
+    )
+    const nextTopLevelFunction = previewBody.slice(1).search(/\nfunction /u)
+    const previewComponent = nextTopLevelFunction === -1
+        ? previewBody
+        : previewBody.slice(0, nextTopLevelFunction + 1)
+    assert.doesNotMatch(previewComponent, /const time = useSelector\(selectTime\)/)
 })

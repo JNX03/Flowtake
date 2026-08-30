@@ -50,6 +50,9 @@ export default defineConfig({
   // the first recording opens. Scan both workers up front so dependency
   // optimization stays in one generation and cannot force a reload behind the
   // editor's unsaved-work guard during that first handoff.
+  // Pixi and its filters also share a mutable DOM adapter singleton. Keeping
+  // every entry as native ESM prevents Vite's dev optimizer from creating
+  // duplicate singleton copies between the WebView and preview worker.
   optimizeDeps: {
     entries: [
       'index.html',
@@ -57,6 +60,26 @@ export default defineConfig({
       'app/shared/workers/previewWorker.js',
       'app/shared/workers/renderWorker.js',
     ],
+    include: [
+      'pixi.js > @xmldom/xmldom',
+      'pixi.js > eventemitter3',
+      'pixi.js > gifuct-js',
+      'pixi.js > ismobilejs',
+      'pixi.js > parse-svg-path'
+    ],
+    exclude: [
+      'pixi.js',
+      'pixi.js/graphics',
+      'pixi.js/mesh',
+      'pixi.js/text',
+      'pixi.js/webworker',
+      'pixi-filters',
+      'pixi-filters/adjustment',
+      'pixi-filters/drop-shadow',
+      'pixi-filters/hsl-adjustment',
+      'pixi-filters/motion-blur',
+      'pixi-filters/zoom-blur'
+    ]
   },
 
   assetsInclude: ['**/*.tflite', '**/*.frag', '**/*.vert', '**/*.wgsl'],
@@ -66,7 +89,9 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    host: host || false,
+    // Bind the local preview explicitly so both the Tauri WebView and the
+    // in-app browser can reach the same development server on Windows.
+    host: host || "127.0.0.1",
     hmr: host
       ? {
         protocol: "ws",

@@ -26,7 +26,7 @@ import {
     setSelectedRow
 } from "@shared/redux/timelineSlice"
 
-export default function Row({ className, animIds, onDoubleClick, onContextMenu, action: Action, isMinimized = false, name }) {
+export default function Row({ className, animIds, onDoubleClick, onContextMenu, action: Action, isMinimized = false, isActive = null, name }) {
 
     const dispatch = useDispatch()
 
@@ -59,12 +59,13 @@ export default function Row({ className, animIds, onDoubleClick, onContextMenu, 
         }
     }, [onContextMenu, isPlaying, isMinimized, dispatch, getMouseEventTime])
 
+    const isRowActive = isActive ?? selectedRow === name
     const bg = () => name === MASKS
         ? ""
-        : `bg-linear-to-t from-transparent via-5% to-transparent ${selectedRow === name ? "via-base-content/15 to-80% hover:to-90%" : `via-transparent ${isMinimized ? "" : "hover:via-base-content/15"} to-50%`}`
+        : `bg-linear-to-t from-transparent via-5% to-transparent ${isRowActive ? "via-primary/10 to-80% hover:to-90%" : `via-transparent ${isMinimized ? "" : "hover:via-base-content/10"} to-50%`}`
 
     return (duration && <div ref={row} onClick={click} onDoubleClick={doubleClick} onContextMenu={contextMenu}
-        className={`${isMinimized ? "h-2" : className} relative ${bg()}`}>
+        className={`${isMinimized ? "h-2" : className} relative shrink-0 ${bg()}`}>
         {animIds.map(action)}
     </div>)
 }
@@ -76,5 +77,6 @@ Row.propTypes = {
     onContextMenu: PropTypes.func,
     action: PropTypes.elementType.isRequired,
     name: PropTypes.string,
-    isMinimized: PropTypes.bool
+    isMinimized: PropTypes.bool,
+    isActive: PropTypes.bool,
 }

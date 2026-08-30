@@ -1,5 +1,6 @@
 import {
     DocumentTextIcon,
+    FilmIcon,
     PhotoIcon,
     Square2StackIcon
 } from "@heroicons/react/16/solid"
@@ -13,6 +14,7 @@ import { OVERLAY_TRACKS } from "@shared/helpers"
 import {
     selectOverlayById,
     selectAllOverlays,
+    selectOverlayTracks,
     updateOverlay
 } from "@shared/redux/overlaySlice"
 import {
@@ -29,9 +31,13 @@ export default function OverlayItem({ id }) {
 
     const anim = useSelector(state => selectOverlayById(state, id))
     const anims = useSelector(selectAllOverlays)
+    const tracks = useSelector(selectOverlayTracks)
     const selectedRow = useSelector(selectSelectedRow)
 
     const trackAnims = anims.filter(a => a.trackIndex === anim?.trackIndex)
+    const isTrackLocked = Boolean(
+        tracks.find(track => track.id === anim?.trackIndex)?.locked
+    )
 
     const onChange = useCallback(
         (start, end) => dispatch(updateOverlay({ id, changes: { start, end } })),
@@ -39,8 +45,14 @@ export default function OverlayItem({ id }) {
     )
 
     const onTrackChange = useCallback(
-        (start, end, newTrackId) => dispatch(updateOverlay({ id, changes: { start, end, trackIndex: newTrackId } })),
-        [dispatch, id]
+        (start, end, newTrackId) => {
+            if (tracks.find(track => track.id === newTrackId)?.locked) return
+            dispatch(updateOverlay({
+                id,
+                changes: { start, end, trackIndex: newTrackId },
+            }))
+        },
+        [dispatch, id, tracks]
     )
 
     const getTrackAnims = useCallback(
@@ -59,6 +71,7 @@ export default function OverlayItem({ id }) {
         switch (anim.overlayType) {
             case "text": return <DocumentTextIcon className="size-4 shrink-0 mr-1" />
             case "image": return <PhotoIcon className="size-4 shrink-0 mr-1" />
+            case "video": return <FilmIcon className="size-4 shrink-0 mr-1" />
             case "shape": return <Square2StackIcon className="size-4 shrink-0 mr-1" />
             default: return <Square2StackIcon className="size-4 shrink-0 mr-1" />
         }
@@ -68,6 +81,7 @@ export default function OverlayItem({ id }) {
         switch (anim.overlayType) {
             case "text": return anim.text || "Text"
             case "image": return anim.name || "Image"
+            case "video": return anim.name || "Video"
             case "shape": return anim.shapeType || "Shape"
             default: return "Overlay"
         }
@@ -76,6 +90,7 @@ export default function OverlayItem({ id }) {
     return (
         <FlexibleAction anim={anim} anims={trackAnims} isRowSelected={selectedRow === OVERLAY_TRACKS}
             onChange={onChange} onSelect={onSelect} color="accent"
+            disabled={isTrackLocked}
             crossTrackEnabled currentTrackId={anim.trackIndex}
             trackDropZone="overlay-track" getTrackAnims={getTrackAnims}
             onTrackChange={onTrackChange}>

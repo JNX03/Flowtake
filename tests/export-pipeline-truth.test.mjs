@@ -65,50 +65,61 @@ function assertPositiveMediabunnyRole(source, label) {
     )
 }
 
-function assertAudioCommandNoop(source, command) {
-    const expected = `pub async fn ${command}(app: AppHandle, render_id: String) -> AppResult<()> { let state = app.state::<Mutex<AppState>>(); let state = state.lock().unwrap(); let _render = state .renders .get(&render_id) .ok_or_else(|| AppError::General(format!("Render not found: {}", render_id)))?; Ok(()) }`
-    assert.equal(source.replace(/\s+/gu, " ").trim(), expected)
-}
-
-test("final edited export implementation is Mediabunny AVC MP4", async () => {
-    const [renderWorker, outputWriter, exporter, exportForm] = await Promise.all([
+test("final edited export implementation is a real Mediabunny AVC encode", async () => {
+    const [renderWorker, outputWriter, exporter, exportForm, exportFormats] = await Promise.all([
         readRepoFile("app/shared/workers/renderWorker.js"),
         readRepoFile("app/shared/workers/WorkerOutputWriter.js"),
         readRepoFile("src-tauri/src/commands/exporter.rs"),
         readRepoFile("app/windows/exporter/components/form/NewRenderForm.jsx"),
+        readRepoFile("app/shared/exportFormats.js"),
     ])
 
-    assert.match(renderWorker, /import\s*\{\s*Mp4OutputFormat\s*\}\s*from\s*["']mediabunny["']/)
-    assert.match(renderWorker, /new WorkerOutputWriter\([\s\S]*?Mp4OutputFormat/)
-    assert.match(outputWriter, /new VideoSampleSource\(\{\s*codec:\s*['"]avc['"]/)
+    // The writer is still a real Mediabunny AVC video encode; the chosen
+    // container is the only thing the export format varies.
+    assert.match(renderWorker, /Mp4OutputFormat[\s\S]*from\s*["']mediabunny["']/)
+    assert.match(renderWorker, /OUTPUT_FORMAT_CLASSES\s*=\s*\{[\s\S]*mp4:\s*Mp4OutputFormat/)
+    assert.match(renderWorker, /new WorkerOutputWriter\([\s\S]*?OUTPUT_FORMAT_CLASSES\[/)
+    // The codec now travels with the chosen container instead of being hardcoded,
+    // but it is still a real encoded video track, not a passthrough.
+    assert.match(outputWriter, /new VideoSampleSource\(\{\s*codec:\s*this\.codec/)
+    assert.match(renderWorker, /exportFormat\.videoCodec/)
     assert.match(outputWriter, /this\.output\.addVideoTrack\(this\.videoSampleSource/)
     assert.doesNotMatch(outputWriter, /\b(?:addAudioTrack|AudioSampleSource)\b/)
-    assert.match(exporter, /render\.temp_dir\.join\("output\.mp4"\)/)
+    // The renderer never picks its own path or container: both come from the
+    // queued render's format.
+    assert.match(exporter, /render\.temp_dir\.join\(render\.format\.output_file_name\(\)\)/)
     assert.match(exporter, /render\.output_path\.clone\(\)/)
     assert.match(exporter, /std::fs::copy\(&source, &dest\)/)
     const configFields = exportForm
         .match(/config:\s*\{([^}]+)\}/u)?.[1]
         .split(",")
-        .map(field => field.trim())
+        .map(field => field.trim().replace(/:.*$/u, ""))
         .filter(Boolean)
         .sort()
-    assert.deepEqual(configFields, ["aspectRatio", "fps", "quality", "resolution"])
-    assert.match(exportForm, /\{\[60, 30\]\.map\(fpsOption/)
-    assert.match(exportForm, />MP4</)
+    assert.deepEqual(
+        configFields,
+        ["aspectRatio", "format", "fps", "includeAudio", "quality", "resolution"]
+    )
+    assert.match(exportForm, /FPS_OPTIONS\.map\(fpsOption/)
+    // The container labels moved into the shared export-format table; MP4 must
+    // still be an offered option.
+    assert.match(exportForm, /EXPORT_FORMAT_OPTIONS\.map\(option/)
+    assert.match(exportFormats, /label:\s*"MP4"/)
     assert.match(exportForm, />\s*Export\s*<ArrowRightIcon/)
-    assert.doesNotMatch(exportForm, /config: \{[^}]*\b(?:format|codec|encoder|bitrate|audio)\b/)
 
+    // The audio commands are no longer no-ops: the export pipeline muxes a real
+    // audio track, so the form is allowed to offer the toggle it is backed by.
     for (const command of ["process_audio", "add_audio"]) {
         const body = commandBody(exporter, command)
-        assertAudioCommandNoop(body, command)
-        assert.throws(
-            () => assertAudioCommandNoop(
-                body.replace("Ok(())", "audio_pipeline::attach(&_render).await?; Ok(())"),
-                command,
-            ),
-            assert.AssertionError,
+        assert.doesNotMatch(
+            body,
+            /^\s*Ok\(\(\)\)\s*\}\s*$/mu,
+            `${command} must do real work now that audio export ships`,
         )
+        assert.match(body, /ffmpeg/iu, `${command} must drive the FFmpeg audio pipeline`)
     }
+    assert.match(exporter, /fn build_audio_filter/)
+    assert.match(exporter, /anullsrc=channel_layout=stereo:sample_rate=48000/)
 })
 
 test("public copy states the current Mediabunny AVC MP4 boundary", async () => {

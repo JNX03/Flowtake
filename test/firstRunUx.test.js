@@ -4,11 +4,13 @@ import test from "node:test"
 
 const readSource = file => readFile(new URL(file, import.meta.url), "utf8")
 
-const [mainApp, setupWizard, generalSettings, areaPicker, newRecording, recordButton, appLayers] = await Promise.all([
+const [mainApp, setupWizard, generalSettings, areaPicker, windowPicker, pickerWindows, newRecording, recordButton, appLayers] = await Promise.all([
     readSource("../app/windows/main/App.jsx"),
     readSource("../app/windows/main/components/SetupWizard.jsx"),
     readSource("../app/windows/main/components/settings/GeneralSettings.jsx"),
     readSource("../app/windows/areaPicker/App.jsx"),
+    readSource("../app/windows/windowPicker/App.jsx"),
+    readSource("../src-tauri/src/commands/windows.rs"),
     readSource("../app/windows/main/components/newRecording/NewRecording.jsx"),
     readSource("../app/windows/main/components/newRecording/RecordButton.jsx"),
     readSource("../app/windows/main/components/settings/plugin/features/AppRecordingFeature.jsx"),
@@ -35,6 +37,21 @@ test("area selection exposes persistent confirmation and keyboard recovery", () 
     assert.match(areaPicker, /event\.key === "Enter"/)
     assert.match(areaPicker, /event\.key === "Escape"/)
     assert.doesNotMatch(areaPicker, /group-hover:opacity-100/)
+})
+
+test("Windows source pickers use a live overlay instead of a desktop screenshot", () => {
+    for (const picker of [areaPicker, windowPicker]) {
+        assert.match(picker, /isWindowsLiveOverlay/)
+        assert.match(picker, /data-live-picker-overlay/)
+        assert.match(picker, /if \(isWindowsLiveOverlay\) return undefined/)
+    }
+
+    const snapshotCalls = [...pickerWindows.matchAll(/capture_desktop_screenshot\(&app\)\.await\.ok\(\);/g)]
+    assert.equal(snapshotCalls.length, 2)
+    for (const call of snapshotCalls) {
+        const guard = pickerWindows.slice(Math.max(0, call.index - 80), call.index)
+        assert.match(guard, /#\[cfg\(not\(target_os = "windows"\)\)\]/)
+    }
 })
 
 test("record action stays outside the scrolling setup and repairs missing engines", () => {

@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSelector, createSlice } from '@reduxjs/toolkit'
 import {
     animsAdapter,
     applyAnimProperties,
@@ -7,7 +7,7 @@ import {
     selectEntities,
     selectIds,
     validateAnim
-} from "./animsAdapter"
+} from "./animsAdapter.js"
 
 // Slice-level defaults — apply when no entity is active for a given time.
 // preset values: 'default' (system cursor sprites) | 'arrow' | 'pointer' | 'dot' | 'ring' | 'target' | 'agent'
@@ -86,11 +86,19 @@ export const selectMouseStyleColor = state => slice(state).color
 export const selectMouseStyleLabel = state => slice(state).label
 export const selectMouseStyleShowLabel = state => slice(state).showLabel
 export const selectMouseStylePreset = state => slice(state).preset
-export const selectMouseStyleDefaults = state => ({
-    color: slice(state).color,
-    showLabel: slice(state).showLabel,
-    label: slice(state).label,
-    preset: slice(state).preset,
-})
+export const selectMouseStyleDefaults = createSelector(
+    [
+        selectMouseStyleColor,
+        selectMouseStyleShowLabel,
+        selectMouseStyleLabel,
+        selectMouseStylePreset,
+    ],
+    (color, showLabel, label, preset) => ({
+        color,
+        showLabel,
+        label,
+        preset,
+    })
+)
 
 export default mouseStyleAnimSlice.reducer

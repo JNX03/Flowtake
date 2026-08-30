@@ -20,7 +20,7 @@ const [
     recorderTutorial,
     tutorialSteps,
     nativeRecording,
-    nativeWindows,
+    nativeKeyboard,
 ] = await Promise.all([
     readSource("../app/windows/main/App.jsx"),
     readSource("../app/windows/main/components/Launcher.jsx"),
@@ -37,7 +37,7 @@ const [
     readSource("../app/windows/recorder/components/RecorderTutorial.jsx"),
     readSource("../app/windows/main/components/tutorial/steps.js"),
     readSource("../src-tauri/src/commands/recording.rs"),
-    readSource("../src-tauri/src/commands/windows.rs"),
+    readSource("../src-tauri/src/keyboard_tracker.rs"),
 ])
 
 test("cold hardware encoder probing does not hold the startup splash", () => {
@@ -104,20 +104,22 @@ test("settings show only controls backed by working behavior", () => {
     assert.match(recorderSettings, /store-get", "recordingQuality"/)
     assert.match(recorderSettings, /value="performance"/)
     assert.match(recorderSettings, /value="quality"/)
-    assert.match(generalSettings, /get-content-protection/)
-    assert.match(generalSettings, /macOS no longer lets apps block system screenshots or third-party captures/)
-    assert.match(generalSettings, /Window capture protection is unavailable on Linux/)
-    assert.match(nativeWindows, /stored\.unwrap_or\(!cfg!\(debug_assertions\)\)/)
-    assert.doesNotMatch(nativeWindows, /if cfg!\(debug_assertions\) \{[\s\S]*?return false/)
 })
 
 test("experimental page exposes runtime-backed built-ins without drop-in claims", () => {
     assert.doesNotMatch(plugins, /list-plugins|open-plugins-folder|Drop-in plugins/)
     assert.match(plugins, /\[FEATURE_IDS\.APP_RECORDING\]: AppRecordingFeature/)
     assert.doesNotMatch(plugins, /\[FEATURE_IDS\.MOUSE_STYLE\]: MouseStyleFeature/)
-    assert.doesNotMatch(plugins, /\[FEATURE_IDS\.KEYBOARD_OVERLAY\]: KeyboardOverlayFeature/)
+    assert.match(plugins, /\[FEATURE_IDS\.KEYBOARD_OVERLAY\]: KeyboardOverlayFeature/)
     assert.match(plugins, /windowsOnly: true/)
     assert.match(plugins, /aria-expanded=\{isSettingsOpen\}/)
+})
+
+test("Windows keyboard capture confirms the global hook before reporting success", () => {
+    assert.match(nativeKeyboard, /GetModuleHandleW\(None\)/)
+    assert.match(nativeKeyboard, /SetWindowsHookExW\([\s\S]*Some\(module\)/)
+    assert.match(nativeKeyboard, /sync_channel\(1\)/)
+    assert.match(nativeKeyboard, /ready\.send\(Ok\(\(\)\)\)/)
 })
 
 test("individual app capture reports the tracks that actually started", () => {

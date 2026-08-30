@@ -544,6 +544,8 @@ pub fn run() {
             commands::projects::close_project,
             commands::projects::delete_project,
             commands::projects::save_json,
+            commands::projects::import_project_media,
+            commands::projects::resolve_project_media,
             commands::projects::find_project,
             commands::projects::open_project_dir,
             commands::projects::open_logs_dir,

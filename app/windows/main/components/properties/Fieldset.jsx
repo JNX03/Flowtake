@@ -1,8 +1,8 @@
 import PropTypes from 'prop-types'
 
-export default function Fieldset({ legend, description, children }) {
+export default function Fieldset({ id, legend, description, children }) {
     return (
-        <section className="flowtake-fieldset flex flex-col">
+        <section id={id} className="flowtake-fieldset flex flex-col">
             {legend && (
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-base-content/60 mb-2">
                     {legend}
@@ -17,6 +17,7 @@ export default function Fieldset({ legend, description, children }) {
 }
 
 Fieldset.propTypes = {
+    id: PropTypes.string,
     legend: PropTypes.string,
     description: PropTypes.string,
     children: PropTypes.node
