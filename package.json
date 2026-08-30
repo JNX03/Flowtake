@@ -19,7 +19,7 @@
   },
   "scripts": {
     "lint": "eslint --cache .",
-    "test": "node --test \"test/**/*.test.js\" \"tests/**/*.test.mjs\"",
+    "test": "node --test",
     "test:macos-capture": "swift run --package-path src-tauri/native/macos-capture flowtake-macos-capture-tests",
     "diagnose:recording": "node scripts/recording-diagnostics.mjs",
     "dev:frontend": "vite --config vite.config.mjs",
