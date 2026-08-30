@@ -8,7 +8,7 @@ This document states the platforms Flowtake actually targets today and the measu
 | --- | --- | --- |
 | Windows 10/11 x64 | Desktop capture through FFmpeg/DXGI (`ddagrab`) | Primary validation target. Release performance gates are not yet certified. |
 | Windows ARM64 | No ARM64 release artifact or validated capture path | Not supported. |
-| macOS 10.15+ on Intel or Apple Silicon | AVFoundation capture; VideoToolbox when available | Developer preview. Keyboard visualization is unavailable and the performance matrix must still be validated. |
+| macOS 10.15+ on Intel or Apple Silicon | ScreenCaptureKit + native H.264 writer on macOS 12.3+; AVFoundation/FFmpeg fallback on older or incompatible systems | Developer preview. Native system audio requires macOS 13+. Keyboard visualization is unavailable and the performance matrix must still be validated. |
 | Linux x64 with X11 or XWayland | `x11grab`; keyboard input through `xdotool` | Developer preview. Distribution packaging does not imply recorder certification. |
 | Linux with pure Wayland | No PipeWire/portal recorder path is wired | Recording is not supported. |
 | Linux ARM64 | No release artifact or validated capture path | Not supported. |
@@ -35,6 +35,10 @@ GPU utilization varies by encoder and GPU generation, so capture engine-specific
 Validate the recorder menu, settings, source picker, countdown, recording controls, and plugin controls at 760x520, 1000x600, 1366x768, 1920x1080, and 3840x2160. On Windows, also test 100%, 125%, 150%, and 200% display scaling plus mixed-DPI dual monitors. Acceptance requires no overlap, clipped controls, white gaps, focus traps, or keyboard-only dead ends.
 
 The macOS and Linux preview rows require equivalent real-device runs before promotion. Do not infer support from compilation or package generation alone.
+
+The ScreenCaptureKit path waits for a native readiness handshake before the recorder reports that capture started, schedules the latest native frame at the configured fixed 30/60 fps cadence, and asks the helper to finalize the MP4 before project validation. If the helper is missing or cannot start, automatic mode uses the existing AVFoundation/FFmpeg path. This fallback is a reliability guarantee, not evidence that either path has passed the performance gates above.
+
+Editor preview is intentionally separate from export quality. Retina source video is decoded into a preview texture bounded to 1280×720, playback animation timing follows the display refresh loop, and inactive zoom blur is removed from the Pixi filter chain. Export rendering continues to use the source dimensions.
 
 ## Read-only Windows diagnostics
 

@@ -7,16 +7,21 @@ import {
 import {
     postDispatch
 } from "../workers/helpers"
+import { getPreviewTextureDimensions } from "./previewQuality"
 import Scene from "./Scene"
 
 export default class PreviewScene extends Scene {
     constructor() {
-        super()
+        super({ isPreview: true })
 
         this.cursorFill = null
         this.cursorStroke = null
 
         this.rendererDims = null
+    }
+
+    initScreenVideo(dims, content = null) {
+        super.initScreenVideo(dims, content, getPreviewTextureDimensions(dims))
     }
 
     createApp(canvas = null) {

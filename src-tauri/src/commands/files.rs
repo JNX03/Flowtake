@@ -1,10 +1,66 @@
 use crate::error::{AppError, AppResult};
+use crate::identifiers::{validate_project_id, validate_render_id};
 use crate::state::{AppState, RenderState};
 use base64::Engine as _;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FileAccess {
+    Read,
+    Write,
+}
+
+fn file_access(file_type: &str, flag: &str) -> AppResult<FileAccess> {
+    let expected = match file_type {
+        "projectScreenVideo"
+        | "projectCameraVideo"
+        | "renderScreenVideo"
+        | "renderCameraVideo"
+        | "recordingScreenVideo"
+        | "recordingCameraVideo"
+        | "projectMedia" => FileAccess::Read,
+        "renderOutputVideo" => FileAccess::Write,
+        _ => return Err(AppError::General(format!("Unknown file type: {file_type}"))),
+    };
+
+    let supplied = match flag {
+        "r" => FileAccess::Read,
+        "w" => FileAccess::Write,
+        _ => return Err(AppError::General("Invalid file open flag".to_string())),
+    };
+
+    if supplied != expected {
+        return Err(AppError::General(format!(
+            "File type {file_type} does not allow flag {flag}"
+        )));
+    }
+
+    Ok(expected)
+}
+
+fn registered_render_file(
+    state: &AppState,
+    args: &Option<serde_json::Value>,
+    file_name: &str,
+) -> AppResult<std::path::PathBuf> {
+    let render_id = args
+        .as_ref()
+        .and_then(|value| value.get("renderId"))
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::General("Render id is required".to_string()))?;
+    validate_render_id(render_id)?;
+    let render = state
+        .renders
+        .get(render_id)
+        .ok_or_else(|| AppError::General("Render is not registered".to_string()))?;
+    Ok(render.temp_dir.join(file_name))
+}
+
+/// Resolve the write handle for a render's final container. The caller may not
+/// choose the path or the container: both are fixed by the queued render, so a
+/// renderer cannot write outside the render temp dir or mix formats.
 fn render_output_path(
     render: &RenderState,
     flag: &str,
@@ -42,6 +98,26 @@ fn render_output_path(
     Ok(render.temp_dir.join(render.format.output_file_name()))
 }
 
+fn registered_render_output(
+    state: &AppState,
+    args: &Option<serde_json::Value>,
+    flag: &str,
+) -> AppResult<std::path::PathBuf> {
+    let render_args = args
+        .as_ref()
+        .ok_or_else(|| AppError::General("Render output arguments are required".to_string()))?;
+    let render_id = render_args
+        .get("renderId")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::General("Render id is required".to_string()))?;
+    validate_render_id(render_id)?;
+    let render = state
+        .renders
+        .get(render_id)
+        .ok_or_else(|| AppError::General("Render is not registered".to_string()))?;
+    render_output_path(render, flag, render_args)
+}
+
 #[tauri::command]
 pub async fn open_file(
     app: AppHandle,
@@ -49,6 +125,15 @@ pub async fn open_file(
     flag: String,
     args: Option<serde_json::Value>,
 ) -> AppResult<String> {
+    let state = app.state::<Mutex<AppState>>();
+    let mut state = state.lock().unwrap();
+
+    let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
+    validate_project_id(&project_id)?;
+
+    // Project media lives in the open project's assets directory rather than at
+    // a fixed state path, so it resolves through the containment-checked helper
+    // instead of the fixed-path table below.
     if r#type == "projectMedia" {
         if flag != "r" {
             return Err(AppError::General(
@@ -63,76 +148,32 @@ pub async fn open_file(
             .filter(|value| !value.is_empty())
             .ok_or_else(|| {
                 AppError::General("A relative project media path is required".to_string())
-            })?
-            .to_string();
-        let (temp_root, project_id) = {
-            let state = app.state::<Mutex<AppState>>();
-            let state = state.lock().unwrap();
-            (
-                state.temp_dir.clone(),
-                state.project_id.clone().ok_or(AppError::NoProjectOpen)?,
-            )
-        };
+            })?;
         let file = crate::commands::projects::open_project_media_file_for_read(
-            &temp_root,
+            &state.temp_dir.clone(),
             &project_id,
-            &relative_path,
+            relative_path,
         )?;
         let id = format!("fh-{}", uuid::Uuid::new_v4());
-        let state = app.state::<Mutex<AppState>>();
-        let mut state = state.lock().unwrap();
-        state.file_handles.insert(id.clone(), file);
         crate::debug_log(&format!(
             "[open_file] Opened contained project media {} as {}",
             relative_path, id
         ));
+        state.file_handles.insert(id.clone(), file);
         return Ok(id);
     }
 
-    let state = app.state::<Mutex<AppState>>();
-    let mut state = state.lock().unwrap();
-
-    let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
+    let access = file_access(&r#type, &flag)?;
 
     let file_path = match r#type.as_str() {
         "projectScreenVideo" => state.screen_video_file(&project_id),
         "projectCameraVideo" => state.camera_video_file(&project_id),
-        "renderScreenVideo" => {
-            let render_id = args
-                .as_ref()
-                .and_then(|v| v.get("renderId"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            state.render_temp_dir(render_id).join("screen.mp4")
-        }
-        "renderCameraVideo" => {
-            let render_id = args
-                .as_ref()
-                .and_then(|v| v.get("renderId"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-            state.render_temp_dir(render_id).join("camera.webm")
-        }
-        "renderOutputVideo" => {
-            let render_args = args
-                .as_ref()
-                .ok_or_else(|| AppError::General("Render output arguments are required".to_string()))?;
-            let render_id = render_args
-                .get("renderId")
-                .and_then(|v| v.as_str())
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| AppError::General("Render id is required".to_string()))?;
-            let render = state
-                .renders
-                .get(render_id)
-                .ok_or_else(|| AppError::General(format!("Render not found: {render_id}")))?;
-            render_output_path(render, &flag, render_args)?
-        }
+        "renderScreenVideo" => registered_render_file(&state, &args, "screen.mp4")?,
+        "renderCameraVideo" => registered_render_file(&state, &args, "camera.webm")?,
+        "renderOutputVideo" => registered_render_output(&state, &args, &flag)?,
         "recordingScreenVideo" => state.screen_video_file(&project_id),
         "recordingCameraVideo" => state.camera_video_file(&project_id),
-        _ => {
-            return Err(AppError::General(format!("Unknown file type: {}", r#type)));
-        }
+        _ => unreachable!("file_access rejects unknown file types"),
     };
 
     crate::debug_log(&format!(
@@ -140,14 +181,9 @@ pub async fn open_file(
         r#type, flag, file_path
     ));
 
-    let file = match flag.as_str() {
-        "r" => std::fs::File::open(&file_path)?,
-        "w" => std::fs::File::create(&file_path)?,
-        "rw" | "r+" => std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&file_path)?,
-        _ => std::fs::File::open(&file_path)?,
+    let file = match access {
+        FileAccess::Read => std::fs::File::open(&file_path)?,
+        FileAccess::Write => std::fs::File::create(&file_path)?,
     };
 
     let id = format!("fh-{}", uuid::Uuid::new_v4());
@@ -166,6 +202,9 @@ pub async fn read_file(app: AppHandle, fh_id: String, start: u64, end: u64) -> A
         .get_mut(&fh_id)
         .ok_or_else(|| AppError::FileHandleNotFound(fh_id.clone()))?;
 
+    if end < start || end - start > 64 * 1024 * 1024 {
+        return Err(AppError::General("Invalid file read range".to_string()));
+    }
     let len = (end - start) as usize;
     let mut buffer = vec![0u8; len];
     file.seek(SeekFrom::Start(start))?;
@@ -237,21 +276,36 @@ pub async fn get_video_path(
     let state = app.state::<Mutex<AppState>>();
     let state = state.lock().unwrap();
 
-    let pid = project_id
-        .as_deref()
-        .or(state.project_id.as_deref())
-        .ok_or(AppError::NoProjectOpen)?;
+    let active_project_id = state.project_id.as_deref().ok_or(AppError::NoProjectOpen)?;
+    validate_project_id(active_project_id)?;
+    if let Some(requested_project_id) = project_id.as_deref() {
+        validate_project_id(requested_project_id)?;
+        if requested_project_id != active_project_id {
+            return Err(AppError::General(
+                "Requested project is not the active project".to_string(),
+            ));
+        }
+    }
+    let pid = active_project_id;
 
     let path = match video_type.as_str() {
         "screen" => state.screen_video_file(pid),
+        "screen-preview" => state.editor_screen_video_file(pid),
         "camera" | "microphone" => state.camera_video_file(pid),
         v if v.starts_with("extra-") => {
-            let idx: usize = v.trim_start_matches("extra-").parse().unwrap_or(0);
+            let idx: usize = v
+                .trim_start_matches("extra-")
+                .parse()
+                .map_err(|_| AppError::General("Invalid extra video index".to_string()))?;
             state
                 .project_temp_dir(pid)
                 .join(format!("extra-{}.mp4", idx))
         }
-        _ => state.screen_video_file(pid),
+        _ => {
+            return Err(AppError::General(format!(
+                "Unknown video type: {video_type}"
+            )))
+        }
     };
 
     crate::debug_log(&format!(
@@ -266,41 +320,71 @@ pub async fn get_video_path(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::state::RenderFormat;
+    use super::{file_access, registered_render_file, FileAccess};
+    use crate::state::{AppState, RenderState};
+    use serde_json::json;
+    use std::path::PathBuf;
 
-    fn render_state(format: RenderFormat) -> RenderState {
-        RenderState {
-            id: "render-test".to_string(),
-            project_id: "project-test".to_string(),
-            output_path: std::path::PathBuf::from("final").with_extension(format.extension()),
-            temp_dir: std::path::PathBuf::from("render-temp"),
-            format,
-            is_cancelled: false,
+    const RENDER_ID: &str = "render-123e4567-e89b-42d3-a456-426614174000";
+
+    #[test]
+    fn file_modes_are_least_privilege_by_type() {
+        for file_type in [
+            "projectScreenVideo",
+            "projectCameraVideo",
+            "renderScreenVideo",
+            "renderCameraVideo",
+            "recordingScreenVideo",
+            "recordingCameraVideo",
+        ] {
+            assert_eq!(file_access(file_type, "r").unwrap(), FileAccess::Read);
+            assert!(file_access(file_type, "w").is_err());
+            assert!(file_access(file_type, "rw").is_err());
+            assert!(file_access(file_type, "r+").is_err());
         }
+
+        assert_eq!(
+            file_access("renderOutputVideo", "w").unwrap(),
+            FileAccess::Write
+        );
+        assert!(file_access("renderOutputVideo", "r").is_err());
+        assert!(file_access("unknown", "r").is_err());
     }
 
     #[test]
-    fn render_output_handle_requires_exact_format_and_disallows_paths() {
-        let render = render_state(RenderFormat::WebM);
-        let valid = serde_json::json!({ "format": "webm", "extension": "webm" });
-        assert_eq!(
-            render_output_path(&render, "w", &valid).expect("valid output path"),
-            std::path::PathBuf::from("render-temp").join("output.webm")
+    fn render_files_resolve_only_from_registered_backend_state() {
+        let mut state = AppState::new();
+        let render_dir = PathBuf::from("trusted-render-dir");
+        state.renders.insert(
+            RENDER_ID.to_string(),
+            RenderState {
+                id: RENDER_ID.to_string(),
+                project_id: "123e4567-e89b-42d3-a456-426614174000".to_string(),
+                output_path: render_dir.join("output.mp4"),
+                temp_dir: render_dir.clone(),
+                format: crate::state::RenderFormat::Mp4,
+                is_cancelled: false,
+            },
         );
 
-        let wrong_extension = serde_json::json!({ "format": "webm", "extension": "../mp4" });
-        assert!(render_output_path(&render, "w", &wrong_extension).is_err());
-
-        let wrong_format = serde_json::json!({ "format": "mp4", "extension": "mp4" });
-        assert!(render_output_path(&render, "w", &wrong_format).is_err());
-
-        let custom_path = serde_json::json!({
-            "format": "webm",
-            "extension": "webm",
-            "outputPath": "../escape.webm"
-        });
-        assert!(render_output_path(&render, "w", &custom_path).is_err());
-        assert!(render_output_path(&render, "r", &valid).is_err());
+        let args = Some(json!({ "renderId": RENDER_ID }));
+        assert_eq!(
+            registered_render_file(&state, &args, "screen.mp4").unwrap(),
+            render_dir.join("screen.mp4")
+        );
+        assert!(registered_render_file(
+            &state,
+            &Some(json!({
+                "renderId": "render-123e4567-e89b-42d3-a456-426614174001"
+            })),
+            "screen.mp4"
+        )
+        .is_err());
+        assert!(registered_render_file(
+            &state,
+            &Some(json!({ "renderId": "render-../../outside" })),
+            "screen.mp4"
+        )
+        .is_err());
     }
 }

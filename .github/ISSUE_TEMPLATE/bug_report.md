@@ -1,38 +1,40 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
+about: Report a reproducible Flowtake problem
+title: '[Bug] '
+labels: 'bug'
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+Before filing, search existing issues and use the latest published Flowtake release.
+Do not include passwords, stream keys, OAuth tokens, private project names, customer
+footage, or other sensitive data. Report security vulnerabilities privately as
+described in the [security policy](https://github.com/JNX03/Flowtake/security/policy).
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**What happened?**
+Describe the problem and what you were trying to do.
+
+**Steps to reproduce**
+1. Open ...
+2. Select ...
+3. Start ...
+4. Observe ...
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What did you expect instead?
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Flowtake and system details**
+- Flowtake version and installer type (for example, `v1.6.0` / MSI):
+- Operating system and version:
+- Capture type (display, window, region, camera, or audio):
+- Display setup and scaling, if relevant:
+- Does the problem reproduce in a new disposable project?
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
-
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+**Evidence**
+Attach a redacted screenshot, short sanitized recording, or the smallest relevant
+log excerpt if it helps. Do not upload a full project archive unless a maintainer
+asks for it and you have confirmed it contains no sensitive data.
 
 **Additional context**
-Add any other context about the problem here.
+Add any other context, including a workaround if you found one.

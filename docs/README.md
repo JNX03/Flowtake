@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../resources/banner.png" alt="Flowtake">
+  <img src="../website/public/assets/logo.png" alt="Flowtake app icon" width="160">
 </p>
 
 # Flowtake Documentation

@@ -4,6 +4,7 @@
 
 const KEY = "__flowtakeDrag"
 const LISTENERS_KEY = "__flowtakeDragListeners"
+let suppressClickUntil = 0
 
 if (!window[LISTENERS_KEY]) window[LISTENERS_KEY] = new Set()
 
@@ -32,6 +33,12 @@ export function hasDragItem() {
 export function isDragActive() {
     const s = getState()
     return s != null && s.active
+}
+
+export function consumeSuppressedAssetClick() {
+    if (Date.now() >= suppressClickUntil) return false
+    suppressClickUntil = 0
+    return true
 }
 
 export function getDragPos() {
@@ -67,17 +74,16 @@ export function subscribe(fn) {
  * dispatches a "flowtake-drop" CustomEvent on the window.
  */
 export function startDrag(type, data, e) {
-    // Prevent text selection and native drag while dragging
-    e.preventDefault()
-
     const startX = e.clientX
     const startY = e.clientY
+    const pointerId = e.pointerId
+    const source = e.currentTarget
     let started = false
 
     window[KEY] = { type, data, active: false, x: startX, y: startY }
 
     const onMove = (ev) => {
-        ev.preventDefault()
+        if (ev.pointerId !== pointerId) return
         // Require a small movement before activating (avoid accidental drags)
         if (!started) {
             const dx = ev.clientX - startX
@@ -88,16 +94,24 @@ export function startDrag(type, data, e) {
             document.body.style.cursor = "grabbing"
             document.body.style.userSelect = "none"
         }
+        ev.preventDefault()
         const hoverTarget = findDropTarget(ev.clientX, ev.clientY)
         window[KEY] = { ...window[KEY], x: ev.clientX, y: ev.clientY, hoverTarget }
         notify()
     }
 
-    const onUp = (ev) => {
-        document.removeEventListener("mousemove", onMove, true)
-        document.removeEventListener("mouseup", onUp, true)
+    const cleanup = () => {
+        document.removeEventListener("pointermove", onMove, true)
+        document.removeEventListener("pointerup", onUp, true)
+        document.removeEventListener("pointercancel", onCancel, true)
         document.body.style.cursor = ""
         document.body.style.userSelect = ""
+        if (source?.hasPointerCapture?.(pointerId)) source.releasePointerCapture(pointerId)
+    }
+
+    const onUp = (ev) => {
+        if (ev.pointerId !== pointerId) return
+        cleanup()
 
         if (!started) {
             clearDragItem()
@@ -118,12 +132,21 @@ export function startDrag(type, data, e) {
             }))
         }
 
+        suppressClickUntil = Date.now() + 500
         clearDragItem()
     }
 
-    // Use mousemove/mouseup on document (capture phase) for max compatibility with WebView2
-    document.addEventListener("mousemove", onMove, true)
-    document.addEventListener("mouseup", onUp, true)
+    const onCancel = (ev) => {
+        if (ev.pointerId !== pointerId) return
+        cleanup()
+        clearDragItem()
+    }
+
+    source?.setPointerCapture?.(pointerId)
+    // Pointer events support mouse, pen, and touch in WebView2.
+    document.addEventListener("pointermove", onMove, { capture: true, passive: false })
+    document.addEventListener("pointerup", onUp, true)
+    document.addEventListener("pointercancel", onCancel, true)
 }
 
 /**

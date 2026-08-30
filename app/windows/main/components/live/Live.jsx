@@ -77,7 +77,7 @@ export default function Live({ isOpen }) {
         queryFn: loadLiveSettings,
         staleTime: Infinity,
     })
-    const hasStreamKey = !!(liveSettings?.streamKey && liveSettings.streamKey.trim().length > 0)
+    const hasStreamKey = Boolean(liveSettings?.hasStreamKey)
     const hasRtmp = !!(liveSettings?.rtmpUrl && liveSettings.rtmpUrl.trim().length > 0)
     const isConfigured = hasRtmp && hasStreamKey
     const zoomHotkey = liveSettings?.zoomHotkey || "Ctrl+Shift+Z"

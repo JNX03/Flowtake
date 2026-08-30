@@ -26,28 +26,84 @@ export const post = (recipient, type, payload = null, id = crypto.randomUUID(), 
     recipient.postMessage({ type, payload, id, expectsResponse, isResponse, error }, transferList)
 }
 
-export const postAsync = (recipient, type, payload, id = crypto.randomUUID(), transferList = []) =>
-    new Promise((resolve, reject) => {
-        const messageHandler = (event) => {
-            const { id: responseId, isResponse, payload, error } = event.data
+export const postAsync = (
+    recipient,
+    type,
+    payload,
+    id = crypto.randomUUID(),
+    transferList = [],
+    options = {}
+) => new Promise((resolve, reject) => {
+    const {
+        signal,
+        timeoutMs = 0,
+        timeoutMessage = `Timed out waiting for worker response: ${type}`
+    } = options
+    let timeout = null
+    let settled = false
 
-            if (isResponse && responseId === id) {
-                recipient.removeEventListener('message', messageHandler)
-                if (error === null)
-                    resolve(payload)
-                else {
-                    const e = new Error(error.message)
-                    e.name = error.name
-                    e.stack = error.stack
-                    e.isCaptured = true
-                    reject(e)
-                }
+    const cleanup = () => {
+        if (timeout !== null) clearTimeout(timeout)
+        recipient?.removeEventListener?.('message', messageHandler)
+        signal?.removeEventListener?.('abort', abortHandler)
+    }
+
+    const settle = (callback, value) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        callback(value)
+    }
+
+    const abortHandler = () => {
+        const reason = signal?.reason
+        const error = reason instanceof Error ? reason : new Error(reason || `Worker request aborted: ${type}`)
+        if (!error.name || error.name === "Error") error.name = "AbortError"
+        settle(reject, error)
+    }
+
+    const messageHandler = (event) => {
+        const { id: responseId, isResponse, payload: responsePayload, error } = event.data
+
+        if (isResponse && responseId === id) {
+            if (error == null) settle(resolve, responsePayload)
+            else {
+                const responseError = new Error(error.message)
+                responseError.name = error.name
+                responseError.stack = error.stack
+                responseError.isCaptured = true
+                settle(reject, responseError)
             }
         }
+    }
 
-        recipient.addEventListener('message', messageHandler)
+    if (!recipient?.addEventListener || !recipient?.removeEventListener || !recipient?.postMessage) {
+        settle(reject, new TypeError(`Cannot post worker request without an active recipient: ${type}`))
+        return
+    }
+
+    if (signal?.aborted) {
+        abortHandler()
+        return
+    }
+
+    recipient.addEventListener('message', messageHandler)
+    signal?.addEventListener?.('abort', abortHandler, { once: true })
+
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+        timeout = setTimeout(() => {
+            const error = new Error(timeoutMessage)
+            error.name = "TimeoutError"
+            settle(reject, error)
+        }, timeoutMs)
+    }
+
+    try {
         post(recipient, type, payload, id, true, false, transferList)
-    })
+    } catch (error) {
+        settle(reject, error)
+    }
+})
 
 export const postIpc = (channel, data) => postAsync(self, IPC_CALL, { channel, data })
 

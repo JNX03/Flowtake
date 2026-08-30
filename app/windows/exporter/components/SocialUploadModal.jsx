@@ -80,8 +80,12 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
             setError(null)
             setCopied(false)
             setIsConnecting(false)
+            setClientId("")
+            setClientSecret("")
             checkAuthStatus()
         } else {
+            setClientId("")
+            setClientSecret("")
             dialogRef.current?.close()
         }
     }, [isOpen, videoName, checkAuthStatus])
@@ -129,13 +133,17 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
 
     const handleSaveCredentials = async () => {
         if (!clientId.trim() || !clientSecret.trim()) return
+        const nextClientId = clientId.trim()
+        const nextClientSecret = clientSecret.trim()
         setSavingCreds(true)
         setError(null)
+        setClientSecret("")
         try {
-            await window.electron.ipcRenderer.invoke("youtube-set-credentials", clientId.trim(), clientSecret.trim())
-            checkAuthStatus()
+            await window.electron.ipcRenderer.invoke("youtube-set-credentials", nextClientId, nextClientSecret)
+            setClientId("")
+            await checkAuthStatus()
         } catch (e) {
-            setError(e.message || "Failed to save credentials")
+            setError(e.message || "Failed to use credentials")
         } finally {
             setSavingCreds(false)
         }
@@ -153,9 +161,17 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
     }
 
     const handleDisconnect = async () => {
-        await window.electron.ipcRenderer.invoke("youtube-auth-disconnect")
-        setAuthStatus({ ...authStatus, connected: false, channelName: null })
-        setStep("connect")
+        setError(null)
+        try {
+            await window.electron.ipcRenderer.invoke("youtube-auth-disconnect")
+            setAuthStatus({ hasCredentials: false, connected: false, channelName: null })
+            setClientId("")
+            setClientSecret("")
+            setStep("setup")
+        } catch (e) {
+            setError(e.message || "Failed to disconnect YouTube")
+            await checkAuthStatus()
+        }
     }
 
     const handleUpload = async () => {
@@ -201,6 +217,7 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
                     <button
                         className="opacity-40 hover:opacity-70 transition-all p-1"
                         onClick={onClose}
+                        aria-label="Close YouTube upload"
                     >
                         <XMarkIcon className="size-4" />
                     </button>
@@ -238,6 +255,10 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
                                     , enable the YouTube Data API v3, and create an OAuth 2.0 Client ID (Desktop app type).
                                     Set the redirect URI to <code className="text-[10px] bg-base-300 px-1 py-0.5 rounded">http://127.0.0.1:48721</code>.
                                 </p>
+                                <p className="text-[10px] opacity-40 leading-relaxed mt-2">
+                                    Flowtake keeps these credentials and YouTube tokens in native memory only.
+                                    You will need to enter them again after restart or disconnect.
+                                </p>
                             </div>
                             <div>
                                 <label className="text-[11px] font-medium opacity-50 mb-1.5 block">Client ID</label>
@@ -264,7 +285,7 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
                                 disabled={!clientId.trim() || !clientSecret.trim() || savingCreds}
                                 className="btn btn-sm btn-primary w-full text-xs rounded-lg"
                             >
-                                {savingCreds ? <span className="loading loading-spinner loading-xs" /> : "Save & Continue"}
+                                {savingCreds ? <span className="loading loading-spinner loading-xs" /> : "Use for this session"}
                             </button>
                         </div>
                     )}
@@ -278,7 +299,7 @@ export default function SocialUploadModal({ renderId, videoName, isOpen, onClose
                             <div className="text-center">
                                 <p className="text-xs font-medium">Connect your YouTube account</p>
                                 <p className="text-[11px] opacity-40 mt-1">
-                                    Sign in with Google to upload videos directly.
+                                    Sign in with Google to upload videos during this Flowtake session.
                                 </p>
                             </div>
                             <button

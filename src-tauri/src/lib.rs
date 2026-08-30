@@ -6,7 +6,9 @@ extern crate objc;
 
 mod commands;
 mod error;
+mod identifiers;
 mod keyboard_tracker;
+#[cfg(target_os = "macos")]
 mod macos_capture;
 mod mouse_tracker;
 mod process_containment;
@@ -14,7 +16,7 @@ mod state;
 
 use state::AppState;
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, WebviewWindowBuilder};
 
 fn debug_log(msg: &str) {
     use std::io::Write;
@@ -75,12 +77,13 @@ fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
     use std::io::Write;
     use std::sync::atomic::Ordering;
 
-    let (main_capture, app_layers, live_stream, window_thread, camera_file) = {
+    let (main_capture, native_macos_capture, app_layers, live_stream, window_thread, camera_file) = {
         let state = app.state::<Mutex<AppState>>();
         let mut state = state.lock().unwrap();
         state.window_capture_stop.store(true, Ordering::Relaxed);
         state.live_stop_flag.store(true, Ordering::Relaxed);
         state.live_stdin_tx = None;
+        state.live_stream_credential = None;
         state.is_recording = false;
         state.recording_capture_claimed = false;
         state.recording_stop_in_progress = false;
@@ -89,6 +92,7 @@ fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
         state.ffmpeg_child_id = None;
         (
             state.ffmpeg_process.take(),
+            state.macos_capture_process.take(),
             std::mem::take(&mut state.multi_app_children),
             state.live_ffmpeg_process.take(),
             state.window_capture_thread.take(),
@@ -99,26 +103,11 @@ fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
     if let Some(mut camera_file) = camera_file {
         camera_file.flush().ok();
     }
-    if let Some(mut child) = main_capture {
-        if let Some(stdin) = child.stdin.as_mut() {
-            stdin.write_all(b"q\n").ok();
-            stdin.flush().ok();
-        }
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        let mut exited = false;
-        while std::time::Instant::now() < deadline {
-            match child.try_wait() {
-                Ok(Some(_)) => {
-                    exited = true;
-                    break;
-                }
-                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
-                Err(_) => break,
-            }
-        }
-        if !exited {
-            process_containment::terminate_owned_child(child, "screen capture").ok();
-        }
+    if let Some(child) = main_capture {
+        process_containment::terminate_owned_child(child, "screen-capture FFmpeg").ok();
+    }
+    if let Some(child) = native_macos_capture {
+        process_containment::terminate_owned_child(child, "ScreenCaptureKit helper").ok();
     }
     process_containment::terminate_owned_children(app_layers, "App-layer FFmpeg");
     if let Some(child) = live_stream {
@@ -153,10 +142,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_denylist(&[
@@ -208,7 +194,11 @@ pub fn run() {
             let project_id = query.split('&').find_map(|p| {
                 let mut parts = p.splitn(2, '=');
                 if parts.next() == Some("projectId") {
-                    parts.next().map(|s| s.to_string())
+                    parts.next().map(|s| {
+                        percent_encoding::percent_decode_str(s)
+                            .decode_utf8_lossy()
+                            .to_string()
+                    })
                 } else {
                     None
                 }
@@ -217,14 +207,17 @@ pub fn run() {
             // Determine file path
             let file_path = {
                 let state = state.lock().unwrap();
-                let pid = project_id
-                    .as_deref()
-                    .or(state.project_id.as_deref())
-                    .unwrap_or("");
-
-                if pid.is_empty() {
+                let Some(active_project_id) = state.project_id.as_deref() else {
                     return tauri::http::Response::builder()
                         .status(404)
+                        .body(Vec::<u8>::new())
+                        .unwrap();
+                };
+                let pid = project_id.as_deref().unwrap_or(active_project_id);
+                if crate::identifiers::validate_project_id(pid).is_err() || pid != active_project_id
+                {
+                    return tauri::http::Response::builder()
+                        .status(400)
                         .body(Vec::<u8>::new())
                         .unwrap();
                 }
@@ -233,12 +226,22 @@ pub fn run() {
                     "screen" => state.screen_video_file(pid),
                     "camera" | "microphone" => state.camera_video_file(pid),
                     v if v.starts_with("extra-") => {
-                        let idx: usize = v.trim_start_matches("extra-").parse().unwrap_or(0);
+                        let Ok(idx) = v.trim_start_matches("extra-").parse::<usize>() else {
+                            return tauri::http::Response::builder()
+                                .status(400)
+                                .body(Vec::<u8>::new())
+                                .unwrap();
+                        };
                         state
                             .project_temp_dir(pid)
                             .join(format!("extra-{}.mp4", idx))
                     }
-                    _ => state.screen_video_file(pid),
+                    _ => {
+                        return tauri::http::Response::builder()
+                            .status(404)
+                            .body(Vec::<u8>::new())
+                            .unwrap();
+                    }
                 }
             };
 
@@ -262,6 +265,12 @@ pub fn run() {
             ));
 
             let file_size = file_path.metadata().map(|m| m.len()).unwrap_or(0);
+            if file_size == 0 {
+                return tauri::http::Response::builder()
+                    .status(404)
+                    .body(Vec::<u8>::new())
+                    .unwrap();
+            }
 
             // Determine MIME type
             let mime_type = if video_type == "microphone" {
@@ -279,17 +288,29 @@ pub fn run() {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
 
-            let (start, end) = if let Some(range_str) = range_header.strip_prefix("bytes=") {
-                let parts: Vec<&str> = range_str.split('-').collect();
-                let start: u64 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-                let end: u64 = parts
-                    .get(1)
-                    .and_then(|s| if s.is_empty() { None } else { s.parse().ok() })
-                    .unwrap_or(file_size.saturating_sub(1));
-                (start, end.min(file_size.saturating_sub(1)))
-            } else {
-                (0, file_size.saturating_sub(1))
-            };
+            const MAX_PROTOCOL_CHUNK: u64 = 16 * 1024 * 1024;
+            let requested_range = range_header.strip_prefix("bytes=").and_then(|range| {
+                if range.contains(',') {
+                    return None;
+                }
+                let (start, end) = range.split_once('-')?;
+                let start = start.parse::<u64>().ok()?;
+                let end = if end.is_empty() {
+                    file_size - 1
+                } else {
+                    end.parse::<u64>().ok()?.min(file_size - 1)
+                };
+                (start < file_size && end >= start).then_some((start, end))
+            });
+            if !range_header.is_empty() && requested_range.is_none() {
+                return tauri::http::Response::builder()
+                    .status(416)
+                    .header("Content-Range", format!("bytes */{}", file_size))
+                    .body(Vec::<u8>::new())
+                    .unwrap();
+            }
+            let (start, requested_end) = requested_range.unwrap_or((0, file_size - 1));
+            let end = requested_end.min(start.saturating_add(MAX_PROTOCOL_CHUNK - 1));
 
             // Read the requested range
             let data = {
@@ -318,7 +339,7 @@ pub fn run() {
                 buf
             };
 
-            let is_range = !range_header.is_empty();
+            let is_range = !range_header.is_empty() || end.saturating_add(1) < file_size;
             let status = if is_range { 206 } else { 200 };
 
             debug_log(&format!(
@@ -407,10 +428,18 @@ pub fn run() {
                             .or_else(|| state.project_id.clone());
 
                         match project_id {
-                            Some(pid) => state.background_file(&pid),
+                            Some(pid) if crate::identifiers::validate_project_id(&pid).is_ok() => {
+                                state.background_file(&pid)
+                            }
                             None => {
                                 return tauri::http::Response::builder()
                                     .status(404)
+                                    .body(Vec::<u8>::new())
+                                    .unwrap();
+                            }
+                            Some(_) => {
+                                return tauri::http::Response::builder()
+                                    .status(400)
                                     .body(Vec::<u8>::new())
                                     .unwrap();
                             }
@@ -580,19 +609,16 @@ pub fn run() {
             commands::windows::get_window_at_point,
             commands::windows::get_monitors,
             commands::windows::toggle_drawing_overlay,
+            commands::windows::get_content_protection,
             commands::windows::set_content_protection,
             // App
             commands::app::get_version,
             commands::app::get_system_info,
-            macos_capture::get_macos_capture_status,
             commands::app::get_machine_id,
             commands::app::get_is_sentry_enabled,
             commands::app::check_permissions,
             commands::app::check_for_updates,
             commands::app::install_update,
-            commands::app::download_update,
-            commands::app::pending_installer_path,
-            commands::app::launch_installer,
             commands::app::get_changelog,
             commands::app::choose_export_directory,
             commands::app::check_dependencies,
@@ -623,6 +649,8 @@ pub fn run() {
             commands::audio::mute_audio_sessions,
             commands::audio::unmute_audio_sessions,
             // Live streaming
+            commands::live::set_live_stream_key,
+            commands::live::has_live_stream_key,
             commands::live::start_live_streaming,
             commands::live::push_live_frame,
             commands::live::stop_live_streaming,
@@ -653,6 +681,35 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
+            // Legacy builds wrote reusable Google credentials and YouTube tokens to
+            // social_auth.json. Refuse to show a renderer unless that plaintext is gone;
+            // current builds retain OAuth material only in native process memory.
+            match commands::social_upload::migrate_legacy_youtube_auth(&app_handle) {
+                Ok(true) => log::info!(
+                    "[startup] Removed legacy persisted YouTube OAuth credentials and tokens"
+                ),
+                Ok(false) => {}
+                Err(error) => {
+                    log::error!("[startup] Could not remove legacy YouTube OAuth secrets");
+                    return Err(Box::new(error));
+                }
+            }
+
+            // Remove plaintext stream keys written by earlier versions before any renderer is
+            // shown. New versions keep the destination-bound credential in process memory only.
+            match commands::store::migrate_legacy_live_settings(&app_handle) {
+                Ok(true) => {
+                    log::info!("[startup] Removed a legacy persisted live-stream credential")
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    log::error!(
+                        "[startup] Could not remove legacy live-stream credentials from settings"
+                    );
+                    return Err(Box::new(error));
+                }
+            }
+
             // Initialize paths
             let app_data_dir = app_handle
                 .path()
@@ -675,6 +732,23 @@ pub fn run() {
                 state.projects_dir = projects_dir;
                 state.temp_dir = temp_dir;
             }
+
+            // The declarative main window has `create: false`, so no renderer exists while
+            // the fail-closed legacy-secret migrations above run. Build it only after both
+            // plaintext stores have been scrubbed and native state is initialized.
+            let main_window_config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|config| config.label == "main")
+                .cloned()
+                .ok_or_else(|| {
+                    crate::error::AppError::General(
+                        "Main window configuration is missing".to_string(),
+                    )
+                })?;
+            WebviewWindowBuilder::from_config(app.handle(), &main_window_config)?.build()?;
 
             // Show main window once webview is ready (avoid white screen flash)
             let handle = app.handle().clone();
@@ -708,6 +782,9 @@ pub fn run() {
 
     app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
+            if commands::social_upload::clear_youtube_oauth_session(app_handle).is_err() {
+                log::warn!("[shutdown] Could not clear the YouTube OAuth session cleanly");
+            }
             terminate_owned_recording_children_on_exit(app_handle);
         }
     });

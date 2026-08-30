@@ -60,7 +60,10 @@ pub(crate) fn terminate_owned_child(
         .map_err(|error| format!("could not reap {} (pid {}): {}", purpose, child.id(), error))
 }
 
-pub(crate) fn terminate_owned_children(children: Vec<std::process::Child>, purpose: &str) {
+pub(crate) fn terminate_owned_children(
+    children: Vec<std::process::Child>,
+    purpose: &str,
+) {
     for child in children {
         if let Err(error) = terminate_owned_child(child, purpose) {
             log::warn!("[process_containment] {}", error);

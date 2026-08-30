@@ -158,7 +158,6 @@ async function loadConfigs() {
 }
 
 export const TOAST_UPDATE = "toast-update"
-export const TOAST_UPDATE_READY = "toast-update-ready"
 export const TOAST_EXPORT_COMPLETED = "toast-export-completed"
 export const TOAST_SUCCESS = "toast-success"
 export const TOAST_WARNING = "toast-warning"
@@ -272,6 +271,7 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         if (json.mouseStyleAnims) actions.push(applyMouseStyleProperties(json.mouseStyleAnims))
         if (json.drawnMouseAnims) actions.push(applyDrawnMouseProperties(json.drawnMouseAnims))
         if (json.appSceneAnims) actions.push(applyAppSceneProperties(json.appSceneAnims))
+        if (json.assets?.entities) actions.push(setAssets(json.assets.entities))
 
         try {
             if (json.project?.background) {

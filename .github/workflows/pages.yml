@@ -1,0 +1,105 @@
+name: Deploy marketing site to GitHub Pages
+
+"on":
+  workflow_dispatch:
+
+# Start from no token permissions. Each job receives only what it needs.
+permissions: {}
+
+# Complete an in-flight production deployment; skip superseded queued runs.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: read
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Require a main-branch dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "ERROR: Pages deployments must be dispatched from refs/heads/main, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24.x"
+          cache: "npm"
+          cache-dependency-path: website/package-lock.json
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Require the matching hardened release and checksums
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          expected_tag="v$(node -p "require('../package.json').version")"
+          release_json="$(curl --fail --location --show-error --silent \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/JNX03/Flowtake/releases/latest)"
+          actual_tag="$(jq -r '.tag_name // empty' <<< "$release_json")"
+          if [[ "$actual_tag" != "$expected_tag" ]]; then
+            echo "ERROR: latest release $actual_tag does not match website version $expected_tag" >&2
+            exit 1
+          fi
+          jq -e '.assets | any(.name == "SHA256SUMS.txt")' <<< "$release_json" >/dev/null || {
+            echo "ERROR: latest release does not publish SHA256SUMS.txt" >&2
+            exit 1
+          }
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build for the repository Pages base path
+        run: npm run build -- --mode pages
+
+      - name: Verify Pages routes and metadata
+        run: npm run verify:build
+
+      - name: Require production intake endpoints in the built site
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R --quiet --fixed-strings 'https://flowtake.72-62-41-174.sslip.io/v1/leads' dist/assets
+          grep -R --quiet --fixed-strings 'https://flowtake.72-62-41-174.sslip.io/v1/events' dist/assets
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: website/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

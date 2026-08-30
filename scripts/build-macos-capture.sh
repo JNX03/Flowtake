@@ -1,56 +1,67 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PACKAGE_DIR="$REPO_ROOT/native/macos-capture"
-OUTPUT_DIR="$REPO_ROOT/src-tauri/binaries"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PACKAGE_DIR="$ROOT_DIR/src-tauri/native/macos-capture"
+BINARIES_DIR="$ROOT_DIR/src-tauri/binaries"
 PRODUCT_NAME="flowtake-macos-capture"
+MODE="${1:---native}"
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "The native ScreenCaptureKit helper can only be built on macOS." >&2
-  exit 1
-fi
+mkdir -p "$BINARIES_DIR"
 
-mkdir -p "$OUTPUT_DIR"
-
-build_arch() {
-  local target_triple="$1"
-  local scratch_dir="$2"
+build_architecture() {
+  local architecture="$1"
+  local scratch_path="$PACKAGE_DIR/.build/$architecture"
 
   swift build \
     --package-path "$PACKAGE_DIR" \
     --configuration release \
-    --triple "$target_triple" \
-    --scratch-path "$scratch_dir" >&2
+    --arch "$architecture" \
+    --scratch-path "$scratch_path"
 
   swift build \
     --package-path "$PACKAGE_DIR" \
     --configuration release \
-    --triple "$target_triple" \
-    --scratch-path "$scratch_dir" \
+    --arch "$architecture" \
+    --scratch-path "$scratch_path" \
     --show-bin-path
 }
 
-ARM64_BIN_DIR="$(build_arch arm64-apple-macosx13.0 "$PACKAGE_DIR/.build-arm64")"
-X86_64_BIN_DIR="$(build_arch x86_64-apple-macosx13.0 "$PACKAGE_DIR/.build-x86_64")"
-ARM64_BIN="$ARM64_BIN_DIR/$PRODUCT_NAME"
-X86_64_BIN="$X86_64_BIN_DIR/$PRODUCT_NAME"
+case "$MODE" in
+  --native)
+    machine_arch="$(uname -m)"
+    case "$machine_arch" in
+      arm64) target_arch="aarch64" ;;
+      x86_64) target_arch="x86_64" ;;
+      *)
+        echo "Unsupported macOS architecture: $machine_arch" >&2
+        exit 1
+        ;;
+    esac
 
-test -x "$ARM64_BIN"
-test -x "$X86_64_BIN"
+    bin_path="$(build_architecture "$machine_arch" | tail -1)"
+    install -m 755 \
+      "$bin_path/$PRODUCT_NAME" \
+      "$BINARIES_DIR/$PRODUCT_NAME-$target_arch-apple-darwin"
+    ;;
 
-cp "$ARM64_BIN" "$OUTPUT_DIR/${PRODUCT_NAME}-aarch64-apple-darwin"
-cp "$X86_64_BIN" "$OUTPUT_DIR/${PRODUCT_NAME}-x86_64-apple-darwin"
-lipo -create \
-  "$ARM64_BIN" \
-  "$X86_64_BIN" \
-  -output "$OUTPUT_DIR/${PRODUCT_NAME}-universal-apple-darwin"
+  --universal)
+    arm64_bin_path="$(build_architecture arm64 | tail -1)"
+    x86_64_bin_path="$(build_architecture x86_64 | tail -1)"
+    output="$BINARIES_DIR/$PRODUCT_NAME-universal-apple-darwin"
 
-chmod +x \
-  "$OUTPUT_DIR/${PRODUCT_NAME}-aarch64-apple-darwin" \
-  "$OUTPUT_DIR/${PRODUCT_NAME}-x86_64-apple-darwin" \
-  "$OUTPUT_DIR/${PRODUCT_NAME}-universal-apple-darwin"
+    lipo -create \
+      "$arm64_bin_path/$PRODUCT_NAME" \
+      "$x86_64_bin_path/$PRODUCT_NAME" \
+      -output "$output"
+    chmod 755 "$output"
 
-lipo -verify_arch arm64 x86_64 "$OUTPUT_DIR/${PRODUCT_NAME}-universal-apple-darwin"
-"$OUTPUT_DIR/${PRODUCT_NAME}-$(uname -m | sed 's/arm64/aarch64/')-apple-darwin" probe
+    file "$output" | grep -q "arm64"
+    file "$output" | grep -q "x86_64"
+    ;;
+
+  *)
+    echo "Usage: $0 [--native|--universal]" >&2
+    exit 1
+    ;;
+esac

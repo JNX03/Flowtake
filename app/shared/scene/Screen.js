@@ -5,9 +5,12 @@ import CanvasWrapper from "./CanvasWrapper"
 
 export default class Screen extends CanvasWrapper {
 
-    constructor(dims, screen, cursorContainer) {
-        super(dims)
+    constructor(dims, screen, cursorContainer, textureDims = dims, filterQuality = 10) {
+        super(textureDims)
 
+        // Keep animation, crop, and cursor coordinates in source-video space
+        // while allowing the editor preview to upload a smaller texture.
+        this.dims = dims
         this.trim = { left: null, right: null, top: null, bottom: null }
         this.borderRadius = null
         this.rendererDims = null
@@ -17,7 +20,10 @@ export default class Screen extends CanvasWrapper {
         this.fg.position.set(screen.width * 0.5, screen.height * 0.5)
         this.fg.mask = new Graphics()
 
-        this.fg.pivot.set(dims.x * 0.5, dims.y * 0.5)
+        // Pivot coordinates are local to the backing texture. Using logical
+        // source dimensions here offsets a downscaled preview texture and
+        // leaves only a small corner visible.
+        this.fg.pivot.set(textureDims.x * 0.5, textureDims.y * 0.5)
         this.fg.position.set(dims.x * 0.5, dims.y * 0.5)
         this.fg.width = dims.x
         this.fg.height = dims.y
@@ -25,7 +31,12 @@ export default class Screen extends CanvasWrapper {
         this.container = new Container()
         this.container.label = "screen-video"
         this.container.zIndex = 1
-        this.shadow = new DropShadowFilter({ offsetX: 0, offsetY: 0, blur: 10, quality: 10 })
+        this.shadow = new DropShadowFilter({
+            offsetX: 0,
+            offsetY: 0,
+            blur: 10,
+            quality: filterQuality
+        })
         this.shadow.padding = 50
         this.container.filters = [this.shadow]
         

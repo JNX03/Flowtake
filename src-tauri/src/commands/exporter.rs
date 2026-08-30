@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::identifiers::{validate_project_id, validate_render_id};
 use crate::state::{AppState, RenderFormat, RenderState};
 use serde::Deserialize;
 use serde_json::Value;
@@ -52,19 +53,6 @@ fn render_format_from_value(render: &Value) -> AppResult<RenderFormat> {
         Some(_) => Err(AppError::General(
             "Export format must be either mp4 or webm".to_string(),
         )),
-    }
-}
-
-fn validate_render_id(render_id: &str) -> AppResult<()> {
-    let valid = !render_id.is_empty()
-        && render_id.len() <= 128
-        && render_id
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'));
-    if valid {
-        Ok(())
-    } else {
-        Err(AppError::General("Render id is invalid".to_string()))
     }
 }
 
@@ -192,9 +180,18 @@ pub async fn queue_render(app: AppHandle, render: Value) -> AppResult<()> {
         let state = state.lock().unwrap();
         state.project_id.clone().ok_or(AppError::NoProjectOpen)?
     };
+    validate_project_id(&project_id)?;
 
     let mut state = state.lock().unwrap();
+    if state.renders.contains_key(&render_id) {
+        return Err(AppError::General("Render id is already in use".to_string()));
+    }
     let render_temp = state.render_temp_dir(&render_id);
+    if render_temp.exists() {
+        return Err(AppError::General(
+            "Render workspace already exists".to_string(),
+        ));
+    }
     std::fs::create_dir_all(&render_temp)?;
 
     // Copy project files (screen.mp4, camera.webm, project.json, ...) into the render temp dir.
@@ -978,8 +975,29 @@ pub async fn get_render_video_path(app: AppHandle, render_id: String) -> AppResu
     }
 }
 
+fn validated_external_url(url: &str) -> AppResult<String> {
+    #[cfg(target_os = "macos")]
+    if url == "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture" {
+        return Ok(url.to_string());
+    }
+
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|_| AppError::General("Invalid external URL".to_string()))?;
+    if parsed.scheme() != "https"
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return Err(AppError::General(
+            "Only credential-free HTTPS URLs may be opened".to_string(),
+        ));
+    }
+    Ok(parsed.to_string())
+}
+
 #[tauri::command]
 pub async fn open_url_in_browser(_app: AppHandle, url: String) -> AppResult<()> {
+    let url = validated_external_url(&url)?;
     open::that(&url).map_err(|e| AppError::General(format!("Failed to open URL: {}", e)))?;
     Ok(())
 }
@@ -1028,7 +1046,10 @@ mod tests {
 
     #[test]
     fn render_ids_and_output_extensions_are_bounded() {
-        assert!(validate_render_id("render-1234_abcd").is_ok());
+        // Render ids are `render-` plus a canonical UUID; anything looser is
+        // rejected by the shared identifier validator.
+        assert!(validate_render_id("render-123e4567-e89b-42d3-a456-426614174000").is_ok());
+        assert!(validate_render_id("render-1234_abcd").is_err());
         assert!(validate_render_id("../render").is_err());
         assert!(validate_render_id("").is_err());
 
@@ -1111,7 +1132,10 @@ mod tests {
         assert!(filter.contains("amix=inputs=2"));
         assert!(filter.contains("anullsrc=channel_layout=stereo:sample_rate=48000"));
         assert!(filter.contains("atrim=duration=1.000000"));
-        assert!(filter.contains("concat=n=5:v=0:a=1[outa]"));
+        // The recorded lane is concatenated into its own label; the final
+        // [outa] comes from the amix that also folds in silence and custom clips.
+        assert!(filter.contains("concat=n=5:v=0:a=1[recorded-timeline]"));
+        assert!(filter.contains(":normalize=0[outa]"));
     }
 
     #[test]

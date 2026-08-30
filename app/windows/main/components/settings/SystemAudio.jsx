@@ -20,11 +20,6 @@ export default function SystemAudio() {
         queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultSystemAudioSource"),
         staleTime: Infinity
     })
-    const { data: macosCaptureStatus } = useQuery({
-        queryKey: ['macosCaptureStatus'],
-        queryFn: () => window.electron.ipcRenderer.invoke("get-macos-capture-status"),
-        staleTime: Infinity
-    })
 
     const { data: devices, isPending: isPendingDevices, isFetching: isFetchingDevices } = useQuery({
         queryKey: ['systemAudioDevices'],
@@ -71,17 +66,6 @@ export default function SystemAudio() {
     const selectedDevice = devices?.includes(defaultDevice) ? defaultDevice : ""
     const hasUnavailableStoredDevice = !!defaultDevice && !selectedDevice && !isPendingDevices
     const isRefreshing = isProbingDevices || isFetchingDevices
-
-    if (macosCaptureStatus?.nativeSystemAudio) {
-        return (
-            <Fieldset legend="System Audio" description="ScreenCaptureKit captures system audio directly on macOS 13 and newer.">
-                <div className="rounded-lg border border-success/20 bg-success/5 p-3 text-sm">
-                    Native system audio is ready. Enable it from the recording screen; no
-                    BlackHole or other loopback input is required.
-                </div>
-            </Fieldset>
-        )
-    }
 
     return (<Fieldset legend="System Audio" description="Flowtake only lists real loopback inputs such as Stereo Mix, Loopback, or BlackHole. A normal microphone is never treated as system audio.">
         <div className="label">System Audio Input</div>

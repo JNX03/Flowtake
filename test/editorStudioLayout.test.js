@@ -365,7 +365,7 @@ test("studio theme defines clean, bounded editor surfaces", () => {
 })
 
 test("high-frequency editor updates stay isolated from the full shell", () => {
-    assert.match(previewSource, /store\.subscribe/)
+    assert.match(previewSource, /function PreviewClockBridge\(/)
     assert.match(previewSource, /requestAnimationFrame/)
     assert.match(previewSource, /<PreviewTransport manager=/)
     assert.match(timelineSource, /<SnappingLinesSync \/>/)

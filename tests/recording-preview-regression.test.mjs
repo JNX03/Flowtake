@@ -49,6 +49,20 @@ test("preview worker loads webworker adapter before scene modules", async () => 
     assert.match(source, /await import\(["']\.\.\/scene\/PreviewScene["']\)/)
 })
 
+test("Vite scans lazy scene workers before the first editor handoff", async () => {
+    const source = await readRepoFile("vite.config.mjs")
+
+    for (const entry of [
+        "index.html",
+        "app/windows/**/index.html",
+        "app/shared/workers/previewWorker.js",
+        "app/shared/workers/renderWorker.js",
+    ]) {
+        const escapedEntry = entry.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        assert.match(source, new RegExp(`["']${escapedEntry}["']`))
+    }
+})
+
 test("macOS recording restores cursor visibility without hiding it", async () => {
     const mouseTracker = await readRepoFile("src-tauri/src/mouse_tracker.rs")
     const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
@@ -64,7 +78,7 @@ test("macOS recording errors only report permission denial after probing TCC", a
     const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
 
     assert.match(appCommands, /pub fn macos_has_screen_recording_permission/)
-    assert.match(appCommands, /ScreenCaptureAccess::default\(\)\.preflight\(\)/)
+    assert.match(appCommands, /ScreenCaptureAccess\.preflight\(\)/)
     assert.doesNotMatch(appCommands, /CGDisplay::screenshot/)
     assert.match(recording, /macos_ffmpeg_stderr_is_permission_error/)
     assert.match(recording, /macos_recording_error_code_for_empty_output/)

@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flowtake — Screen recordings, automatically animated.</title>
+
+  <meta name="description" content="Flowtake is a free, open-source desktop screen recorder that automatically adds cinematic zoom and pan animations. Like Screen Studio, but free, local, and cross-platform. Built with Tauri v2." />
+  <meta name="keywords" content="screen recorder, screen studio alternative, auto-zoom, open source, tauri, rust, video editor, screen recording, free screen recorder" />
+  <meta name="author" content="Jnx03" />
+  <link rel="canonical" href="https://jnx03.github.io/Flowtake/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Flowtake — Screen recordings, automatically animated." />
+  <meta property="og:description" content="Free, open-source desktop screen recorder with automatic zoom and pan animations. Cross-platform. MIT licensed." />
+  <meta property="og:url" content="https://jnx03.github.io/Flowtake/" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/JNX03/Flowtake/main/resources/banner.png" />
+  <meta property="og:site_name" content="Flowtake" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Flowtake — Screen recordings, automatically animated." />
+  <meta name="twitter:description" content="Free, open-source Screen Studio alternative. Cross-platform. MIT licensed." />
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/JNX03/Flowtake/main/resources/banner.png" />
+
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/JNX03/Flowtake/main/src-tauri/icons/128x128.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://rsms.me/" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+
+  <style>
+    :root { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    body {
+      background-color: #07040D;
+      color: #E6E4F0;
+      font-feature-settings: 'cv11', 'ss01', 'ss03';
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+    .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(76, 29, 149, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(76, 29, 149, 0.08) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.75rem;
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      background-color: rgba(76, 29, 149, 0.08);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      letter-spacing: 0.02em;
+      color: #C4B5FD;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 9999px; background: #A78BFA; }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      background-color: #7C3AED;
+      color: white;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1px solid #8B5CF6;
+      transition: background-color 150ms;
+    }
+    .btn-primary:hover { background-color: #8B5CF6; }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      background-color: transparent;
+      color: #E6E4F0;
+      border: 1px solid rgba(230, 228, 240, 0.2);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: border-color 150ms, background-color 150ms;
+    }
+    .btn-secondary:hover { border-color: rgba(230, 228, 240, 0.4); background-color: rgba(230, 228, 240, 0.04); }
+    .section-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #A78BFA;
+      font-weight: 600;
+    }
+    .feature-card {
+      padding: 1.75rem;
+      border: 1px solid rgba(139, 92, 246, 0.15);
+      background-color: rgba(13, 8, 23, 0.5);
+      border-radius: 12px;
+      transition: border-color 200ms;
+    }
+    .feature-card:hover { border-color: rgba(139, 92, 246, 0.35); }
+    .compare-table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    .compare-table th, .compare-table td {
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .compare-table th { color: #A78BFA; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .compare-table td.yes { color: #86EFAC; font-weight: 600; }
+    .compare-table td.no { color: #6B7280; }
+    .compare-table td.partial { color: #FCD34D; }
+    .compare-table .col-us { background-color: rgba(76, 29, 149, 0.12); }
+    .platform-card {
+      padding: 1.5rem;
+      border: 1px solid rgba(139, 92, 246, 0.18);
+      background-color: rgba(13, 8, 23, 0.6);
+      border-radius: 12px;
+    }
+    .divider-line { height: 1px; background: linear-gradient(to right, transparent, rgba(139, 92, 246, 0.25), transparent); }
+  </style>
+</head>
+<body>
+
+  <!-- ============== NAV ============== -->
+  <nav class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-2 text-lg font-bold tracking-tight">
+      <span class="inline-block w-6 h-6 rounded bg-violet-600"></span>
+      Flowtake
+    </a>
+    <div class="hidden md:flex items-center gap-8 text-sm text-slate-300">
+      <a href="#features" class="hover:text-white transition">Features</a>
+      <a href="#compare" class="hover:text-white transition">Compare</a>
+      <a href="#download" class="hover:text-white transition">Download</a>
+      <a href="https://github.com/JNX03/Flowtake" class="hover:text-white transition">GitHub</a>
+    </div>
+    <a href="https://github.com/JNX03/Flowtake/releases/latest" class="btn-primary text-sm">Download</a>
+  </nav>
+
+  <!-- ============== HERO ============== -->
+  <section class="relative grid-bg">
+    <div class="max-w-6xl mx-auto px-6 pt-16 pb-24 md:pt-24 md:pb-32 text-center">
+      <div class="flex justify-center mb-8">
+        <span class="chip"><span class="dot"></span> v1.4.2 is out — free and open source</span>
+      </div>
+
+      <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05] max-w-4xl mx-auto">
+        Screen recordings,<br>
+        <span class="text-violet-400">automatically animated.</span>
+      </h1>
+
+      <p class="mt-6 text-lg md:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
+        Flowtake is a free, open-source desktop screen recorder that adds cinematic zoom and pan animations to your recordings — automatically. Like Screen Studio, but free, local, and cross-platform.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+        <a href="https://github.com/JNX03/Flowtake/releases/latest" class="btn-primary">
+          Download for Windows, Mac, Linux
+        </a>
+        <a href="https://github.com/JNX03/Flowtake" class="btn-secondary">
+          View source on GitHub
+        </a>
+      </div>
+
+      <div class="mt-8 text-xs text-slate-500 mono">
+        MIT licensed &middot; 367 commits &middot; Built with Tauri v2 + Rust
+      </div>
+    </div>
+
+    <!-- Banner image -->
+    <div class="max-w-5xl mx-auto px-6 pb-16">
+      <div class="rounded-xl overflow-hidden border border-violet-500/20">
+        <img src="https://raw.githubusercontent.com/JNX03/Flowtake/main/resources/banner.png"
+             alt="Flowtake — auto-zoom, smooth pan, editor preview"
+             class="w-full block" />
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-line max-w-4xl mx-auto my-4"></div>
+
+  <!-- ============== WHY ============== -->
+  <section class="max-w-6xl mx-auto px-6 py-20 md:py-28">
+    <div class="max-w-3xl">
+      <div class="section-label">The problem</div>
+      <h2 class="mt-3 text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+        Polished product demos shouldn't cost $229 or require manual keyframing.
+      </h2>
+      <p class="mt-6 text-lg text-slate-300 leading-relaxed">
+        Raw screen recordings look amateur. Hand-editing zooms in Final Cut or Premiere takes hours. Tools like Screen Studio do it beautifully — but cost $229 and only run on macOS. Loom is fine but uploads everything to someone else's cloud. Flowtake gives you the Screen Studio workflow for free, on any OS, with no cloud and no account.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============== FEATURES ============== -->
+  <section id="features" class="max-w-6xl mx-auto px-6 py-20 md:py-24">
+    <div class="text-center mb-16">
+      <div class="section-label">What it does</div>
+      <h2 class="mt-3 text-3xl md:text-5xl font-bold tracking-tight">Six things, done well.</h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div class="feature-card">
+        <div class="mono text-xs text-violet-400 mb-4">01 &middot; RECORD</div>
+        <h3 class="text-xl font-bold mb-2">Native screen capture</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Record full screen, specific windows, or custom regions. Camera overlay with configurable layouts. System audio + microphone. Multi-monitor ready.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="mono text-xs text-violet-400 mb-4">02 &middot; AUTO-ZOOM</div>
+        <h3 class="text-xl font-bold mb-2">Cinematic auto-zoom</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Deterministic focus-score algorithm tracks cursor position, velocity, clicks, and dwell time. Places smooth zoom keyframes automatically. No AI, no cloud, runs instantly.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="mono text-xs text-violet-400 mb-4">03 &middot; CURSOR</div>
+        <h3 class="text-xl font-bold mb-2">Velocity-based smoothing</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Adaptive cursor inertia with motion blur scaled by speed. Click indicators, custom cursor styles, animated feedback. The polish you notice only when it's missing.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="mono text-xs text-violet-400 mb-4">04 &middot; EDIT</div>
+        <h3 class="text-xl font-bold mb-2">Full timeline editor</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Clips, trim, split. Overlays, audio tracks, subtitles with on-device speech recognition. Masks and blur for redacting sensitive areas. Custom backgrounds and intro/outro.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="mono text-xs text-violet-400 mb-4">05 &middot; TELEPROMPTER</div>
+        <h3 class="text-xl font-bold mb-2">Speech-sync teleprompter</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Built-in teleprompter that scrolls your script as you speak. Same speech recognition powers auto-captions. One recording pass, three outputs.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="mono text-xs text-violet-400 mb-4">06 &middot; EXPORT</div>
+        <h3 class="text-xl font-bold mb-2">FFmpeg-powered export</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Bundled FFmpeg sidecar. Multiple formats (MP4, WebM). Configurable encoder, resolution, and bitrate. Nothing to install, nothing uploaded.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-line max-w-4xl mx-auto my-4"></div>
+
+  <!-- ============== COMPARE ============== -->
+  <section id="compare" class="max-w-6xl mx-auto px-6 py-20 md:py-28">
+    <div class="max-w-3xl mb-12">
+      <div class="section-label">How it compares</div>
+      <h2 class="mt-3 text-3xl md:text-5xl font-bold tracking-tight">
+        Flowtake vs the alternatives.
+      </h2>
+      <p class="mt-6 text-slate-400">
+        Honest comparison. Every other tool in this space has a legitimate use case. Flowtake exists because none of them are simultaneously free, open source, cross-platform, and automatically polished.
+      </p>
+    </div>
+
+    <div class="overflow-x-auto rounded-xl border border-violet-500/15">
+      <table class="compare-table mono">
+        <thead>
+          <tr>
+            <th>&nbsp;</th>
+            <th class="col-us">Flowtake</th>
+            <th>Screen Studio</th>
+            <th>Loom</th>
+            <th>OBS Studio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="font-semibold text-slate-200">Auto-zoom animations</td>
+            <td class="col-us yes">Yes</td>
+            <td class="yes">Yes</td>
+            <td class="no">No</td>
+            <td class="no">No</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Free</td>
+            <td class="col-us yes">Yes</td>
+            <td class="no">$229</td>
+            <td class="partial">Partial</td>
+            <td class="yes">Yes</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Open source</td>
+            <td class="col-us yes">Yes (MIT)</td>
+            <td class="no">No</td>
+            <td class="no">No</td>
+            <td class="yes">Yes</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Runs locally</td>
+            <td class="col-us yes">Yes</td>
+            <td class="yes">Yes</td>
+            <td class="no">No</td>
+            <td class="yes">Yes</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Cross-platform</td>
+            <td class="col-us yes">Win/Mac/Linux</td>
+            <td class="no">macOS only</td>
+            <td class="yes">All</td>
+            <td class="yes">All</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Built-in editor</td>
+            <td class="col-us yes">Yes</td>
+            <td class="yes">Yes</td>
+            <td class="partial">Basic</td>
+            <td class="no">No</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Cursor smoothing + blur</td>
+            <td class="col-us yes">Yes</td>
+            <td class="yes">Yes</td>
+            <td class="no">No</td>
+            <td class="no">No</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Teleprompter</td>
+            <td class="col-us yes">Yes</td>
+            <td class="no">No</td>
+            <td class="no">No</td>
+            <td class="no">No</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Masks / redaction</td>
+            <td class="col-us yes">Yes</td>
+            <td class="partial">Limited</td>
+            <td class="no">No</td>
+            <td class="no">No</td>
+          </tr>
+          <tr>
+            <td class="font-semibold text-slate-200">Native footprint</td>
+            <td class="col-us yes">~80 MB</td>
+            <td>~100 MB</td>
+            <td>Web/Electron</td>
+            <td>~300 MB</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="divider-line max-w-4xl mx-auto my-4"></div>
+
+  <!-- ============== DOWNLOAD ============== -->
+  <section id="download" class="max-w-6xl mx-auto px-6 py-20 md:py-28">
+    <div class="text-center max-w-2xl mx-auto mb-14">
+      <div class="section-label">Get it</div>
+      <h2 class="mt-3 text-3xl md:text-5xl font-bold tracking-tight">Free forever. No account.</h2>
+      <p class="mt-5 text-slate-400">Pick your platform. FFmpeg is bundled on Windows and macOS. Linux packages declare dependencies so your package manager handles it.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="platform-card">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold">Windows</h3>
+          <span class="chip"><span class="dot" style="background: #86EFAC;"></span> Stable</span>
+        </div>
+        <p class="text-sm text-slate-400 mb-5">Windows 10/11 (x64). NSIS installer, MSI for enterprise, or portable zip — no install needed.</p>
+        <a href="https://github.com/JNX03/Flowtake/releases/latest" class="btn-primary w-full justify-center">
+          Download for Windows
+        </a>
+      </div>
+
+      <div class="platform-card">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold">macOS</h3>
+          <span class="chip"><span class="dot" style="background: #FCD34D;"></span> Dev preview</span>
+        </div>
+        <p class="text-sm text-slate-400 mb-5">macOS 10.15+. Universal binary for Apple Silicon &amp; Intel. DMG installer or portable app.zip.</p>
+        <a href="https://github.com/JNX03/Flowtake/releases/latest" class="btn-secondary w-full justify-center">
+          Download for macOS
+        </a>
+      </div>
+
+      <div class="platform-card">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold">Linux</h3>
+          <span class="chip"><span class="dot" style="background: #FCD34D;"></span> Dev preview</span>
+        </div>
+        <p class="text-sm text-slate-400 mb-5">x64. AppImage (portable), .deb (Debian/Ubuntu), .rpm (Fedora/RHEL), or tarball.</p>
+        <a href="https://github.com/JNX03/Flowtake/releases/latest" class="btn-secondary w-full justify-center">
+          Download for Linux
+        </a>
+      </div>
+    </div>
+
+    <p class="mt-8 text-center text-xs text-slate-500">
+      macOS and Linux are actively developed but still rough. Expect bugs. Stable support for all three platforms targets v2.0.
+    </p>
+  </section>
+
+  <!-- ============== TECH STACK ============== -->
+  <section class="max-w-6xl mx-auto px-6 py-16 md:py-20 text-center">
+    <div class="section-label">Built with</div>
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-slate-400 mono text-sm">
+      <span>Tauri v2</span>
+      <span class="text-violet-500/40">/</span>
+      <span>Rust</span>
+      <span class="text-violet-500/40">/</span>
+      <span>React 19</span>
+      <span class="text-violet-500/40">/</span>
+      <span>Pixi.js 8</span>
+      <span class="text-violet-500/40">/</span>
+      <span>FFmpeg</span>
+      <span class="text-violet-500/40">/</span>
+      <span>Vite 7</span>
+      <span class="text-violet-500/40">/</span>
+      <span>TailwindCSS 4</span>
+    </div>
+  </section>
+
+  <!-- ============== FOOTER ============== -->
+  <footer class="border-t border-violet-500/10 mt-10">
+    <div class="max-w-6xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex items-center gap-3 text-sm text-slate-400">
+        <span class="inline-block w-5 h-5 rounded bg-violet-600"></span>
+        <span>Flowtake &middot; MIT Licensed &middot; &copy; 2025 Jnx03</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm text-slate-400">
+        <a href="https://github.com/JNX03/Flowtake" class="hover:text-white transition">GitHub</a>
+        <a href="https://github.com/JNX03/Flowtake/releases" class="hover:text-white transition">Releases</a>
+        <a href="https://github.com/JNX03/Flowtake/issues" class="hover:text-white transition">Issues</a>
+        <a href="https://github.com/JNX03/Flowtake/blob/main/CONTRIBUTING.md" class="hover:text-white transition">Contribute</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

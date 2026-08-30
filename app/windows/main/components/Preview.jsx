@@ -1,3 +1,4 @@
+import PropTypes from "prop-types"
 import {
     ArrowsPointingOutIcon,
     ArrowDownTrayIcon,
@@ -186,6 +187,48 @@ import PreviewWorkerManager from "@shared/workers/PreviewWorkerManager"
 import AspectRatioDropdown from "./AspectRatioDropdown"
 import OverlayCanvas from "./OverlayCanvas"
 import VideoWrapper from "./VideoWrapper"
+
+// Publishing the preview clock from its own null-rendering component keeps the
+// per-frame time updates from re-rendering the whole editor. During playback it
+// follows the video element rather than the timeline store, which only publishes
+// at 30fps, so the preview stays smooth and in sync with real playback.
+function PreviewClockBridge({ manager, screenVideoRef }) {
+    const time = useSelector(selectTime)
+    const isPlaying = useSelector(selectIsPlaying)
+    const fallbackTimeRef = useRef(time)
+
+    useEffect(() => {
+        fallbackTimeRef.current = time
+        if (!isPlaying) manager?.postTime(time)
+    }, [isPlaying, manager, time])
+
+    useEffect(() => {
+        if (!manager || !isPlaying) return
+
+        let animationFrame = null
+        const publishPlaybackTime = () => {
+            const currentTime = screenVideoRef.current?.currentTime
+            manager.postTime(
+                Number.isFinite(currentTime)
+                    ? currentTime * 1000
+                    : fallbackTimeRef.current
+            )
+            animationFrame = requestAnimationFrame(publishPlaybackTime)
+        }
+
+        publishPlaybackTime()
+        return () => {
+            if (animationFrame !== null) cancelAnimationFrame(animationFrame)
+        }
+    }, [isPlaying, manager, screenVideoRef])
+
+    return null
+}
+
+PreviewClockBridge.propTypes = {
+    manager: PropTypes.instanceOf(PreviewWorkerManager),
+    screenVideoRef: PropTypes.object.isRequired,
+}
 
 export default function Preview() {
 
@@ -415,33 +458,6 @@ export default function Preview() {
             })
         }
     }, [aspectRatio, dispatch, viewportZoom, wrapperWidth, wrapperHeight])
-
-    useEffect(() => {
-        if (!manager) return
-
-        let lastTime = selectTime(store.getState())
-        let pendingTime = lastTime
-        let animationFrame = null
-        manager.postTime(lastTime)
-
-        const unsubscribe = store.subscribe(() => {
-            const nextTime = selectTime(store.getState())
-            if (nextTime === lastTime) return
-
-            lastTime = nextTime
-            pendingTime = nextTime
-            if (animationFrame !== null) return
-            animationFrame = requestAnimationFrame(() => {
-                animationFrame = null
-                manager.postTime(pendingTime)
-            })
-        })
-
-        return () => {
-            unsubscribe()
-            if (animationFrame !== null) cancelAnimationFrame(animationFrame)
-        }
-    }, [manager, store])
 
     // handles creation of zoom, pan and camera zoom anim configs
     useEffect(() => {
@@ -900,6 +916,7 @@ export default function Preview() {
                     </div>
                 )}
             </div>
+            <PreviewClockBridge manager={manager} screenVideoRef={screenVideoRef} />
             <PreviewTransport manager={manager} />
             <VideoWrapper screenVideoRef={screenVideoRef} cameraVideoRef={cameraVideoRef} extraVideoRefs={extraVideoRefs} />
         </div>

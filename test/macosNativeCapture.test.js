@@ -1,65 +1,101 @@
-import assert from "node:assert/strict"
-import { readFile } from "node:fs/promises"
-import test from "node:test"
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import test from 'node:test'
 
-const read = path => readFile(new URL(`../${path}`, import.meta.url), "utf8")
+const root = path.resolve(import.meta.dirname, '..')
+const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8')
 
-test("macOS builds and bundles a universal native capture helper", async () => {
-  const [config, buildScript, workflow] = await Promise.all([
-    read("src-tauri/tauri.macos.conf.json"),
-    read("scripts/build-macos-capture.sh"),
-    read(".github/workflows/ci.yml"),
-  ])
-  const parsed = JSON.parse(config)
+test('macOS native capture is built, bundled, and release-tested', () => {
+    const packageJson = JSON.parse(read('package.json'))
+    const tauriConfig = JSON.parse(read('src-tauri', 'tauri.conf.json'))
+    const ci = read('.github', 'workflows', 'ci.yml')
+    const release = read('.github', 'workflows', 'main.yml')
 
-  assert.match(parsed.build.beforeBuildCommand, /build:macos-capture/)
-  assert.ok(parsed.bundle.externalBin.includes("binaries/flowtake-macos-capture"))
-  assert.match(buildScript, /arm64-apple-macosx13\.0/)
-  assert.match(buildScript, /x86_64-apple-macosx13\.0/)
-  assert.match(buildScript, /lipo -create/)
-  assert.match(workflow, /Build universal ScreenCaptureKit helper/)
+    assert.match(packageJson.scripts['test:macos-capture'], /flowtake-macos-capture-tests/)
+    assert.match(packageJson.scripts['build:macos-capture'], /build-macos-capture\.sh --native/)
+    assert.ok(tauriConfig.bundle.resources.includes('binaries/*'))
+    assert.ok(tauriConfig.app.security.assetProtocol.scope.includes('$APPDATA/previews/**'))
+    assert.match(ci, /Test native macOS capture helper/)
+    assert.match(release, /build-macos-capture\.sh --universal/)
+    assert.match(release, /flowtake-macos-capture-universal-apple-darwin/)
 })
 
-test("native capture uses low-bandwidth frames, system audio, and atomic output", async () => {
-  const swift = await read("native/macos-capture/Sources/main.swift")
+test('native capture uses ScreenCaptureKit with a real MP4 writer and bounded queue', () => {
+    const capture = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCaptureCore',
+        'CaptureSession.swift'
+    )
+    const configuration = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCaptureCore',
+        'CaptureConfiguration.swift'
+    )
+    const recording = read('src-tauri', 'src', 'commands', 'recording.rs')
+    const infoPlist = read('src-tauri', 'Info.plist')
 
-  assert.match(swift, /import ScreenCaptureKit/)
-  assert.match(swift, /kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange/)
-  assert.match(swift, /configuration\.capturesAudio = options\.capturesSystemAudio/)
-  assert.match(swift, /onScreenWindowsOnly: false/)
-  assert.match(swift, /native-partial\.mp4/)
-  assert.match(swift, /event: "ready"/)
-  assert.match(swift, /if videoInput\.isReadyForMoreMediaData, videoInput\.append\(sampleBuffer\)/)
-  assert.match(swift, /sampleHandlerQueue: writerQueue/)
+    assert.match(capture, /import ScreenCaptureKit/)
+    assert.match(capture, /AVAssetWriter/)
+    assert.match(capture, /kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange/)
+    assert.match(capture, /queueDepth = 5/)
+    assert.match(capture, /capturesAudio = true/)
+    assert.match(capture, /excludesCurrentProcessAudio = true/)
+    assert.match(configuration, /excludedProcessID: Int32\?/)
+    assert.match(recording, /"--exclude-process-id"/)
+    assert.match(capture, /excludingApplications: \[excludedApplication\]/)
+    assert.match(capture, /excludingWindows: excludedWindows/)
+    assert.doesNotMatch(capture, /ProcessInfo\.processInfo\.processIdentifier/)
+    assert.match(infoPlist, /NSScreenCaptureUsageDescription/)
 })
 
-test("Rust and the recorder UI keep an FFmpeg fallback", async () => {
-  const [rust, bridge, recorder, button] = await Promise.all([
-    read("src-tauri/src/commands/recording.rs"),
-    read("app/shared/tauriBridge.js"),
-    read("app/windows/main/components/newRecording/NewRecording.jsx"),
-    read("app/windows/main/components/newRecording/RecordButton.jsx"),
-  ])
+test('Rust lifecycle handshakes, finalizes, and keeps AVFoundation fallback', () => {
+    const recording = read('src-tauri', 'src', 'commands', 'recording.rs')
+    const encoding = read('src-tauri', 'src', 'commands', 'encoding.rs')
+    const state = read('src-tauri', 'src', 'state.rs')
 
-  assert.match(rust, /macos_capture::try_spawn/)
-  assert.match(rust, /using FFmpeg fallback/)
-  assert.match(rust, /ffmpeg_args\.filter\(\|_\| !native_capture_started\)/)
-  assert.match(rust, /requiresNativeSystemAudio/)
-  assert.match(rust, /will not silently switch to a loopback driver/)
-  assert.match(bridge, /'get-macos-capture-status': 'get_macos_capture_status'/)
-  assert.match(recorder, /nativeSystemAudio/)
-  assert.match(button, /nativeSystemAudio \? true : systemAudio/)
+    assert.match(recording, /native-capture\.ready/)
+    assert.match(recording, /spawn_macos_capture/)
+    assert.match(recording, /Native startup failed; using AVFoundation fallback/)
+    assert.match(recording, /stop_macos_capture_process/)
+    assert.match(recording, /write_all\(b"stop\\n"\)/)
+    assert.match(encoding, /ScreenCaptureKit \(native\)/)
+    assert.match(encoding, /AVFoundation \(compatibility\)/)
+    assert.match(state, /macos_capture_process: Option<std::process::Child>/)
 })
 
-test("the generated macOS bundle declares real TCC usage descriptions", async () => {
-  const [plist, entitlements] = await Promise.all([
-    read("src-tauri/Info.plist"),
-    read("src-tauri/Entitlements.plist"),
-  ])
+test('macOS editor uses an atomic AVFoundation preview cache with source fallback', () => {
+    const proxy = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCaptureCore',
+        'PreviewProxy.swift'
+    )
+    const main = read(
+        'src-tauri',
+        'native',
+        'macos-capture',
+        'Sources',
+        'FlowtakeMacCapture',
+        'FlowtakeMacCaptureMain.swift'
+    )
+    const files = read('src-tauri', 'src', 'commands', 'files.rs')
+    const videoWrapper = read('app', 'windows', 'main', 'components', 'VideoWrapper.jsx')
 
-  assert.match(plist, /NSScreenCaptureUsageDescription/)
-  assert.match(plist, /NSCameraUsageDescription/)
-  assert.match(plist, /NSMicrophoneUsageDescription/)
-  assert.doesNotMatch(entitlements, /com\.apple\.security\.device\.screen-capture/)
-  assert.doesNotMatch(entitlements, /com\.apple\.security\.accessibility/)
+    assert.match(main, /make-preview-proxy/)
+    assert.match(proxy, /AVAssetExportSession/)
+    assert.match(proxy, /AVMutableVideoComposition/)
+    assert.match(proxy, /shouldOptimizeForNetworkUse = true/)
+    assert.match(proxy, /\.partial\.mp4/)
+    assert.match(proxy, /source audio track was not preserved/)
+    assert.match(files, /"screen-preview" => state\.editor_screen_video_file/)
+    assert.match(videoWrapper, /useVideoSrc\("screen-preview", projectId\)/)
 })

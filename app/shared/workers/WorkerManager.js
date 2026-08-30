@@ -41,6 +41,7 @@ export default class WorkerManager {
     constructor() {
         this.worker = null
         this.segmenter = null
+        this.faceLandmarker = null
     }
 
     post(type, payload = null, id = crypto.randomUUID(), expectsResponse = false, isResponse = false, transferList = [], error = null) {
@@ -200,8 +201,27 @@ export default class WorkerManager {
     }
 
     terminate() {
-        this.worker?.terminate()
+        const worker = this.worker
         this.worker = null
+
+        try {
+            worker?.terminate()
+        } catch (error) {
+            console.warn("Failed to terminate worker:", error)
+            captureException(error)
+        }
+
+        for (const resourceName of ["segmenter", "faceLandmarker"]) {
+            const resource = this[resourceName]
+            this[resourceName] = null
+
+            try {
+                resource?.close()
+            } catch (error) {
+                console.warn(`Failed to close ${resourceName}:`, error)
+                captureException(error)
+            }
+        }
     }
 
     copyTextureToCanvas(texture, canvas) {

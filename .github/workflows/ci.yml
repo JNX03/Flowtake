@@ -5,19 +5,83 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  check-frontend:
-    name: Frontend Build
+  # Classifies the pull request diff so the expensive cross-platform Rust matrix
+  # and the marketing-site build only run when their own inputs move. Pushes to
+  # main and manual runs always exercise everything.
+  changes:
+    name: Detect changed areas
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      website: ${{ steps.filter.outputs.website }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - name: Classify changed paths
+        id: filter
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+            echo "website=true" >> "$GITHUB_OUTPUT"
+            echo "Not a pull request; running every area."
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$BASE_SHA...HEAD")"
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          match() { printf '%s\n' "$changed" | grep -qE "$1"; }
+
+          # A change to this workflow re-validates everything it gates.
+          if match '^\.github/workflows/ci\.yml$'; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+            echo "website=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if match '^(src-tauri/|scripts/(build-macos-capture|run-cargo-audit)\.sh$)'; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if match '^website/'; then
+            echo "website=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "website=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  check-frontend:
+    name: Frontend Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -33,8 +97,62 @@ jobs:
       - name: Build frontend
         run: npm run build:frontend
 
+  check-website:
+    name: Marketing Site Quality
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install marketing-site dependencies
+        run: npm ci --prefix website --no-audit --no-fund
+
+      - name: Test marketing-site intake contract
+        run: npm test --prefix website
+
+      - name: Build marketing site for GitHub Pages
+        run: npm run build --prefix website -- --mode pages
+
+      - name: Verify marketing-site Pages artifacts
+        run: npm run verify:build --prefix website
+
+      - name: Require production intake endpoints in the built site
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R --quiet --fixed-strings 'https://flowtake.72-62-41-174.sslip.io/v1/leads' website/dist/assets
+          grep -R --quiet --fixed-strings 'https://flowtake.72-62-41-174.sslip.io/v1/events' website/dist/assets
+
+  rust-security-audit:
+    name: Rust Security Audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Audit Rust dependencies
+        shell: bash
+        run: bash ./scripts/run-cargo-audit.sh
+
   check-rust:
     name: Rust Check (${{ matrix.platform.name }})
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -66,26 +184,44 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
 
       - name: Install system dependencies
         if: matrix.platform.deps != ''
         run: ${{ matrix.platform.deps }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
+          toolchain: stable
           targets: ${{ matrix.platform.target }}
 
-      - uses: swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Build universal ScreenCaptureKit helper
-        if: matrix.platform.name == 'macOS'
-        run: npm run build:macos-capture
+      - name: Test native macOS capture helper
+        if: runner.os == 'macOS'
+        run: >-
+          swift run
+          --package-path src-tauri/native/macos-capture
+          flowtake-macos-capture-tests
+
+      - name: Build native macOS capture helper
+        if: runner.os == 'macOS'
+        run: bash scripts/build-macos-capture.sh --native
+
+      # Tauri validates that its configured sidecar exists during build-script
+      # execution. Release builds download the real Linux FFmpeg binary; CI only
+      # needs a host executable so Rust source can be checked without a network
+      # download from a mutable third-party release URL.
+      - name: Prepare Linux sidecar for compile-only checks
+        if: runner.os == 'Linux'
+        run: install -Dm755 /bin/true src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
 
       - name: Cargo check
-        run: cargo check
+        run: cargo check --locked --all-targets
         working-directory: src-tauri
 
       - name: Cargo unit tests
@@ -93,5 +229,5 @@ jobs:
         working-directory: src-tauri
 
       - name: Cargo clippy
-        run: cargo clippy -- -D warnings --allow dead_code
+        run: cargo clippy --locked --all-targets -- -D warnings --allow dead_code
         working-directory: src-tauri

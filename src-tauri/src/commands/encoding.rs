@@ -365,8 +365,11 @@ pub(crate) fn normalize_capturer(capturer: Option<&str>) -> &'static str {
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = capturer;
-        "avfoundation"
+        match capturer.unwrap_or_default().to_ascii_lowercase().as_str() {
+            "avfoundation" => "avfoundation",
+            "screencapturekit" | "screen-capture-kit" | "native" => "screencapturekit",
+            _ => "screencapturekit",
+        }
     }
     #[cfg(target_os = "linux")]
     {
@@ -382,6 +385,42 @@ pub(crate) fn normalize_capturer(capturer: Option<&str>) -> &'static str {
     }
 }
 
+pub(crate) async fn resolve_capturer(
+    app: &AppHandle,
+    capturer: Option<&str>,
+    requires_system_audio: bool,
+) -> &'static str {
+    let normalized = normalize_capturer(capturer);
+
+    #[cfg(target_os = "macos")]
+    {
+        if normalized == "avfoundation" {
+            return normalized;
+        }
+        let capabilities = crate::macos_capture::capabilities(app).await;
+        if capabilities.available
+            && (!requires_system_audio || capabilities.supports_system_audio)
+        {
+            "screencapturekit"
+        } else {
+            if requires_system_audio
+                && capabilities.available
+                && !capabilities.supports_system_audio
+            {
+                log::info!(
+                    "[capturer] Falling back to AVFoundation because native system audio requires macOS 13"
+                );
+            }
+            "avfoundation"
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, requires_system_audio);
+        normalized
+    }
+}
+
 #[tauri::command]
 pub async fn get_capturers(app: AppHandle, _force: Option<bool>) -> AppResult<Value> {
     let store = app
@@ -394,11 +433,16 @@ pub async fn get_capturers(app: AppHandle, _force: Option<bool>) -> AppResult<Va
         .get("capturerMode")
         .and_then(|value| value.as_str().map(|mode| mode != "manual"))
         .unwrap_or(true);
-    let selected = normalize_capturer(if is_automatic {
-        None
-    } else {
-        stored.as_deref()
-    });
+    let selected = resolve_capturer(
+        &app,
+        if is_automatic {
+            None
+        } else {
+            stored.as_deref()
+        },
+        false,
+    )
+    .await;
 
     #[cfg(target_os = "windows")]
     let capturers = {
@@ -436,12 +480,39 @@ pub async fn get_capturers(app: AppHandle, _force: Option<bool>) -> AppResult<Va
     };
 
     #[cfg(target_os = "macos")]
-    let capturers = vec![serde_json::json!({
-        "name": "avfoundation",
-        "displayName": "AVFoundation",
-        "available": true,
-        "isSelected": true,
-    })];
+    let capturers = {
+        let capabilities = crate::macos_capture::capabilities(&app).await;
+        let mut values = if is_automatic {
+            vec![serde_json::json!({
+                "name": "auto",
+                "displayName": format!(
+                    "Automatic · {}",
+                    if selected == "screencapturekit" {
+                        "ScreenCaptureKit"
+                    } else {
+                        "AVFoundation"
+                    }
+                ),
+                "available": true,
+                "isSelected": true,
+            })]
+        } else {
+            Vec::new()
+        };
+        values.push(serde_json::json!({
+            "name": "screencapturekit",
+            "displayName": "ScreenCaptureKit (native)",
+            "available": capabilities.available,
+            "isSelected": !is_automatic && selected == "screencapturekit",
+        }));
+        values.push(serde_json::json!({
+            "name": "avfoundation",
+            "displayName": "AVFoundation (compatibility)",
+            "available": true,
+            "isSelected": !is_automatic && selected == "avfoundation",
+        }));
+        values
+    };
 
     #[cfg(target_os = "linux")]
     let capturers = vec![serde_json::json!({
@@ -480,7 +551,7 @@ pub async fn get_capturers(app: AppHandle, _force: Option<bool>) -> AppResult<Va
 #[tauri::command]
 pub async fn set_capturer(app: AppHandle, capturer: String) -> AppResult<()> {
     if capturer == "auto" {
-        let selected = normalize_capturer(None).to_string();
+        let selected = resolve_capturer(&app, None, false).await.to_string();
         let store = app
             .store("store.json")
             .map_err(|error| AppError::General(error.to_string()))?;
@@ -493,6 +564,16 @@ pub async fn set_capturer(app: AppHandle, capturer: String) -> AppResult<()> {
     }
 
     let capturer = normalize_capturer(Some(&capturer)).to_string();
+    #[cfg(target_os = "macos")]
+    if capturer == "screencapturekit" {
+        let capabilities = crate::macos_capture::capabilities(&app).await;
+        if !capabilities.available {
+            return Err(AppError::General(
+                "ScreenCaptureKit is unavailable. Build the native helper or use AVFoundation."
+                    .to_string(),
+            ));
+        }
+    }
     let store = app
         .store("store.json")
         .map_err(|error| AppError::General(error.to_string()))?;
@@ -590,7 +671,14 @@ mod tests {
             assert_eq!(normalize_windows_capturer(Some("ddagrab"), true), "gdigrab");
         }
         #[cfg(target_os = "macos")]
-        assert_eq!(normalize_capturer(Some("anything")), "avfoundation");
+        {
+            assert_eq!(
+                normalize_capturer(Some("screencapturekit")),
+                "screencapturekit"
+            );
+            assert_eq!(normalize_capturer(Some("avfoundation")), "avfoundation");
+            assert_eq!(normalize_capturer(Some("anything")), "screencapturekit");
+        }
         #[cfg(target_os = "linux")]
         assert_eq!(normalize_capturer(Some("pipewire")), "x11grab");
     }

@@ -1,0 +1,254 @@
+name: Windows MSI Lifecycle Proof
+
+"on":
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "packaging/winget/**"
+      - "scripts/test-windows-msi-lifecycle.ps1"
+      - "test/windowsMsiLifecycle.test.js"
+      - ".github/workflows/windows-msi-lifecycle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-msi-lifecycle-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLOWTAKE_MANIFEST_DIR: packaging/winget/JNX03.Flowtake/1.6.0
+  WINGET_BOOTSTRAP_VERSION: "1.29.280"
+  WINGET_PACKAGE_VERSION: "1.29.280.0"
+  WINGET_BUNDLE_URL: https://github.com/microsoft/winget-cli/releases/download/v1.29.280/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+  WINGET_BUNDLE_SIZE: "216775738"
+  WINGET_BUNDLE_SHA256: 0809FA9F52E395D6E7DE692331DCE847AC991952675116BB4D8AAE2DDCC20946
+  WINGET_DEPENDENCIES_URL: https://github.com/microsoft/winget-cli/releases/download/v1.29.280/DesktopAppInstaller_Dependencies.zip
+  WINGET_DEPENDENCIES_SIZE: "97760717"
+  WINGET_DEPENDENCIES_SHA256: 3BBFCAA5CB011C48FAC48D896D64A5C7C6898859A9F3D01555C8CD000F4E2962
+
+jobs:
+  validate-manifest:
+    name: Validate WinGet manifest
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Require main for a lifecycle dispatch
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -ne "refs/heads/main") {
+            throw "Lifecycle dispatches must use refs/heads/main."
+          }
+
+      - name: Checkout the reviewed source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Provision the pinned Microsoft WinGet client
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
+          $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
+
+          $command = Get-Command winget -ErrorAction SilentlyContinue
+          $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
+          if ($actualVersion -ne $expectedVersion) {
+            $bootstrapRoot = Join-Path $env:RUNNER_TEMP "winget-$env:WINGET_BOOTSTRAP_VERSION"
+            if (Test-Path -LiteralPath $bootstrapRoot) {
+              throw "The isolated WinGet bootstrap directory already exists: $bootstrapRoot"
+            }
+            New-Item -ItemType Directory -Path $bootstrapRoot | Out-Null
+            $bundlePath = Join-Path $bootstrapRoot "Microsoft.DesktopAppInstaller.msixbundle"
+            $dependenciesArchive = Join-Path $bootstrapRoot "DesktopAppInstaller_Dependencies.zip"
+            $dependenciesRoot = Join-Path $bootstrapRoot "dependencies"
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -Uri $env:WINGET_BUNDLE_URL `
+              -OutFile $bundlePath
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -Uri $env:WINGET_DEPENDENCIES_URL `
+              -OutFile $dependenciesArchive
+            if ((Get-Item -LiteralPath $bundlePath).Length -ne [int64]$env:WINGET_BUNDLE_SIZE) {
+              throw "The WinGet MSIX bundle size did not match the reviewed release asset."
+            }
+            if ((Get-Item -LiteralPath $dependenciesArchive).Length -ne [int64]$env:WINGET_DEPENDENCIES_SIZE) {
+              throw "The WinGet dependencies archive size did not match the reviewed release asset."
+            }
+            $bundleHash = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToUpperInvariant()
+            $dependenciesHash = (Get-FileHash -LiteralPath $dependenciesArchive -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($bundleHash -ne $env:WINGET_BUNDLE_SHA256) {
+              throw "The WinGet MSIX bundle SHA-256 did not match the reviewed release asset."
+            }
+            if ($dependenciesHash -ne $env:WINGET_DEPENDENCIES_SHA256) {
+              throw "The WinGet dependencies archive SHA-256 did not match the reviewed release asset."
+            }
+            Expand-Archive -LiteralPath $dependenciesArchive -DestinationPath $dependenciesRoot
+            $dependencyPaths = @(Get-ChildItem -LiteralPath (Join-Path $dependenciesRoot "x64") -Filter "*.appx" -File | Select-Object -ExpandProperty FullName)
+            $expectedDependencyNames = @(
+              "Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx",
+              "Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx",
+              "Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx"
+            )
+            $actualDependencyNames = @($dependencyPaths | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+            $missingDependencies = @($expectedDependencyNames | Where-Object { $actualDependencyNames -notcontains $_ })
+            if ($actualDependencyNames.Count -ne 3 -or $missingDependencies.Count -ne 0) {
+              throw "The WinGet x64 dependency set did not match the reviewed release asset."
+            }
+            Add-AppxPackage `
+              -Path $bundlePath `
+              -DependencyPath $dependencyPaths `
+              -ForceApplicationShutdown `
+              -ErrorAction Stop
+            $appInstaller = @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Where-Object {
+              $_.Version.ToString() -eq $env:WINGET_PACKAGE_VERSION -and
+              $_.Architecture.ToString() -eq "X64" -and
+              $_.PackageFamilyName -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -and
+              $_.PublisherId -eq "8wekyb3d8bbwe"
+            })
+            if ($appInstaller.Count -ne 1) {
+              throw "The exact x64 Microsoft Desktop App Installer bundle was not registered."
+            }
+          }
+
+          for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            $command = Get-Command winget -ErrorAction SilentlyContinue
+            if ($command) { break }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $command) {
+            throw "The WinGet bootstrap did not expose winget.exe."
+          }
+          $actualVersion = ((& $command.Source --version 2>&1) -join " ").Trim()
+          if ($actualVersion -ne $expectedVersion) {
+            throw "Expected WinGet $expectedVersion, found $actualVersion."
+          }
+          & $command.Source --info
+          if ($LASTEXITCODE -ne 0) {
+            throw "winget --info failed."
+          }
+
+      - name: Validate immutable package metadata
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-msi-lifecycle.ps1 `
+            -Mode ValidateManifest `
+            -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR
+
+      - name: Verify exclusion-independent Defender custom scan
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-msi-lifecycle.ps1 `
+            -Mode ValidateDefender `
+            -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR
+
+  installer-lifecycle:
+    name: Install, scan, launch, and uninstall exact MSI
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs:
+      - validate-manifest
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Provision the pinned Microsoft WinGet client
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
+          $expectedVersion = "v$env:WINGET_BOOTSTRAP_VERSION"
+
+          $command = Get-Command winget -ErrorAction SilentlyContinue
+          $actualVersion = if ($command) { ((& $command.Source --version 2>&1) -join " ").Trim() } else { "" }
+          if ($actualVersion -ne $expectedVersion) {
+            $bootstrapRoot = Join-Path $env:RUNNER_TEMP "winget-$env:WINGET_BOOTSTRAP_VERSION"
+            if (Test-Path -LiteralPath $bootstrapRoot) {
+              throw "The isolated WinGet bootstrap directory already exists: $bootstrapRoot"
+            }
+            New-Item -ItemType Directory -Path $bootstrapRoot | Out-Null
+            $bundlePath = Join-Path $bootstrapRoot "Microsoft.DesktopAppInstaller.msixbundle"
+            $dependenciesArchive = Join-Path $bootstrapRoot "DesktopAppInstaller_Dependencies.zip"
+            $dependenciesRoot = Join-Path $bootstrapRoot "dependencies"
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -Uri $env:WINGET_BUNDLE_URL `
+              -OutFile $bundlePath
+            Invoke-WebRequest `
+              -UseBasicParsing `
+              -Uri $env:WINGET_DEPENDENCIES_URL `
+              -OutFile $dependenciesArchive
+            if ((Get-Item -LiteralPath $bundlePath).Length -ne [int64]$env:WINGET_BUNDLE_SIZE) {
+              throw "The WinGet MSIX bundle size did not match the reviewed release asset."
+            }
+            if ((Get-Item -LiteralPath $dependenciesArchive).Length -ne [int64]$env:WINGET_DEPENDENCIES_SIZE) {
+              throw "The WinGet dependencies archive size did not match the reviewed release asset."
+            }
+            $bundleHash = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToUpperInvariant()
+            $dependenciesHash = (Get-FileHash -LiteralPath $dependenciesArchive -Algorithm SHA256).Hash.ToUpperInvariant()
+            if ($bundleHash -ne $env:WINGET_BUNDLE_SHA256) {
+              throw "The WinGet MSIX bundle SHA-256 did not match the reviewed release asset."
+            }
+            if ($dependenciesHash -ne $env:WINGET_DEPENDENCIES_SHA256) {
+              throw "The WinGet dependencies archive SHA-256 did not match the reviewed release asset."
+            }
+            Expand-Archive -LiteralPath $dependenciesArchive -DestinationPath $dependenciesRoot
+            $dependencyPaths = @(Get-ChildItem -LiteralPath (Join-Path $dependenciesRoot "x64") -Filter "*.appx" -File | Select-Object -ExpandProperty FullName)
+            $expectedDependencyNames = @(
+              "Microsoft.VCLibs.140.00_14.0.33519.0_x64.appx",
+              "Microsoft.VCLibs.140.00.UWPDesktop_14.0.33728.0_x64.appx",
+              "Microsoft.WindowsAppRuntime.1.8_8000.616.304.0_x64.appx"
+            )
+            $actualDependencyNames = @($dependencyPaths | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+            $missingDependencies = @($expectedDependencyNames | Where-Object { $actualDependencyNames -notcontains $_ })
+            if ($actualDependencyNames.Count -ne 3 -or $missingDependencies.Count -ne 0) {
+              throw "The WinGet x64 dependency set did not match the reviewed release asset."
+            }
+            Add-AppxPackage `
+              -Path $bundlePath `
+              -DependencyPath $dependencyPaths `
+              -ForceApplicationShutdown `
+              -ErrorAction Stop
+            $appInstaller = @(Get-AppxPackage -Name Microsoft.DesktopAppInstaller | Where-Object {
+              $_.Version.ToString() -eq $env:WINGET_PACKAGE_VERSION -and
+              $_.Architecture.ToString() -eq "X64" -and
+              $_.PackageFamilyName -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe" -and
+              $_.PublisherId -eq "8wekyb3d8bbwe"
+            })
+            if ($appInstaller.Count -ne 1) {
+              throw "The exact x64 Microsoft Desktop App Installer bundle was not registered."
+            }
+          }
+
+          for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            $command = Get-Command winget -ErrorAction SilentlyContinue
+            if ($command) { break }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $command) {
+            throw "The WinGet bootstrap did not expose winget.exe."
+          }
+          $actualVersion = ((& $command.Source --version 2>&1) -join " ").Trim()
+          if ($actualVersion -ne $expectedVersion) {
+            throw "Expected WinGet $expectedVersion, found $actualVersion."
+          }
+          & $command.Source --info
+          if ($LASTEXITCODE -ne 0) {
+            throw "winget --info failed."
+          }
+
+      - name: Prove the exact published MSI lifecycle
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-msi-lifecycle.ps1 `
+            -Mode Lifecycle `
+            -ManifestDirectory $env:FLOWTAKE_MANIFEST_DIR

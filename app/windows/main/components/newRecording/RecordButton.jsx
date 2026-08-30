@@ -34,7 +34,7 @@ import {
 import RecordModal from "./RecordModal"
 import { SETTINGS_RECORDER } from "../settings/constants"
 
-export default function RecordButton({ isRecordingSystemAudio, nativeSystemAudio = false, excludedAudioPids = [], audioProcessingSettings }) {
+export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids = [], audioProcessingSettings }) {
 
   const dispatch = useDispatch()
 
@@ -107,10 +107,7 @@ export default function RecordButton({ isRecordingSystemAudio, nativeSystemAudio
 
     try {
       setStartError(null)
-      const selectedSystemAudio = isRecordingSystemAudio
-        ? (nativeSystemAudio ? true : systemAudio)
-        : null
-      await window.electron.ipcRenderer.invoke("init-recording", source, mediaSourceConfig, selectedSystemAudio)
+      await window.electron.ipcRenderer.invoke("init-recording", source, mediaSourceConfig, isRecordingSystemAudio ? systemAudio : null)
 
       // Mute excluded apps when recording with system audio
       if (isRecordingSystemAudio && excludedAudioPids.length > 0) {
@@ -126,7 +123,7 @@ export default function RecordButton({ isRecordingSystemAudio, nativeSystemAudio
       startInFlightRef.current = false
       setIsStarting(false)
     }
-  }, [cameras, microphones, source, isRecordingSystemAudio, nativeSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids, audioProcessingSettings, isRecording])
+  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids, audioProcessingSettings, isRecording])
 
   const onClick = useCallback(() => {
     if (renderQueueProgress === -1) start()
@@ -177,7 +174,6 @@ export default function RecordButton({ isRecordingSystemAudio, nativeSystemAudio
 
 RecordButton.propTypes = {
   isRecordingSystemAudio: PropTypes.bool.isRequired,
-  nativeSystemAudio: PropTypes.bool,
   excludedAudioPids: PropTypes.arrayOf(PropTypes.number),
   audioProcessingSettings: PropTypes.shape({
     noiseSuppression: PropTypes.bool,

@@ -58,11 +58,6 @@ export default function NewRecording({ isOpen }) {
     queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultSystemAudioSource"),
     staleTime: Infinity
   })
-  const { data: macosCaptureStatus, isPending: isPendingMacosCaptureStatus } = useQuery({
-    queryKey: ['macosCaptureStatus'],
-    queryFn: () => window.electron.ipcRenderer.invoke("get-macos-capture-status"),
-    staleTime: Infinity
-  })
 
   // Check if a microphone is selected
   const { data: selectedMicrophone } = useQuery({
@@ -118,9 +113,7 @@ export default function NewRecording({ isOpen }) {
   const captureLabel = selectedCapturer?.displayName || selectedCapturer?.name || selectedCapturer?.value || "Not selected"
   const encoderLabel = selectedEncoder?.displayName || selectedEncoder?.name || selectedEncoder?.value || "Not selected"
   const isEngineReady = (capturers?.length ?? 0) > 0 && (encoders?.length ?? 0) > 0
-  const nativeSystemAudio = macosCaptureStatus?.nativeSystemAudio === true
-  const hasConfiguredSystemAudio = nativeSystemAudio ||
-    isLikelySystemAudioSource(defaultSystemAudioSource)
+  const hasConfiguredSystemAudio = isLikelySystemAudioSource(defaultSystemAudioSource)
 
   const setAudioSetting = useCallback(async (key, value) => {
     await window.electron.ipcRenderer.invoke("store-set", key, value)
@@ -561,14 +554,9 @@ export default function NewRecording({ isOpen }) {
             <div className="flex items-center gap-2">
               <SpeakerWaveIcon className="size-3.5 text-base-content/40 flex-shrink-0" />
               <Toggle rightLabel={<span className="text-xs text-base-content/70">System audio</span>} justifyBetween={false} value={isRecordingSystemAudio}
-                onChange={onEnableSystemAudio} disabled={isPending || isPendingMacosCaptureStatus} />
+                onChange={onEnableSystemAudio} disabled={isPending} />
             </div>
-            {isRecordingSystemAudio && nativeSystemAudio && (
-              <p className="text-[11px] text-base-content/50 pl-5">
-                Captured natively with ScreenCaptureKit; no loopback driver is required.
-              </p>
-            )}
-            {isRecordingSystemAudio && !nativeSystemAudio && (
+            {isRecordingSystemAudio && (
               <AppAudioControl onExcludedAppsChange={setExcludedAudioPids} />
             )}
             <button
@@ -634,7 +622,6 @@ export default function NewRecording({ isOpen }) {
             <div className="flex-[4] min-w-0" data-tutorial="record-button">
               <RecordButton
                 isRecordingSystemAudio={isRecordingSystemAudio}
-                nativeSystemAudio={nativeSystemAudio}
                 excludedAudioPids={excludedAudioPids}
                 audioProcessingSettings={audioProcessingSettings}
               />

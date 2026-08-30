@@ -50,6 +50,10 @@ import {
     setTime
 } from "@shared/redux/timelineSlice"
 
+// Publishing the playhead to Redux on every animation frame re-renders the whole
+// timeline. 30fps keeps the cursor smooth while halving that dispatch traffic.
+const TIMELINE_PUBLISH_INTERVAL_MS = 1000 / 30
+
 export default function Cursor({ onScrollToCursor, containerRef = null }) {
 
     const dispatch = useDispatch()
@@ -86,7 +90,11 @@ export default function Cursor({ onScrollToCursor, containerRef = null }) {
         [containerRef]
     )
 
-    const setTimeThrottled = useThrottledCallback(t => dispatch(setTime(t)), 16, { 'trailing': true })
+    const setTimeThrottled = useThrottledCallback(
+        t => dispatch(setTime(t)),
+        TIMELINE_PUBLISH_INTERVAL_MS,
+        { leading: true, trailing: true }
+    )
 
     const positionCursor = useCallback((unclampedTime, scrollToCursor = true) => {
         const t = clampTimelineTime(unclampedTime, videoDetails.start, videoDetails.end)
@@ -103,7 +111,13 @@ export default function Cursor({ onScrollToCursor, containerRef = null }) {
         const t = clampTimelineTime(unclampedTime, videoDetails.start, videoDetails.end)
         if (timeRef.current !== t || force) {
             if (throttled) setTimeThrottled(t)
-            else dispatch(setTime(t))
+            else {
+                // Never allow an older trailing playback update to overwrite an
+                // explicit seek or pause position.
+                if (setTimeThrottled.isPending()) setTimeThrottled.flush()
+                setTimeThrottled.cancel()
+                dispatch(setTime(t))
+            }
             positionCursor(t, scrollToCursor)
         }
         return t

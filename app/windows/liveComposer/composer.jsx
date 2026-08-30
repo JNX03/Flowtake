@@ -21,13 +21,11 @@ async function start(config) {
         await invoke('start_live_streaming', {
             config: {
                 rtmpUrl: config.rtmpUrl || '',
-                streamKey: config.streamKey || '',
                 videoBitrateKbps: config.videoBitrateKbps || 6000,
                 width: config.width || 1920,
                 height: config.height || 1080,
                 framerate: config.framerate || 30,
                 saveLocal: config.saveLocal !== false,
-                localDir: config.localDir || null,
             },
         })
 

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="glow" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#6C5CE7" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#6C5CE7" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="tri" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8C7AFF"/>
+      <stop offset="100%" stop-color="#6C5CE7"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="#0f0f23"/>
+  <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="#12122a"/>
+  <!-- Subtle glow -->
+  <rect x="15" y="15" width="226" height="226" rx="46" ry="46" fill="url(#glow)"/>
+  <!-- Play triangle with glow -->
+  <polygon points="100,72 196,128 100,184" fill="#6C5CE7" opacity="0.2" filter="url(#blur)"/>
+  <polygon points="103,76 192,128 103,180" fill="url(#tri)"/>
+  <!-- Triangle highlight face -->
+  <polygon points="107,82 180,124 107,128" fill="#8C7AFF" opacity="0.4"/>
+  <!-- Flow bars - accent teal -->
+  <rect x="62" y="100" width="22" height="7" rx="3.5" fill="#00CEC9"/>
+  <rect x="56" y="123" width="30" height="7" rx="3.5" fill="#00CEC9"/>
+  <rect x="65" y="146" width="16" height="7" rx="3.5" fill="#00CEC9"/>
+  <!-- Subtle border -->
+  <rect x="10" y="10" width="236" height="236" rx="50" ry="50" fill="none" stroke="#6C5CE7" stroke-opacity="0.15" stroke-width="1.5"/>
+</svg>

@@ -9,9 +9,12 @@ import { subscribe, isDragActive, getHoverTarget } from "../../dragState"
 import { AUDIO_TRACKS, pxToMs } from "@shared/helpers"
 import {
     addAudioClip,
+    addTrack,
     selectAllAudioClips,
     selectAudioTracks,
+    selectNextAudioTrackId,
 } from "@shared/redux/audioTrackSlice"
+import { resolveAudioTrackPlacement } from "./audioTrackPlacement"
 import {
     createAudioLaneItem,
     planTimelineLaneInsert,
@@ -45,6 +48,7 @@ export default function AudioTracks() {
     const isPlaying = useSelector(selectIsPlaying)
     const pxPerMs = useSelector(selectPxPerMs)
     const selectedIds = useSelector(selectSelectedIds)
+    const nextTrackId = useSelector(selectNextAudioTrackId)
     const [dragOverTrack, setDragOverTrack] = useState(null)
     const latestInsertState = useRef(null)
 
@@ -52,6 +56,7 @@ export default function AudioTracks() {
         allClips,
         duration,
         isPlaying,
+        nextTrackId,
         tracks,
     }
 
@@ -80,25 +85,43 @@ export default function AudioTracks() {
 
     const insertAudioAsset = useCallback((trackId, time, asset) => {
         const latest = latestInsertState.current
-        const track = latest.tracks.find(item => item.id === trackId)
+        // Prefer the dropped-on lane, but fall back to another free unlocked
+        // track (or a new one) rather than refusing the drop outright.
+        const placement = resolveAudioTrackPlacement({
+            tracks: latest.tracks,
+            audioClips: latest.allClips,
+            start: time,
+            end: time + (asset.duration || 5000),
+            nextTrackId: latest.nextTrackId,
+            preferredTrackId: trackId,
+        })
+        const targetTrackId = placement.trackId
+        // A track that does not exist yet is created below; plan against an
+        // empty unlocked lane so the insert is not rejected as missing-track.
+        const track = placement.needsNewTrack
+            ? { id: targetTrackId, locked: false }
+            : latest.tracks.find(item => item.id === targetTrackId)
         const plan = planTimelineLaneInsert({
             requestedStart: time,
             requestedDuration: asset.duration || 5000,
             projectDuration: latest.duration,
             track,
-            items: latest.allClips.filter(clip => clip.trackIndex === trackId),
+            items: placement.needsNewTrack
+                ? []
+                : latest.allClips.filter(clip => clip.trackIndex === targetTrackId),
             isPlaying: latest.isPlaying,
         })
         if (!plan.ok) return false
 
         const clip = createAudioLaneItem({
             id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            trackId,
+            trackId: targetTrackId,
             start: plan.start,
             end: plan.end,
             asset,
         })
         if (!clip) return false
+        if (placement.needsNewTrack) dispatch(addTrack())
         dispatch(addAudioClip(clip))
         dispatch(setSelectedIds([clip.id]))
         dispatch(setSelectedRow(AUDIO_TRACKS))
