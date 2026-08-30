@@ -160,9 +160,11 @@ pub async fn open_window_picker(app: AppHandle) -> AppResult<()> {
         }
     };
 
-    // Use the same desktop snapshot as area mode so the picker remains usable on
-    // platforms where transparent webview windows render opaque.
+    // Windows renders the selection UI directly over the live desktop, so it
+    // needs no snapshot. Elsewhere the static snapshot keeps the picker usable
+    // on platforms where transparent fullscreen webviews render opaque.
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    #[cfg(not(target_os = "windows"))]
     capture_desktop_screenshot(&app).await.ok();
 
     log::info!(
@@ -234,111 +236,9 @@ pub async fn toggle_drawing_overlay(app: AppHandle) -> AppResult<()> {
 }
 
 /// Capture a desktop screenshot and save it to temp dir for the window/area picker background
-/// Capture the desktop to a BMP file using native GDI (Windows only).
-/// Much faster than spawning FFmpeg (~20ms vs ~3s).
-#[cfg(target_os = "windows")]
-fn capture_desktop_to_bmp(screenshot_path: &std::path::Path) -> Result<(), String> {
-    use windows::Win32::Graphics::Gdi::*;
-    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
-
-    unsafe {
-        let width = GetSystemMetrics(SM_CXSCREEN);
-        let height = GetSystemMetrics(SM_CYSCREEN);
-
-        if width <= 0 || height <= 0 {
-            return Err("Invalid screen dimensions".into());
-        }
-
-        let hdc_screen = GetDC(None);
-        if hdc_screen.is_invalid() {
-            return Err("Failed to get screen DC".into());
-        }
-
-        let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
-        let hbmp = CreateCompatibleBitmap(hdc_screen, width, height);
-        let old_obj = SelectObject(hdc_mem, hbmp.into());
-
-        let _ = BitBlt(
-            hdc_mem,
-            0,
-            0,
-            width,
-            height,
-            Some(hdc_screen),
-            0,
-            0,
-            SRCCOPY,
-        );
-
-        // Extract 24-bit BGR pixel data in bottom-up order (native BMP layout)
-        let row_stride = ((width as usize * 3) + 3) & !3usize;
-        let data_size = row_stride * height as usize;
-        let mut pixels = vec![0u8; data_size];
-
-        let mut bmi = BITMAPINFO {
-            bmiHeader: BITMAPINFOHEADER {
-                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-                biWidth: width,
-                biHeight: height,
-                biPlanes: 1,
-                biBitCount: 24,
-                biCompression: BI_RGB.0,
-                biSizeImage: data_size as u32,
-                biXPelsPerMeter: 0,
-                biYPelsPerMeter: 0,
-                biClrUsed: 0,
-                biClrImportant: 0,
-            },
-            bmiColors: [RGBQUAD::default()],
-        };
-
-        GetDIBits(
-            hdc_mem,
-            hbmp,
-            0,
-            height as u32,
-            Some(pixels.as_mut_ptr() as *mut _),
-            &mut bmi,
-            DIB_RGB_COLORS,
-        );
-
-        SelectObject(hdc_mem, old_obj);
-        let _ = DeleteObject(hbmp.into());
-        let _ = DeleteDC(hdc_mem);
-        ReleaseDC(None, hdc_screen);
-
-        // Build BMP file: 14-byte file header + 40-byte DIB header + pixel data
-        let pixel_offset: u32 = 54;
-        let file_size = pixel_offset + data_size as u32;
-        let mut bmp = Vec::with_capacity(file_size as usize);
-
-        // BMP file header (14 bytes)
-        bmp.extend_from_slice(b"BM");
-        bmp.extend_from_slice(&file_size.to_le_bytes());
-        bmp.extend_from_slice(&[0u8; 4]);
-        bmp.extend_from_slice(&pixel_offset.to_le_bytes());
-
-        // BITMAPINFOHEADER (40 bytes)
-        bmp.extend_from_slice(&40u32.to_le_bytes());
-        bmp.extend_from_slice(&width.to_le_bytes());
-        bmp.extend_from_slice(&height.to_le_bytes());
-        bmp.extend_from_slice(&1u16.to_le_bytes());
-        bmp.extend_from_slice(&24u16.to_le_bytes());
-        bmp.extend_from_slice(&0u32.to_le_bytes());
-        bmp.extend_from_slice(&(data_size as u32).to_le_bytes());
-        bmp.extend_from_slice(&0i32.to_le_bytes());
-        bmp.extend_from_slice(&0i32.to_le_bytes());
-        bmp.extend_from_slice(&0u32.to_le_bytes());
-        bmp.extend_from_slice(&0u32.to_le_bytes());
-
-        bmp.extend_from_slice(&pixels);
-
-        std::fs::write(screenshot_path, &bmp).map_err(|e| format!("Write BMP failed: {e}"))?;
-
-        Ok(())
-    }
-}
-
+// Windows draws its pickers over the live desktop, so it needs no snapshot and
+// this never compiles there.
+#[cfg(not(target_os = "windows"))]
 async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
     let state = app.state::<std::sync::Mutex<AppState>>();
     let temp_dir = {
@@ -346,16 +246,6 @@ async fn capture_desktop_screenshot(app: &AppHandle) -> AppResult<()> {
         s.temp_dir.clone()
     };
     std::fs::create_dir_all(&temp_dir).ok();
-
-    // Native GDI capture on Windows - instant, no FFmpeg process overhead
-    #[cfg(target_os = "windows")]
-    {
-        let screenshot_path = temp_dir.join("picker_bg.bmp");
-        tokio::task::spawn_blocking(move || capture_desktop_to_bmp(&screenshot_path))
-            .await
-            .map_err(|e| AppError::General(format!("Join error: {e}")))?
-            .map_err(AppError::General)
-    }
 
     #[cfg(target_os = "macos")]
     {
@@ -590,8 +480,10 @@ pub async fn open_area_picker(app: AppHandle) -> AppResult<()> {
         main_win.hide().map_err(AppError::Tauri)?;
     }
 
-    // Brief delay for window hide to take effect
+    // Let the hidden main window disappear before showing the picker. Windows
+    // renders the selection UI directly over the live desktop.
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    #[cfg(not(target_os = "windows"))]
     capture_desktop_screenshot(&app).await.ok();
 
     // Get primary monitor dimensions

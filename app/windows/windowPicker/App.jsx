@@ -4,12 +4,15 @@ import { loadPickerImageSrc, releasePickerImageSrc } from "../pickerImage"
 import WindowOutline from "./components/WindowOutline"
 
 export default function App() {
+    const isWindowsLiveOverlay = window.electron?.process?.platform === "win32"
     const [activeWindow, setActiveWindow] = useState(null)
     const [bgImage, setBgImage] = useState(null)
     const lastCallTime = useRef(0)
     const pendingCall = useRef(false)
 
     useEffect(() => {
+        if (isWindowsLiveOverlay) return undefined
+
         let imageSrc
         window.electron.ipcRenderer.invoke("get-picker-screenshot")
             .then(loadPickerImageSrc)
@@ -20,7 +23,7 @@ export default function App() {
             .catch(e => console.warn("[WindowPicker] Screenshot failed:", e))
 
         return () => releasePickerImageSrc(imageSrc)
-    }, [])
+    }, [isWindowsLiveOverlay])
 
     // Throttled call to get_window_at_point (every 100ms)
     const handleMouseMove = useCallback((e) => {
@@ -67,7 +70,16 @@ export default function App() {
             onMouseMove={handleMouseMove}
             onClick={onSelect}
         >
-            {bgImage
+            {isWindowsLiveOverlay
+                ? !activeWindow && (
+                    <div
+                        data-live-picker-overlay
+                        className="absolute inset-0 pointer-events-none"
+                        style={{ background: "rgba(5, 8, 20, 0.34)" }}
+                        aria-hidden="true"
+                    />
+                )
+                : bgImage
                 ? (
                 <img
                     src={bgImage}
@@ -100,7 +112,7 @@ export default function App() {
             </div>
 
             {/* Highlight the detected window */}
-            <WindowOutline activeWindow={activeWindow} />
+            <WindowOutline activeWindow={activeWindow} liveOverlay={isWindowsLiveOverlay} />
         </div>
     )
 }

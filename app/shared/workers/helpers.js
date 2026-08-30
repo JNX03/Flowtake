@@ -18,6 +18,7 @@ export const FRAME = "FRAME"
 export const IS_PLAYING = "IS_PLAYING"
 export const INIT_EXTRA_VIDEO = "INIT_EXTRA_VIDEO"
 export const SET_EXTRA_VISIBILITY = "SET_EXTRA_VISIBILITY"
+export const SNAPSHOT = "SNAPSHOT"
 
 export const post = (recipient, type, payload = null, id = crypto.randomUUID(), expectsResponse = false,
     isResponse = false, transferList = [], error = null) => {

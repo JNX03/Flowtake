@@ -12,9 +12,11 @@ import {
     useSelector
 } from "react-redux"
 import { AUDIO_TRACKS, formatPercent, msToPx } from "@shared/helpers"
+import { resolveAudioClipTimingChange } from "@shared/editor/audioTimeline"
 import {
     selectAudioClipById,
     selectAllAudioClips,
+    selectAudioTracks,
     updateAudioClip
 } from "@shared/redux/audioTrackSlice"
 import {
@@ -33,27 +35,40 @@ export default function AudioClip({ id }) {
 
     const anim = useSelector(state => selectAudioClipById(state, id))
     const anims = useSelector(selectAllAudioClips)
+    const tracks = useSelector(selectAudioTracks)
     const selectedRow = useSelector(selectSelectedRow)
     const pxPerMs = useSelector(selectPxPerMs)
 
     const trackAnims = anims.filter(a => a.trackIndex === anim?.trackIndex)
+    const isTrackLocked = Boolean(
+        tracks.find(track => track.id === anim?.trackIndex)?.locked
+    )
 
     const clipWidthPx = useMemo(
         () => anim ? msToPx(anim.end - anim.start, pxPerMs) : 0,
         [anim, pxPerMs]
     )
 
-    // Waveform should only paint inside the move column, not under the two 24px resize handles
-    const waveformWidth = Math.max(clipWidthPx - 48, 0)
+    // Waveform paints inside the move column, clear of the two compact trim handles.
+    const waveformWidth = Math.max(clipWidthPx - 24, 0)
 
     const onChange = useCallback(
-        (start, end) => dispatch(updateAudioClip({ id, changes: { start, end } })),
-        [dispatch, id]
+        (start, end) => dispatch(updateAudioClip({
+            id,
+            changes: resolveAudioClipTimingChange(anim, start, end),
+        })),
+        [anim, dispatch, id]
     )
 
     const onTrackChange = useCallback(
-        (start, end, newTrackId) => dispatch(updateAudioClip({ id, changes: { start, end, trackIndex: newTrackId } })),
-        [dispatch, id]
+        (start, end, newTrackId) => {
+            if (tracks.find(track => track.id === newTrackId)?.locked) return
+            dispatch(updateAudioClip({
+                id,
+                changes: { start, end, trackIndex: newTrackId },
+            }))
+        },
+        [dispatch, id, tracks]
     )
 
     const getTrackAnims = useCallback(
@@ -71,6 +86,7 @@ export default function AudioClip({ id }) {
     return (
         <FlexibleAction anim={anim} anims={trackAnims} isRowSelected={selectedRow === AUDIO_TRACKS}
             onChange={onChange} onSelect={onSelect} color="secondary"
+            disabled={isTrackLocked}
             crossTrackEnabled currentTrackId={anim.trackIndex}
             trackDropZone="audio-track" getTrackAnims={getTrackAnims}
             onTrackChange={onTrackChange}>

@@ -1,4 +1,28 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSelector, createSlice } from '@reduxjs/toolkit'
+
+// Only content tracks define the sequence length. Source-synchronised effects
+// such as click rings and cursor/zoom animations can contain noisy capture
+// timestamps and must not create an invisible tail after the last clip.
+const TIMELINE_DURATION_SLICE_KEYS = Object.freeze([
+    'clipAnims',
+    'audioTrackAnims',
+    'overlayAnims',
+])
+
+const getMaximumEntityEnd = present => {
+    let maximum = 0
+
+    for (const key of TIMELINE_DURATION_SLICE_KEYS) {
+        const entities = present?.[key]?.entities
+        if (!entities) continue
+
+        for (const entity of Object.values(entities)) {
+            if (Number.isFinite(entity?.end)) maximum = Math.max(maximum, entity.end)
+        }
+    }
+
+    return maximum
+}
 
 const initialState = {
     isPlaying: false,
@@ -146,7 +170,27 @@ export const selectAreCursorTypeAnimEntitiesGenerated = state => state.editor.ar
 export const selectArePanAnimEntitiesGenerated = state => state.editor.arePanAnimEntitiesGenerated
 export const selectAreZoomAnimEntitiesGenerated = state => state.editor.areZoomAnimEntitiesGenerated
 export const selectAreCameraZoomAnimEntitiesGenerated = state => state.editor.areCameraZoomAnimEntitiesGenerated
-export const selectDuration = state => state.editor.duration
+// The source recording duration stays immutable in editor.duration. The
+// timeline itself grows to the furthest item, so moving a split segment later
+// creates real empty time instead of being clamped back to the source length.
+export const selectSourceDuration = state => state.editor?.duration ?? null
+export const selectDuration = createSelector(
+    [
+        selectSourceDuration,
+        state => state.undoableState?.present,
+    ],
+    (sourceDuration, present) => {
+        const safeSourceDuration = Number.isFinite(sourceDuration)
+            ? Math.max(0, sourceDuration)
+            : 0
+        const timelineDuration = Math.max(
+            safeSourceDuration,
+            getMaximumEntityEnd(present)
+        )
+
+        return timelineDuration > 0 ? timelineDuration : null
+    }
+)
 export const selectIsMicrophoneMuted = state => state.editor.isMicrophoneMuted
 export const selectIsSystemAudioMuted = state => state.editor.isSystemAudioMuted
 

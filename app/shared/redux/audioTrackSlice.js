@@ -104,6 +104,8 @@ export const selectAudioClipById = (state, id) => selectById(state.undoableState
 export const selectAudioClipIds = state => selectIds(state.undoableState.present.audioTrackAnims)
 export const selectTotalAudioClips = state => selectTotal(state.undoableState.present.audioTrackAnims)
 export const selectAudioTracks = state => state.undoableState.present.audioTrackAnims.tracks
+export const selectNextAudioTrackId = state =>
+    state.undoableState.present.audioTrackAnims.nextTrackId
 export const selectAudioClipsByTrack = (state, trackId) =>
     selectAll(state.undoableState.present.audioTrackAnims).filter(c => c.trackIndex === trackId)
 

@@ -1,12 +1,5 @@
 import {
-    easeBackOut,
-    easeBounceOut,
-    easeCubicInOut,
-    easeElasticOut,
-    easeExpOut,
-    easeLinear
-} from "d3-ease"
-import {
+    CanvasSource,
     Container,
     Graphics,
     Sprite,
@@ -14,18 +7,23 @@ import {
     TextStyle,
     Texture
 } from "pixi.js"
+import { resolveOverlayAtTime } from "../../editor/overlayKeyframes.js"
 
-const OVERLAY_EASING_MAP = {
-    linear: easeLinear,
-    smooth: easeCubicInOut,
-    expOut: easeExpOut,
-    snap: easeBackOut,
-    bounce: easeBounceOut,
-    elastic: easeElasticOut,
-}
+const OVERLAY_BLEND_MODES = new Set([
+    "normal",
+    "multiply",
+    "screen",
+    "overlay",
+    "darken",
+    "lighten",
+    "difference",
+])
+
+const normalizeBlendMode = value =>
+    OVERLAY_BLEND_MODES.has(value) ? value : "normal"
 
 /**
- * Renders overlay elements (text, shapes, images) onto the pixi.js scene.
+ * Renders overlay elements (text, shapes, images, videos) onto the pixi.js scene.
  * Each overlay has position, rotation, scale, opacity, and optional keyframes.
  */
 export default class OverlayAnimator {
@@ -52,6 +50,7 @@ export default class OverlayAnimator {
     rebuild() {
         // Remove old elements
         for (const [, el] of this.elements) {
+            el.videoSurface?.texture?.destroy(true)
             el.destroy({ children: true })
         }
         this.elements.clear()
@@ -72,15 +71,21 @@ export default class OverlayAnimator {
     createElement(config) {
         const wrapper = new Container()
         wrapper.label = `overlay-${config.id}`
+        wrapper.blendMode = normalizeBlendMode(config.blendMode)
 
         if (config.overlayType === "text") {
+            const fontSize = config.fontSize || 32
             const style = new TextStyle({
-                fontFamily: "Arial, Helvetica, sans-serif",
-                fontSize: config.fontSize || 32,
-                fontWeight: config.fontWeight >= 600 ? "bold" : "normal",
+                fontFamily: config.fontFamily || "Inter, Arial, Helvetica, sans-serif",
+                fontSize,
+                fontWeight: config.fontWeight || 400,
+                fontStyle: config.fontStyle || "normal",
+                align: config.textAlign || "center",
+                letterSpacing: config.letterSpacing || 0,
+                lineHeight: fontSize * (config.lineHeight || 1.3),
                 fill: config.color || "#ffffff",
                 wordWrap: true,
-                wordWrapWidth: 800,
+                wordWrapWidth: config.textMaxWidth || 800,
                 dropShadow: {
                     alpha: 0.5,
                     blur: 4,
@@ -89,6 +94,20 @@ export default class OverlayAnimator {
             })
             const text = new Text({ text: config.text || "Text", style })
             text.anchor.set(0.5, 0.5)
+            if (config.textBackgroundEnabled) {
+                const padding = config.textBackgroundPadding ?? 12
+                const background = new Graphics()
+                background.roundRect(
+                    -text.width / 2 - padding,
+                    -text.height / 2 - padding,
+                    text.width + padding * 2,
+                    text.height + padding * 2,
+                    config.textBackgroundRadius ?? 8
+                )
+                background.fill(config.textBackgroundColor || "#000000")
+                background.alpha = config.textBackgroundOpacity ?? 0.65
+                wrapper.addChild(background)
+            }
             wrapper.addChild(text)
         } else if (config.overlayType === "shape") {
             const g = new Graphics()
@@ -137,9 +156,50 @@ export default class OverlayAnimator {
                 g.fill(0x6c5ce7)
                 wrapper.addChild(g)
             }
+        } else if (config.overlayType === "video") {
+            const canvas = new OffscreenCanvas(1, 1)
+            const context = canvas.getContext("2d")
+            const texture = new Texture({ source: new CanvasSource({ resource: canvas }) })
+            const sprite = new Sprite(texture)
+            sprite.anchor.set(0.5, 0.5)
+            wrapper.videoSurface = {
+                canvas,
+                context,
+                texture,
+                sprite,
+                width: config.width || 320,
+                height: config.height || 240,
+            }
+            wrapper.addChild(sprite)
         }
 
         return wrapper
+    }
+
+    setVideoFrame(id, content) {
+        const surface = this.elements.get(id)?.videoSurface
+        if (!surface || !content) return false
+
+        const sourceWidth = Math.max(1, Math.round(
+            content.displayWidth || content.width || content.codedWidth || 1
+        ))
+        const sourceHeight = Math.max(1, Math.round(
+            content.displayHeight || content.height || content.codedHeight || 1
+        ))
+        if (surface.canvas.width !== sourceWidth || surface.canvas.height !== sourceHeight) {
+            surface.canvas.width = sourceWidth
+            surface.canvas.height = sourceHeight
+        }
+
+        surface.context.clearRect(0, 0, sourceWidth, sourceHeight)
+        surface.context.drawImage(content, 0, 0, sourceWidth, sourceHeight)
+        content.close?.()
+        surface.texture.source.update()
+
+        const fitScale = Math.min(surface.width / sourceWidth, surface.height / sourceHeight)
+        surface.sprite.width = sourceWidth * fitScale
+        surface.sprite.height = sourceHeight * fitScale
+        return true
     }
 
     update(time) {
@@ -152,12 +212,12 @@ export default class OverlayAnimator {
             const el = this.elements.get(config.id)
             if (!el) continue
 
-            const visible = time >= config.start && time <= config.end
+            const visible = config.visible !== false && time >= config.start && time <= config.end
             el.visible = visible
             if (!visible) continue
 
             // Interpolate keyframes
-            const resolved = lerpKeyframes(config, time)
+            const resolved = resolveOverlayAtTime(config, time)
 
             const pos = resolved.position || { x: 0.5, y: 0.5 }
             const rotation = (resolved.rotation || 0) * Math.PI / 180
@@ -168,46 +228,16 @@ export default class OverlayAnimator {
             el.rotation = rotation
             el.scale.set(scale)
             el.alpha = opacity
+            el.blendMode = normalizeBlendMode(resolved.blendMode)
         }
     }
 
     destroy() {
         for (const [, el] of this.elements) {
+            el.videoSurface?.texture?.destroy(true)
             el.destroy({ children: true })
         }
         this.elements.clear()
         this.container.destroy({ children: true })
-    }
-}
-
-function lerpKeyframes(overlay, time) {
-    const kf = overlay.keyframes
-    if (!kf || kf.length === 0) return overlay
-    const relTime = time - overlay.start
-    if (kf.length === 1) return { ...overlay, ...kf[0] }
-
-    let before = kf[0], after = kf[kf.length - 1]
-    for (let i = 0; i < kf.length; i++) {
-        if (kf[i].time <= relTime) before = kf[i]
-        if (kf[i].time >= relTime) { after = kf[i]; break }
-    }
-    if (before === after || before.time === after.time) return { ...overlay, ...before }
-
-    const rawT = (relTime - before.time) / (after.time - before.time)
-    // Apply easing from the target keyframe (per-segment control)
-    const easingName = after.easing || "linear"
-    const easingFn = OVERLAY_EASING_MAP[easingName] || OVERLAY_EASING_MAP.linear
-    const t = easingFn(rawT)
-    const lerp = (a, b) => a != null && b != null ? a + (b - a) * t : (b ?? a)
-
-    return {
-        ...overlay,
-        position: {
-            x: lerp(before.position?.x ?? overlay.position?.x, after.position?.x ?? overlay.position?.x),
-            y: lerp(before.position?.y ?? overlay.position?.y, after.position?.y ?? overlay.position?.y),
-        },
-        rotation: lerp(before.rotation ?? overlay.rotation ?? 0, after.rotation ?? overlay.rotation ?? 0),
-        scale: lerp(before.scale ?? overlay.scale ?? 1, after.scale ?? overlay.scale ?? 1),
-        opacity: lerp(before.opacity ?? overlay.opacity ?? 1, after.opacity ?? overlay.opacity ?? 1),
     }
 }
