@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://github.com/JNX03/Flowtake/releases/latest"><img alt="Latest Release" src="https://img.shields.io/github/v/release/JNX03/Flowtake?label=download&color=4C1D95"></a>
   <a href="https://github.com/JNX03/Flowtake/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/JNX03/Flowtake/total?color=4C1D95"></a>
+  <a href="https://github.com/JNX03/Flowtake/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/JNX03/Flowtake/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white">
@@ -49,6 +50,15 @@ Get the latest stable release for your platform:
 > **Platform status** — Windows is stable and the primary daily-driver platform. macOS and Linux builds exist but are a developer preview — expect bugs. Stable support for all three is targeted for **v2.0**.
 
 FFmpeg is bundled on Windows and macOS. On Linux, the `.deb` and `.rpm` packages declare `ffmpeg`, `xdotool`, and `wmctrl` as dependencies and your package manager will install them automatically.
+
+Windows users can also install the published WinGet package:
+
+```powershell
+winget install --id JNX03.Flowtake --exact
+```
+
+Additional catalog-ready manifests and their validation status live in
+[packaging/README.md](packaging/README.md).
 
 ## Why Flowtake?
 
@@ -133,6 +143,14 @@ _Screenshots coming soon — see [docs/launch](docs/launch/) for marketing mater
 
 Flowtake is built with a modern hybrid architecture combining a Rust backend with a React frontend.
 
+On macOS 13 and newer, recording first tries a small Swift
+[ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit)
+helper. It captures a real display, region, or window using NV12 frames and can
+record system audio without a loopback driver. If the helper is unavailable or
+cannot start, Flowtake keeps the existing FFmpeg/AVFoundation path as a runtime
+fallback. macOS remains a developer preview until the signed and notarized build
+passes the real-hardware checks in [ROADMAP.md](ROADMAP.md).
+
 ```
 +------------------------------------------------------------------+
 |                        Flowtake Application                       |
@@ -179,7 +197,8 @@ Flowtake is built with a modern hybrid architecture combining a Rust backend wit
 | **Frontend** | [React 19](https://react.dev/) + [Redux Toolkit](https://redux-toolkit.js.org/) |
 | **Styling** | [TailwindCSS 4](https://tailwindcss.com/) + [DaisyUI 5](https://daisyui.com/) |
 | **Graphics** | [Pixi.js 8](https://pixijs.com/) (WebGL-accelerated 2D rendering) |
-| **Video encoding** | [FFmpeg](https://ffmpeg.org/) (bundled sidecar) |
+| **macOS capture** | Swift + [ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit) on macOS 13+, with FFmpeg fallback |
+| **Video encoding** | VideoToolbox/AVAssetWriter for native macOS capture; [FFmpeg](https://ffmpeg.org/) for fallback, editing, and export |
 | **Build tool** | [Vite 7](https://vite.dev/) |
 | **AI / ML** | [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/guide) + [HuggingFace Transformers](https://huggingface.co/docs/transformers.js) (on-device) |
 
@@ -203,6 +222,7 @@ Grab the latest installer from the [Releases page](https://github.com/JNX03/Flow
 - [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
 - [Tauri v2 CLI](https://v2.tauri.app/start/prerequisites/)
 - [FFmpeg](https://ffmpeg.org/) binary in `resources/`
+- macOS development: Xcode command-line tools with Swift 5.9+
 
 ### Setup
 
@@ -226,6 +246,7 @@ npm run dev
 | `npm run dev:frontend` | Start Vite frontend only (port 5173) |
 | `npm run build` | Build production installer (NSIS/MSI) |
 | `npm run build:frontend` | Build frontend assets only |
+| `npm run build:macos-capture` | Build and verify the universal Swift capture helper (macOS only) |
 | `npm run lint` | Run ESLint on the codebase |
 
 ### Project structure
@@ -296,14 +317,9 @@ If you discover a security vulnerability, please follow the [Security Policy](SE
 
 ## Roadmap
 
-- [ ] Linux stable support (targeting v2.0.0)
-- [ ] macOS stable support (targeting v2.0.0)
-- [ ] Plugin/extension system
-- [ ] Cloud project storage (optional, opt-in)
-- [ ] Collaborative editing
-- [ ] AI-powered auto-editing suggestions
-- [x] Tutorial
-- [x] Direct upload to YouTube/social platforms
+See the evidence-gated [public roadmap](ROADMAP.md) for current, next, and later
+work. In particular, macOS stable support is gated on real Apple Silicon and
+Intel QA plus Developer ID signing and notarization.
 
 ## License
 

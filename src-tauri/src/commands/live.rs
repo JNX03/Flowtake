@@ -248,7 +248,7 @@ fn parse_time_to_ms(s: &str) -> Option<i64> {
     let h: i64 = parts.next()?.parse().ok()?;
     let m: i64 = parts.next()?.parse().ok()?;
     let sec: f64 = parts.next()?.parse().ok()?;
-    Some(h * 3600_000 + m * 60_000 + (sec * 1000.0) as i64)
+    Some(h * 3_600_000 + m * 60_000 + (sec * 1000.0) as i64)
 }
 
 #[tauri::command]
@@ -257,9 +257,7 @@ pub async fn start_live_streaming(app: AppHandle, config: LiveConfig) -> AppResu
     {
         let st = state_handle.lock().unwrap();
         if st.live_ffmpeg_process.is_some() {
-            return Err(AppError::General(
-                "Live stream already active".to_string(),
-            ));
+            return Err(AppError::General("Live stream already active".to_string()));
         }
     }
 
@@ -273,7 +271,15 @@ pub async fn start_live_streaming(app: AppHandle, config: LiveConfig) -> AppResu
         .ok_or_else(|| AppError::General("FFmpeg binary not found".to_string()))?;
 
     let args = build_ffmpeg_args(&config, local_path.as_ref());
-    log::info!("[live] FFmpeg args: {:?}", args);
+    // Never log the command line: the RTMP target contains the user's stream
+    // key. Keep only non-sensitive operational fields in diagnostics.
+    log::info!(
+        "[live] starting stream: fps={} bitrate_kbps={} remote={} save_local={}",
+        config.framerate,
+        config.video_bitrate_kbps,
+        !config.rtmp_url.is_empty(),
+        config.save_local
+    );
 
     use std::process::{Command, Stdio};
     let mut cmd = Command::new(&ffmpeg_path);
@@ -291,6 +297,7 @@ pub async fn start_live_streaming(app: AppHandle, config: LiveConfig) -> AppResu
     let mut child = cmd
         .spawn()
         .map_err(|e| AppError::General(format!("Failed to spawn FFmpeg: {}", e)))?;
+    crate::process_containment::contain_owned_child(&child, "live-stream FFmpeg");
 
     let stdin = child
         .stdin
@@ -382,9 +389,8 @@ pub async fn push_live_frame(app: AppHandle, chunk: Vec<u8>) -> AppResult<()> {
         st.live_stdin_tx.clone()
     };
     if let Some(tx) = tx {
-        tx.send(chunk).map_err(|_| {
-            AppError::General("Live stream stdin channel closed".to_string())
-        })?;
+        tx.send(chunk)
+            .map_err(|_| AppError::General("Live stream stdin channel closed".to_string()))?;
         Ok(())
     } else {
         Err(AppError::General("Live stream not active".to_string()))
@@ -567,11 +573,11 @@ pub async fn get_cursor_position(_app: AppHandle) -> AppResult<CursorSample> {
         unsafe {
             let _ = GetCursorPos(&mut p);
         }
-        return Ok(CursorSample {
+        Ok(CursorSample {
             x: p.x,
             y: p.y,
             timestamp_ms,
-        });
+        })
     }
 
     #[cfg(target_os = "macos")]
@@ -611,11 +617,7 @@ pub async fn get_cursor_position(_app: AppHandle) -> AppResult<CursorSample> {
                     y = v.parse().unwrap_or(0);
                 }
             }
-            return Ok(CursorSample {
-                x,
-                y,
-                timestamp_ms,
-            });
+            return Ok(CursorSample { x, y, timestamp_ms });
         }
         return Ok(CursorSample {
             x: 0,

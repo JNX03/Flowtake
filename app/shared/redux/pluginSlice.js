@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSelector, createSlice } from '@reduxjs/toolkit'
 
 export const FEATURE_IDS = {
     APP_RECORDING: 'appRecording',
@@ -91,9 +91,9 @@ export const selectPluginsDir = state => state.plugin.pluginsDir
 export const selectIsHydrated = state => state.plugin.isHydrated
 export const selectIsDrawMouseModeActive = state => !!state.plugin.isDrawMouseModeActive
 
-export const selectPersistedShape = state => ({
-    enabled: state.plugin.enabled,
-    config: state.plugin.config,
-})
+export const selectPersistedShape = createSelector(
+    [selectAllEnabled, state => state.plugin.config],
+    (enabled, config) => ({ enabled, config })
+)
 
 export default pluginSlice.reducer

@@ -15,10 +15,10 @@ pub struct AudioSession {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::*;
+    use windows::core::{Interface, GUID, PWSTR};
     use windows::Win32::Media::Audio::{
-        eMultimedia, eRender, IAudioSessionControl, IAudioSessionControl2,
-        IAudioSessionEnumerator, IAudioSessionManager2, IMMDeviceEnumerator,
-        ISimpleAudioVolume, MMDeviceEnumerator,
+        eMultimedia, eRender, IAudioSessionControl, IAudioSessionControl2, IAudioSessionEnumerator,
+        IAudioSessionManager2, IMMDeviceEnumerator, ISimpleAudioVolume, MMDeviceEnumerator,
     };
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
@@ -27,14 +27,19 @@ mod platform {
         OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
         PROCESS_QUERY_LIMITED_INFORMATION,
     };
-    use windows::core::{GUID, Interface, PWSTR};
 
     fn get_process_name(pid: u32) -> Option<String> {
         unsafe {
             let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
             let mut buf = [0u16; 1024];
             let mut size = buf.len() as u32;
-            QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), PWSTR(buf.as_mut_ptr()), &mut size).ok()?;
+            QueryFullProcessImageNameW(
+                handle,
+                PROCESS_NAME_FORMAT(0),
+                PWSTR(buf.as_mut_ptr()),
+                &mut size,
+            )
+            .ok()?;
             let path = String::from_utf16_lossy(&buf[..size as usize]);
             // Extract just the filename without extension
             path.rsplit('\\')
@@ -53,7 +58,8 @@ mod platform {
 
                 let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
 
-                let session_manager: IAudioSessionManager2 = device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)?;
+                let session_manager: IAudioSessionManager2 =
+                    device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)?;
 
                 let session_enum: IAudioSessionEnumerator =
                     session_manager.GetSessionEnumerator()?;
@@ -109,7 +115,8 @@ mod platform {
 
                 let device = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
 
-                let session_manager: IAudioSessionManager2 = device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)?;
+                let session_manager: IAudioSessionManager2 =
+                    device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None)?;
 
                 let session_enum: IAudioSessionEnumerator =
                     session_manager.GetSessionEnumerator()?;
@@ -139,10 +146,7 @@ mod platform {
                             Err(_) => continue,
                         };
 
-                        if volume
-                            .SetMute(mute, &GUID::zeroed())
-                            .is_ok()
-                        {
+                        if volume.SetMute(mute, &GUID::zeroed()).is_ok() {
                             actually_muted.push(pid);
                         }
                     }
@@ -173,9 +177,8 @@ mod platform {
             crate::error::AppError::General("Failed to create PulseAudio mainloop".into())
         })?;
 
-        let mut proplist = Proplist::new().ok_or_else(|| {
-            crate::error::AppError::General("Failed to create proplist".into())
-        })?;
+        let mut proplist = Proplist::new()
+            .ok_or_else(|| crate::error::AppError::General("Failed to create proplist".into()))?;
         proplist
             .set_str(
                 libpulse_binding::proplist::properties::APPLICATION_NAME,
@@ -183,14 +186,16 @@ mod platform {
             )
             .ok();
 
-        let mut context = Context::new_with_proplist(&mainloop, "flowtake", &proplist)
-            .ok_or_else(|| {
+        let mut context =
+            Context::new_with_proplist(&mainloop, "flowtake", &proplist).ok_or_else(|| {
                 crate::error::AppError::General("Failed to create PulseAudio context".into())
             })?;
 
         context
             .connect(None, libpulse_binding::context::FlagSet::NOFLAGS, None)
-            .map_err(|_| crate::error::AppError::General("Failed to connect to PulseAudio".into()))?;
+            .map_err(|_| {
+                crate::error::AppError::General("Failed to connect to PulseAudio".into())
+            })?;
 
         // Wait for context to be ready
         loop {
@@ -259,9 +264,8 @@ mod platform {
             crate::error::AppError::General("Failed to create PulseAudio mainloop".into())
         })?;
 
-        let mut proplist = Proplist::new().ok_or_else(|| {
-            crate::error::AppError::General("Failed to create proplist".into())
-        })?;
+        let mut proplist = Proplist::new()
+            .ok_or_else(|| crate::error::AppError::General("Failed to create proplist".into()))?;
         proplist
             .set_str(
                 libpulse_binding::proplist::properties::APPLICATION_NAME,
@@ -269,14 +273,16 @@ mod platform {
             )
             .ok();
 
-        let mut context = Context::new_with_proplist(&mainloop, "flowtake", &proplist)
-            .ok_or_else(|| {
+        let mut context =
+            Context::new_with_proplist(&mainloop, "flowtake", &proplist).ok_or_else(|| {
                 crate::error::AppError::General("Failed to create PulseAudio context".into())
             })?;
 
         context
             .connect(None, libpulse_binding::context::FlagSet::NOFLAGS, None)
-            .map_err(|_| crate::error::AppError::General("Failed to connect to PulseAudio".into()))?;
+            .map_err(|_| {
+                crate::error::AppError::General("Failed to connect to PulseAudio".into())
+            })?;
 
         loop {
             mainloop.iterate(true);
@@ -355,10 +361,7 @@ pub async fn get_audio_sessions() -> AppResult<Vec<AudioSession>> {
 }
 
 #[tauri::command]
-pub async fn mute_audio_sessions(
-    app: AppHandle,
-    pids: Vec<u32>,
-) -> AppResult<()> {
+pub async fn mute_audio_sessions(app: AppHandle, pids: Vec<u32>) -> AppResult<()> {
     log::info!("[audio] Muting {} audio sessions: {:?}", pids.len(), pids);
 
     let actually_muted = platform::mute_sessions_by_pid(&pids, true)?;

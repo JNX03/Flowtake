@@ -16,6 +16,11 @@ export default class ClipConfig extends AnimConfig {
         const intro = Math.min(2000, args.end - args.start)
         super({ intro, ...args }, "clip", crypto)
         this.playbackRate = args.playbackRate ?? defaultPlaybackRate
+        this.sourceStart = Math.max(0, args.sourceStart ?? args.start)
+        this.sourceEnd = Math.max(
+            this.sourceStart,
+            args.sourceEnd ?? (this.sourceStart + args.end - args.start)
+        )
 
         const layoutConfig = args.layout?.config ?? []
 

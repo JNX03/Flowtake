@@ -36,12 +36,12 @@ impl KeyboardTracker {
         }
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self) -> Result<(), String> {
         {
             let mut running = self.is_running.lock().unwrap();
             if *running {
                 log::warn!("[KeyboardTracker] start() called while already running; ignored");
-                return;
+                return Ok(());
             }
             *running = true;
         }
@@ -50,11 +50,13 @@ impl KeyboardTracker {
 
         let events = self.events.clone();
         let is_running = self.is_running.clone();
+        #[cfg(target_os = "windows")]
+        let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
 
         self.hook_thread = Some(thread::spawn(move || {
             #[cfg(target_os = "windows")]
             {
-                Self::run_hook_loop(events, is_running);
+                Self::run_hook_loop(events, is_running, ready_tx);
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -65,6 +67,32 @@ impl KeyboardTracker {
                 let _ = events;
             }
         }));
+
+        #[cfg(target_os = "windows")]
+        {
+            match ready_rx.recv() {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    if let Some(handle) = self.hook_thread.take() {
+                        let _ = handle.join();
+                    }
+                    *self.is_running.lock().unwrap() = false;
+                    return Err(error);
+                }
+                Err(error) => {
+                    if let Some(handle) = self.hook_thread.take() {
+                        let _ = handle.join();
+                    }
+                    *self.is_running.lock().unwrap() = false;
+                    return Err(format!(
+                        "Keyboard hook stopped before initialization completed: {}",
+                        error
+                    ));
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn stop(&mut self) {
@@ -87,8 +115,7 @@ impl KeyboardTracker {
             use windows::Win32::Foundation::{LPARAM, WPARAM};
             use windows::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
             if self.hook_thread.is_some() {
-                let tid =
-                    KB_HOOK_THREAD_ID.load(std::sync::atomic::Ordering::Relaxed);
+                let tid = KB_HOOK_THREAD_ID.load(std::sync::atomic::Ordering::Relaxed);
                 if tid != 0 {
                     if let Err(e) = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0)) {
                         log::warn!("[KeyboardTracker] PostThreadMessageW failed: {}", e);
@@ -127,7 +154,10 @@ impl KeyboardTracker {
 
 // ── Windows implementation ──────────────────────────────────────────────────
 #[cfg(target_os = "windows")]
-static KB_EVENTS: std::sync::LazyLock<Mutex<Option<Arc<Mutex<Vec<KeyEvent>>>>>> =
+type SharedKeyEvents = Arc<Mutex<Vec<KeyEvent>>>;
+
+#[cfg(target_os = "windows")]
+static KB_EVENTS: std::sync::LazyLock<Mutex<Option<SharedKeyEvents>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
 #[cfg(target_os = "windows")]
@@ -135,13 +165,18 @@ static KB_RUNNING: std::sync::LazyLock<Mutex<Option<Arc<Mutex<bool>>>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
 #[cfg(target_os = "windows")]
-static KB_HOOK_THREAD_ID: std::sync::atomic::AtomicU32 =
-    std::sync::atomic::AtomicU32::new(0);
+static KB_HOOK_THREAD_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 #[cfg(target_os = "windows")]
 impl KeyboardTracker {
-    fn run_hook_loop(events: Arc<Mutex<Vec<KeyEvent>>>, is_running: Arc<Mutex<bool>>) {
+    fn run_hook_loop(
+        events: Arc<Mutex<Vec<KeyEvent>>>,
+        is_running: Arc<Mutex<bool>>,
+        ready: std::sync::mpsc::SyncSender<Result<(), String>>,
+    ) {
         use std::sync::atomic::Ordering::Relaxed;
+        use windows::Win32::Foundation::HINSTANCE;
+        use windows::Win32::System::LibraryLoader::GetModuleHandleW;
         use windows::Win32::UI::WindowsAndMessaging::*;
 
         *KB_EVENTS.lock().unwrap() = Some(events);
@@ -151,19 +186,47 @@ impl KeyboardTracker {
             let tid = windows::Win32::System::Threading::GetCurrentThreadId();
             KB_HOOK_THREAD_ID.store(tid, Relaxed);
 
+            let module = match GetModuleHandleW(None) {
+                Ok(module) => HINSTANCE(module.0),
+                Err(error) => {
+                    let message = format!(
+                        "Could not resolve the Flowtake module for the keyboard hook: {}",
+                        error
+                    );
+                    log::error!("[KeyboardTracker] {}", message);
+                    let _ = ready.send(Err(message));
+                    KB_HOOK_THREAD_ID.store(0, Relaxed);
+                    *KB_EVENTS.lock().unwrap() = None;
+                    *KB_RUNNING.lock().unwrap() = None;
+                    return;
+                }
+            };
+
             let hook = match SetWindowsHookExW(
                 WH_KEYBOARD_LL,
                 Some(low_level_keyboard_proc),
-                None,
+                Some(module),
                 0,
             ) {
-                Ok(h) => h,
-                Err(e) => {
-                    log::error!("[KeyboardTracker] SetWindowsHookExW failed: {}", e);
+                Ok(hook) => hook,
+                Err(error) => {
+                    let message = format!("Could not install the Windows keyboard hook: {}", error);
+                    log::error!("[KeyboardTracker] {}", message);
+                    let _ = ready.send(Err(message));
+                    KB_HOOK_THREAD_ID.store(0, Relaxed);
+                    *KB_EVENTS.lock().unwrap() = None;
+                    *KB_RUNNING.lock().unwrap() = None;
                     return;
                 }
             };
             log::info!("[KeyboardTracker] WH_KEYBOARD_LL installed (tid={})", tid);
+            if ready.send(Ok(())).is_err() {
+                UnhookWindowsHookEx(hook).ok();
+                KB_HOOK_THREAD_ID.store(0, Relaxed);
+                *KB_EVENTS.lock().unwrap() = None;
+                *KB_RUNNING.lock().unwrap() = None;
+                return;
+            }
 
             let mut msg = MSG::default();
             while GetMessageW(&mut msg, None, 0, 0).into() {
@@ -173,6 +236,8 @@ impl KeyboardTracker {
 
             UnhookWindowsHookEx(hook).ok();
             KB_HOOK_THREAD_ID.store(0, Relaxed);
+            *KB_EVENTS.lock().unwrap() = None;
+            *KB_RUNNING.lock().unwrap() = None;
         }
     }
 }
@@ -221,7 +286,9 @@ unsafe extern "system" fn low_level_keyboard_proc(
             if events.is_empty() {
                 log::info!(
                     "[KeyboardTracker] first event captured: type={} vk={} key={}",
-                    event_type, vk, key_name
+                    event_type,
+                    vk,
+                    key_name
                 );
             }
             // Cap at 50k to avoid runaway memory if the recorder is left on for hours
@@ -246,7 +313,7 @@ fn vk_to_name(vk: u32) -> String {
     let v = vk as u16;
 
     // F1..F24
-    if v >= VK_F1.0 && v <= VK_F24.0 {
+    if (VK_F1.0..=VK_F24.0).contains(&v) {
         return format!("F{}", v - VK_F1.0 + 1);
     }
     // 0..9 top row
@@ -258,7 +325,7 @@ fn vk_to_name(vk: u32) -> String {
         return ((v as u8) as char).to_string();
     }
     // Numpad 0..9
-    if v >= VK_NUMPAD0.0 && v <= VK_NUMPAD9.0 {
+    if (VK_NUMPAD0.0..=VK_NUMPAD9.0).contains(&v) {
         return format!("Num{}", v - VK_NUMPAD0.0);
     }
 

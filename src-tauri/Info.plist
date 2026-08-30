@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Flowtake uses the camera only when you enable a camera overlay for a recording.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Flowtake uses the microphone only when you enable narration for a recording.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Flowtake records the display, window, or region you explicitly select.</string>
+</dict>
+</plist>

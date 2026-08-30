@@ -45,6 +45,8 @@ export default class PreviewScene extends Scene {
                 this.cursorTypeAnimator.setState({ isStatic: payload })
                 break
             case 'project.videoDetails': {
+                if (Number.isFinite(Number(payload?.end)))
+                    this.timelineEnd = Math.max(0, Number(payload.end))
                 this.cursorTypeAnimator.setState({ videoDetails: payload })
                 this.panAnimator.setState({ videoDetails: payload })
                 this.cursorAnimator.setState({ videoDetails: payload })

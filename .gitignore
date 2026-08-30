@@ -101,8 +101,19 @@ build/
 src-tauri/target/
 src-tauri/gen/
 
+# SwiftPM build output
+native/macos-capture/.build/
+native/macos-capture/.build-*/
+src-tauri/binaries/flowtake-macos-capture-*
+
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Local design-QA capture output (screenshots, parity notes)
+artifacts/
+
+# Private startup operations data
+startup_ops/private/
 
 distribute.md
 docs

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { PlusIcon } from "@heroicons/react/16/solid"
+import { open as openDialog } from "@tauri-apps/plugin-dialog"
 import {
     useDispatch,
     useSelector
@@ -11,10 +13,24 @@ import {
     selectAudioTracks,
 } from "@shared/redux/audioTrackSlice"
 import {
+    createAudioLaneItem,
+    planTimelineLaneInsert,
+} from "@shared/editor/timelineLaneInsert"
+import { importProjectMedia } from "@shared/editor/projectMedia"
+import { addAsset } from "@shared/redux/assetSlice"
+import { upsertMedia } from "@shared/redux/sceneSlice"
+import { isTauri } from "@shared/tauriBridge"
+import {
     selectIsMaskingModeEnabled,
     selectPxPerMs,
+    selectSelectedIds,
+    setSelectedIds,
+    setSelectedRow,
 } from "@shared/redux/timelineSlice"
-import { selectDuration } from "@shared/redux/editorSlice"
+import {
+    selectDuration,
+    selectIsPlaying,
+} from "@shared/redux/editorSlice"
 import AudioClip from "./AudioClip"
 import Row from "./Row"
 
@@ -26,8 +42,18 @@ export default function AudioTracks() {
     const allClips = useSelector(selectAllAudioClips)
     const isMinimized = useSelector(selectIsMaskingModeEnabled)
     const duration = useSelector(selectDuration)
+    const isPlaying = useSelector(selectIsPlaying)
     const pxPerMs = useSelector(selectPxPerMs)
+    const selectedIds = useSelector(selectSelectedIds)
     const [dragOverTrack, setDragOverTrack] = useState(null)
+    const latestInsertState = useRef(null)
+
+    latestInsertState.current = {
+        allClips,
+        duration,
+        isPlaying,
+        tracks,
+    }
 
     const clipsByTrack = useMemo(() => {
         const map = {}
@@ -37,6 +63,12 @@ export default function AudioTracks() {
         })
         return map
     }, [tracks, allClips])
+    const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+    const activeTrackIds = useMemo(() => new Set(
+        allClips
+            .filter(clip => selectedIdSet.has(clip.id))
+            .map(clip => clip.trackIndex)
+    ), [allClips, selectedIdSet])
 
     // Highlight track when pointer drag is active and hovering over it
     useEffect(() => subscribe(() => {
@@ -46,7 +78,94 @@ export default function AudioTracks() {
         else setDragOverTrack(null)
     }), [])
 
+    const insertAudioAsset = useCallback((trackId, time, asset) => {
+        const latest = latestInsertState.current
+        const track = latest.tracks.find(item => item.id === trackId)
+        const plan = planTimelineLaneInsert({
+            requestedStart: time,
+            requestedDuration: asset.duration || 5000,
+            projectDuration: latest.duration,
+            track,
+            items: latest.allClips.filter(clip => clip.trackIndex === trackId),
+            isPlaying: latest.isPlaying,
+        })
+        if (!plan.ok) return false
+
+        const clip = createAudioLaneItem({
+            id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            trackId,
+            start: plan.start,
+            end: plan.end,
+            asset,
+        })
+        if (!clip) return false
+        dispatch(addAudioClip(clip))
+        dispatch(setSelectedIds([clip.id]))
+        dispatch(setSelectedRow(AUDIO_TRACKS))
+        return true
+    }, [dispatch])
+
     const importAudioToTrack = useCallback((trackId, time) => {
+        const latest = latestInsertState.current
+        const track = latest.tracks.find(item => item.id === trackId)
+        const canInsert = planTimelineLaneInsert({
+            requestedStart: time,
+            requestedDuration: 1,
+            projectDuration: latest.duration,
+            track,
+            items: latest.allClips.filter(clip => clip.trackIndex === trackId),
+            isPlaying: latest.isPlaying,
+        })
+        if (!canInsert.ok) return
+
+        const insertProbedAsset = (asset, onResolved = null) => {
+            const audio = new Audio(asset.src)
+            let settled = false
+            const insert = candidateDuration => {
+                if (settled) return
+                settled = true
+                const duration = Number.isFinite(candidateDuration)
+                    && candidateDuration > 0
+                    ? candidateDuration
+                    : 5000
+                const resolvedAsset = { ...asset, duration }
+                onResolved?.(resolvedAsset)
+                insertAudioAsset(trackId, time, resolvedAsset)
+            }
+            audio.addEventListener("loadedmetadata", () => {
+                insert(Math.round(audio.duration * 1000))
+            }, { once: true })
+            audio.addEventListener("error", () => insert(5000), { once: true })
+        }
+
+        if (isTauri) {
+            void openDialog({
+                directory: false,
+                multiple: false,
+                filters: [{
+                    name: "Audio files",
+                    extensions: ["mp3", "wav", "m4a", "aac", "ogg", "flac", "opus", "webm"],
+                }],
+            }).then(async sourcePath => {
+                if (!sourcePath || Array.isArray(sourcePath)) return
+                const { metadata, asset } = await importProjectMedia(sourcePath)
+                insertProbedAsset(asset, resolvedAsset => {
+                    const durableMetadata = {
+                        ...metadata,
+                        duration: resolvedAsset.duration,
+                    }
+                    dispatch(upsertMedia(durableMetadata))
+                    dispatch(addAsset({
+                        ...resolvedAsset,
+                        duration: resolvedAsset.duration,
+                    }))
+                })
+            }).catch(error => {
+                console.error("[timeline-audio] Could not import audio", error)
+            })
+            return
+        }
+
         const input = document.createElement("input")
         input.type = "file"
         input.accept = "audio/*"
@@ -55,35 +174,18 @@ export default function AudioTracks() {
             if (!file) return
             const reader = new FileReader()
             reader.onload = () => {
-                const audio = new Audio(reader.result)
-                audio.addEventListener("loadedmetadata", () => {
-                    const clipDuration = Math.round(audio.duration * 1000)
-                    dispatch(addAudioClip({
-                        id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                        start: Math.max(0, time),
-                        end: Math.min(time + clipDuration, duration),
-                        trackIndex: trackId,
-                        name: file.name,
-                        volume: 1,
-                        src: reader.result
-                    }))
-                }, { once: true })
-                audio.addEventListener("error", () => {
-                    dispatch(addAudioClip({
-                        id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                        start: Math.max(0, time),
-                        end: Math.min(time + 5000, duration),
-                        trackIndex: trackId,
-                        name: file.name,
-                        volume: 1,
-                        src: reader.result
-                    }))
-                }, { once: true })
+                insertProbedAsset({
+                    id: `session-audio-${Date.now()}`,
+                    name: file.name,
+                    type: "audio",
+                    src: reader.result,
+                    mimeType: file.type || null,
+                })
             }
             reader.readAsDataURL(file)
         }
         input.click()
-    }, [dispatch, duration])
+    }, [dispatch, insertAudioAsset])
 
     // Listen for custom pointer-based drop events
     useEffect(() => {
@@ -92,24 +194,16 @@ export default function AudioTracks() {
             if (!data || !target) return
             if (target.zone !== "audio-track") return
             if (data.type !== "audio" && data.category !== "audio") return
+            if (!target.rect || !Number.isFinite(clientX)) return
 
             const trackId = target.trackId
             const offsetX = clientX - target.rect.left
             const time = pxToMs(offsetX, pxPerMs)
-            const clipDuration = data.duration || 4000
-            dispatch(addAudioClip({
-                id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                start: Math.max(0, time),
-                end: Math.min(time + clipDuration, duration),
-                trackIndex: trackId,
-                name: data.name || "Audio",
-                volume: 1,
-                src: data.src || null
-            }))
+            insertAudioAsset(trackId, time, data)
         }
         window.addEventListener("flowtake-drop", handleDrop)
         return () => window.removeEventListener("flowtake-drop", handleDrop)
-    }, [dispatch, duration, pxPerMs])
+    }, [insertAudioAsset, pxPerMs])
 
     if (tracks.length === 0) return null
 
@@ -117,7 +211,7 @@ export default function AudioTracks() {
         <div key={`audio-track-${track.id}`}
             data-drop-zone="audio-track"
             data-drop-track-id={track.id}
-            className={`relative transition-colors ${dragOverTrack === track.id ? "bg-secondary/10 ring-1 ring-secondary/30 ring-inset rounded" : ""}`}
+            className={`relative shrink-0 rounded-sm transition-colors ${activeTrackIds.has(track.id) ? "bg-secondary/8" : ""} ${dragOverTrack === track.id ? "bg-secondary/10 ring-1 ring-secondary/30 ring-inset" : ""}`}
         >
             <Row
                 name={AUDIO_TRACKS}
@@ -126,16 +220,19 @@ export default function AudioTracks() {
                 action={AudioClip}
                 onDoubleClick={time => importAudioToTrack(track.id, time)}
                 isMinimized={isMinimized}
+                isActive={activeTrackIds.has(track.id)}
             />
             {(clipsByTrack[track.id] || []).length === 0 && !isMinimized && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <button
                         type="button"
                         onClick={() => importAudioToTrack(track.id, 0)}
-                        className="pointer-events-auto text-xs opacity-60 hover:opacity-100 border border-dashed border-base-content/25 hover:border-secondary hover:bg-secondary/10 rounded-md px-3 py-1 transition-all flex items-center gap-1.5"
+                        disabled={track.locked || isPlaying}
+                        className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-dashed border-base-content/20 px-2.5 py-1 text-[10px] text-base-content/45 transition-all hover:border-secondary/60 hover:bg-secondary/10 hover:text-base-content disabled:opacity-30"
+                        aria-label={`Add audio to ${track.name}`}
                     >
-                        <span className="text-base leading-none">+</span>
-                        Click to add audio
+                        <PlusIcon className="size-3" />
+                        Add audio
                     </button>
                 </div>
             )}

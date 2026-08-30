@@ -24,7 +24,8 @@ import { setIsNewClipMenuOpen } from "@shared/redux/contextMenuSlice"
 import {
     selectAreHotkeysEnabled,
     selectDuration,
-    selectIsPlaying
+    selectIsPlaying,
+    selectSourceDuration
 } from "@shared/redux/editorSlice"
 import { setVideoDetails } from "@shared/redux/projectSlice"
 import {
@@ -47,6 +48,7 @@ export default function Clips() {
     const areHotkeysEnabled = useSelector(selectAreHotkeysEnabled)
     const isPlaying = useSelector(selectIsPlaying)
     const duration = useSelector(selectDuration)
+    const sourceDuration = useSelector(selectSourceDuration)
     const isMinimized = useSelector(selectIsMaskingModeEnabled)
     const playbackRate = useSelector(selectPlaybackRate)
     const layout = useSelector(selectLayout)
@@ -64,9 +66,14 @@ export default function Clips() {
         [selectedRow, areHotkeysEnabled, isPlaying, isMinimized])
 
     useEffect(() => {
-        if (totalClips > 0 && duration)
-            dispatch(setVideoDetails({ duration, start: clips[0].start, end: clips.at(-1).end }))
-    }, [clips, dispatch, totalClips, duration])
+        if (totalClips > 0 && sourceDuration && duration) {
+            dispatch(setVideoDetails({
+                duration: sourceDuration,
+                start: 0,
+                end: duration,
+            }))
+        }
+    }, [clips, dispatch, totalClips, duration, sourceDuration])
 
     const onDoubleClick = useCallback(
         time => dispatch(createClip(time, clips, playbackRate, layout, microphoneAudioVolume, systemAudioVolume,

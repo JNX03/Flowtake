@@ -5,10 +5,12 @@
 extern crate objc;
 
 mod commands;
-mod state;
 mod error;
 mod keyboard_tracker;
+mod macos_capture;
 mod mouse_tracker;
+mod process_containment;
+mod state;
 
 use state::AppState;
 use std::sync::Mutex;
@@ -69,6 +71,78 @@ fn cleanup_stale_recording_temp_dirs(temp_dir: &std::path::Path) {
     }
 }
 
+fn terminate_owned_recording_children_on_exit(app: &tauri::AppHandle) {
+    use std::io::Write;
+    use std::sync::atomic::Ordering;
+
+    let (main_capture, app_layers, live_stream, window_thread, camera_file) = {
+        let state = app.state::<Mutex<AppState>>();
+        let mut state = state.lock().unwrap();
+        state.window_capture_stop.store(true, Ordering::Relaxed);
+        state.live_stop_flag.store(true, Ordering::Relaxed);
+        state.live_stdin_tx = None;
+        state.is_recording = false;
+        state.recording_capture_claimed = false;
+        state.recording_stop_in_progress = false;
+        state.multi_app_init_in_progress = false;
+        state.multi_app_stop_requested = true;
+        state.ffmpeg_child_id = None;
+        (
+            state.ffmpeg_process.take(),
+            std::mem::take(&mut state.multi_app_children),
+            state.live_ffmpeg_process.take(),
+            state.window_capture_thread.take(),
+            state.camera_file_handle.take(),
+        )
+    };
+
+    if let Some(mut camera_file) = camera_file {
+        camera_file.flush().ok();
+    }
+    if let Some(mut child) = main_capture {
+        if let Some(stdin) = child.stdin.as_mut() {
+            stdin.write_all(b"q\n").ok();
+            stdin.flush().ok();
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut exited = false;
+        while std::time::Instant::now() < deadline {
+            match child.try_wait() {
+                Ok(Some(_)) => {
+                    exited = true;
+                    break;
+                }
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
+                Err(_) => break,
+            }
+        }
+        if !exited {
+            process_containment::terminate_owned_child(child, "screen capture").ok();
+        }
+    }
+    process_containment::terminate_owned_children(app_layers, "App-layer FFmpeg");
+    if let Some(child) = live_stream {
+        process_containment::terminate_owned_child(child, "live-stream FFmpeg").ok();
+    }
+
+    if let Some(thread) = window_thread {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+        while !thread.is_finished() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        if thread.is_finished() {
+            thread.join().ok();
+        } else {
+            log::warn!("[shutdown] Window capture thread did not exit before app shutdown");
+        }
+    }
+
+    // Recording can temporarily mute selected application sessions. Restore
+    // them on every normal desktop exit, including macOS/Linux where the
+    // Windows Job Object crash guarantee is unavailable.
+    commands::audio::unmute_all_sessions(app);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -76,17 +150,28 @@ pub fn run() {
 
     let app_state = AppState::new();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_window_state::Builder::default()
-            .with_denylist(&["recorder", "drawingOverlay", "areaPicker", "windowPicker", "liveComposer"])
-            .build())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&[
+                    "recorder",
+                    "drawingOverlay",
+                    "areaPicker",
+                    "windowPicker",
+                    "liveComposer",
+                ])
+                .build(),
+        )
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Mutex::new(app_state))
         // Register video:// protocol for streaming video files to the editor
@@ -120,16 +205,14 @@ pub fn run() {
             let video_type = video_type.trim_start_matches('/');
 
             // Get projectId from query string
-            let project_id = query
-                .split('&')
-                .find_map(|p| {
-                    let mut parts = p.splitn(2, '=');
-                    if parts.next() == Some("projectId") {
-                        parts.next().map(|s| s.to_string())
-                    } else {
-                        None
-                    }
-                });
+            let project_id = query.split('&').find_map(|p| {
+                let mut parts = p.splitn(2, '=');
+                if parts.next() == Some("projectId") {
+                    parts.next().map(|s| s.to_string())
+                } else {
+                    None
+                }
+            });
 
             // Determine file path
             let file_path = {
@@ -151,7 +234,9 @@ pub fn run() {
                     "camera" | "microphone" => state.camera_video_file(pid),
                     v if v.starts_with("extra-") => {
                         let idx: usize = v.trim_start_matches("extra-").parse().unwrap_or(0);
-                        state.project_temp_dir(pid).join(format!("extra-{}.mp4", idx))
+                        state
+                            .project_temp_dir(pid)
+                            .join(format!("extra-{}.mp4", idx))
                     }
                     _ => state.screen_video_file(pid),
                 }
@@ -170,12 +255,13 @@ pub fn run() {
                 file_path,
                 file_path.metadata().map(|m| m.len()).unwrap_or(0)
             );
-            debug_log(&format!("[video://] Serving file: {:?} (size={})", file_path, file_path.metadata().map(|m| m.len()).unwrap_or(0)));
+            debug_log(&format!(
+                "[video://] Serving file: {:?} (size={})",
+                file_path,
+                file_path.metadata().map(|m| m.len()).unwrap_or(0)
+            ));
 
-            let file_size = file_path
-                .metadata()
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let file_size = file_path.metadata().map(|m| m.len()).unwrap_or(0);
 
             // Determine MIME type
             let mime_type = if video_type == "microphone" {
@@ -198,13 +284,7 @@ pub fn run() {
                 let start: u64 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
                 let end: u64 = parts
                     .get(1)
-                    .and_then(|s| {
-                        if s.is_empty() {
-                            None
-                        } else {
-                            s.parse().ok()
-                        }
-                    })
+                    .and_then(|s| if s.is_empty() { None } else { s.parse().ok() })
                     .unwrap_or(file_size.saturating_sub(1));
                 (start, end.min(file_size.saturating_sub(1)))
             } else {
@@ -348,7 +428,10 @@ pub fn run() {
                         };
 
                         // Prevent path traversal
-                        if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+                        if filename.contains("..")
+                            || filename.contains('/')
+                            || filename.contains('\\')
+                        {
                             return tauri::http::Response::builder()
                                 .status(400)
                                 .body(Vec::<u8>::new())
@@ -357,7 +440,9 @@ pub fn run() {
 
                         let wallpapers_dir = state.app_data_dir.join("wallpapers");
                         let candidate = wallpapers_dir.join(&filename);
-                        if let (Ok(canonical), Ok(base)) = (candidate.canonicalize(), wallpapers_dir.canonicalize()) {
+                        if let (Ok(canonical), Ok(base)) =
+                            (candidate.canonicalize(), wallpapers_dir.canonicalize())
+                        {
                             if !canonical.starts_with(&base) {
                                 return tauri::http::Response::builder()
                                     .status(400)
@@ -430,6 +515,8 @@ pub fn run() {
             commands::projects::close_project,
             commands::projects::delete_project,
             commands::projects::save_json,
+            commands::projects::import_project_media,
+            commands::projects::resolve_project_media,
             commands::projects::find_project,
             commands::projects::open_project_dir,
             commands::projects::open_logs_dir,
@@ -497,6 +584,7 @@ pub fn run() {
             // App
             commands::app::get_version,
             commands::app::get_system_info,
+            macos_capture::get_macos_capture_status,
             commands::app::get_machine_id,
             commands::app::get_is_sentry_enabled,
             commands::app::check_permissions,
@@ -615,6 +703,12 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        if matches!(event, tauri::RunEvent::Exit) {
+            terminate_owned_recording_children_on_exit(app_handle);
+        }
+    });
 }

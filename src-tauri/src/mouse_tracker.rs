@@ -97,16 +97,14 @@ impl MouseTracker {
         {
             // Post a quit message to the hook thread's message loop
             unsafe {
-                use windows::Win32::Foundation::{WPARAM, LPARAM};
+                use windows::Win32::Foundation::{LPARAM, WPARAM};
                 use windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW;
                 use windows::Win32::UI::WindowsAndMessaging::WM_QUIT;
 
                 if self.hook_thread.is_some() {
                     let tid = HOOK_THREAD_ID.load(std::sync::atomic::Ordering::Relaxed);
                     if tid != 0 {
-                        if let Err(e) =
-                            PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0))
-                        {
+                        if let Err(e) = PostThreadMessageW(tid, WM_QUIT, WPARAM(0), LPARAM(0)) {
                             log::warn!(
                                 "[MouseTracker] PostThreadMessageW failed: {} (tid={})",
                                 e,
@@ -196,20 +194,16 @@ static HOOK_RUNNING: std::sync::LazyLock<Mutex<Option<Arc<Mutex<bool>>>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
 #[cfg(target_os = "windows")]
-static HOOK_THREAD_ID: std::sync::atomic::AtomicU32 =
-    std::sync::atomic::AtomicU32::new(0);
+static HOOK_THREAD_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 #[cfg(target_os = "windows")]
-static LAST_MOUSEMOVE_TIME: std::sync::atomic::AtomicI64 =
-    std::sync::atomic::AtomicI64::new(0);
+static LAST_MOUSEMOVE_TIME: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
 
 #[cfg(target_os = "windows")]
-static HOOK_OFFSET_X: std::sync::atomic::AtomicI32 =
-    std::sync::atomic::AtomicI32::new(0);
+static HOOK_OFFSET_X: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
 #[cfg(target_os = "windows")]
-static HOOK_OFFSET_Y: std::sync::atomic::AtomicI32 =
-    std::sync::atomic::AtomicI32::new(0);
+static HOOK_OFFSET_Y: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
 /// Cached cursor handles for type detection
 #[cfg(target_os = "windows")]
@@ -315,7 +309,9 @@ impl MouseTracker {
                 log::info!("[MouseTracker] Cursor handles initialized");
             }
             None => {
-                log::warn!("[MouseTracker] Failed to initialize cursor handles, falling back to 'default'");
+                log::warn!(
+                    "[MouseTracker] Failed to initialize cursor handles, falling back to 'default'"
+                );
             }
         }
 
@@ -328,9 +324,7 @@ impl MouseTracker {
         }
 
         // Install low-level mouse hook
-        let hook = unsafe {
-            SetWindowsHookExW(WH_MOUSE_LL, Some(Self::mouse_hook_proc), None, 0)
-        };
+        let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(Self::mouse_hook_proc), None, 0) };
 
         let hook = match hook {
             Ok(h) => h,
@@ -478,25 +472,40 @@ fn detect_macos_cursor_type() -> &'static str {
         }
 
         let ibeam: *const objc::runtime::Object = objc::msg_send![cls, IBeamCursor];
-        if current == ibeam { return "text"; }
+        if current == ibeam {
+            return "text";
+        }
 
         let pointing: *const objc::runtime::Object = objc::msg_send![cls, pointingHandCursor];
-        if current == pointing { return "pointer"; }
+        if current == pointing {
+            return "pointer";
+        }
 
         let crosshair: *const objc::runtime::Object = objc::msg_send![cls, crosshairCursor];
-        if current == crosshair { return "crosshair"; }
+        if current == crosshair {
+            return "crosshair";
+        }
 
         let resize_lr: *const objc::runtime::Object = objc::msg_send![cls, resizeLeftRightCursor];
-        if current == resize_lr { return "ew-resize"; }
+        if current == resize_lr {
+            return "ew-resize";
+        }
 
         let resize_ud: *const objc::runtime::Object = objc::msg_send![cls, resizeUpDownCursor];
-        if current == resize_ud { return "ns-resize"; }
+        if current == resize_ud {
+            return "ns-resize";
+        }
 
         let open_hand: *const objc::runtime::Object = objc::msg_send![cls, openHandCursor];
-        if current == open_hand { return "move"; }
+        if current == open_hand {
+            return "move";
+        }
 
-        let not_allowed: *const objc::runtime::Object = objc::msg_send![cls, operationNotAllowedCursor];
-        if current == not_allowed { return "not-allowed"; }
+        let not_allowed: *const objc::runtime::Object =
+            objc::msg_send![cls, operationNotAllowedCursor];
+        if current == not_allowed {
+            return "not-allowed";
+        }
 
         "default"
     }
@@ -517,7 +526,9 @@ impl MouseTracker {
 
         log::info!(
             "[MouseTracker] macOS mouse tracking started (offset: {}, {}, scale: {})",
-            offset_x, offset_y, scale_factor
+            offset_x,
+            offset_y,
+            scale_factor
         );
 
         let poll_interval = std::time::Duration::from_millis(16); // ~60Hz polling
@@ -562,14 +573,18 @@ impl MouseTracker {
 
                     if left_now && !left_was {
                         events.lock().unwrap().push(MouseEvent {
-                            x, y, timestamp: now,
+                            x,
+                            y,
+                            timestamp: now,
                             event_type: "mousedown",
                             button: "left",
                             cursor,
                         });
                     } else if !left_now && left_was {
                         events.lock().unwrap().push(MouseEvent {
-                            x, y, timestamp: now,
+                            x,
+                            y,
+                            timestamp: now,
                             event_type: "mouseup",
                             button: "left",
                             cursor,
@@ -577,14 +592,18 @@ impl MouseTracker {
                     }
                     if right_now && !right_was {
                         events.lock().unwrap().push(MouseEvent {
-                            x, y, timestamp: now,
+                            x,
+                            y,
+                            timestamp: now,
                             event_type: "mousedown",
                             button: "right",
                             cursor,
                         });
                     } else if !right_now && right_was {
                         events.lock().unwrap().push(MouseEvent {
-                            x, y, timestamp: now,
+                            x,
+                            y,
+                            timestamp: now,
                             event_type: "mouseup",
                             button: "right",
                             cursor,
@@ -594,7 +613,9 @@ impl MouseTracker {
                     // Track movement
                     if x != last_x || y != last_y {
                         events.lock().unwrap().push(MouseEvent {
-                            x, y, timestamp: now,
+                            x,
+                            y,
+                            timestamp: now,
                             event_type: "mousemove",
                             button: "",
                             cursor,
@@ -628,7 +649,8 @@ impl MouseTracker {
     ) {
         log::info!(
             "[MouseTracker] Linux mouse tracking started (offset: {}, {})",
-            offset_x, offset_y
+            offset_x,
+            offset_y
         );
 
         let poll_interval = std::time::Duration::from_millis(16); // ~60Hz polling

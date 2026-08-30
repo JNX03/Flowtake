@@ -7,14 +7,25 @@ import {
 } from "react"
 import {
     useDispatch,
-    useSelector
+    useSelector,
+    useStore
 } from "react-redux"
 import throttle from "throttleit"
-import { useThrottledCallback } from "use-debounce"
 import Media from "../../../components/Media"
 import useVideoSrc from "@shared/hooks/useVideoSrc"
 import { toS } from "@shared/helpers"
+import {
+    findActivePlaybackClip,
+    findNextPlaybackClip,
+    getClipSourceRange,
+    isFreezePlaybackRate,
+    mediaTimeToClipTimelineMs,
+    normalizePlaybackRate,
+    shouldPublishPlaybackTime,
+    timelineTimeToMediaMs
+} from "@shared/editor/playbackClock"
 import { addErrorToast } from "@shared/errorToastHelper"
+import { selectAllClips } from "@shared/redux/clipSlice"
 import {
     selectAreVideosReady,
     selectIsCleaningUpVideos,
@@ -25,15 +36,21 @@ import {
     selectSystemAudioVolume,
     setAreVideosReady,
     setIsCleaningUpScene,
-    setIsCleaningUpVideosDone
+    setIsCleaningUpVideosDone,
+    setIsPlaying
 } from "@shared/redux/editorSlice"
 import {
     selectExtraTracks,
     selectId,
     selectHasCameraVideo,
-    selectHasMicrophoneAudio
+    selectHasMicrophoneAudio,
+    selectVideoDetails
 } from "@shared/redux/projectSlice"
-import { selectTime } from "@shared/redux/timelineSlice"
+import {
+    selectTime,
+    setTime
+} from "@shared/redux/timelineSlice"
+import TimelineAudioPlayback from "./TimelineAudioPlayback"
 
 // TODO: Might be nice to replace video elements with mediafox maybe
 // https://mediafox.pages.dev/?t=0JMb25X2iFm5BbeTa4ZGNA&s=09
@@ -41,11 +58,14 @@ import { selectTime } from "@shared/redux/timelineSlice"
 export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVideoRefs }) {
 
     const dispatch = useDispatch()
+    const store = useStore()
 
     const projectId = useSelector(selectId)
     const hasCameraVideo = useSelector(selectHasCameraVideo)
     const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
     const extraTracks = useSelector(selectExtraTracks)
+    const videoDetails = useSelector(selectVideoDetails)
+    const clips = useSelector(selectAllClips)
 
     const screenVideo = useVideoSrc("screen", projectId)
     const cameraVideo = useVideoSrc("camera", projectId)
@@ -55,19 +75,23 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
     const playbackRate = useSelector(selectPlaybackRate)
     const microphoneAudioVolume = useSelector(selectMicrophoneAudioVolume)
     const systemAudioVolume = useSelector(selectSystemAudioVolume)
-    const time = useSelector(selectTime)
     const isMuted = useSelector(selectIsMuted)
     const isCleaningUpVideos = useSelector(selectIsCleaningUpVideos)
     const areVideosReady = useSelector(selectAreVideosReady)
 
     const [isScreenVideoReady, setIsScreenVideoReady] = useState(false)
     const [isCameraVideoReady, setIsCameraVideoReady] = useState(false)
+    const timelineTimeRef = useRef(selectTime(store.getState()))
+    const publishedTimeRef = useRef(timelineTimeRef.current)
 
     const play = async video => {
+        if (!video) return false
         try {
             await video.play()
+            return true
         } catch (e) {
             console.log(e)
+            return false
         }
     }
 
@@ -121,10 +145,258 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
     }, [hasCameraVideo, hasMicrophoneAudio, screenVideoRef, cameraVideoRef])
 
     useEffect(() => {
-        if (!screenVideoRef.current) return
-        if (isPlaying) play(screenVideoRef.current)
-        else screenVideoRef.current.pause()
-    }, [isPlaying, screenVideoRef])
+        const video = screenVideoRef.current
+        if (!video) return
+
+        if (isPlaying) {
+            const currentTime = selectTime(store.getState())
+            const activeClip = findActivePlaybackClip(
+                clips,
+                currentTime,
+                videoDetails.end
+            )
+            if (!activeClip) {
+                video.pause()
+            } else if (isFreezePlaybackRate(activeClip.playbackRate)) {
+                video.pause()
+                const mediaTime = toS(timelineTimeToMediaMs(
+                    clips,
+                    currentTime,
+                    videoDetails.end
+                ))
+                if (Math.abs(video.currentTime - mediaTime) > 0.004)
+                    video.currentTime = mediaTime
+            } else {
+                void play(video).then(didPlay => {
+                    if (!didPlay) dispatch(setIsPlaying(false))
+                })
+            }
+        } else {
+            video.pause()
+        }
+    }, [
+        clips,
+        dispatch,
+        isPlaying,
+        screenVideoRef,
+        store,
+        videoDetails.end
+    ])
+
+    // Redux owns explicit seeks while paused. During playback the media element
+    // becomes the source of truth, so a stalled decoder cannot leave the
+    // playhead running ahead of the visible frame.
+    useEffect(() => {
+        const syncPausedTimelineTime = () => {
+            const state = store.getState()
+            const nextTime = selectTime(state)
+            timelineTimeRef.current = nextTime
+
+            if (selectIsPlaying(state)) return
+            const video = screenVideoRef.current
+            if (!video || !Number.isFinite(nextTime)) return
+
+            const activeClip = findActivePlaybackClip(clips, nextTime, videoDetails.end)
+            if (!activeClip) return
+            const nextTimeSeconds = toS(timelineTimeToMediaMs(clips, nextTime, videoDetails.end))
+            if (Math.abs(video.currentTime - nextTimeSeconds) > 0.004)
+                video.currentTime = nextTimeSeconds
+        }
+
+        syncPausedTimelineTime()
+        return store.subscribe(syncPausedTimelineTime)
+    }, [clips, screenVideoRef, store, videoDetails.end])
+
+    useEffect(() => {
+        const video = screenVideoRef.current
+        if (!video || !isPlaying || !areVideosReady) return
+
+        let isDisposed = false
+        let animationFrameId = null
+        let timelineClock = null
+        let playingClipId = null
+
+        const publishTimelineTime = nextTime => {
+            timelineTimeRef.current = nextTime
+
+            if (shouldPublishPlaybackTime(nextTime, publishedTimeRef.current)) {
+                publishedTimeRef.current = nextTime
+                dispatch(setTime(nextTime))
+            }
+        }
+
+        const stopPlayback = finalTime => {
+            const clampedTime = Math.min(finalTime, videoDetails.end)
+            timelineTimeRef.current = clampedTime
+            publishedTimeRef.current = clampedTime
+            dispatch(setTime(clampedTime))
+            dispatch(setIsPlaying(false))
+        }
+
+        const seekVideo = nextTime => {
+            const nextSeconds = toS(nextTime)
+            if (Math.abs(video.currentTime - nextSeconds) > 0.004)
+                video.currentTime = nextSeconds
+        }
+
+        const ensureVideoPlaying = () => {
+            if (!video.paused || video.ended) return
+            void play(video).then(didPlay => {
+                if (!didPlay && !isDisposed) dispatch(setIsPlaying(false))
+            })
+        }
+
+        const startTimelineClock = ({
+            kind,
+            clip = null,
+            now,
+            timelineStart,
+            timelineEnd,
+        }) => {
+            video.pause()
+            if (clip) {
+                seekVideo(timelineTimeToMediaMs(
+                    [clip],
+                    timelineStart,
+                    clip.end
+                ))
+            }
+            playingClipId = null
+            timelineClock = {
+                kind,
+                clipId: clip?.id ?? null,
+                startedAt: now,
+                timelineStart,
+                timelineEnd,
+            }
+        }
+
+        const onAnimationFrame = now => {
+            if (isDisposed) return
+
+            let nextTime = timelineTimeRef.current
+            let activeClip = findActivePlaybackClip(
+                clips,
+                nextTime,
+                videoDetails.end
+            )
+
+            if (!activeClip) {
+                const nextClip = findNextPlaybackClip(clips, nextTime)
+                const gapEnd = Math.min(nextClip?.start ?? videoDetails.end, videoDetails.end)
+                const needsGapClock = !timelineClock
+                    || timelineClock.kind !== "gap"
+                    || timelineClock.timelineEnd !== gapEnd
+                    || nextTime < timelineClock.timelineStart
+                if (needsGapClock) {
+                    startTimelineClock({
+                        kind: "gap",
+                        now,
+                        timelineStart: nextTime,
+                        timelineEnd: gapEnd,
+                    })
+                }
+
+                nextTime = Math.min(
+                    timelineClock.timelineEnd,
+                    timelineClock.timelineStart + (now - timelineClock.startedAt)
+                )
+                publishTimelineTime(nextTime)
+
+                if (nextTime >= timelineClock.timelineEnd) {
+                    timelineClock = null
+                    if (nextTime >= videoDetails.end) {
+                        stopPlayback(videoDetails.end)
+                        return
+                    }
+                }
+            } else if (isFreezePlaybackRate(activeClip.playbackRate)) {
+                const needsFreezeClock = !timelineClock
+                    || timelineClock.kind !== "freeze"
+                    || timelineClock.clipId !== activeClip.id
+                    || nextTime < timelineClock.timelineStart
+                if (needsFreezeClock) {
+                    startTimelineClock({
+                        kind: "freeze",
+                        clip: activeClip,
+                        now,
+                        timelineStart: Math.min(
+                            activeClip.end,
+                            Math.max(activeClip.start, nextTime)
+                        ),
+                        timelineEnd: activeClip.end,
+                    })
+                }
+
+                nextTime = Math.min(
+                    timelineClock.timelineEnd,
+                    timelineClock.timelineStart + (now - timelineClock.startedAt)
+                )
+                publishTimelineTime(nextTime)
+
+                if (nextTime >= activeClip.end) {
+                    timelineClock = null
+                    if (nextTime >= videoDetails.end) {
+                        stopPlayback(videoDetails.end)
+                        return
+                    }
+                }
+            } else {
+                timelineClock = null
+
+                if (playingClipId !== activeClip.id) {
+                    playingClipId = activeClip.id
+                    seekVideo(timelineTimeToMediaMs(
+                        [activeClip],
+                        nextTime,
+                        activeClip.end
+                    ))
+                    ensureVideoPlaying()
+                    publishTimelineTime(nextTime)
+                    animationFrameId = requestAnimationFrame(onAnimationFrame)
+                    return
+                }
+
+                ensureVideoPlaying()
+                nextTime = mediaTimeToClipTimelineMs(activeClip, video.currentTime)
+
+                publishTimelineTime(nextTime)
+
+                const { sourceEnd } = getClipSourceRange(activeClip)
+                const reachedClipEnd = nextTime >= activeClip.end
+                    || video.currentTime * 1000 >= sourceEnd - 1
+                if (reachedClipEnd || video.ended) {
+                    nextTime = activeClip.end
+                    publishTimelineTime(nextTime)
+                    playingClipId = null
+                    if (nextTime >= videoDetails.end) {
+                        stopPlayback(videoDetails.end)
+                        return
+                    }
+                }
+            }
+
+            animationFrameId = requestAnimationFrame(onAnimationFrame)
+        }
+
+        publishedTimeRef.current = selectTime(store.getState())
+        timelineTimeRef.current = publishedTimeRef.current
+        animationFrameId = requestAnimationFrame(onAnimationFrame)
+
+        return () => {
+            isDisposed = true
+            if (animationFrameId !== null) cancelAnimationFrame(animationFrameId)
+        }
+    }, [
+        areVideosReady,
+        dispatch,
+        isPlaying,
+        clips,
+        screenVideoRef,
+        store,
+        videoDetails.end,
+        videoDetails.start
+    ])
 
     // Mirror screen play/pause + seek onto every extra-app video so PiPs stay in sync.
     // Each extra carries an optional startOffsetMs that compensates for the gap
@@ -169,41 +441,39 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
         }
     }, [screenVideoRef, extraVideoRefs, extraTracks])
 
-    // TODO: screen video has variable frame rate. synching really only matters when new frames are available.
-    // instead of looking at currenttime, only sync when new frames are available with requestVideoFrameCallback
-    const syncToTimeline = useThrottledCallback(() => {
-        if (screenVideoRef.current && Math.abs(screenVideoRef.current.currentTime - toS(time)) > 0.05)
-            screenVideoRef.current.currentTime = toS(time)
-    }, 150)
-
     useEffect(() => {
-        if (!screenVideoRef.current) return
-        if (!isPlaying) screenVideoRef.current.currentTime = toS(time)
-        else syncToTimeline()
-    }, [isPlaying, syncToTimeline, time, screenVideoRef])
-
-    useEffect(() => {
-        console.log("[VideoWrapper] ready-check", {
-            areVideosReady,
-            isScreenVideoReady,
-            isCameraVideoReady,
-            hasCameraVideo,
-            hasMicrophoneAudio,
-            screenSrc: screenVideo.src,
-            projectId,
-        })
         if (!areVideosReady && isScreenVideoReady &&
             ((hasCameraVideo && isCameraVideoReady)
                 || (!hasCameraVideo && hasMicrophoneAudio && isCameraVideoReady)
                 || (!hasCameraVideo && !hasMicrophoneAudio))) {
-            if (screenVideoRef.current) screenVideoRef.current.currentTime = toS(time)
-            console.log("[VideoWrapper] videos ready -> dispatching setAreVideosReady(true)")
+            const activeClip = findActivePlaybackClip(
+                clips,
+                timelineTimeRef.current,
+                videoDetails.end
+            )
+            if (screenVideoRef.current && activeClip)
+                screenVideoRef.current.currentTime = toS(timelineTimeToMediaMs(
+                    clips,
+                    timelineTimeRef.current,
+                    videoDetails.end
+                ))
             dispatch(setAreVideosReady(true))
         }
-    }, [areVideosReady, dispatch, hasCameraVideo, hasMicrophoneAudio, isCameraVideoReady, isScreenVideoReady, screenVideoRef, time, screenVideo.src, projectId])
+    }, [
+        areVideosReady,
+        clips,
+        dispatch,
+        hasCameraVideo,
+        hasMicrophoneAudio,
+        isCameraVideoReady,
+        isScreenVideoReady,
+        screenVideoRef,
+        videoDetails.end
+    ])
 
     useEffect(() => {
-        if (screenVideoRef.current) screenVideoRef.current.playbackRate = playbackRate
+        if (screenVideoRef.current)
+            screenVideoRef.current.playbackRate = normalizePlaybackRate(playbackRate)
     }, [playbackRate, screenVideoRef])
 
     useEffect(() => {
@@ -224,8 +494,19 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
     }, [dispatch])
 
     const onScreenVideoReady = useCallback(() => {
+        const activeClip = findActivePlaybackClip(
+            clips,
+            timelineTimeRef.current,
+            videoDetails.end
+        )
+        if (screenVideoRef.current && activeClip)
+            screenVideoRef.current.currentTime = toS(timelineTimeToMediaMs(
+                clips,
+                timelineTimeRef.current,
+                videoDetails.end
+            ))
         setIsScreenVideoReady(true)
-    }, [])
+    }, [clips, screenVideoRef, videoDetails.end])
 
     const onCameraVideoReady = useCallback(() => {
         setIsCameraVideoReady(true)
@@ -233,6 +514,7 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
 
     // Added id to bust cache, otherwise chrome doesn't update video when closing / opening project
     return (<div className="absolute -left-[9999px] -top-[9999px] opacity-0 pointer-events-none">
+        <TimelineAudioPlayback />
         {screenVideo.src && <Media
             isVideo={true}
             ref={screenVideoRef}
@@ -265,11 +547,8 @@ export default function VideoWrapper({ screenVideoRef, cameraVideoRef, extraVide
                 key={track.id ?? `extra-${i}`}
                 index={i}
                 projectId={projectId}
-                isMuted={isMuted}
                 onError={onError}
-                onRefMount={(el) => {
-                    if (extraVideoRefs?.current) extraVideoRefs.current[i] = el
-                }}
+                mediaRefs={extraVideoRefs}
             />
         ))}
     </div>)
@@ -281,14 +560,17 @@ VideoWrapper.propTypes = {
     extraVideoRefs: PropTypes.object,
 }
 
-function ExtraTrackMedia({ index, projectId, isMuted, onError, onRefMount }) {
+function ExtraTrackMedia({ index, projectId, onError, mediaRefs }) {
     const src = useVideoSrc(`extra-${index}`, projectId)
     const ref = useRef(null)
 
     useEffect(() => {
-        onRefMount?.(ref.current)
-        return () => onRefMount?.(null)
-    }, [onRefMount, src.src])
+        const mediaElements = mediaRefs?.current
+        if (mediaElements) mediaElements[index] = ref.current
+        return () => {
+            if (mediaElements) mediaElements[index] = null
+        }
+    }, [index, mediaRefs, src.src])
 
     if (!src.src) return null
     return (
@@ -300,7 +582,6 @@ function ExtraTrackMedia({ index, projectId, isMuted, onError, onRefMount }) {
             controls={false}
             muted={true}
             onError={onError}
-            onReady={() => {}}
         />
     )
 }
@@ -308,7 +589,6 @@ function ExtraTrackMedia({ index, projectId, isMuted, onError, onRefMount }) {
 ExtraTrackMedia.propTypes = {
     index: PropTypes.number.isRequired,
     projectId: PropTypes.string,
-    isMuted: PropTypes.bool,
     onError: PropTypes.func,
-    onRefMount: PropTypes.func,
+    mediaRefs: PropTypes.object,
 }

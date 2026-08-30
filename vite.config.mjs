@@ -48,12 +48,40 @@ export default defineConfig({
 
   assetsInclude: ['**/*.tflite', '**/*.frag', '**/*.vert', '**/*.wgsl'],
 
+  // Pixi and its filters share a mutable DOM adapter singleton. Keeping every
+  // entry as native ESM prevents Vite's dev optimizer from creating duplicate
+  // singleton copies between the WebView and preview worker.
+  optimizeDeps: {
+    include: [
+      'pixi.js > @xmldom/xmldom',
+      'pixi.js > eventemitter3',
+      'pixi.js > gifuct-js',
+      'pixi.js > ismobilejs',
+      'pixi.js > parse-svg-path'
+    ],
+    exclude: [
+      'pixi.js',
+      'pixi.js/graphics',
+      'pixi.js/mesh',
+      'pixi.js/text',
+      'pixi.js/webworker',
+      'pixi-filters',
+      'pixi-filters/adjustment',
+      'pixi-filters/drop-shadow',
+      'pixi-filters/hsl-adjustment',
+      'pixi-filters/motion-blur',
+      'pixi-filters/zoom-blur'
+    ]
+  },
+
   // Vite options tailored for Tauri development
   clearScreen: false,
   server: {
     port: 5173,
     strictPort: true,
-    host: host || false,
+    // Bind the local preview explicitly so both the Tauri WebView and the
+    // in-app browser can reach the same development server on Windows.
+    host: host || "127.0.0.1",
     hmr: host
       ? {
         protocol: "ws",

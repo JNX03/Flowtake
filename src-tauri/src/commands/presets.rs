@@ -18,9 +18,7 @@ pub async fn save_preset(app: AppHandle, preset: Value) -> AppResult<()> {
 
     let key = format!("presets.{}", preset_id);
     store.set(&key, preset);
-    store
-        .save()
-        .map_err(|e| AppError::General(e.to_string()))?;
+    store.save().map_err(|e| AppError::General(e.to_string()))?;
 
     Ok(())
 }
@@ -74,9 +72,7 @@ pub async fn delete_preset(app: AppHandle, id: String) -> AppResult<()> {
         .store("store.json")
         .map_err(|e| AppError::General(e.to_string()))?;
     store.delete(format!("presets.{}", id));
-    store
-        .save()
-        .map_err(|e| AppError::General(e.to_string()))?;
+    store.save().map_err(|e| AppError::General(e.to_string()))?;
     Ok(())
 }
 

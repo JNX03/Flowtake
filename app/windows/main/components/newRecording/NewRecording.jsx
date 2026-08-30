@@ -5,7 +5,6 @@ import {
   WindowIcon,
   ChevronDownIcon,
   SpeakerWaveIcon,
-  VideoCameraIcon,
   MicrophoneIcon,
   ChevronUpIcon,
   AdjustmentsHorizontalIcon,
@@ -23,11 +22,16 @@ import {
   SOURCE_TYPE_SCREEN,
   SOURCE_TYPE_WINDOW,
 } from "@shared/constants"
-import { setOpenSettings } from "@shared/redux/appSlice"
+import {
+  selectCapturers,
+  selectEncoders,
+  setOpenSettings,
+} from "@shared/redux/appSlice"
 import {
   selectSource,
   setSource
 } from "@shared/redux/recorderSlice"
+import { isLikelySystemAudioSource } from "@shared/systemAudio"
 import Toggle from "../properties/Toggle"
 import { SETTINGS_RECORDER } from "../settings/constants"
 import CameraMicrophoneSelect from "./CameraMicrophoneSelect"
@@ -40,15 +44,23 @@ export default function NewRecording({ isOpen }) {
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
   const source = useSelector(selectSource)
+  const capturers = useSelector(selectCapturers)
+  const encoders = useSelector(selectEncoders)
   const [isRecordingSystemAudio, setIsRecordingSystemAudio] = useState(false)
   const [excludedAudioPids, setExcludedAudioPids] = useState([])
   const [showMonitorPicker, setShowMonitorPicker] = useState(false)
   const [showAudioSettings, setShowAudioSettings] = useState(false)
+  const [pickerError, setPickerError] = useState(null)
   const monitorPickerRef = useRef(null)
 
   const { data: defaultSystemAudioSource, isPending } = useQuery({
     queryKey: ['systemAudio'],
     queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultSystemAudioSource"),
+    staleTime: Infinity
+  })
+  const { data: macosCaptureStatus, isPending: isPendingMacosCaptureStatus } = useQuery({
+    queryKey: ['macosCaptureStatus'],
+    queryFn: () => window.electron.ipcRenderer.invoke("get-macos-capture-status"),
     staleTime: Infinity
   })
 
@@ -84,10 +96,35 @@ export default function NewRecording({ isOpen }) {
     },
     staleTime: Infinity
   })
+  const { data: screenFps } = useQuery({
+    queryKey: ['screenFps'],
+    queryFn: () => window.electron.ipcRenderer.invoke("store-get", "screenFps"),
+    staleTime: Infinity,
+  })
+  const { data: recordingQuality } = useQuery({
+    queryKey: ['recordingQuality'],
+    queryFn: () => window.electron.ipcRenderer.invoke("store-get", "recordingQuality"),
+    staleTime: Infinity,
+  })
 
-  const setAudioSetting = useCallback((key, value) => {
-    window.electron.ipcRenderer.invoke("store-set", key, value)
-    queryClient.invalidateQueries({ queryKey: ['audioSetting', key] })
+  const audioProcessingSettings = useMemo(() => ({
+    noiseSuppression: noiseSuppression ?? true,
+    echoCancellation: echoCancellation ?? true,
+    autoGainControl: autoGainControl ?? true,
+  }), [noiseSuppression, echoCancellation, autoGainControl])
+
+  const selectedCapturer = capturers?.find(item => item.isSelected)
+  const selectedEncoder = encoders?.find(item => item.isSelected)
+  const captureLabel = selectedCapturer?.displayName || selectedCapturer?.name || selectedCapturer?.value || "Not selected"
+  const encoderLabel = selectedEncoder?.displayName || selectedEncoder?.name || selectedEncoder?.value || "Not selected"
+  const isEngineReady = (capturers?.length ?? 0) > 0 && (encoders?.length ?? 0) > 0
+  const nativeSystemAudio = macosCaptureStatus?.nativeSystemAudio === true
+  const hasConfiguredSystemAudio = nativeSystemAudio ||
+    isLikelySystemAudioSource(defaultSystemAudioSource)
+
+  const setAudioSetting = useCallback(async (key, value) => {
+    await window.electron.ipcRenderer.invoke("store-set", key, value)
+    await queryClient.invalidateQueries({ queryKey: ['audioSetting', key] })
   }, [queryClient])
 
   // Fetch available monitors
@@ -127,28 +164,35 @@ export default function NewRecording({ isOpen }) {
     setScreenPermissionDenied(false)
   }, [previewSource])
 
-  const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError, refetch: refetchCaptureSourcePreview } = useQuery({
+  const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError, error: previewError, refetch: refetchCaptureSourcePreview } = useQuery({
     queryKey: ['captureSourcePreview', previewSource],
-    queryFn: async () => {
-      try {
-        const result = await window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource)
-        setScreenPermissionDenied(false)
-        setPreviewUnavailable(false)
-        return result
-      } catch (e) {
-        const msg = typeof e === 'string' ? e : e?.message || String(e)
-        setScreenPermissionDenied(msg.includes("ScreenPermissionDenied"))
-        setPreviewUnavailable(true)
-        throw e
-      }
-    },
+    queryFn: () => window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource),
     enabled: isOpen && !!previewSource,
     gcTime: 0,
-    retry: false,
+    // Smooth over one transient native-capture startup failure. Permission errors
+    // still stop immediately so the UI can show the correct recovery action.
+    retry: (failureCount, error) => {
+      const message = typeof error === "string" ? error : error?.message || String(error)
+      return failureCount < 1 && !message.includes("ScreenPermissionDenied")
+    },
+    retryDelay: 500,
     // Keep preview fresh; permission failures use the cheap native permission probe before screencapture.
-    refetchInterval: screenPermissionDenied || previewUnavailable ? 5000 : 2000,
+    refetchInterval: screenPermissionDenied || previewUnavailable ? 10000 : 5000,
     refetchIntervalInBackground: false,
   })
+
+  useEffect(() => {
+    if (captureSourcePreview) {
+      setScreenPermissionDenied(false)
+      setPreviewUnavailable(false)
+      return
+    }
+    if (isPreviewError) {
+      const message = typeof previewError === "string" ? previewError : previewError?.message || String(previewError)
+      setScreenPermissionDenied(message.includes("ScreenPermissionDenied"))
+      setPreviewUnavailable(true)
+    }
+  }, [captureSourcePreview, isPreviewError, previewError])
 
   const retryPreview = useCallback(() => {
     setScreenPermissionDenied(false)
@@ -248,6 +292,7 @@ export default function NewRecording({ isOpen }) {
   const areaSelectedCbRef = useRef(null)
 
   const openWindowPicker = useCallback(async () => {
+    setPickerError(null)
     // Clean up any stale listener from a previous cancelled picker
     if (windowSelectedCbRef.current) {
       window.electron.ipcRenderer.removeListener("window-selected", windowSelectedCbRef.current)
@@ -255,6 +300,7 @@ export default function NewRecording({ isOpen }) {
 
     const cb = (_e, selectedWindow) => {
       windowSelectedCbRef.current = null
+      setPickerError(null)
       dispatch(setSource(selectedWindow))
     }
     windowSelectedCbRef.current = cb
@@ -266,16 +312,19 @@ export default function NewRecording({ isOpen }) {
       window.electron.ipcRenderer.removeListener("window-selected", cb)
       windowSelectedCbRef.current = null
       console.error("[Flowtake] Failed to open window picker:", err)
+      setPickerError("Window picker could not open. Try again or record the full screen.")
     }
   }, [dispatch])
 
   const openAreaPicker = useCallback(async () => {
+    setPickerError(null)
     if (areaSelectedCbRef.current) {
       window.electron.ipcRenderer.removeListener("area-selected", areaSelectedCbRef.current)
     }
 
     const cb = (_e, selectedArea) => {
       areaSelectedCbRef.current = null
+      setPickerError(null)
       dispatch(setSource(selectedArea))
     }
     areaSelectedCbRef.current = cb
@@ -287,6 +336,7 @@ export default function NewRecording({ isOpen }) {
       window.electron.ipcRenderer.removeListener("area-selected", cb)
       areaSelectedCbRef.current = null
       console.error("[Flowtake] Failed to open area picker:", err)
+      setPickerError("Area picker could not open. Try again or record the full screen.")
     }
   }, [dispatch])
 
@@ -303,7 +353,7 @@ export default function NewRecording({ isOpen }) {
   }, [])
 
   const onEnableSystemAudio = async () => {
-    if (defaultSystemAudioSource) {
+    if (hasConfiguredSystemAudio) {
       setIsRecordingSystemAudio(!isRecordingSystemAudio)
     } else if (!isRecordingSystemAudio) {
       dispatch(setOpenSettings(SETTINGS_RECORDER))
@@ -332,9 +382,9 @@ export default function NewRecording({ isOpen }) {
   return (
     <div className={`${isOpen ? "" : "hidden"} h-full min-h-0 flex flex-col`}>
       {/* Main content: always side-by-side */}
-      <div className="flex-1 min-h-0 flex gap-3 md:gap-4">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-3 md:gap-4 overflow-y-auto md:overflow-hidden pr-1 md:pr-0">
         {/* Left: Preview */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div className="flex-1 min-w-0 min-h-56 md:min-h-0 flex flex-col">
           <div className="relative rounded-xl overflow-hidden bg-base-200/50 border border-base-content/5 flex-1 min-h-0">
             <div className="w-full h-full flex items-center justify-center relative">
               {/* Previous frame as background for smooth crossfade */}
@@ -349,6 +399,7 @@ export default function NewRecording({ isOpen }) {
               {!isPendingCaptureSourcePreview && captureSourcePreview && !isPreviewError && !previewUnavailable && (
                 <img
                   src={captureSourcePreview}
+                  alt={`Preview of ${source.name || "selected recording source"}`}
                   className="absolute inset-0 w-full h-full object-contain animate-[fadeIn_150ms_ease-out]"
                   onError={(e) => { e.target.style.display = 'none' }}
                 />
@@ -375,7 +426,13 @@ export default function NewRecording({ isOpen }) {
                       </button>
                     </>
                   ) : (
-                    <span className="text-xs text-base-content/30">Preview unavailable</span>
+                    <>
+                      <span className="text-xs text-base-content/30">Preview unavailable</span>
+                      <button type="button" className="btn btn-xs btn-outline mt-1" onClick={retryPreview}>
+                        <ArrowPathIcon className="size-3.5" />
+                        Retry
+                      </button>
+                    </>
                   )}
                 </div>
               )}
@@ -386,7 +443,7 @@ export default function NewRecording({ isOpen }) {
                 </div>
               )}
             </div>
-            <CameraPreview />
+            <CameraPreview audioProcessingSettings={audioProcessingSettings} />
 
             {/* Bottom gradient overlay for badges */}
             {(captureSourcePreview || prevPreviewRef.current) && (
@@ -420,15 +477,16 @@ export default function NewRecording({ isOpen }) {
                 </span>
               )}
               <span className="badge badge-sm bg-black/50 backdrop-blur-md border-white/10 text-white/80 gap-1.5">
-                <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
-                Live
+                <span className="size-1.5 rounded-full bg-primary/70" />
+                Preview
               </span>
             </div>
           </div>
         </div>
 
-        {/* Right: Controls panel — flat, compact, always fits */}
-        <div className="w-60 lg:w-64 xl:w-72 flex-shrink-0 min-h-0 flex flex-col gap-2.5">
+        {/* Right: scrollable setup with the primary action always visible. */}
+        <div className="w-full md:w-64 xl:w-72 flex-shrink-0 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 flex flex-col gap-2.5">
           {/* Source — horizontal segmented */}
           <div className="relative flex-shrink-0" ref={monitorPickerRef} data-tutorial="source-panel">
             <SectionLabel>Source</SectionLabel>
@@ -467,6 +525,7 @@ export default function NewRecording({ isOpen }) {
               <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-base-200 border border-base-content/10 rounded-lg shadow-xl overflow-hidden">
                 {monitors.map((m, i) => (
                   <button
+                    type="button"
                     key={m.id}
                     onClick={() => selectMonitor(m)}
                     className={`w-full text-left px-2.5 py-2 text-xs hover:bg-base-300/60 flex items-center gap-2 transition-colors
@@ -485,10 +544,16 @@ export default function NewRecording({ isOpen }) {
             )}
           </div>
 
+          {pickerError && (
+            <div className="rounded-md border border-error/25 bg-error/10 px-2 py-1.5 text-[11px] leading-snug text-error" role="alert">
+              {pickerError}
+            </div>
+          )}
+
           {/* Devices */}
           <div className="flex-shrink-0">
             <SectionLabel>Devices</SectionLabel>
-            <CameraMicrophoneSelect />
+            <CameraMicrophoneSelect audioProcessingSettings={audioProcessingSettings} />
           </div>
 
           {/* Audio toggles — inline row */}
@@ -496,21 +561,29 @@ export default function NewRecording({ isOpen }) {
             <div className="flex items-center gap-2">
               <SpeakerWaveIcon className="size-3.5 text-base-content/40 flex-shrink-0" />
               <Toggle rightLabel={<span className="text-xs text-base-content/70">System audio</span>} justifyBetween={false} value={isRecordingSystemAudio}
-                onChange={onEnableSystemAudio} disabled={isPending} />
+                onChange={onEnableSystemAudio} disabled={isPending || isPendingMacosCaptureStatus} />
             </div>
-            {isRecordingSystemAudio && (
+            {isRecordingSystemAudio && nativeSystemAudio && (
+              <p className="text-[11px] text-base-content/50 pl-5">
+                Captured natively with ScreenCaptureKit; no loopback driver is required.
+              </p>
+            )}
+            {isRecordingSystemAudio && !nativeSystemAudio && (
               <AppAudioControl onExcludedAppsChange={setExcludedAudioPids} />
             )}
             <button
+              type="button"
               onClick={() => setShowAudioSettings(v => !v)}
               className="flex items-center gap-2 w-full group text-left"
+              aria-expanded={showAudioSettings}
+              aria-controls="record-audio-processing"
             >
               <AdjustmentsHorizontalIcon className="size-3.5 text-base-content/40 flex-shrink-0" />
               <span className="text-xs text-base-content/70 flex-1">Audio processing</span>
               <ChevronUpIcon className={`size-3 text-base-content/30 transition-transform ${showAudioSettings ? "" : "rotate-180"}`} />
             </button>
             {showAudioSettings && (
-              <div className="ml-5 flex flex-col gap-1">
+              <div id="record-audio-processing" className="ml-5 flex flex-col gap-1">
                 <Toggle
                   rightLabel={<span className="text-[11px] text-base-content/60">Noise suppression</span>}
                   justifyBetween={false}
@@ -533,12 +606,40 @@ export default function NewRecording({ isOpen }) {
             )}
           </div>
 
-          {/* Actions — pinned to bottom */}
-          <div className="mt-auto flex gap-2 flex-shrink-0 pt-1">
-            <div className="flex-[4] min-w-0" data-tutorial="record-button">
-              <RecordButton isRecordingSystemAudio={isRecordingSystemAudio} excludedAudioPids={excludedAudioPids} />
+          <div className="rounded-lg border border-base-content/5 bg-base-200/30 p-2.5 flex-shrink-0" aria-label="Recording quality summary">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-base-content/35">Quality</span>
+              <span className={`text-[10px] font-medium ${isEngineReady ? "text-emerald-500" : "text-warning"}`}>
+                <span className="capitalize">{recordingQuality || "balanced"}</span> - {screenFps ?? 30} FPS
+              </span>
             </div>
-            <button onClick={addNote} className="flex-[1] btn btn-sm btn-ghost bg-base-200/30 border border-base-content/5 text-base-content/40 hover:text-base-content/60 h-auto" title="Teleprompter Notes">
+            <div className="mt-1 flex items-center gap-1.5 text-[11px] min-w-0">
+              <span className={`size-1.5 rounded-full flex-shrink-0 ${isEngineReady ? "bg-emerald-500" : "bg-warning"}`} />
+              <span className="truncate text-base-content/55" title={`${captureLabel} to ${encoderLabel}`}>
+                {isEngineReady ? `${captureLabel} to ${encoderLabel}` : "Choose a capture and encoder"}
+              </span>
+              <button
+                type="button"
+                className="ml-auto flex-shrink-0 text-[10px] font-medium text-primary hover:underline"
+                onClick={() => dispatch(setOpenSettings(SETTINGS_RECORDER))}
+              >
+                Adjust
+              </button>
+            </div>
+          </div>
+
+          </div>
+
+          <div className="flex gap-2 flex-shrink-0 pt-2 mt-1 border-t border-base-content/5 bg-base-100/20">
+            <div className="flex-[4] min-w-0" data-tutorial="record-button">
+              <RecordButton
+                isRecordingSystemAudio={isRecordingSystemAudio}
+                nativeSystemAudio={nativeSystemAudio}
+                excludedAudioPids={excludedAudioPids}
+                audioProcessingSettings={audioProcessingSettings}
+              />
+            </div>
+            <button type="button" onClick={addNote} className="flex-[1] btn btn-sm btn-ghost bg-base-200/30 border border-base-content/5 text-base-content/40 hover:text-base-content/60 h-auto" title="Teleprompter Notes" aria-label="Open teleprompter notes">
               <DocumentIcon className="size-4" />
             </button>
           </div>
@@ -561,8 +662,11 @@ SectionLabel.propTypes = {
 function SourceSegment({ icon: Icon, label, active, onClick, iconFlip, hasDropdown }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-all
+      aria-label={`${label} recording source`}
+      aria-pressed={active}
+      className={`min-h-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-md transition-all
         ${active
           ? "bg-primary/15 text-primary"
           : "text-base-content/50 hover:text-base-content/80 hover:bg-base-content/5"

@@ -14,6 +14,7 @@ import {
     IS_PLAYING,
     REDUX_DISPATCH,
     SET_EXTRA_VISIBILITY,
+    SNAPSHOT,
     TIME,
     UPDATE
 } from "./helpers"
@@ -217,6 +218,10 @@ export default class PreviewWorkerManager extends WorkerManager {
     postIsPlaying(isPlaying) {
         this.post(IS_PLAYING, isPlaying)
         this.isPlaying = isPlaying
+    }
+
+    captureSnapshot() {
+        return this.postAsync(SNAPSHOT)
     }
 
     async enableEyeContact(cameraVideoDims) {

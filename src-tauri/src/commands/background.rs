@@ -13,10 +13,7 @@ pub async fn update_background(
 ) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
     let state = state.lock().unwrap();
-    let project_id = state
-        .project_id
-        .clone()
-        .ok_or(AppError::NoProjectOpen)?;
+    let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
     let bg_file = state.background_file(&project_id);
     drop(state);
 
@@ -30,8 +27,12 @@ pub async fn update_background(
                 let state = state.lock().unwrap();
                 let wallpapers_dir = state.app_data_dir.join("wallpapers");
                 let src = wallpapers_dir.join(&rel_path);
-                let canonical_src = src.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
-                let canonical_base = wallpapers_dir.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
+                let canonical_src = src
+                    .canonicalize()
+                    .map_err(|_| AppError::General("Invalid path".into()))?;
+                let canonical_base = wallpapers_dir
+                    .canonicalize()
+                    .map_err(|_| AppError::General("Invalid path".into()))?;
                 if !canonical_src.starts_with(&canonical_base) {
                     return Err(AppError::General("Path traversal denied".into()));
                 }
@@ -48,8 +49,12 @@ pub async fn update_background(
                 let project_temp = state.project_temp_dir(&project_id);
                 let base_dir = project_temp.join("backgrounds");
                 let src = base_dir.join(&rel_path);
-                let canonical_src = src.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
-                let canonical_base = base_dir.canonicalize().map_err(|_| AppError::General("Invalid path".into()))?;
+                let canonical_src = src
+                    .canonicalize()
+                    .map_err(|_| AppError::General("Invalid path".into()))?;
+                let canonical_base = base_dir
+                    .canonicalize()
+                    .map_err(|_| AppError::General("Invalid path".into()))?;
                 if !canonical_src.starts_with(&canonical_base) {
                     return Err(AppError::General("Path traversal denied".into()));
                 }
@@ -106,10 +111,7 @@ pub async fn sync_background(_app: AppHandle, background: Value) -> AppResult<Va
 pub async fn get_background_images(app: AppHandle) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
     let state = state.lock().unwrap();
-    let project_id = state
-        .project_id
-        .clone()
-        .ok_or(AppError::NoProjectOpen)?;
+    let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
     let project_temp = state.project_temp_dir(&project_id);
     drop(state);
 
@@ -148,10 +150,7 @@ pub async fn choose_background_image(app: AppHandle) -> AppResult<Value> {
         Some(path) => {
             let state = app.state::<Mutex<AppState>>();
             let state = state.lock().unwrap();
-            let project_id = state
-                .project_id
-                .clone()
-                .ok_or(AppError::NoProjectOpen)?;
+            let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
             let bg_dir = state.project_temp_dir(&project_id).join("backgrounds");
             drop(state);
 

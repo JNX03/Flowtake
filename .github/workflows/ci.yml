@@ -24,6 +24,12 @@ jobs:
 
       - run: npm ci
 
+      - name: Lint JavaScript
+        run: npm run lint
+
+      - name: Run JavaScript tests
+        run: npm test
+
       - name: Build frontend
         run: npm run build:frontend
 
@@ -74,8 +80,16 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      - name: Build universal ScreenCaptureKit helper
+        if: matrix.platform.name == 'macOS'
+        run: npm run build:macos-capture
+
       - name: Cargo check
         run: cargo check
+        working-directory: src-tauri
+
+      - name: Cargo unit tests
+        run: cargo test --lib --locked
         working-directory: src-tauri
 
       - name: Cargo clippy

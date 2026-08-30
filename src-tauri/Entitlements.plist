@@ -2,17 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Required for screen recording -->
-    <key>com.apple.security.device.screen-capture</key>
-    <true/>
     <!-- Required for camera access -->
     <key>com.apple.security.device.camera</key>
     <true/>
     <!-- Required for microphone access -->
     <key>com.apple.security.device.audio-input</key>
-    <true/>
-    <!-- Required for accessibility (mouse tracking) -->
-    <key>com.apple.security.accessibility</key>
     <true/>
     <!-- Network access for sharing features -->
     <key>com.apple.security.network.client</key>

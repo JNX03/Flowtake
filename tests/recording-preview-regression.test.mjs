@@ -76,12 +76,14 @@ test("macOS recording errors only report permission denial after probing TCC", a
     )
 })
 
-test("new recording preview retries after transient permission failures", async () => {
+test("new recording preview retries one transient failure but not permission denial", async () => {
     const source = await readRepoFile("app/windows/main/components/newRecording/NewRecording.jsx")
 
     assert.doesNotMatch(source, /enabled:\s*isOpen && !!previewSource && !screenPermissionDenied/)
     assert.match(source, /refetch:\s*refetchCaptureSourcePreview/)
-    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 5000 : 2000/)
+    assert.match(source, /failureCount < 1 && !message\.includes\("ScreenPermissionDenied"\)/)
+    assert.match(source, /retryDelay:\s*500/)
+    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 10000 : 5000/)
     assert.match(source, /Enable this exact Flowtake app/)
     assert.doesNotMatch(source, /enable this app, then restart/)
 })
@@ -129,16 +131,35 @@ test("capture error toast is not GPU-specific", async () => {
     assert.doesNotMatch(settings, /GPU drivers/i)
 })
 
-test("recording output is frame-rate clamped and validated before opening editor", async () => {
+test("recording output honors a clamped persisted frame rate and validates one frame", async () => {
     const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
 
     assert.match(recording, /"-r"\.to_string\(\)/)
-    assert.match(recording, /"30"\.to_string\(\)/)
-    assert.match(recording, /fn recording_video_is_readable/)
-    assert.match(recording, /get_video_duration_ms\(app, video_path\)/)
-    assert.match(recording, /get_video_dimensions\(video_path\)/)
-    assert.match(recording, /Recording video exists but is not readable/)
+    assert.match(recording, /Some\(60\) => 60/)
+    assert.match(recording, /fps\.to_string\(\)/)
+    assert.match(recording, /async fn probe_video_metadata/)
+    assert.match(recording, /"-frames:v"/)
+    assert.match(recording, /probe_video_metadata\(path, requires_system_audio\)\.await/)
+    assert.match(recording, /screen_recording_probe_args/)
+    assert.match(recording, /"0:a:0"\.to_string\(\)/)
+    assert.doesNotMatch(recording, /fn recording_video_is_readable/)
+    assert.doesNotMatch(recording, /get_video_duration_ms/)
+    assert.doesNotMatch(recording, /get_video_dimensions/)
+    assert.match(recording, /first frame is not readable/)
     assert.match(recording, /Frames were captured, but FFmpeg did not produce a readable MP4/)
+})
+
+test("automatic recorder engines remain selectable and fall back for remote sessions", async () => {
+    const encoding = await readRepoFile("src-tauri/src/commands/encoding.rs")
+    const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
+
+    assert.match(encoding, /if encoder == "auto"/)
+    assert.match(encoding, /"encoderMode"/)
+    assert.match(encoding, /if capturer == "auto"/)
+    assert.match(encoding, /"capturerMode"/)
+    assert.match(encoding, /SM_REMOTESESSION/)
+    assert.match(recording, /automatic_encoder/)
+    assert.match(recording, /automatic_capturer/)
 })
 
 test("preview scene falls back when worker font asset loading fails", async () => {

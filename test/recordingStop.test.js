@@ -20,3 +20,18 @@ test("macOS window capture uses FFmpeg's graceful shutdown path", async () => {
         "macOS window capture should still send q to FFmpeg so MP4 files finalize"
     )
 })
+
+test("slow Windows window capture keeps wall-clock timestamps", async () => {
+    const source = await readFile(path.join(rootDir, "src-tauri/src/commands/recording.rs"), "utf8")
+
+    assert.match(
+        source,
+        /fn window_capture_input_args[\s\S]*"-use_wallclock_as_timestamps"[\s\S]*"1"[\s\S]*"-i"/,
+        "PrintWindow frames must use arrival timestamps before the rawvideo input is opened"
+    )
+    assert.match(
+        source,
+        /ffmpeg_args = window_capture_input_args\(w, h, fps\);/,
+        "Windows window capture must use the duration-safe input arguments"
+    )
+})

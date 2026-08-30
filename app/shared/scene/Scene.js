@@ -21,8 +21,10 @@ import {
     CAMERA_VIDEO,
     SCREEN_VIDEO
 } from "../constants"
+import { findActivePlaybackClip } from "../editor/playbackClock"
 import Roboto from "../assets/fonts/Roboto-Regular.ttf"
 import { createPixiAppOptions } from "./pixiAppOptions"
+import { setPrimaryMediaRenderGate } from "./primaryMediaVisibility"
 import {
     CREATE_CURSORS,
     postAsync
@@ -254,8 +256,12 @@ export default class Scene {
         this.extraVideos = []
     }
 
-    async init({ mouseEvents, hasCameraVideo, cursorFill, cursorStroke }, duration) {
+    async init({ mouseEvents, hasCameraVideo, cursorFill, cursorStroke, videoDetails }, duration) {
         console.log("[Scene] init: constructing animators")
+        const timelineEnd = videoDetails?.end ?? duration
+        this.timelineEnd = Number.isFinite(Number(timelineEnd))
+            ? Math.max(0, Number(timelineEnd))
+            : Infinity
 
         this.clipAnimator = new ClipAnimator(this.camera?.outerContainer, this.camera?.dims, hasCameraVideo)
 
@@ -341,6 +347,10 @@ export default class Scene {
         }
     }
 
+    setPrimaryMediaVisible(visible) {
+        setPrimaryMediaRenderGate(this, visible)
+    }
+
     async createCursorSprites() {
         // Prevent sprites from being created twice when both fill and stroke change
         if (this.cursorFill !== this.cursorStroke) {
@@ -415,6 +425,11 @@ export default class Scene {
         this.transitionAnimator?.update(this.time)
 
         this.camera?.update()
+
+        const clips = this.clipAnimator?.configs ?? []
+        this.setPrimaryMediaVisible(Boolean(
+            findActivePlaybackClip(clips, this.time, this.timelineEnd)
+        ))
     }
 
     async resize() {

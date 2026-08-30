@@ -9,7 +9,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const readRepoFile = file => readFile(path.join(repoRoot, file), "utf8")
 
 function readCargoPackageVersion(source, packageName) {
-    const packageMatch = source.match(new RegExp(`\\[\\[package\\]\\]\\nname = "${packageName}"\\nversion = "([^"]+)"`))
+    const packageMatch = source.match(new RegExp(`\\[\\[package\\]\\]\\r?\\nname = "${packageName}"\\r?\\nversion = "([^"]+)"`))
     assert.ok(packageMatch, `Expected ${packageName} package version in Cargo.lock`)
     return packageMatch[1]
 }

@@ -35,6 +35,8 @@ export default function AppAudioControl({ onExcludedAppsChange }) {
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-medium text-base-content/30 uppercase tracking-wider">App Audio</span>
         <button
+          type="button"
+          aria-label="Refresh app audio sessions"
           onClick={() => refetch()}
           disabled={isPending}
           className="btn btn-ghost btn-xs size-5 min-h-0 p-0"
@@ -64,6 +66,7 @@ export default function AppAudioControl({ onExcludedAppsChange }) {
                   value={!excludedPids.has(pid)}
                   onChange={() => toggleApp(pid)}
                   justifyBetween={false}
+                  rightLabel={<span className="sr-only">Include {name} audio</span>}
                 />
               </div>
             </div>

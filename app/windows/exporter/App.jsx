@@ -78,16 +78,25 @@ export default function App() {
     useEffect(() => { rendersRef.current = renders }, [renders])
 
     useEffect(() => {
-        window.electron.ipcRenderer.on('open-section', (_e, section) => setUserOpenSection(section))
-        window.electron.ipcRenderer.on('clear-pending-renders', () => dispatch(removeRenders(
+        const ipcRenderer = window.electron.ipcRenderer
+        const handleOpenSection = (_event, section) => setUserOpenSection(section)
+        const handleClearPendingRenders = () => dispatch(removeRenders(
             rendersRef.current.filter(render => !isRenderRendering(render)).map(({ id }) => id)
-        )))
-        window.electron.ipcRenderer.on('cancel-running-render', () => {
+        ))
+        const handleCancelRunningRender = () => {
             const renderingRender = rendersRef.current.find(isRenderRendering)
             if (renderingRender) dispatch(updateRender(
                 { id: renderingRender.id, changes: { status: RENDER_CANCELING } }
             ))
-        })
+        }
+        ipcRenderer.on('open-section', handleOpenSection)
+        ipcRenderer.on('clear-pending-renders', handleClearPendingRenders)
+        ipcRenderer.on('cancel-running-render', handleCancelRunningRender)
+        return () => {
+            ipcRenderer.removeListener('open-section', handleOpenSection)
+            ipcRenderer.removeListener('clear-pending-renders', handleClearPendingRenders)
+            ipcRenderer.removeListener('cancel-running-render', handleCancelRunningRender)
+        }
     }, [dispatch])
 
     useEffect(() => {

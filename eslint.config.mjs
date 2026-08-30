@@ -23,6 +23,7 @@ export default [
       "**/.webpack",
       "**/.vite",
       "**/build",
+      "**/target/**",
       "**/coverage",
       "**/*.min.js",
       "**/vendor/**",
@@ -31,7 +32,7 @@ export default [
     ]
   },
   {
-    files: ["**/*.{js,jsx}"],
+    files: ["**/*.{js,jsx,mjs}"],
     ...eslintJs.configs.recommended,
     languageOptions: {
       ...eslintJs.configs.recommended.languageOptions,
@@ -49,6 +50,20 @@ export default [
         caughtErrorsIgnorePattern: "^_",
         varsIgnorePattern: "^_",
       }],
+    },
+  },
+  {
+    files: [
+      "**/*.config.mjs",
+      "eslint.config.mjs",
+      "scripts/**/*.mjs",
+      "test/**/*.{js,mjs}",
+      "tests/**/*.{js,mjs}",
+    ],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
     },
   },
   {

@@ -69,17 +69,30 @@ jobs:
       - name: Collect Windows installers and portable binary
         shell: bash
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           mkdir -p installers
 
           # Installers
-          cp src-tauri/target/release/bundle/nsis/*.exe installers/ 2>/dev/null || true
-          cp src-tauri/target/release/bundle/msi/*.msi installers/ 2>/dev/null || true
+          nsis_installers=(src-tauri/target/release/bundle/nsis/*.exe)
+          msi_installers=(src-tauri/target/release/bundle/msi/*.msi)
+          if (( ${#nsis_installers[@]} == 0 )); then
+            echo "ERROR: Tauri produced no Windows NSIS installer" >&2
+            exit 1
+          fi
+          if (( ${#msi_installers[@]} == 0 )); then
+            echo "ERROR: Tauri produced no Windows MSI installer" >&2
+            exit 1
+          fi
+          cp "${nsis_installers[@]}" installers/
+          cp "${msi_installers[@]}" installers/
 
           # Portable standalone binary (zip with ffmpeg sidecar)
           mkdir -p _portable/Flowtake
           cp src-tauri/target/release/flowtake.exe _portable/Flowtake/Flowtake.exe
-          cp src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe _portable/Flowtake/ffmpeg.exe 2>/dev/null || true
+          cp src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe _portable/Flowtake/ffmpeg.exe
           cd _portable && 7z a -tzip ../installers/Flowtake-windows-x64-portable.zip Flowtake/ && cd ..
+          test -s installers/Flowtake-windows-x64-portable.zip
 
           echo "=== Collected files ==="
           ls -la installers/
@@ -89,6 +102,7 @@ jobs:
         with:
           name: windows-installers
           path: installers/*
+          if-no-files-found: error
 
   build-linux:
     name: Build (Linux x64)
@@ -157,20 +171,38 @@ jobs:
 
       - name: Collect Linux installers and portable binary
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           mkdir -p installers
 
           # Installers
-          cp src-tauri/target/release/bundle/deb/*.deb installers/ 2>/dev/null || true
-          cp src-tauri/target/release/bundle/appimage/*.AppImage installers/ 2>/dev/null || true
-          cp src-tauri/target/release/bundle/rpm/*.rpm installers/ 2>/dev/null || true
+          deb_installers=(src-tauri/target/release/bundle/deb/*.deb)
+          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          rpm_installers=(src-tauri/target/release/bundle/rpm/*.rpm)
+          if (( ${#deb_installers[@]} == 0 )); then
+            echo "ERROR: Tauri produced no Linux DEB package" >&2
+            exit 1
+          fi
+          if (( ${#appimages[@]} == 0 )); then
+            echo "ERROR: Tauri produced no Linux AppImage" >&2
+            exit 1
+          fi
+          if (( ${#rpm_installers[@]} == 0 )); then
+            echo "ERROR: Tauri produced no Linux RPM package" >&2
+            exit 1
+          fi
+          cp "${deb_installers[@]}" installers/
+          cp "${appimages[@]}" installers/
+          cp "${rpm_installers[@]}" installers/
 
           # Portable standalone binary (tar.gz with ffmpeg sidecar)
           mkdir -p _portable/Flowtake
           cp src-tauri/target/release/flowtake _portable/Flowtake/flowtake
           chmod +x _portable/Flowtake/flowtake
-          cp src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu _portable/Flowtake/ffmpeg 2>/dev/null || true
-          chmod +x _portable/Flowtake/ffmpeg 2>/dev/null || true
+          cp src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu _portable/Flowtake/ffmpeg
+          chmod +x _portable/Flowtake/ffmpeg
           tar -czf installers/Flowtake-linux-x64-portable.tar.gz -C _portable Flowtake
+          test -s installers/Flowtake-linux-x64-portable.tar.gz
 
           echo "=== Collected files ==="
           ls -la installers/
@@ -180,6 +212,7 @@ jobs:
         with:
           name: linux-installers
           path: installers/*
+          if-no-files-found: error
 
   build-macos:
     name: Build (macOS Universal)
@@ -248,21 +281,34 @@ jobs:
 
       - name: Collect macOS installers and portable app
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           mkdir -p installers
 
           # Installers
-          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg installers/ 2>/dev/null || true
+          dmg_installers=(src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          if (( ${#dmg_installers[@]} == 0 )); then
+            echo "ERROR: Tauri produced no macOS DMG" >&2
+            exit 1
+          fi
+          cp "${dmg_installers[@]}" installers/
 
           # Portable .app bundle (zip it for direct download)
           APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/Flowtake.app"
-          if [ -d "$APP_PATH" ]; then
-            cd src-tauri/target/universal-apple-darwin/release/bundle/macos
-            zip -r -y ../../../../../../installers/Flowtake-macos-universal.zip Flowtake.app
-            cd ../../../../../../
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: Tauri produced no macOS Flowtake.app bundle" >&2
+            exit 1
           fi
+          pushd "$(dirname "$APP_PATH")"
+          zip -r -y "$GITHUB_WORKSPACE/installers/Flowtake-macos-universal.zip" Flowtake.app
+          popd
+          test -s installers/Flowtake-macos-universal.zip
 
           # Also grab the .app.tar.gz if Tauri generated it
-          cp src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz installers/ 2>/dev/null || true
+          app_archives=(src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz)
+          if (( ${#app_archives[@]} > 0 )); then
+            cp "${app_archives[@]}" installers/
+          fi
 
           echo "=== Collected files ==="
           ls -la installers/
@@ -272,11 +318,12 @@ jobs:
         with:
           name: macos-installers
           path: installers/*
+          if-no-files-found: error
 
   release:
     name: Create Release
     needs: [build-windows, build-linux, build-macos]
-    if: always() && (needs.build-windows.result == 'success' || needs.build-linux.result == 'success' || needs.build-macos.result == 'success')
+    if: always() && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' && needs.build-macos.result == 'success'
     runs-on: ubuntu-latest
 
     steps:
@@ -327,6 +374,38 @@ jobs:
 
       - name: List all artifacts
         run: find artifacts -type f | sort
+
+      - name: Verify complete release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          require_non_empty() {
+            local label="$1"
+            shift
+            local matches=("$@")
+            if (( ${#matches[@]} == 0 )); then
+              echo "ERROR: Missing required release artifact: $label" >&2
+              exit 1
+            fi
+            for file in "${matches[@]}"; do
+              if [ ! -s "$file" ]; then
+                echo "ERROR: Required release artifact is empty: $file" >&2
+                exit 1
+              fi
+            done
+          }
+
+          require_non_empty "Windows NSIS installer" artifacts/windows-installers/*.exe
+          require_non_empty "Windows MSI installer" artifacts/windows-installers/*.msi
+          require_non_empty "Windows portable ZIP" artifacts/windows-installers/Flowtake-windows-x64-portable.zip
+          require_non_empty "macOS DMG" artifacts/macos-installers/*.dmg
+          require_non_empty "macOS portable ZIP" artifacts/macos-installers/Flowtake-macos-universal.zip
+          require_non_empty "Linux DEB package" artifacts/linux-installers/*.deb
+          require_non_empty "Linux AppImage" artifacts/linux-installers/*.AppImage
+          require_non_empty "Linux RPM package" artifacts/linux-installers/*.rpm
+          require_non_empty "Linux portable archive" artifacts/linux-installers/Flowtake-linux-x64-portable.tar.gz
 
       - name: Build release body
         run: |
@@ -415,13 +494,14 @@ jobs:
           prerelease: false
           generate_release_notes: false
           body_path: /tmp/release_body.md
+          fail_on_unmatched_files: true
           files: |
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.dmg
-            artifacts/**/*.zip
-            artifacts/**/*.app.tar.gz
-            artifacts/**/*.tar.gz
-            artifacts/**/*.deb
-            artifacts/**/*.AppImage
-            artifacts/**/*.rpm
+            artifacts/windows-installers/*.exe
+            artifacts/windows-installers/*.msi
+            artifacts/windows-installers/Flowtake-windows-x64-portable.zip
+            artifacts/macos-installers/*.dmg
+            artifacts/macos-installers/Flowtake-macos-universal.zip
+            artifacts/linux-installers/*.deb
+            artifacts/linux-installers/*.AppImage
+            artifacts/linux-installers/*.rpm
+            artifacts/linux-installers/Flowtake-linux-x64-portable.tar.gz

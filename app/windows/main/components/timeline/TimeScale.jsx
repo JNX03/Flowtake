@@ -1,5 +1,3 @@
-import moment from "moment"
-import momentDurationFormatSetup from "moment-duration-format"
 import {
     useCallback,
     useEffect,
@@ -7,21 +5,36 @@ import {
     useRef,
     useState
 } from "react"
+import PropTypes from "prop-types"
 import {
     shallowEqual,
     useDispatch,
     useSelector
 } from "react-redux"
+import { useThrottledCallback } from "use-debounce"
 import {
-    clamp,
     getGridBackgroundImage,
-    msToPx,
-    pxToMs
+    msToPx
 } from "@shared/helpers"
-import { selectDuration } from "@shared/redux/editorSlice"
+import {
+    formatTimelineTime,
+    getVisibleTimelineLabels,
+    shouldResumeTimelinePlayback,
+    timelineTimeFromClientX
+} from "@shared/editor/timelineScrubbing"
+import { createTimelineAutoScrollController } from "@shared/editor/timelineAutoScroll"
+import {
+    selectDuration,
+    selectIsPlaying,
+    selectIsStopped,
+    setIsPlaying,
+    setIsStopped
+} from "@shared/redux/editorSlice"
 import { selectVideoDetails } from "@shared/redux/projectSlice"
 import {
     selectPxPerMs,
+    selectScrollLeft,
+    selectWidth,
     setTime
 } from "@shared/redux/timelineSlice"
 
@@ -33,7 +46,7 @@ function formatLabel(ms) {
     return `${seconds}s`
 }
 
-export default function TimeScale() {
+export default function TimeScale({ containerRef = null }) {
 
     const dispatch = useDispatch()
 
@@ -44,6 +57,28 @@ export default function TimeScale() {
     const pxPerMs = useSelector(selectPxPerMs)
     const videoDetails = useSelector(selectVideoDetails, shallowEqual)
     const duration = useSelector(selectDuration)
+    const isPlaying = useSelector(selectIsPlaying)
+    const isStopped = useSelector(selectIsStopped)
+    const scrollLeft = useSelector(selectScrollLeft)
+    const viewportWidth = useSelector(selectWidth)
+    const [isScrubbing, setIsScrubbing] = useState(false)
+    const scrubState = useRef({
+        active: false,
+        pointerId: null,
+        lastTime: null,
+        wasPlaying: false
+    })
+    const getScrollContainer = useCallback(
+        () => containerRef?.current
+            || scale.current?.closest(".flowtake-timeline-scroll")
+            || null,
+        [containerRef]
+    )
+    const setTimeThrottled = useThrottledCallback(
+        nextTime => dispatch(setTime(nextTime)),
+        16,
+        { trailing: true }
+    )
 
     const gridSpacing = useMemo(() => {
         let ms
@@ -72,47 +107,147 @@ export default function TimeScale() {
         return 100
     }, [pxPerMs])
 
-    // Generate time label positions
+    // Render only the labels around the visible viewport. Long, highly zoomed
+    // projects otherwise create tens of thousands of DOM nodes.
     const timeLabels = useMemo(() => {
         if (!duration || !labelIntervalMs) return []
-        const labels = []
-        for (let ms = 0; ms <= duration; ms += labelIntervalMs) {
-            labels.push({ ms, px: msToPx(ms, pxPerMs) })
+        return getVisibleTimelineLabels({
+            duration,
+            intervalMs: labelIntervalMs,
+            pxPerMs,
+            scrollLeft,
+            viewportWidth
+        })
+    }, [duration, labelIntervalMs, pxPerMs, scrollLeft, viewportWidth])
+
+    const getPointerTime = useCallback(clientX => {
+        const rect = scale.current?.getBoundingClientRect()
+        return timelineTimeFromClientX({
+            clientX,
+            contentLeft: rect?.left,
+            pxPerMs,
+            start: videoDetails.start,
+            end: videoDetails.end
+        })
+    }, [pxPerMs, videoDetails.end, videoDetails.start])
+
+    const updateHoverMarker = useCallback(nextTime => {
+        if (marker.current)
+            marker.current.style.transform = `translateX(${msToPx(nextTime, pxPerMs)}px)`
+        if (tooltip.current)
+            tooltip.current.dataset.tip = formatTimelineTime(nextTime)
+    }, [pxPerMs])
+
+    const scrubAutoScroll = useMemo(() => createTimelineAutoScrollController({
+        getContainer: getScrollContainer,
+        onScrollFrame: ({ pointer }) => {
+            const scrub = scrubState.current
+            if (!scrub.active) return
+            const nextTime = getPointerTime(pointer.clientX)
+            scrub.lastTime = nextTime
+            updateHoverMarker(nextTime)
+            setTimeThrottled(nextTime)
         }
-        return labels
-    }, [duration, labelIntervalMs, pxPerMs])
+    }), [getPointerTime, getScrollContainer, setTimeThrottled, updateHoverMarker])
 
-    const [internalOffset, setInternalOffset] = useState(null)
+    const handlePointerDown = useCallback(event => {
+        if (!event.isPrimary || event.button !== 0) return
 
-    useEffect(() => {
-        momentDurationFormatSetup(moment)
-    }, [])
+        event.preventDefault()
+        event.stopPropagation()
 
-    useEffect(() => {
-        if (!internalOffset) setInternalOffset(marker.current.getBoundingClientRect().width * .5)
-    }, [internalOffset])
+        const nextTime = getPointerTime(event.clientX)
+        scrubState.current = {
+            active: true,
+            pointerId: event.pointerId,
+            lastTime: nextTime,
+            wasPlaying: isPlaying
+        }
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+        setIsScrubbing(true)
+        scrubAutoScroll.start(event)
 
-    useEffect(() => {
-        const handleMouseMove = e => {
-            const time = clamp(pxToMs(e.offsetX, pxPerMs), videoDetails.start, videoDetails.end)
+        if (isPlaying) dispatch(setIsPlaying(false))
+        if (isStopped) dispatch(setIsStopped(false))
+        updateHoverMarker(nextTime)
+        dispatch(setTime(nextTime))
+    }, [
+        dispatch,
+        getPointerTime,
+        isPlaying,
+        isStopped,
+        scrubAutoScroll,
+        updateHoverMarker
+    ])
 
-            if (marker.current) marker.current.style.transform = `translateX(${msToPx(time, pxPerMs) - internalOffset}px)`
+    const handlePointerMove = useCallback(event => {
+        if (!event.isPrimary) return
 
-            if (tooltip.current)
-                tooltip.current.dataset.tip = moment.duration(time).format("mm:ss:SSS", { trim: false })
+        const nextTime = getPointerTime(event.clientX)
+        updateHoverMarker(nextTime)
+        scrubAutoScroll.update(event)
+
+        const scrub = scrubState.current
+        if (!scrub.active || scrub.pointerId !== event.pointerId) return
+        event.preventDefault()
+        scrub.lastTime = nextTime
+        setTimeThrottled(nextTime)
+    }, [
+        getPointerTime,
+        scrubAutoScroll,
+        setTimeThrottled,
+        updateHoverMarker
+    ])
+
+    const finishScrub = useCallback((event, commitPointerPosition) => {
+        const scrub = scrubState.current
+        if (!scrub.active || scrub.pointerId !== event.pointerId) return
+
+        let finalTime = scrub.lastTime
+        if (commitPointerPosition && Number.isFinite(event.clientX)) {
+            finalTime = getPointerTime(event.clientX)
+            updateHoverMarker(finalTime)
         }
 
-        const element = scale.current
+        scrub.active = false
+        scrub.lastTime = finalTime
+        scrubAutoScroll.stop()
+        setTimeThrottled.cancel()
+        dispatch(setTime(finalTime))
+        setIsScrubbing(false)
 
-        if (videoDetails?.start !== undefined && videoDetails?.end !== undefined && internalOffset !== null)
-            element?.addEventListener('mousemove', handleMouseMove)
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId)
 
-        return () => { element?.removeEventListener('mousemove', handleMouseMove) }
-    }, [pxPerMs, videoDetails?.start, videoDetails?.end, internalOffset])
+        if (shouldResumeTimelinePlayback({
+            wasPlaying: scrub.wasPlaying,
+            time: finalTime,
+            end: videoDetails.end
+        })) {
+            dispatch(setIsStopped(false))
+            dispatch(setIsPlaying(true))
+        }
+    }, [
+        dispatch,
+        getPointerTime,
+        scrubAutoScroll,
+        setTimeThrottled,
+        updateHoverMarker,
+        videoDetails.end
+    ])
 
-    const onClick = useCallback(e => {
-        dispatch(setTime(pxToMs(e.nativeEvent.offsetX, pxPerMs)))
-    }, [dispatch, pxPerMs])
+    const handlePointerUp = useCallback(event => {
+        finishScrub(event, true)
+    }, [finishScrub])
+
+    const handlePointerCancel = useCallback(event => {
+        finishScrub(event, false)
+    }, [finishScrub])
+
+    useEffect(() => () => {
+        scrubAutoScroll.stop()
+        setTimeThrottled.cancel()
+    }, [scrubAutoScroll, setTimeThrottled])
 
     return (
         <div className="relative w-full h-6 z-10 shrink-0 border-b border-base-content/8">
@@ -133,8 +268,18 @@ export default function TimeScale() {
             </div>
 
             {/* Hover marker */}
-            <div ref={scale} onClick={onClick} className="w-full h-full z-40 group absolute left-0 top-0 cursor-pointer">
-                <div ref={marker} className="w-1 h-full bg-info opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex rounded-lg">
+            <div
+                ref={scale}
+                aria-label="Timeline ruler. Drag to scrub."
+                data-scrubbing={isScrubbing ? "true" : "false"}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                onLostPointerCapture={handlePointerCancel}
+                className={`w-full h-full z-40 group absolute left-0 top-0 touch-none ${isScrubbing ? "cursor-grabbing" : "cursor-ew-resize"}`}
+            >
+                <div ref={marker} className={`w-1 h-full bg-info transition-opacity pointer-events-none flex rounded-lg ${isScrubbing ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
                     <div ref={tooltip} className="tooltip tooltip-open tooltip-bottom tooltip-info">
                         <div className="w-1 h-full" />
                     </div>
@@ -142,4 +287,8 @@ export default function TimeScale() {
             </div>
         </div>
     )
+}
+
+TimeScale.propTypes = {
+    containerRef: PropTypes.shape({ current: PropTypes.any }),
 }

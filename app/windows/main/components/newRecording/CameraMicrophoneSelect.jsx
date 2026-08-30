@@ -10,113 +10,63 @@ import {
 } from "@tanstack/react-query"
 import {
   useCallback,
-  useEffect,
-  useRef,
   useState
 } from "react"
+import PropTypes from "prop-types"
 import {
-  CONSTRAINTS_AUDIO,
-  CONSTRAINTS_VIDEO
+  CONSTRAINTS_AUDIO
 } from "@shared/helpers"
-import useAudioMeter from "@shared/hooks/useAudioMeter"
-import VolumeMeter from "../../../../components/VolumeMeter"
 
-export default function CameraMicrophoneSelect() {
+const canonicalMediaDevices = (devices, excludedLabel = null) => (devices || [])
+  .filter(device => device.kind === "videoinput" || device.kind === "audioinput")
+  .filter(device => device.deviceId !== "default" && device.deviceId !== "communications")
+  .filter(device => !excludedLabel || device.label !== excludedLabel)
+
+const DETECT_CAMERA_VALUE = "__detect-camera__"
+const DETECT_MICROPHONE_VALUE = "__detect-microphone__"
+
+export default function CameraMicrophoneSelect({ audioProcessingSettings }) {
 
   const queryClient = useQueryClient()
   const [permissionDenied, setPermissionDenied] = useState({ video: false, audio: false })
-  const [meterStream, setMeterStream] = useState(null)
-  const meterStreamRef = useRef(null)
-  const { level, peak } = useAudioMeter(meterStream)
 
-  const detect = useCallback(async (type, mediaDevices) => {
-    const devices = (mediaDevices || []).filter(({ kind }) => kind === `${type}input`)
-
-    const configs = []
-
+  const detect = useCallback(async (type, excludedLabel = null) => {
     try {
-      for (const device of devices) {
-        const constraints = {
-          video: type === "video" ? { ...CONSTRAINTS_VIDEO, deviceId: device.deviceId } : false,
-          audio: type === "audio" ? { ...CONSTRAINTS_AUDIO, deviceId: device.deviceId } : false
-        }
+      // One lightweight permission probe unlocks labels for every device. Opening
+      // every camera and microphone serially made the launcher slow and glitchy.
+      const permissionStream = await navigator.mediaDevices.getUserMedia({
+        video: type === "video",
+        audio: type === "audio" ? { ...CONSTRAINTS_AUDIO, ...audioProcessingSettings } : false,
+      })
+      permissionStream.getTracks().forEach(track => track.stop())
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints)
-        if (!stream) continue
+      const refreshedDevices = await navigator.mediaDevices.enumerateDevices()
+      const configs = canonicalMediaDevices(refreshedDevices, excludedLabel)
+        .filter(device => device.kind === `${type}input`)
+        .map(device => ({
+          id: `mediaSource-${device.deviceId || device.groupId || device.label}`,
+          track: { label: device.label },
+          deviceId: device.deviceId,
+          label: device.label || `${type === "video" ? "Camera" : "Microphone"} ${device.deviceId.slice(0, 6)}`,
+        }))
 
-        let tracks
-
-        switch (type) {
-          case "video":
-            tracks = stream.getVideoTracks()
-            break
-          case "audio":
-            tracks = stream.getAudioTracks()
-            break
-        }
-
-        for (const track of tracks) {
-          configs.push({
-            id: `mediaSource-${self.crypto.randomUUID()}`,
-            track,
-            deviceId: device.deviceId,
-            label:
-              tracks.length > 1
-                ? `${device.label} (${track.label})`
-                : device.label,
-          })
-        }
-        stream.getTracks().forEach(track => track.stop())
-      }
+      setPermissionDenied(prev => ({ ...prev, [type]: false }))
+      return configs
     } catch (e) {
       // If permission was denied or device not available, mark it and stop retrying
       if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
         setPermissionDenied(prev => ({ ...prev, [type]: true }))
-        return configs
+        return []
       }
       console.log(e)
+      return []
     }
-
-    // Clear denied state on success
-    if (configs.length > 0) {
-      setPermissionDenied(prev => ({ ...prev, [type]: false }))
-    }
-
-    return configs
-      .filter(({ track }) => track.kind === type)
-      .map(({ id, track, deviceId, label }) => ({
-        id,
-        track: { label: track.label },
-        deviceId,
-        label,
-      }))
-  }, [])
-
-  const areDevicesEqual = useCallback((a, b) => {
-    if (!a || !b || a.length !== b.length) return false
-    return a.every(deviceFromA =>
-      b.some(deviceFromB =>
-        deviceFromB.label === deviceFromA.label && deviceFromB.deviceId === deviceFromA.deviceId))
-  }, [])
+  }, [audioProcessingSettings])
 
   const { data: systemAudio, isPending: isPendingSystemAudio } = useQuery({
     queryKey: ['systemAudio'],
     queryFn: () => window.electron.ipcRenderer.invoke("store-get", "defaultSystemAudioSource"),
     staleTime: Infinity
-  })
-
-  const { data: mediaDevices, isPending: isPendingMediaDevices } = useQuery({
-    queryKey: ['devices', systemAudio],
-    queryFn: async () => {
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      return devices
-        .filter(({ kind }) => kind === "videoinput" || kind === "audioinput")
-        .filter(({ deviceId }) => deviceId !== "default" && deviceId !== "communications")
-        .filter(({ label }) => label !== systemAudio)
-    },
-    staleTime: 5000,
-    gcTime: 10000,
-    enabled: !isPendingSystemAudio
   })
 
   const { data: camera, isPending: isPendingCamera } = useQuery({
@@ -144,10 +94,13 @@ export default function CameraMicrophoneSelect() {
   })
 
   const { mutate: detectCameras, isPending: isPendingDetectCameras } = useMutation({
-    mutationFn: async () => {
-      const cameras = await detect("video", mediaDevices)
+    mutationFn: async ({ selectFirst = false } = {}) => {
+      const cameras = await detect("video")
       await window.electron.ipcRenderer.invoke("store-set", "videoSources", cameras)
-      await window.electron.ipcRenderer.invoke("store-set", "defaultVideoSource", null)
+      const nextSelection = cameras.some(device => device.id === camera)
+        ? camera
+        : selectFirst ? cameras[0]?.id ?? null : null
+      await window.electron.ipcRenderer.invoke("store-set", "defaultVideoSource", nextSelection)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] })
@@ -156,10 +109,13 @@ export default function CameraMicrophoneSelect() {
   })
 
   const { mutate: detectMicrophones, isPending: isPendingDetectMicrophones } = useMutation({
-    mutationFn: async () => {
-      const microphones = await detect("audio", mediaDevices)
+    mutationFn: async ({ selectFirst = false } = {}) => {
+      const microphones = await detect("audio", systemAudio)
       await window.electron.ipcRenderer.invoke("store-set", "audioSources", microphones)
-      await window.electron.ipcRenderer.invoke("store-set", "defaultAudioSource", null)
+      const nextSelection = microphones.some(device => device.id === microphone)
+        ? microphone
+        : selectFirst ? microphones[0]?.id ?? null : null
+      await window.electron.ipcRenderer.invoke("store-set", "defaultAudioSource", nextSelection)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['microphones'] })
@@ -181,95 +137,39 @@ export default function CameraMicrophoneSelect() {
     },
   })
 
-  const { mutate: setCameras, isPending: isPendingSetCameras } = useMutation({
-    mutationFn: cameras => window.electron.ipcRenderer.invoke("store-set", "videoSources", cameras),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cameras'] })
-    },
-  })
-
-  const { mutate: setMicrophones, isPending: isPendingSetMicrophones } = useMutation({
-    mutationFn: microphones => window.electron.ipcRenderer.invoke("store-set", "audioSources", microphones),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['microphones'] })
-    },
-  })
-
-  const clearCache = () => {
+  const refreshDevices = () => {
     setPermissionDenied({ video: false, audio: false })
-    setCameras(null)
-    setMicrophones(null)
-    queryClient.invalidateQueries({ queryKey: ['devices'] })
+    detectCameras()
+    detectMicrophones()
   }
 
-  useEffect(() => {
-    if (!isPendingMediaDevices &&
-      !isPendingCameras &&
-      !isPendingDetectCameras &&
-      !permissionDenied.video &&
-      mediaDevices &&
-      !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "videoinput"), cameras))
-      detectCameras()
-  }, [mediaDevices, detectCameras, isPendingDetectCameras, isPendingMediaDevices, cameras, isPendingCameras, areDevicesEqual, permissionDenied.video])
-
-  useEffect(() => {
-    if (!isPendingMediaDevices &&
-      !isPendingMicrophones &&
-      !isPendingDetectMicrophones &&
-      !permissionDenied.audio &&
-      mediaDevices &&
-      !areDevicesEqual(mediaDevices.filter(({ kind }) => kind === "audioinput"), microphones))
-      detectMicrophones()
-  }, [mediaDevices, microphones, detectMicrophones, isPendingDetectMicrophones, isPendingMediaDevices, isPendingMicrophones, areDevicesEqual, permissionDenied.audio])
-
-  // Acquire a metering-only audio stream when a microphone is selected
-  useEffect(() => {
-    if (!microphone || !microphones || permissionDenied.audio) {
-      if (meterStreamRef.current) {
-        meterStreamRef.current.getTracks().forEach(t => t.stop())
-        meterStreamRef.current = null
-      }
-      setMeterStream(null)
-      return
-    }
-    const selected = microphones.find(({ id }) => id === microphone)
-    if (!selected) return
-
-    let cancelled = false
-    navigator.mediaDevices.getUserMedia({
-      video: false,
-      audio: { ...CONSTRAINTS_AUDIO, deviceId: selected.deviceId }
-    }).then(stream => {
-      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
-      if (meterStreamRef.current) meterStreamRef.current.getTracks().forEach(t => t.stop())
-      meterStreamRef.current = stream
-      setMeterStream(stream)
-    }).catch(() => {})
-
-    return () => {
-      cancelled = true
-      if (meterStreamRef.current) {
-        meterStreamRef.current.getTracks().forEach(t => t.stop())
-        meterStreamRef.current = null
-      }
-      setMeterStream(null)
-    }
-  }, [microphone, microphones, permissionDenied.audio])
-
-  const options = (sources, defaultValue) => {
+  const options = (sources, defaultValue, detectValue, detectLabel) => {
     const options = [<option value="-1" key={0}>{defaultValue}</option>]
     sources?.forEach(
-      ({ id, track, label }, i) => options.push(<option value={id} key={i + 1}>{label ?? track.label}</option>))
+      ({ id, track, label }, i) => options.push(<option value={id} key={i + 1}>{label || track?.label}</option>))
+    options.push(<option value={detectValue} key={detectValue}>{detectLabel}</option>)
     return options
   }
 
-  const onSelectCamera = e => setCamera((cameras ?? []).find(({ id }) => id === e.target.value)?.id ?? null)
+  const onSelectCamera = e => {
+    if (e.target.value === DETECT_CAMERA_VALUE) {
+      detectCameras({ selectFirst: true })
+      return
+    }
+    setCamera((cameras ?? []).find(({ id }) => id === e.target.value)?.id ?? null)
+  }
 
-  const onSelectMicrophone = e => setMicrophone((microphones ?? []).find(({ id }) => id === e.target.value)?.id ?? null)
+  const onSelectMicrophone = e => {
+    if (e.target.value === DETECT_MICROPHONE_VALUE) {
+      detectMicrophones({ selectFirst: true })
+      return
+    }
+    setMicrophone((microphones ?? []).find(({ id }) => id === e.target.value)?.id ?? null)
+  }
 
-  const isPending = isPendingMediaDevices || isPendingCameras || isPendingDetectCameras || isPendingMicrophones ||
+  const isPending = isPendingSystemAudio || isPendingCameras || isPendingDetectCameras || isPendingMicrophones ||
     isPendingDetectMicrophones || isPendingCamera || isPendingMicrophone || isPendingSetCamera ||
-    isPendingSetMicrophone || isPendingSetCameras || isPendingSetMicrophones
+    isPendingSetMicrophone
 
   const hasAnyDenied = permissionDenied.video || permissionDenied.audio
 
@@ -281,6 +181,7 @@ export default function CameraMicrophoneSelect() {
           <VideoCameraIcon className="size-3.5" />
         </div>
         <select
+          aria-label="Camera"
           onChange={onSelectCamera}
           disabled={isPending || permissionDenied.video}
           value={camera ?? "-1"}
@@ -288,7 +189,7 @@ export default function CameraMicrophoneSelect() {
         >
           {permissionDenied.video
             ? <option value="-1">Camera not available</option>
-            : options(cameras, "No camera")}
+            : options(cameras, "Camera off", DETECT_CAMERA_VALUE, "Turn on a camera...")}
         </select>
       </div>
 
@@ -302,6 +203,7 @@ export default function CameraMicrophoneSelect() {
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-1">
           <select
+            aria-label="Microphone"
             onChange={onSelectMicrophone}
             disabled={isPending || permissionDenied.audio}
             value={microphone ?? "-1"}
@@ -309,31 +211,35 @@ export default function CameraMicrophoneSelect() {
           >
             {permissionDenied.audio
               ? <option value="-1">Mic not available</option>
-              : options(microphones, "No microphone")}
+              : options(microphones, "Microphone off", DETECT_MICROPHONE_VALUE, "Turn on a microphone...")}
           </select>
-          {microphone && !permissionDenied.audio && (
-            <VolumeMeter level={level} peak={peak} showPeak />
-          )}
         </div>
       </div>
 
-      {/* Refresh / Permission denied */}
-      {(hasAnyDenied || isPending) && (
-        <div className="flex items-center gap-2 mt-0.5">
-          <div className="size-7 flex-shrink-0" />
-          {hasAnyDenied && (
-            <p className="text-[11px] text-warning flex-1">Permission denied</p>
-          )}
-          <button
-            onClick={clearCache}
-            disabled={isPending}
-            className="btn btn-ghost btn-xs gap-1 text-base-content/40 hover:text-base-content/70"
-          >
-            <ArrowPathIcon className={`size-3 ${isPending ? "animate-spin" : ""}`} />
-            <span className="text-[11px]">{hasAnyDenied ? "Retry" : "Refresh"}</span>
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 mt-0.5">
+        <div className="size-7 flex-shrink-0" />
+        <p className={`text-[11px] flex-1 ${hasAnyDenied ? "text-warning" : "text-base-content/40"}`}>
+          {hasAnyDenied ? "Permission denied" : "Camera and mic stay off until you choose one."}
+        </p>
+        <button
+          type="button"
+          aria-label={hasAnyDenied ? "Retry device detection" : "Refresh cameras and microphones"}
+          onClick={refreshDevices}
+          disabled={isPending}
+          className="btn btn-ghost btn-xs gap-1 text-base-content/40 hover:text-base-content/70 ml-auto"
+        >
+          <ArrowPathIcon className={`size-3 ${isPending ? "animate-spin" : ""}`} />
+          <span className="text-[11px]">{hasAnyDenied ? "Retry" : "Refresh"}</span>
+        </button>
+      </div>
     </div>
   )
+}
+
+CameraMicrophoneSelect.propTypes = {
+  audioProcessingSettings: PropTypes.shape({
+    noiseSuppression: PropTypes.bool,
+    echoCancellation: PropTypes.bool,
+    autoGainControl: PropTypes.bool,
+  }).isRequired,
 }

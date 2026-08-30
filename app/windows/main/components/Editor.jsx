@@ -25,6 +25,8 @@ import {
 } from "@shared/redux/projectSlice"
 import AssetPanel from "./assets/AssetPanel"
 import DragOverlay from "./DragOverlay"
+import ResizeHandle from "./editor/ResizeHandle"
+import useEditorLayout from "./editor/useEditorLayout"
 import ExportButton from "./ExportButton"
 import PresetsDropdown from "./presets/PresetsDropdown"
 import Preview from "./Preview"
@@ -39,12 +41,6 @@ import SaveIndicator from "./titleBar/SaveIndicator"
 import SettingsButton from "./titleBar/SettingsButton"
 import UndoButton from "./titleBar/UndoButton"
 
-function getViewport(w) {
-    if (w >= 1280) return { propertiesMode: "docked", propertiesWidth: 332 }
-    if (w >= 900) return { propertiesMode: "docked", propertiesWidth: 292 }
-    return { propertiesMode: "drawer", propertiesWidth: 320 }
-}
-
 export default function Editor() {
 
     const dispatch = useDispatch()
@@ -54,24 +50,31 @@ export default function Editor() {
     const duration = useSelector(selectDuration)
     const mouseEvents = useSelector(selectMouseEvents)
     const name = useSelector(selectName)
-    const [isAssetPanelOpen, setIsAssetPanelOpen] = useState(false)
+    const {
+        assetsMode,
+        propertiesMode,
+        sizes,
+        timelineMax,
+        isDockedAssetsOpen,
+        setDockedAssetsOpen,
+        startResize,
+        nudgeSize,
+        resetSize
+    } = useEditorLayout()
+    const [isAssetDrawerOpen, setIsAssetDrawerOpen] = useState(false)
     const [isFileDragOver, setIsFileDragOver] = useState(false)
-    const [viewport, setViewport] = useState(() => getViewport(typeof window !== "undefined" ? window.innerWidth : 1280))
     const [isPropertiesDrawerOpen, setIsPropertiesDrawerOpen] = useState(false)
-
-    // Derive panel mode purely from window width. Three states:
-    //   >= 1280 → docked 320
-    //   900–1279 → docked 280
-    //   < 900 → drawer overlay
-    useEffect(() => {
-        const onResize = () => setViewport(getViewport(window.innerWidth))
-        window.addEventListener('resize', onResize)
-        return () => window.removeEventListener('resize', onResize)
-    }, [])
+    const isAssetPanelOpen = assetsMode === "docked"
+        ? isDockedAssetsOpen
+        : isAssetDrawerOpen
 
     useEffect(() => {
-        if (viewport.propertiesMode !== "drawer") setIsPropertiesDrawerOpen(false)
-    }, [viewport.propertiesMode])
+        if (propertiesMode !== "drawer") setIsPropertiesDrawerOpen(false)
+    }, [propertiesMode])
+
+    useEffect(() => {
+        if (assetsMode !== "drawer") setIsAssetDrawerOpen(false)
+    }, [assetsMode])
 
     useEffect(() => {
         if (hasProject) dispatch(ActionCreators.clearHistory())
@@ -148,6 +151,20 @@ export default function Editor() {
         })
     }, [])
 
+    const handleAssetPanelToggle = useCallback(() => {
+        if (assetsMode === "drawer") {
+            setIsAssetDrawerOpen(current => !current)
+            setIsPropertiesDrawerOpen(false)
+            return
+        }
+        setDockedAssetsOpen(current => !current)
+    }, [assetsMode, setDockedAssetsOpen])
+
+    const handlePropertiesDrawerChange = useCallback(open => {
+        setIsPropertiesDrawerOpen(open)
+        if (open && propertiesMode === "drawer") setIsAssetDrawerOpen(false)
+    }, [propertiesMode])
+
     return (
         <div className="flowtake-editor h-full text-base-content">
         <TitleBar overlayButtons={3} subtitle={name} variant="studio" >
@@ -175,22 +192,59 @@ export default function Editor() {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}>
-            {/* Top section: Properties | Preview | Assets */}
-            <div className="flowtake-editor__main pt-2 px-2 pb-1 flex gap-2 flex-1 overflow-hidden min-h-0 relative">
-                <Properties
-                    mode={viewport.propertiesMode}
-                    panelWidth={viewport.propertiesWidth}
-                    isDrawerOpen={isPropertiesDrawerOpen}
-                    onDrawerChange={setIsPropertiesDrawerOpen}
+            {/* Primary workspace: media | preview | inspector */}
+            <div className="flowtake-editor__main px-3 pt-3 flex flex-1 overflow-hidden min-h-0 relative">
+                <AssetPanel
+                    mode={assetsMode}
+                    panelWidth={sizes.assets}
+                    isOpen={isAssetPanelOpen}
+                    onToggle={handleAssetPanelToggle}
+                />
+                <ResizeHandle
+                    orientation="vertical"
+                    label="Resize media panel"
+                    value={sizes.assets}
+                    min={200}
+                    max={360}
+                    hidden={assetsMode !== "docked" || !isAssetPanelOpen}
+                    onResizeStart={event => startResize("assets", event)}
+                    onNudge={delta => nudgeSize("assets", delta)}
+                    onReset={() => resetSize("assets")}
                 />
                 <Preview />
-                <AssetPanel
-                    isOpen={isAssetPanelOpen}
-                    onToggle={() => setIsAssetPanelOpen(!isAssetPanelOpen)}
+                <ResizeHandle
+                    orientation="vertical"
+                    label="Resize inspector"
+                    value={sizes.inspector}
+                    min={260}
+                    max={420}
+                    hidden={propertiesMode !== "docked"}
+                    onResizeStart={event => startResize("inspector", event)}
+                    onNudge={delta => nudgeSize("inspector", -delta)}
+                    onReset={() => resetSize("inspector")}
+                />
+                <Properties
+                    mode={propertiesMode}
+                    panelWidth={sizes.inspector}
+                    isDrawerOpen={isPropertiesDrawerOpen}
+                    onDrawerChange={handlePropertiesDrawerChange}
                 />
             </div>
-            {/* Bottom section: Timeline */}
-            <div data-tutorial="timeline">
+            <ResizeHandle
+                orientation="horizontal"
+                label="Resize timeline"
+                value={sizes.timeline}
+                min={190}
+                max={timelineMax}
+                onResizeStart={event => startResize("timeline", event)}
+                onNudge={delta => nudgeSize("timeline", -delta)}
+                onReset={() => resetSize("timeline")}
+            />
+            <div
+                data-tutorial="timeline"
+                className="flowtake-editor__timeline shrink-0 min-h-0"
+                style={{ height: sizes.timeline }}
+            >
                 <Timeline />
             </div>
             <DragOverlay />

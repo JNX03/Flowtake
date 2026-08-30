@@ -64,8 +64,7 @@ fn url_decode(s: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(byte) =
-                u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
+            if let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
             {
                 result.push(byte);
                 i += 3;
@@ -119,9 +118,7 @@ fn save_tokens(app: &AppHandle, tokens: &OAuthTokens) -> AppResult<()> {
         .map_err(|e| AppError::General(e.to_string()))?;
     let value = serde_json::to_value(tokens).map_err(|e| AppError::General(e.to_string()))?;
     store.set(YOUTUBE_TOKENS_KEY, value);
-    store
-        .save()
-        .map_err(|e| AppError::General(e.to_string()))?;
+    store.save().map_err(|e| AppError::General(e.to_string()))?;
     Ok(())
 }
 
@@ -175,26 +172,23 @@ async fn run_oauth_flow(app: AppHandle, credentials: OAuthCredentials) -> AppRes
         encode_uri_component(SCOPES),
     );
 
-    let listener =
-        tokio::net::TcpListener::bind(format!("127.0.0.1:{}", REDIRECT_PORT))
-            .await
-            .map_err(|e| {
-                AppError::General(format!(
-                    "Failed to start callback server on port {}: {}",
-                    REDIRECT_PORT, e
-                ))
-            })?;
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", REDIRECT_PORT))
+        .await
+        .map_err(|e| {
+            AppError::General(format!(
+                "Failed to start callback server on port {}: {}",
+                REDIRECT_PORT, e
+            ))
+        })?;
 
     open::that(&auth_url)
         .map_err(|e| AppError::General(format!("Failed to open browser: {}", e)))?;
 
-    let (mut stream, _) = tokio::time::timeout(
-        std::time::Duration::from_secs(300),
-        listener.accept(),
-    )
-    .await
-    .map_err(|_| AppError::General("Authentication timed out".to_string()))?
-    .map_err(|e| AppError::General(format!("Connection error: {}", e)))?;
+    let (mut stream, _) =
+        tokio::time::timeout(std::time::Duration::from_secs(300), listener.accept())
+            .await
+            .map_err(|_| AppError::General("Authentication timed out".to_string()))?
+            .map_err(|e| AppError::General(format!("Connection error: {}", e)))?;
 
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let mut buf = vec![0u8; 8192];
@@ -217,7 +211,10 @@ async fn run_oauth_flow(app: AppHandle, credentials: OAuthCredentials) -> AppRes
             html
         );
         stream.write_all(response.as_bytes()).await.ok();
-        return Err(AppError::General(format!("Authorization denied: {}", error)));
+        return Err(AppError::General(format!(
+            "Authorization denied: {}",
+            error
+        )));
     }
 
     let code = extract_query_param(path, "code")
@@ -248,10 +245,7 @@ async fn run_oauth_flow(app: AppHandle, credentials: OAuthCredentials) -> AppRes
 
     if !resp.status().is_success() {
         let err = resp.text().await.unwrap_or_default();
-        return Err(AppError::General(format!(
-            "Token exchange failed: {}",
-            err
-        )));
+        return Err(AppError::General(format!("Token exchange failed: {}", err)));
     }
 
     let token_resp: TokenResponse = resp.json().await?;
@@ -284,9 +278,7 @@ pub async fn youtube_set_credentials(
         YOUTUBE_CREDENTIALS_KEY,
         serde_json::to_value(&creds).unwrap(),
     );
-    store
-        .save()
-        .map_err(|e| AppError::General(e.to_string()))?;
+    store.save().map_err(|e| AppError::General(e.to_string()))?;
     Ok(())
 }
 
@@ -362,9 +354,7 @@ pub async fn youtube_auth_disconnect(app: AppHandle) -> AppResult<()> {
         .store(STORE_FILE)
         .map_err(|e| AppError::General(e.to_string()))?;
     store.delete(YOUTUBE_TOKENS_KEY);
-    store
-        .save()
-        .map_err(|e| AppError::General(e.to_string()))?;
+    store.save().map_err(|e| AppError::General(e.to_string()))?;
 
     Ok(())
 }
@@ -379,13 +369,13 @@ pub async fn youtube_upload_video(
 ) -> AppResult<Value> {
     let token = get_valid_token(&app).await?;
 
-    let video_path = {
+    let (video_path, video_mime_type) = {
         let state = app.state::<Mutex<AppState>>();
         let state = state.lock().unwrap();
         state
             .renders
             .get(&render_id)
-            .map(|r| r.output_path.clone())
+            .map(|render| (render.output_path.clone(), render.format.mime_type()))
             .ok_or_else(|| AppError::General(format!("Render not found: {}", render_id)))?
     };
 
@@ -419,7 +409,7 @@ pub async fn youtube_upload_video(
         ))
         .bearer_auth(&token)
         .header("Content-Type", "application/json; charset=UTF-8")
-        .header("X-Upload-Content-Type", "video/mp4")
+        .header("X-Upload-Content-Type", video_mime_type)
         .header("X-Upload-Content-Length", file_size.to_string())
         .json(&metadata)
         .send()
@@ -480,7 +470,7 @@ pub async fn youtube_upload_video(
                 "Content-Range",
                 format!("bytes {}-{}/{}", start, end, file_size),
             )
-            .header("Content-Type", "video/mp4")
+            .header("Content-Type", video_mime_type)
             .body(chunk)
             .send()
             .await?;

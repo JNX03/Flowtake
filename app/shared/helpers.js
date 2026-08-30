@@ -7,6 +7,12 @@ import {
     easeLinear
 } from "d3-ease"
 import { PROJECT_SCREEN_VIDEO } from "./constants"
+import { getClipSplitTiming } from "./editor/playbackClock"
+import {
+    hydrateProjectMedia,
+    rebindTimelineMediaEntities
+} from "./editor/projectMedia"
+import { migrateProjectDocument } from "./editor/projectSchema"
 import shallowEqual from "./shallowEqual"
 import {
     getGroup,
@@ -17,6 +23,7 @@ import {
     setHasProject,
     setLoaderMessage
 } from "./redux/appSlice"
+import { setAssets } from "./redux/assetSlice"
 import {
     addCameraZoom,
     applyProperties as applyCameraZoomAnimsProperties,
@@ -72,6 +79,9 @@ import {
     applyProperties as applyProjectProperties,
     setBackground
 } from "./redux/projectSlice"
+import {
+    applyProperties as applyEditorDomainProperties
+} from "./redux/sceneSlice"
 import {
     addSubtitle,
     applyProperties as applySubtitleAnimsProperties,
@@ -209,13 +219,13 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
     defaultZoomIntro, defaultZoomOutro, defaultZoomTargetScale, onError = null) => {
 
     // Load configs and project data in parallel
-    const [cfgs, json] = await Promise.all([
+    const [cfgs, rawJson] = await Promise.all([
         loadConfigs(),
         window.electron.ipcRenderer.invoke("open-project", id)
     ])
 
     const actions = []
-    if (json) {
+    if (rawJson) {
         let duration
         try {
             // Add timeout to prevent hanging on corrupted video files
@@ -225,8 +235,18 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
             duration = await Promise.race([durationPromise, timeoutPromise])
         } catch (e) {
             console.warn("[Flowtake] Failed to get video duration, using fallback:", e)
-            duration = json?.project?.videoDetails?.end || 10000
+            duration = rawJson?.project?.videoDetails?.end || 10000
         }
+        const json = migrateProjectDocument(rawJson, { projectId: id, duration })
+        const hydratedProjectMedia = await hydrateProjectMedia(json.editorDomain.media)
+        const hydratedAudioClips = rebindTimelineMediaEntities(
+            json.audioTrackAnims,
+            hydratedProjectMedia
+        )
+        const hydratedOverlays = rebindTimelineMediaEntities(
+            json.overlayAnims,
+            hydratedProjectMedia
+        )
         actions.push(setDuration(duration))
 
         // This prevents initialization, which is necessary only for new projects
@@ -235,6 +255,8 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         actions.push(setAreCameraZoomAnimEntitiesGenerated(!isNew))
 
         actions.push(applyProjectProperties(json.project))
+        actions.push(applyEditorDomainProperties(json.editorDomain))
+        actions.push(setAssets(hydratedProjectMedia))
         actions.push(applyClipAnimsProperties(json.clipAnims))
         actions.push(applyClickAnimsProperties(json.clickAnims))
         actions.push(applyCursorTypeAnimsProperties(json.cursorTypeAnims))
@@ -303,6 +325,14 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
             actions.push(setMasks(
                 json.maskAnims.entities.map(config => new cfgs.MaskConfig(config, defaultMaskBlurStrength, defaultMaskAlpha,
                     defaultMaskBorderRadius, defaultMaskFill).serialize())))
+
+        if (json.audioTrackAnims?.entities) {
+            actions.push(setAudioClips(hydratedAudioClips))
+        }
+
+        if (json.overlayAnims?.entities) {
+            actions.push(setOverlays(hydratedOverlays))
+        }
 
         if (json.spatialAnims?.entities)
             actions.push(setSpatials(
@@ -445,8 +475,18 @@ export const mergeZoomRight = (zoom, zooms, pan, pans, cameraZoom, cameraZooms) 
     merge(mergeRight(zoom, zooms), mergeRight(pan, pans), mergeRight(cameraZoom, cameraZooms))
 
 export const split = (config, Class, time, args = []) => {
-    const args1 = { id: config.id, end: time }
+    const isClip = Class === _configs.ClipConfig
+    const clipTiming = isClip ? getClipSplitTiming(config, time) : null
+    const args1 = {
+        id: config.id,
+        end: time,
+        ...(clipTiming ? { sourceEnd: clipTiming.left.sourceEnd } : {}),
+    }
     const newConfig = { ...config, start: time }
+    if (clipTiming) {
+        newConfig.sourceStart = clipTiming.right.sourceStart
+        newConfig.sourceEnd = clipTiming.right.sourceEnd
+    }
     delete newConfig.id
     const args2 = new Class(newConfig, ...args).serialize()
     return [args1, args2]
@@ -908,8 +948,8 @@ export const svgToBmp = async (svg, size = { x: 150, y: 150 }) => {
 export const getGridBackgroundImage = gridSpacing =>
     `repeating-linear-gradient(
         to right,
-        color-mix(in oklab, var(--color-base-content) 60%, transparent) 0,
-        color-mix(in oklab, var(--color-base-content) 60%, transparent) 1px,
+        color-mix(in oklab, var(--color-base-content) 10%, transparent) 0,
+        color-mix(in oklab, var(--color-base-content) 10%, transparent) 1px,
         transparent 1px,
         transparent ${gridSpacing}px
     )`
