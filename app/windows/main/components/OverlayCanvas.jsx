@@ -14,6 +14,19 @@ import {
 } from "react-redux"
 import { subscribe, isDragActive } from "../dragState"
 import { OVERLAY_TRACKS } from "@shared/helpers"
+import { resolveOverlayAtTime } from "@shared/editor/overlayKeyframes"
+import { snapPreviewPosition } from "@shared/editor/previewSnapping"
+import { createOverlayLaneItem } from "@shared/editor/timelineLaneInsert"
+import {
+    clampVideoOverlayEnd,
+    getVideoOverlaySourceTime
+} from "@shared/editor/videoOverlay"
+import {
+    getGroup,
+    withGroup,
+    withPreventUndo
+} from "@shared/redux/actionEnhancers"
+import { selectAssetById } from "@shared/redux/assetSlice"
 import {
     addOverlay,
     addOverlayTrack,
@@ -22,7 +35,10 @@ import {
     selectNextOverlayTrackId,
     updateOverlay
 } from "@shared/redux/overlaySlice"
-import { selectDuration } from "@shared/redux/editorSlice"
+import {
+    selectDuration,
+    selectIsPlaying
+} from "@shared/redux/editorSlice"
 import {
     selectSelectedIds,
     selectTime,
@@ -31,30 +47,45 @@ import {
     setOpenSection
 } from "@shared/redux/timelineSlice"
 
-function lerpKeyframes(overlay, time) {
-    const kf = overlay.keyframes
-    if (!kf || kf.length === 0) return overlay
-    const relTime = time - overlay.start
-    if (kf.length === 1) return { ...overlay, ...kf[0] }
-    // Find bracketing keyframes
-    let before = kf[0], after = kf[kf.length - 1]
-    for (let i = 0; i < kf.length; i++) {
-        if (kf[i].time <= relTime) before = kf[i]
-        if (kf[i].time >= relTime) { after = kf[i]; break }
+const colorWithOpacity = (color, opacity) => {
+    const normalized = /^#[0-9a-f]{6}$/i.test(color || "") ? color : "#000000"
+    const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255)
+        .toString(16)
+        .padStart(2, "0")
+    return `${normalized}${alpha}`
+}
+
+const getOverlayVisualSize = overlay => {
+    const scale = overlay.scale || 1
+    if (overlay.overlayType === "text") {
+        const fontSize = (overlay.fontSize || 32) * scale
+        const lines = (overlay.text || "Text").split("\n")
+        const longestLine = Math.max(...lines.map(line => line.length))
+        const padding = overlay.textBackgroundEnabled
+            ? (overlay.textBackgroundPadding ?? 12) * 2 * scale
+            : 0
+        return {
+            w: Math.max(fontSize * 0.6 * longestLine, 40) + padding,
+            h: fontSize * lines.length * (overlay.lineHeight || 1.3) + padding,
+        }
     }
-    if (before === after || before.time === after.time) return { ...overlay, ...before }
-    const t = (relTime - before.time) / (after.time - before.time)
-    const lerp = (a, b) => a != null && b != null ? a + (b - a) * t : (b ?? a)
-    return {
-        ...overlay,
-        position: {
-            x: lerp(before.position?.x ?? overlay.position?.x, after.position?.x ?? overlay.position?.x),
-            y: lerp(before.position?.y ?? overlay.position?.y, after.position?.y ?? overlay.position?.y),
-        },
-        rotation: lerp(before.rotation ?? overlay.rotation ?? 0, after.rotation ?? overlay.rotation ?? 0),
-        scale: lerp(before.scale ?? overlay.scale ?? 1, after.scale ?? overlay.scale ?? 1),
-        opacity: lerp(before.opacity ?? overlay.opacity ?? 1, after.opacity ?? overlay.opacity ?? 1),
+    if (overlay.overlayType === "shape") {
+        if (overlay.shapeType === "circle") {
+            const diameter = (overlay.radius || 60) * 2 * scale
+            return { w: diameter, h: diameter }
+        }
+        return {
+            w: (overlay.width || 200) * scale,
+            h: (overlay.height || 100) * scale,
+        }
     }
+    if (overlay.overlayType === "image" || overlay.overlayType === "video") {
+        return {
+            w: (overlay.width || 320) * scale,
+            h: (overlay.height || 240) * scale,
+        }
+    }
+    return { w: 100, h: 50 }
 }
 
 export default function OverlayCanvas({ canvasRect }) {
@@ -64,14 +95,18 @@ export default function OverlayCanvas({ canvasRect }) {
     const overlayTracks = useSelector(selectOverlayTracks)
     const time = useSelector(selectTime)
     const duration = useSelector(selectDuration)
+    const isPlaying = useSelector(selectIsPlaying)
     const selectedIds = useSelector(selectSelectedIds)
 
     const [isDragOver, setIsDragOver] = useState(false)
+    const [snapGuides, setSnapGuides] = useState([])
     const nextTrackId = useSelector(selectNextOverlayTrackId)
 
     // Filter overlays visible at current time
     const visibleOverlays = useMemo(() =>
-        allOverlays.filter(o => time >= o.start && time <= o.end).map(o => lerpKeyframes(o, time)),
+        allOverlays
+            .filter(o => o.visible !== false && time >= o.start && time <= o.end)
+            .map(o => resolveOverlayAtTime(o, time)),
         [allOverlays, time]
     )
 
@@ -104,13 +139,18 @@ export default function OverlayCanvas({ canvasRect }) {
             const rect = target.rect
             const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
             const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
+            const start = Math.max(0, time - 500)
+            const sourceDuration = Number.isFinite(Number(data.duration)) && Number(data.duration) > 0
+                ? Number(data.duration)
+                : null
+            const end = data.type === "video"
+                ? clampVideoOverlayEnd({ start, projectDuration: duration, sourceDuration })
+                : Math.min(start + 4000, duration)
 
             // Find an available track or auto-create one
             let trackId
             if (overlayTracks.length > 0) {
                 // Find a track that doesn't have an overlap at this time range
-                const start = Math.max(0, time - 500)
-                const end = Math.min(start + 4000, duration)
                 const available = overlayTracks.find(track => {
                     const trackOverlays = allOverlays.filter(o => o.trackIndex === track.id)
                     return !trackOverlays.some(o => o.start < end && o.end > start)
@@ -127,28 +167,24 @@ export default function OverlayCanvas({ canvasRect }) {
             }
 
             const uid = `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-            const start = Math.max(0, time - 500)
-            const end = Math.min(start + 4000, duration)
-            const base = {
-                id: uid, start, end, trackIndex: trackId,
-                opacity: 1, position: { x, y }, rotation: 0, scale: 1,
-            }
-
             setTimeout(() => {
-                if (data.type === "text") {
-                    dispatch(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
-                        fontSize: data.config?.fontSize || 32, fontWeight: data.config?.fontWeight || 600,
-                        color: data.config?.color || "#ffffff" }))
-                } else if (data.type === "shape") {
-                    dispatch(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
-                        fill: data.config?.fill || "#6C5CE7", stroke: data.config?.stroke || "none",
-                        strokeWidth: data.config?.strokeWidth || 0, width: data.config?.width || 200,
-                        height: data.config?.height || 100, borderRadius: data.config?.borderRadius || 0,
-                        radius: data.config?.radius || 0 }))
-                } else if (data.type === "image" || data.type === "video") {
-                    dispatch(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
-                        src: data.src || null, width: 320, height: 240 }))
-                }
+                const overlay = createOverlayLaneItem({
+                    id: uid,
+                    trackId,
+                    start,
+                    end,
+                    asset: {
+                        ...data,
+                        sourceDuration,
+                    },
+                    position: { x, y },
+                })
+                if (!overlay) return
+                dispatch(addOverlay({
+                    ...overlay,
+                    rotation: 0,
+                    scale: 1,
+                }))
 
                 // Auto-select the new overlay
                 setTimeout(() => {
@@ -184,6 +220,27 @@ export default function OverlayCanvas({ canvasRect }) {
                 </div>
             )}
 
+            {snapGuides.map((guide, index) => (
+                <div
+                    key={`${guide.axis}-${guide.value}-${index}`}
+                    data-preview-snap-guide={guide.axis}
+                    className="absolute z-40 bg-info/80 pointer-events-none shadow-sm"
+                    style={guide.axis === "x"
+                        ? {
+                            left: `${guide.value * 100}%`,
+                            top: 0,
+                            bottom: 0,
+                            width: 1,
+                        }
+                        : {
+                            top: `${guide.value * 100}%`,
+                            left: 0,
+                            right: 0,
+                            height: 1,
+                        }}
+                />
+            ))}
+
             {/* Render each visible overlay */}
             {hasRect && visibleOverlays.map(overlay => (
                 <OverlayElement
@@ -191,8 +248,13 @@ export default function OverlayCanvas({ canvasRect }) {
                     overlay={overlay}
                     containerWidth={canvasRect.width}
                     containerHeight={canvasRect.height}
+                    editorTime={time}
+                    isPlaying={isPlaying}
+                    projectDuration={duration}
+                    snapOverlays={visibleOverlays}
                     isSelected={selectedIds.includes(overlay.id)}
                     onSelect={e => selectOverlay(overlay.id, e)}
+                    onSnapGuidesChange={setSnapGuides}
                     dispatch={dispatch}
                 />
             ))}
@@ -200,55 +262,110 @@ export default function OverlayCanvas({ canvasRect }) {
     )
 }
 
-function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, onSelect, dispatch }) {
+function OverlayElement({
+    overlay,
+    containerWidth,
+    containerHeight,
+    editorTime,
+    isPlaying,
+    projectDuration,
+    snapOverlays,
+    isSelected,
+    onSelect,
+    onSnapGuidesChange,
+    dispatch
+}) {
 
     const elRef = useRef(null)
     const [isDragging, setIsDragging] = useState(false)
-    const [isResizing, setIsResizing] = useState(false)
-    const [isRotating, setIsRotating] = useState(false)
+    const [, setIsResizing] = useState(false)
+    const [, setIsRotating] = useState(false)
+    const [isEditingText, setIsEditingText] = useState(false)
+    const [draftText, setDraftText] = useState(overlay.text || "Text")
     const dragStart = useRef(null)
+    const textEditorRef = useRef(null)
+    const textEditCanceledRef = useRef(false)
+    const mediaAsset = useSelector(state =>
+        overlay.mediaId ? selectAssetById(state, overlay.mediaId) : null)
 
-    const pos = overlay.position || { x: 0.5, y: 0.5 }
+    useEffect(() => {
+        if (!isEditingText) setDraftText(overlay.text || "Text")
+    }, [isEditingText, overlay.text])
+
+    useEffect(() => {
+        if (!isEditingText) return
+        textEditorRef.current?.focus()
+        textEditorRef.current?.select()
+    }, [isEditingText])
+
+    const pos = useMemo(
+        () => overlay.position || { x: 0.5, y: 0.5 },
+        [overlay.position]
+    )
     const rotation = overlay.rotation || 0
     const scale = overlay.scale || 1
     const opacity = overlay.opacity ?? 1
 
-    // Get overlay visual dimensions
-    const getSize = () => {
-        if (overlay.overlayType === "text") {
-            const fs = (overlay.fontSize || 32) * scale
-            const charWidth = fs * 0.6
-            const lines = (overlay.text || "Text").split("\n")
-            const maxLen = Math.max(...lines.map(l => l.length))
-            return { w: Math.max(charWidth * maxLen, 40), h: fs * lines.length * 1.3 }
-        }
-        if (overlay.overlayType === "shape") {
-            if (overlay.shapeType === "circle") {
-                const d = (overlay.radius || 60) * 2 * scale
-                return { w: d, h: d }
-            }
-            return { w: (overlay.width || 200) * scale, h: (overlay.height || 100) * scale }
-        }
-        if (overlay.overlayType === "image") {
-            return { w: (overlay.width || 320) * scale, h: (overlay.height || 240) * scale }
-        }
-        return { w: 100, h: 50 }
-    }
-
-    const size = getSize()
+    const size = getOverlayVisualSize(overlay)
     // Scale element sizes relative to canvas (assume renderer is ~1280 wide)
     const canvasScale = containerWidth / 1280
     const w = size.w * canvasScale
     const h = size.h * canvasScale
     const cx = pos.x * containerWidth
     const cy = pos.y * containerHeight
+    const textStyle = {
+        fontFamily: overlay.fontFamily || "Inter, Arial, Helvetica, sans-serif",
+        fontSize: `${(overlay.fontSize || 32) * scale * canvasScale}px`,
+        fontWeight: overlay.fontWeight || 400,
+        fontStyle: overlay.fontStyle || "normal",
+        textAlign: overlay.textAlign || "center",
+        letterSpacing: `${(overlay.letterSpacing || 0) * scale * canvasScale}px`,
+        color: overlay.color || "#ffffff",
+        whiteSpace: "pre-wrap",
+        lineHeight: overlay.lineHeight || 1.3,
+        maxWidth: `${(overlay.textMaxWidth || 800) * scale * canvasScale}px`,
+        background: overlay.textBackgroundEnabled
+            ? colorWithOpacity(
+                overlay.textBackgroundColor || "#000000",
+                overlay.textBackgroundOpacity ?? 0.65
+            )
+            : "transparent",
+        padding: overlay.textBackgroundEnabled
+            ? `${(overlay.textBackgroundPadding ?? 12) * scale * canvasScale}px`
+            : 0,
+        borderRadius: overlay.textBackgroundEnabled
+            ? `${(overlay.textBackgroundRadius ?? 8) * scale * canvasScale}px`
+            : 0,
+        textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+    }
 
     // Move via drag
     const handleMoveStart = useCallback(e => {
         e.stopPropagation()
         onSelect(e)
+        if (isEditingText || (overlay.overlayType === "text" && e.detail > 1)) return
         setIsDragging(true)
         dragStart.current = { mx: e.clientX, my: e.clientY, px: pos.x, py: pos.y }
+        const group = getGroup("overlay-move")
+        const otherBounds = snapOverlays
+            .filter(item => item.id !== overlay.id)
+            .map(item => {
+                const otherSize = getOverlayVisualSize(item)
+                const otherWidth = otherSize.w * canvasScale
+                const otherHeight = otherSize.h * canvasScale
+                const otherPosition = item.position || { x: 0.5, y: 0.5 }
+                const halfWidth = otherWidth / containerWidth / 2
+                const halfHeight = otherHeight / containerHeight / 2
+                return {
+                    id: item.id,
+                    left: otherPosition.x - halfWidth,
+                    centerX: otherPosition.x,
+                    right: otherPosition.x + halfWidth,
+                    top: otherPosition.y - halfHeight,
+                    centerY: otherPosition.y,
+                    bottom: otherPosition.y + halfHeight,
+                }
+            })
 
         const onMove = ev => {
             if (!dragStart.current) return
@@ -256,33 +373,68 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
             const dy = (ev.clientY - dragStart.current.my) / containerHeight
             const nx = Math.max(0, Math.min(1, dragStart.current.px + dx))
             const ny = Math.max(0, Math.min(1, dragStart.current.py + dy))
-            dispatch(updateOverlay({ id: overlay.id, changes: { position: { x: nx, y: ny } } }))
+            const snapped = snapPreviewPosition({
+                position: { x: nx, y: ny },
+                movingSize: { width: w, height: h },
+                containerSize: {
+                    width: containerWidth,
+                    height: containerHeight,
+                },
+                otherBounds,
+            })
+            onSnapGuidesChange(snapped.guides)
+            dispatch(withGroup(
+                updateOverlay({
+                    id: overlay.id,
+                    changes: { position: snapped.position },
+                }),
+                group
+            ))
         }
         const onUp = () => {
             setIsDragging(false)
             dragStart.current = null
+            onSnapGuidesChange([])
             window.removeEventListener("mousemove", onMove)
             window.removeEventListener("mouseup", onUp)
         }
         window.addEventListener("mousemove", onMove)
         window.addEventListener("mouseup", onUp)
-    }, [dispatch, overlay.id, pos, containerWidth, containerHeight, onSelect])
+    }, [
+        containerHeight,
+        containerWidth,
+        canvasScale,
+        dispatch,
+        h,
+        isEditingText,
+        onSelect,
+        onSnapGuidesChange,
+        overlay.id,
+        overlay.overlayType,
+        pos,
+        snapOverlays,
+        w,
+    ])
 
     // Resize via corner drag
-    const handleResizeStart = useCallback((e, corner) => {
+    const handleResizeStart = useCallback(e => {
         e.stopPropagation()
         e.preventDefault()
         setIsResizing(true)
         const startScale = overlay.scale || 1
         const startX = e.clientX
         const startY = e.clientY
+        const group = getGroup("overlay-resize")
 
         const onMove = ev => {
             const dx = ev.clientX - startX
             const dy = ev.clientY - startY
             const dist = Math.sqrt(dx * dx + dy * dy) * (dx + dy > 0 ? 1 : -1)
             const newScale = Math.max(0.1, Math.min(5, startScale + dist / 200))
-            dispatch(updateOverlay({ id: overlay.id, changes: { scale: Math.round(newScale * 100) / 100 } }))
+            dispatch(withGroup(
+                updateOverlay({ id: overlay.id, changes: { scale: Math.round(newScale * 100) / 100 } }),
+                group
+            ))
         }
         const onUp = () => {
             setIsResizing(false)
@@ -302,11 +454,15 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
         if (!elRect) return
         const centerX = elRect.left + elRect.width / 2
         const centerY = elRect.top + elRect.height / 2
+        const group = getGroup("overlay-rotate")
 
         const onMove = ev => {
             const angle = Math.atan2(ev.clientY - centerY, ev.clientX - centerX) * (180 / Math.PI) + 90
             const snapped = Math.abs(angle % 45) < 5 ? Math.round(angle / 45) * 45 : Math.round(angle)
-            dispatch(updateOverlay({ id: overlay.id, changes: { rotation: snapped } }))
+            dispatch(withGroup(
+                updateOverlay({ id: overlay.id, changes: { rotation: snapped } }),
+                group
+            ))
         }
         const onUp = () => {
             setIsRotating(false)
@@ -317,17 +473,78 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
         window.addEventListener("mouseup", onUp)
     }, [dispatch, overlay.id])
 
+    const startTextEdit = useCallback(e => {
+        if (overlay.overlayType !== "text" || isPlaying) return
+        e.stopPropagation()
+        onSelect(e)
+        textEditCanceledRef.current = false
+        setDraftText(overlay.text || "Text")
+        setIsEditingText(true)
+    }, [isPlaying, onSelect, overlay.overlayType, overlay.text])
+
+    const commitTextEdit = useCallback(() => {
+        if (textEditCanceledRef.current) {
+            textEditCanceledRef.current = false
+            setIsEditingText(false)
+            return
+        }
+        const nextText = draftText.trim().length > 0 ? draftText : "Text"
+        if (nextText !== overlay.text) {
+            dispatch(withGroup(
+                updateOverlay({ id: overlay.id, changes: { text: nextText } }),
+                getGroup("overlay-text-edit")
+            ))
+        }
+        setDraftText(nextText)
+        setIsEditingText(false)
+    }, [dispatch, draftText, overlay.id, overlay.text])
+
+    const cancelTextEdit = useCallback(() => {
+        textEditCanceledRef.current = true
+        setDraftText(overlay.text || "Text")
+        setIsEditingText(false)
+    }, [overlay.text])
+
+    const onTextEditorKeyDown = useCallback(event => {
+        event.stopPropagation()
+        if (event.key === "Escape") {
+            event.preventDefault()
+            cancelTextEdit()
+        } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            event.currentTarget.blur()
+        }
+    }, [cancelTextEdit])
+
     const renderContent = () => {
         if (overlay.overlayType === "text") {
+            if (isEditingText) {
+                return (
+                    <textarea
+                        ref={textEditorRef}
+                        value={draftText}
+                        onChange={event => setDraftText(event.target.value)}
+                        onBlur={commitTextEdit}
+                        onKeyDown={onTextEditorKeyDown}
+                        onMouseDown={event => event.stopPropagation()}
+                        onClick={event => event.stopPropagation()}
+                        onDoubleClick={event => event.stopPropagation()}
+                        aria-label="Edit text overlay"
+                        spellCheck
+                        style={{
+                            ...textStyle,
+                            width: `${Math.max(w, 120 * canvasScale)}px`,
+                            minHeight: `${Math.max(h, 48 * canvasScale)}px`,
+                            boxSizing: "border-box",
+                            resize: "none",
+                            overflow: "hidden",
+                        }}
+                        className="block border-0 outline outline-2 outline-info/80"
+                    />
+                )
+            }
             return (
-                <div style={{
-                    fontSize: `${(overlay.fontSize || 32) * canvasScale}px`,
-                    fontWeight: overlay.fontWeight || 400,
-                    color: overlay.color || "#ffffff",
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.3,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-                }} className="select-none pointer-events-none">
+                <div style={textStyle} className="select-none pointer-events-none">
                     {overlay.text || "Text"}
                 </div>
             )
@@ -342,10 +559,22 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
             }
             return <div style={style} className="pointer-events-none" />
         }
-        if (overlay.overlayType === "image" && overlay.src) {
-            return <img src={overlay.src} draggable={false}
+        if (overlay.overlayType === "image" && (mediaAsset?.src || overlay.src)) {
+            return <img src={mediaAsset?.src || overlay.src} draggable={false}
                 style={{ width: `${w}px`, height: `${h}px`, objectFit: "contain" }}
                 className="pointer-events-none" />
+        }
+        if (overlay.overlayType === "video") {
+            return <VideoOverlayPreview
+                overlay={overlay}
+                src={mediaAsset?.src || overlay.src || null}
+                editorTime={editorTime}
+                isPlaying={isPlaying}
+                projectDuration={projectDuration}
+                width={w}
+                height={h}
+                dispatch={dispatch}
+            />
         }
         return <div style={{ width: `${w}px`, height: `${h}px`, background: "rgba(108,92,231,0.3)" }}
             className="pointer-events-none rounded" />
@@ -360,14 +589,18 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
                 top: `${cy}px`,
                 transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
                 opacity,
+                mixBlendMode: overlay.blendMode || "normal",
                 pointerEvents: "auto",
+                cursor: isEditingText ? "text" : "move",
             }}
             onMouseDown={handleMoveStart}
+            onDoubleClick={startTextEdit}
+            title={overlay.overlayType === "text" ? "Double-click to edit text" : undefined}
         >
             {renderContent()}
 
             {/* Selection handles */}
-            {isSelected && (
+            {isSelected && !isEditingText && (
                 <>
                     {/* Selection border */}
                     <div className="absolute -inset-1 border-2 border-info rounded pointer-events-none" />
@@ -381,7 +614,7 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
                     ].map((cls, i) => (
                         <div key={i}
                             className={`absolute ${cls} w-2.5 h-2.5 bg-info border border-white rounded-sm z-30`}
-                            onMouseDown={e => handleResizeStart(e, i)}
+                            onMouseDown={handleResizeStart}
                         />
                     ))}
 
@@ -398,10 +631,116 @@ function OverlayElement({ overlay, containerWidth, containerHeight, isSelected, 
 
                     {/* Info label */}
                     <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] bg-base-300/90 text-info px-1.5 py-0.5 rounded whitespace-nowrap pointer-events-none">
-                        {Math.round(rotation)}° · {Math.round(scale * 100)}%
+                        {Math.round(rotation)} deg | {Math.round(scale * 100)}%
                     </div>
                 </>
             )}
         </div>
+    )
+}
+
+function VideoOverlayPreview({
+    overlay,
+    src,
+    editorTime,
+    isPlaying,
+    projectDuration,
+    width,
+    height,
+    dispatch
+}) {
+    const videoRef = useRef(null)
+    const [hasLoadError, setHasLoadError] = useState(false)
+    const sourceTime = getVideoOverlaySourceTime(overlay, editorTime)
+
+    const syncVideo = useCallback((force = false) => {
+        const video = videoRef.current
+        if (!video || video.readyState < HTMLMediaElement.HAVE_METADATA) return
+
+        const maxTime = Number.isFinite(video.duration)
+            ? Math.max(0, video.duration - 0.001)
+            : sourceTime / 1000
+        const targetTime = Math.min(sourceTime / 1000, maxTime)
+        const playbackRate = Number(overlay.playbackRate) > 0 ? Number(overlay.playbackRate) : 1
+        video.playbackRate = playbackRate
+
+        if (force || !isPlaying || Math.abs(video.currentTime - targetTime) > 0.15) {
+            try { video.currentTime = targetTime } catch { /* metadata may still be settling */ }
+        }
+
+        if (isPlaying) {
+            if (video.paused) video.play().catch(() => {})
+        } else if (!video.paused) {
+            video.pause()
+        }
+    }, [isPlaying, overlay.playbackRate, sourceTime])
+
+    useEffect(() => {
+        syncVideo()
+    }, [syncVideo])
+
+    useEffect(() => {
+        setHasLoadError(false)
+        const video = videoRef.current
+        return () => video?.pause()
+    }, [src])
+
+    const onLoadedMetadata = useCallback(() => {
+        const video = videoRef.current
+        if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return
+
+        const sourceDuration = Math.round(video.duration * 1000)
+        const changes = {
+            sourceDuration,
+            videoWidth: video.videoWidth || null,
+            videoHeight: video.videoHeight || null,
+            durationEstimated: false,
+        }
+        if (overlay.durationEstimated) {
+            changes.end = clampVideoOverlayEnd({
+                start: overlay.start,
+                projectDuration,
+                sourceDuration,
+                sourceStart: overlay.sourceStart,
+                playbackRate: overlay.playbackRate,
+            })
+        }
+
+        const metadataChanged = overlay.sourceDuration !== changes.sourceDuration
+            || overlay.videoWidth !== changes.videoWidth
+            || overlay.videoHeight !== changes.videoHeight
+            || overlay.durationEstimated === true
+        if (metadataChanged) {
+            dispatch(withPreventUndo(updateOverlay({ id: overlay.id, changes })))
+        }
+        setHasLoadError(false)
+        syncVideo(true)
+    }, [dispatch, overlay, projectDuration, syncVideo])
+
+    if (!src || hasLoadError) {
+        return (
+            <div
+                style={{ width: `${width}px`, height: `${height}px` }}
+                className="pointer-events-none rounded bg-base-300/80 border border-warning/30 flex items-center justify-center px-3 text-center text-[10px] text-warning"
+            >
+                {hasLoadError ? "Video could not be loaded" : "Video media is unavailable"}
+            </div>
+        )
+    }
+
+    return (
+        <video
+            ref={videoRef}
+            src={src}
+            muted
+            playsInline
+            preload="auto"
+            draggable={false}
+            onLoadedMetadata={onLoadedMetadata}
+            onError={() => setHasLoadError(true)}
+            aria-label={overlay.name || "Video overlay"}
+            style={{ width: `${width}px`, height: `${height}px`, objectFit: "contain" }}
+            className="pointer-events-none bg-black/20"
+        />
     )
 }

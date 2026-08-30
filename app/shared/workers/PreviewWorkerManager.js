@@ -14,6 +14,7 @@ import {
     IS_PLAYING,
     REDUX_DISPATCH,
     SET_EXTRA_VISIBILITY,
+    SNAPSHOT,
     TIME,
     UPDATE,
     postAsync as postWorkerRequest
@@ -364,6 +365,10 @@ export default class PreviewWorkerManager extends WorkerManager {
     postIsPlaying(isPlaying) {
         this.isPlaying = isPlaying
         this.postIfActive(IS_PLAYING, isPlaying)
+    }
+
+    captureSnapshot() {
+        return this.postAsync(SNAPSHOT)
     }
 
     async enableEyeContact(cameraVideoDims) {

@@ -74,11 +74,18 @@ export default function ProjectRow({ project, refetch }) {
     const open = useCallback(async () => {
         setIsOpenProcessing(true)
         dispatch(setLoaderMessage("Opening project..."))
-        const actions = await openProject(project.id, false, layout, microphoneAudioVolume, systemAudioVolume,
-            zoomBlurStrength, cameraZoomTargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
-            maskFill, intro, outro, zoomTargetScale, refetch)
-        actions.forEach(action => dispatch(withPreventUndo(action)))
-        setIsOpenProcessing(false)
+        try {
+            const actions = await openProject(project.id, false, layout, microphoneAudioVolume, systemAudioVolume,
+                zoomBlurStrength, cameraZoomTargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
+                maskFill, intro, outro, zoomTargetScale, refetch)
+            actions.forEach(action => dispatch(withPreventUndo(action)))
+        } catch (error) {
+            console.error("[openProject]", error)
+            dispatch(setLoaderMessage(null))
+            dispatch(addErrorToast(`Couldn't open project: ${error?.message || error}`))
+        } finally {
+            setIsOpenProcessing(false)
+        }
     }, [dispatch, project.id, layout, microphoneAudioVolume, systemAudioVolume, zoomBlurStrength, cameraZoomTargetScale,
         playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius, maskFill, intro, outro, zoomTargetScale, refetch])
 

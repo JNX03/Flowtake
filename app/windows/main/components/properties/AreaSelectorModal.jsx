@@ -96,8 +96,14 @@ export default function AreaSelectorModal({
         [sample])
 
     const closeModal = useCallback(() => {
+        const canvas = canvasRef.current
+        const context = canvas?.getContext?.('2d')
+
+        if (canvas && context) {
+            context.clearRect(0, 0, canvas.width, canvas.height)
+        }
+
         onClose()
-        canvasRef.current.getContext('2d').clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
     }, [onClose])
 
     const left = useCallback(() => {
@@ -120,10 +126,14 @@ export default function AreaSelectorModal({
         return Math.round((100 - userAreas[0].height - userAreas[0].y) / 100 * sample.displayHeight)
     }, [userAreas, sample])
 
+    const canSave = Boolean(sample && userAreas[0])
+
     const save = useCallback(() => {
+        if (!sample || !userAreas[0]) return
+
         onSave(left(), right(), top(), bottom())
-        onClose()
-    }, [onSave, onClose, left, right, top, bottom])
+        closeModal()
+    }, [sample, userAreas, onSave, closeModal, left, right, top, bottom])
 
     const onChangeArea = useCallback((left, right, top, bottom) =>
         setUserAreas([getArea(sample, left, right, top, bottom)]),
@@ -146,58 +156,62 @@ export default function AreaSelectorModal({
         [onChangeArea, left, right, top, maxBottom])
 
     useEffect(() => {
-        if (sample) {
-            canvasRef.current.width = sample.displayWidth
-            canvasRef.current.height = sample.displayHeight
-            sample.draw(canvasRef.current.getContext('2d'), 0, 0)
-        }
+        const canvas = canvasRef.current
+        const context = canvas?.getContext?.('2d')
+
+        if (!sample || !canvas || !context) return
+
+        canvas.width = sample.displayWidth
+        canvas.height = sample.displayHeight
+        sample.draw(context, 0, 0)
     }, [sample])
 
-    useHotkeys('enter', () => save(), { enabled: isOpen })
+    useHotkeys('enter', save, { enabled: isOpen && canSave })
 
     return (
         <Modal isOpen={isOpen} title={title} close={closeModal}
-            modalBoxClassNames="w-5xl max-w-10/12 h-150 overflow-visible">
-            {!sample && <div className="flex-1 flex items-center justify-center">
-                <span className="loading loading-spinner loading-md"></span>
-            </div>}
-            <div className={`flex-1 overflow-y-auto bg-base-300 rounded-lg ${sample ? "" : "hidden"}`}>
-                <div className="p-5">
-                    <AreaSelector areas={areas} maxAreas={1} minWidth={MIN_WIDTH} minHeight={MIN_HEIGHT}
-                        unit="percentage" onChange={setUserAreas} globalAreaStyle={{ border: '2px solid #00b5ff', }}>
-                        <canvas ref={canvasRef} className="w-full" />
-                    </AreaSelector>
-                </div>
-            </div>
-            <div className="modal-action items-end">
-                {sample && <div className="flex-1 flex justify-center gap-2">
-                    <fieldset className="fieldset w-32">
-                        <legend className="fieldset-legend">Left</legend>
-                        <input type="number" min={MIN_LEFT} max={maxLeft}
-                            className="input" value={left()} onChange={onChangeLeft} />
-                    </fieldset>
-                    <fieldset className="fieldset w-32">
-                        <legend className="fieldset-legend">Right</legend>
-                        <input type="number" min={MIN_RIGHT} max={maxRight}
-                            className="input" value={right()} onChange={onChangeRight} />
-                    </fieldset>
-                    <fieldset className="fieldset w-32">
-                        <legend className="fieldset-legend">Top</legend>
-                        <input type="number" min={MIN_TOP} max={maxTop}
-                            className="input" value={top()} onChange={onChangeTop} />
-                    </fieldset>
-                    <fieldset className="fieldset w-32">
-                        <legend className="fieldset-legend">Bottom</legend>
-                        <input type="number" min={MIN_BOTTOM} max={maxBottom}
-                            className="input" value={bottom()} onChange={onChangeBottom} />
-                    </fieldset>
+            modalBoxClassNames="h-[calc(100dvh-1rem)] max-h-[44rem] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                {!sample && <div className="flex min-h-0 flex-1 items-center justify-center"
+                    role="status" aria-live="polite" aria-label="Loading area preview">
+                    <span className="loading loading-spinner loading-md" aria-hidden="true"></span>
                 </div>}
-                <fieldset className="fieldset">
-                    <Button icon={CheckIcon} className="btn-primary" onClick={save}
-                        disabled={userAreas.length === 0 || !sample}>
+                <div className={`min-h-0 flex-1 overscroll-contain overflow-auto rounded-lg bg-base-300 ${sample ? "" : "hidden"}`}>
+                    <div className="p-3 sm:p-4">
+                        <AreaSelector areas={areas} maxAreas={1} minWidth={MIN_WIDTH} minHeight={MIN_HEIGHT}
+                            unit="percentage" onChange={setUserAreas} globalAreaStyle={{ border: '2px solid #00b5ff', }}>
+                            <canvas ref={canvasRef} className="block h-auto w-full" aria-label="Area selection preview" />
+                        </AreaSelector>
+                    </div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-3 border-t border-base-content/10 pt-3 sm:flex-row sm:items-end">
+                    {sample && <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+                        <fieldset className="fieldset min-w-0">
+                            <legend className="fieldset-legend">Left</legend>
+                            <input type="number" min={MIN_LEFT} max={maxLeft}
+                                className="input input-sm w-full min-w-0" value={left()} onChange={onChangeLeft} />
+                        </fieldset>
+                        <fieldset className="fieldset min-w-0">
+                            <legend className="fieldset-legend">Right</legend>
+                            <input type="number" min={MIN_RIGHT} max={maxRight}
+                                className="input input-sm w-full min-w-0" value={right()} onChange={onChangeRight} />
+                        </fieldset>
+                        <fieldset className="fieldset min-w-0">
+                            <legend className="fieldset-legend">Top</legend>
+                            <input type="number" min={MIN_TOP} max={maxTop}
+                                className="input input-sm w-full min-w-0" value={top()} onChange={onChangeTop} />
+                        </fieldset>
+                        <fieldset className="fieldset min-w-0">
+                            <legend className="fieldset-legend">Bottom</legend>
+                            <input type="number" min={MIN_BOTTOM} max={maxBottom}
+                                className="input input-sm w-full min-w-0" value={bottom()} onChange={onChangeBottom} />
+                        </fieldset>
+                    </div>}
+                    <Button icon={CheckIcon} className="btn-primary w-full sm:w-auto" onClick={save}
+                        disabled={!canSave}>
                         Save
                     </Button>
-                </fieldset>
+                </div>
             </div>
         </Modal>
     )

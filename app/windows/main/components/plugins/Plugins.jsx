@@ -14,9 +14,11 @@ import {
     setFeatureEnabled,
 } from "@shared/redux/pluginSlice"
 import AppRecordingFeature from "../settings/plugin/features/AppRecordingFeature"
+import KeyboardOverlayFeature from "../settings/plugin/features/KeyboardOverlayFeature"
 
 const CONFIG_COMPONENTS = {
     [FEATURE_IDS.APP_RECORDING]: AppRecordingFeature,
+    [FEATURE_IDS.KEYBOARD_OVERLAY]: KeyboardOverlayFeature,
 }
 
 const BUILT_IN_PLUGINS = [

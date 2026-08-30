@@ -43,6 +43,7 @@ import {
     selectRenderById,
     updateRender
 } from "@shared/redux/renderSlice"
+import { buildRenderDiagnostic } from "@shared/renderDiagnostics"
 import RenderWorkerManager from "@shared/workers/RenderWorkerManager"
 import CopyButton from "../CopyButton"
 import UploadStatus from "./UploadStatus"
@@ -116,7 +117,10 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
     }, [dispatch, id, manager, managerQueryKey, queryClient, render.state, render.status])
 
     useEffect(() => {
-        window.electron.ipcRenderer.on('upload-progress', (_e, progress) => setUploadProgress(progress))
+        const ipcRenderer = window.electron.ipcRenderer
+        const handleUploadProgress = (_event, progress) => setUploadProgress(progress)
+        ipcRenderer.on('upload-progress', handleUploadProgress)
+        return () => ipcRenderer.removeListener('upload-progress', handleUploadProgress)
     }, [])
 
     const isActive = isRenderRendering(render)
@@ -170,6 +174,8 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
                     <div className="text-[11px] opacity-40 mt-0.5">
                         {render.config.resolution.x}x{render.config.resolution.y}
                         {" \u00B7 "}
+                        {render.config?.format === "webm" ? "WebM" : "MP4"}
+                        {" \u00B7 "}
                         {render.config.fps} FPS
                         {" \u00B7 "}
                         {getRenderQualityLabel(render.config.quality)}
@@ -180,6 +186,20 @@ export default function Row({ id, onProcessed, onPreview, onUpload }) {
                     </div>
                 </div>
             </div>
+
+            {render.status === RENDER_CANCELED && render.error && (
+                <div
+                    role="alert"
+                    className="mt-2.5 flex items-start gap-2 rounded-md bg-error/10 px-2.5 py-2 text-[11px] text-error"
+                >
+                    <span className="min-w-0 flex-1 break-words">{render.error}</span>
+                    <CopyButton
+                        value={buildRenderDiagnostic(render)}
+                        className="btn-ghost btn-xs btn-square shrink-0"
+                        tooltip="Copy export diagnostic"
+                    />
+                </div>
+            )}
 
             {/* Render progress bar */}
             {render.status === RENDER_RENDERING && (

@@ -15,6 +15,7 @@ import {
 } from "react-redux"
 import Button from "../../../../components/Button"
 import { openProject } from "@shared/helpers"
+import { addErrorToast } from "@shared/errorToastHelper"
 import { withPreventUndo } from "@shared/redux/actionEnhancers"
 import { selectTargetScale as selectCameraZoomTargetScale } from "@shared/redux/cameraZoomSlice"
 import {
@@ -65,14 +66,20 @@ export default function Projects({ isOpen }) {
 
     const findProject = useCallback(async () => {
         setIsOpening(true)
-        const id = await window.electron.ipcRenderer.invoke("find-project")
-        if (id != null) {
-            const actions = await openProject(id, false, layout, microphoneAudioVolume, systemAudioVolume,
-                zoomBlurStrength, cameraZoomTargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
-                maskFill, intro, outro, zoomTargetScale)
-            actions.forEach(action => dispatch(withPreventUndo(action)))
+        try {
+            const id = await window.electron.ipcRenderer.invoke("find-project")
+            if (id != null) {
+                const actions = await openProject(id, false, layout, microphoneAudioVolume, systemAudioVolume,
+                    zoomBlurStrength, cameraZoomTargetScale, playbackRate, maskBlurStrength, maskAlpha, maskBorderRadius,
+                    maskFill, intro, outro, zoomTargetScale)
+                actions.forEach(action => dispatch(withPreventUndo(action)))
+            }
+        } catch (error) {
+            console.error("[findProject]", error)
+            dispatch(addErrorToast(`Couldn't open project: ${error?.message || error}`))
+        } finally {
+            setIsOpening(false)
         }
-        setIsOpening(false)
     }, [layout, microphoneAudioVolume, systemAudioVolume, zoomBlurStrength, cameraZoomTargetScale, playbackRate,
         maskBlurStrength, maskAlpha, maskBorderRadius, maskFill, intro, outro, zoomTargetScale, dispatch])
 

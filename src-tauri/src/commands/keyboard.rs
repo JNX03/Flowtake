@@ -8,7 +8,9 @@ use crate::state::AppState;
 #[tauri::command]
 pub async fn keyboard_start(state: State<'_, Mutex<AppState>>) -> AppResult<()> {
     let mut s = state.lock().unwrap();
-    s.keyboard_tracker.start();
+    s.keyboard_tracker
+        .start()
+        .map_err(crate::error::AppError::General)?;
     Ok(())
 }
 

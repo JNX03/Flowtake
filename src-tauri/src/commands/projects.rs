@@ -1,10 +1,29 @@
 use crate::error::{AppError, AppResult};
 use crate::identifiers::validate_project_id;
 use crate::state::AppState;
+use serde::Serialize;
 use serde_json::Value;
-use std::sync::Mutex;
+use std::ffi::OsStr;
+use std::io::Write;
+use std::path::{Component, Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_store::StoreExt;
+
+const PROJECT_ASSETS_DIRECTORY: &str = "assets";
+const PROJECT_MEDIA_COPY_ATTEMPTS: usize = 16;
+static PROJECT_MEDIA_IO: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectMediaMetadata {
+    pub relative_path: String,
+    pub absolute_path: String,
+    pub original_name: String,
+    pub file_name: String,
+    pub size: u64,
+    pub mime_type: String,
+}
 
 fn project_storage_paths(
     state: &AppState,
@@ -291,6 +310,320 @@ pub async fn save_json(app: AppHandle, json: Value) -> AppResult<()> {
     Ok(())
 }
 
+/// Copy a user-selected media file into the open project's durable asset
+/// directory. The generated storage name is independent of the source name,
+/// and the destination is opened with create_new so an existing asset can
+/// never be overwritten by a collision.
+#[tauri::command]
+pub async fn import_project_media(
+    app: AppHandle,
+    source_path: String,
+) -> AppResult<ProjectMediaMetadata> {
+    let (temp_root, project_id) = open_project_media_context(&app)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        with_project_media_io(|| {
+            import_project_media_file(&temp_root, &project_id, Path::new(&source_path))
+        })
+    })
+    .await
+    .map_err(|error| AppError::General(format!("Project media import task failed: {error}")))?
+}
+
+/// Resolve an asset path stored in project JSON after the project archive has
+/// been reopened. Only canonical files contained by this project's assets
+/// directory are returned.
+#[tauri::command]
+pub async fn resolve_project_media(
+    app: AppHandle,
+    relative_path: String,
+) -> AppResult<ProjectMediaMetadata> {
+    let (temp_root, project_id) = open_project_media_context(&app)?;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        with_project_media_io(|| {
+            resolve_project_media_file(&temp_root, &project_id, &relative_path)
+        })
+    })
+    .await
+    .map_err(|error| AppError::General(format!("Project media resolve task failed: {error}")))?
+}
+
+fn open_project_media_context(app: &AppHandle) -> AppResult<(PathBuf, String)> {
+    let state = app.state::<Mutex<AppState>>();
+    let state = state.lock().unwrap();
+    Ok((
+        state.temp_dir.clone(),
+        state.project_id.clone().ok_or(AppError::NoProjectOpen)?,
+    ))
+}
+
+fn with_project_media_io<T>(operation: impl FnOnce() -> AppResult<T>) -> AppResult<T> {
+    let _guard = PROJECT_MEDIA_IO
+        .lock()
+        .map_err(|_| AppError::General("Project media I/O lock was poisoned".to_string()))?;
+    operation()
+}
+
+pub(crate) fn open_project_media_file_for_read(
+    temp_root: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> AppResult<std::fs::File> {
+    with_project_media_io(|| {
+        let media_path = resolve_project_media_path(temp_root, project_id, relative_path)?;
+        Ok(std::fs::File::open(media_path)?)
+    })
+}
+
+fn import_project_media_file(
+    temp_root: &Path,
+    project_id: &str,
+    source_path: &Path,
+) -> AppResult<ProjectMediaMetadata> {
+    if source_path.as_os_str().is_empty() {
+        return Err(AppError::General(
+            "A source media path is required".to_string(),
+        ));
+    }
+
+    let source = source_path.canonicalize().map_err(|error| {
+        AppError::General(format!("Unable to access selected media file: {error}"))
+    })?;
+    if !source.metadata()?.is_file() {
+        return Err(AppError::General(
+            "Selected media path is not a file".to_string(),
+        ));
+    }
+
+    let original_name = source
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| AppError::General("Selected media file has no name".to_string()))?;
+
+    let project_root = canonical_project_root(temp_root, project_id)?;
+    let assets_dir = canonical_project_assets_dir(&project_root)?;
+    let extension = safe_media_extension(source.extension());
+    let (destination, file_name, mut destination_file) =
+        create_unique_asset_destination(&assets_dir, extension.as_deref())?;
+    let mut source_file = std::fs::File::open(&source)?;
+
+    let copy_result = std::io::copy(&mut source_file, &mut destination_file)
+        .and_then(|size| destination_file.flush().map(|_| size));
+    drop(destination_file);
+
+    let size = match copy_result {
+        Ok(size) => size,
+        Err(error) => {
+            std::fs::remove_file(&destination).ok();
+            return Err(error.into());
+        }
+    };
+
+    let canonical_destination = match destination.canonicalize() {
+        Ok(path) if path.starts_with(&assets_dir) => path,
+        Ok(_) => {
+            std::fs::remove_file(&destination).ok();
+            return Err(AppError::General(
+                "Imported media resolved outside the project assets directory".to_string(),
+            ));
+        }
+        Err(error) => {
+            std::fs::remove_file(&destination).ok();
+            return Err(error.into());
+        }
+    };
+
+    let relative_path = project_relative_path(&project_root, &canonical_destination)?;
+    Ok(ProjectMediaMetadata {
+        relative_path,
+        absolute_path: canonical_destination.to_string_lossy().into_owned(),
+        original_name,
+        file_name,
+        size,
+        mime_type: mime_guess::from_path(&source)
+            .first_or_octet_stream()
+            .essence_str()
+            .to_string(),
+    })
+}
+
+fn resolve_project_media_file(
+    temp_root: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> AppResult<ProjectMediaMetadata> {
+    let project_root = canonical_project_root(temp_root, project_id)?;
+    let canonical_candidate = resolve_project_media_path(temp_root, project_id, relative_path)?;
+
+    let file_name = canonical_candidate
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .ok_or_else(|| AppError::General("Stored project media has no file name".to_string()))?;
+    let metadata = canonical_candidate.metadata()?;
+
+    Ok(ProjectMediaMetadata {
+        relative_path: project_relative_path(&project_root, &canonical_candidate)?,
+        absolute_path: canonical_candidate.to_string_lossy().into_owned(),
+        original_name: file_name.clone(),
+        file_name,
+        size: metadata.len(),
+        mime_type: mime_guess::from_path(&canonical_candidate)
+            .first_or_octet_stream()
+            .essence_str()
+            .to_string(),
+    })
+}
+
+pub(crate) fn resolve_project_media_path(
+    temp_root: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> AppResult<PathBuf> {
+    let safe_relative_path = validate_project_media_relative_path(relative_path)?;
+    let project_root = canonical_project_root(temp_root, project_id)?;
+    let assets_dir = canonical_project_assets_dir(&project_root)?;
+    let candidate = project_root.join(&safe_relative_path);
+    let canonical_candidate = candidate.canonicalize().map_err(|error| {
+        AppError::General(format!(
+            "Stored project media could not be resolved: {error}"
+        ))
+    })?;
+
+    if !canonical_candidate.starts_with(&assets_dir) || !canonical_candidate.metadata()?.is_file() {
+        return Err(AppError::General(
+            "Stored media path is not a file inside this project's assets directory".to_string(),
+        ));
+    }
+
+    Ok(canonical_candidate)
+}
+
+fn canonical_project_root(temp_root: &Path, project_id: &str) -> AppResult<PathBuf> {
+    validate_project_id(project_id)?;
+    let canonical_temp_root = temp_root.canonicalize().map_err(|error| {
+        AppError::General(format!("Project temp directory is unavailable: {error}"))
+    })?;
+    let canonical_project_root = temp_root.join(project_id).canonicalize().map_err(|error| {
+        AppError::General(format!("Open project directory is unavailable: {error}"))
+    })?;
+
+    if canonical_project_root == canonical_temp_root
+        || !canonical_project_root.starts_with(&canonical_temp_root)
+    {
+        return Err(AppError::General(
+            "Open project directory escaped the project temp directory".to_string(),
+        ));
+    }
+
+    Ok(canonical_project_root)
+}
+
+fn canonical_project_assets_dir(project_root: &Path) -> AppResult<PathBuf> {
+    let assets_candidate = project_root.join(PROJECT_ASSETS_DIRECTORY);
+    std::fs::create_dir_all(&assets_candidate)?;
+    let assets_dir = assets_candidate.canonicalize()?;
+
+    if assets_dir == project_root || !assets_dir.starts_with(project_root) {
+        return Err(AppError::General(
+            "Project assets directory escaped the open project".to_string(),
+        ));
+    }
+
+    Ok(assets_dir)
+}
+
+fn validate_project_media_relative_path(relative_path: &str) -> AppResult<PathBuf> {
+    if relative_path.is_empty()
+        || relative_path.contains(char::from(92))
+        || relative_path.contains(char::from(0))
+    {
+        return Err(AppError::General("Invalid project media path".to_string()));
+    }
+
+    let path = Path::new(relative_path);
+    if path.is_absolute() {
+        return Err(AppError::General(
+            "Project media path must be relative".to_string(),
+        ));
+    }
+
+    let mut normal_components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(value) => normal_components.push(value),
+            _ => {
+                return Err(AppError::General(
+                    "Project media path contains an unsafe component".to_string(),
+                ))
+            }
+        }
+    }
+
+    if normal_components.len() < 2
+        || normal_components.first().copied() != Some(OsStr::new(PROJECT_ASSETS_DIRECTORY))
+    {
+        return Err(AppError::General(
+            "Project media path must stay inside the assets directory".to_string(),
+        ));
+    }
+
+    Ok(normal_components.into_iter().collect())
+}
+
+fn safe_media_extension(extension: Option<&OsStr>) -> Option<String> {
+    let extension = extension?.to_str()?;
+    if extension.is_empty()
+        || extension.len() > 16
+        || !extension
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric())
+    {
+        return None;
+    }
+    Some(extension.to_ascii_lowercase())
+}
+
+fn create_unique_asset_destination(
+    assets_dir: &Path,
+    extension: Option<&str>,
+) -> AppResult<(PathBuf, String, std::fs::File)> {
+    for _ in 0..PROJECT_MEDIA_COPY_ATTEMPTS {
+        let identifier = uuid::Uuid::new_v4().simple().to_string();
+        let file_name = match extension {
+            Some(extension) => format!("{identifier}.{extension}"),
+            None => identifier,
+        };
+        let destination = assets_dir.join(&file_name);
+
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&destination)
+        {
+            Ok(file) => return Ok((destination, file_name, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.into()),
+        }
+    }
+
+    Err(AppError::General(
+        "Unable to allocate a unique project media path".to_string(),
+    ))
+}
+
+fn project_relative_path(project_root: &Path, media_path: &Path) -> AppResult<String> {
+    let relative_path = media_path.strip_prefix(project_root).map_err(|_| {
+        AppError::General("Project media path escaped the open project".to_string())
+    })?;
+    let relative_path = relative_path
+        .to_string_lossy()
+        .replace(std::path::MAIN_SEPARATOR, "/");
+    validate_project_media_relative_path(&relative_path)?;
+    Ok(relative_path)
+}
+
 #[tauri::command]
 pub async fn find_project(app: AppHandle) -> AppResult<Value> {
     use tauri_plugin_dialog::DialogExt;
@@ -432,8 +765,6 @@ fn unzip_project(zip_path: &str, dest_dir: &std::path::Path) -> AppResult<()> {
 }
 
 fn zip_directory(src_dir: &std::path::Path, zip_path: &std::path::Path) -> AppResult<()> {
-    use std::io::{Read, Write};
-
     let file = std::fs::File::create(zip_path)?;
     let mut zip_writer = zip::ZipWriter::new(file);
     let options =
@@ -451,9 +782,9 @@ fn zip_directory(src_dir: &std::path::Path, zip_path: &std::path::Path) -> AppRe
         if path.is_file() {
             zip_writer.start_file(&name, options)?;
             let mut f = std::fs::File::open(path)?;
-            let mut buffer = Vec::new();
-            f.read_to_end(&mut buffer)?;
-            zip_writer.write_all(&buffer)?;
+            // Stream the entry: project archives hold multi-gigabyte recordings,
+            // so buffering a whole file in memory here would spike RSS.
+            std::io::copy(&mut f, &mut zip_writer)?;
         } else if path.is_dir() && !name.is_empty() {
             zip_writer.add_directory(&name, options)?;
         }
@@ -521,5 +852,158 @@ mod path_boundary_tests {
         assert!(!preview_cache.exists());
         assert_eq!(std::fs::read(sentinel.join("keep.txt")).unwrap(), b"keep");
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod project_media_tests {
+    use super::{
+        open_project_media_file_for_read, resolve_project_media_path, safe_media_extension,
+        validate_project_media_relative_path, ProjectMediaMetadata, PROJECT_ASSETS_DIRECTORY,
+    };
+    use std::ffi::OsStr;
+    use std::io::Read;
+    use std::path::PathBuf;
+
+    /// Project ids are canonical UUIDs, so the fixture must use one: the shared
+    /// validator rejects anything else before containment is even considered.
+    fn create_open_project_fixture() -> (PathBuf, String, PathBuf) {
+        let temp_root = std::env::temp_dir().join(format!(
+            "flowtake-project-media-test-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let project_id = uuid::Uuid::new_v4().hyphenated().to_string();
+        let assets_dir = temp_root.join(&project_id).join(PROJECT_ASSETS_DIRECTORY);
+        std::fs::create_dir_all(&assets_dir).unwrap();
+        (temp_root, project_id, assets_dir)
+    }
+
+    #[cfg(unix)]
+    fn create_file_symlink(
+        source: &std::path::Path,
+        target: &std::path::Path,
+    ) -> std::io::Result<()> {
+        std::os::unix::fs::symlink(source, target)
+    }
+
+    #[cfg(windows)]
+    fn create_file_symlink(
+        source: &std::path::Path,
+        target: &std::path::Path,
+    ) -> std::io::Result<()> {
+        std::os::windows::fs::symlink_file(source, target)
+    }
+
+    #[test]
+    fn project_media_path_must_be_relative_and_inside_assets() {
+        assert_eq!(
+            validate_project_media_relative_path("assets/clip.mp4").unwrap(),
+            PathBuf::from("assets").join("clip.mp4")
+        );
+        assert_eq!(
+            validate_project_media_relative_path("assets/nested/voice.wav").unwrap(),
+            PathBuf::from("assets").join("nested").join("voice.wav")
+        );
+
+        for unsafe_path in [
+            "",
+            "assets",
+            "project.json",
+            "../assets/clip.mp4",
+            "assets/../project.json",
+            "/assets/clip.mp4",
+            r"assets\..\project.json",
+        ] {
+            assert!(
+                validate_project_media_relative_path(unsafe_path).is_err(),
+                "{unsafe_path:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn storage_extensions_are_small_ascii_and_normalized() {
+        assert_eq!(
+            safe_media_extension(Some(OsStr::new("WEBM"))),
+            Some("webm".to_string())
+        );
+        assert_eq!(safe_media_extension(Some(OsStr::new("tar.gz"))), None);
+        assert_eq!(safe_media_extension(Some(OsStr::new("../mp4"))), None);
+        assert_eq!(safe_media_extension(Some(OsStr::new(""))), None);
+    }
+
+    #[test]
+    fn project_media_metadata_uses_frontend_field_names() {
+        let metadata = ProjectMediaMetadata {
+            relative_path: "assets/file.mp4".to_string(),
+            absolute_path: "/tmp/project/assets/file.mp4".to_string(),
+            original_name: "Demo.mp4".to_string(),
+            file_name: "file.mp4".to_string(),
+            size: 42,
+            mime_type: "video/mp4".to_string(),
+        };
+        let value = serde_json::to_value(metadata).unwrap();
+
+        for key in [
+            "relativePath",
+            "absolutePath",
+            "originalName",
+            "fileName",
+            "size",
+            "mimeType",
+        ] {
+            assert!(value.get(key).is_some(), "missing {key}");
+        }
+    }
+
+    #[test]
+    fn contained_media_handles_reject_traversal_and_can_be_reopened() {
+        let (temp_root, project_id, assets_dir) = create_open_project_fixture();
+        let media_path = assets_dir.join("clip.mp4");
+        std::fs::write(&media_path, b"video-bytes").unwrap();
+
+        for unsafe_path in ["../clip.mp4", "assets/../project.json", "/assets/clip.mp4"] {
+            assert!(
+                open_project_media_file_for_read(&temp_root, &project_id, unsafe_path).is_err(),
+                "{unsafe_path:?} should not produce a file handle"
+            );
+        }
+
+        for _ in 0..2 {
+            let mut file =
+                open_project_media_file_for_read(&temp_root, &project_id, "assets/clip.mp4")
+                    .unwrap();
+            let mut contents = Vec::new();
+            file.read_to_end(&mut contents).unwrap();
+            assert_eq!(contents, b"video-bytes");
+        }
+
+        std::fs::remove_dir_all(&temp_root).unwrap();
+    }
+
+    #[test]
+    fn contained_media_resolution_rejects_symlinks_that_escape_assets() {
+        let (temp_root, project_id, assets_dir) = create_open_project_fixture();
+        let outside_file = temp_root.join("outside.mp4");
+        let link_path = assets_dir.join("escape.mp4");
+        std::fs::write(&outside_file, b"outside").unwrap();
+
+        if let Err(error) = create_file_symlink(&outside_file, &link_path) {
+            #[cfg(windows)]
+            if error.kind() == std::io::ErrorKind::PermissionDenied
+                || error.raw_os_error() == Some(1314)
+            {
+                std::fs::remove_dir_all(&temp_root).unwrap();
+                return;
+            }
+            panic!("failed to create symlink fixture: {error}");
+        }
+
+        assert!(
+            resolve_project_media_path(&temp_root, &project_id, "assets/escape.mp4").is_err(),
+            "a symlink resolving outside assets must be rejected"
+        );
+
+        std::fs::remove_dir_all(&temp_root).unwrap();
     }
 }
