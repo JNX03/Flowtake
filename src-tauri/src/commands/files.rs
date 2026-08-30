@@ -1,6 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::identifiers::{validate_project_id, validate_render_id};
-use crate::state::AppState;
+use crate::state::{AppState, RenderState};
 use base64::Engine as _;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Mutex;
@@ -19,7 +19,8 @@ fn file_access(file_type: &str, flag: &str) -> AppResult<FileAccess> {
         | "renderScreenVideo"
         | "renderCameraVideo"
         | "recordingScreenVideo"
-        | "recordingCameraVideo" => FileAccess::Read,
+        | "recordingCameraVideo"
+        | "projectMedia" => FileAccess::Read,
         "renderOutputVideo" => FileAccess::Write,
         _ => return Err(AppError::General(format!("Unknown file type: {file_type}"))),
     };
@@ -57,6 +58,66 @@ fn registered_render_file(
     Ok(render.temp_dir.join(file_name))
 }
 
+/// Resolve the write handle for a render's final container. The caller may not
+/// choose the path or the container: both are fixed by the queued render, so a
+/// renderer cannot write outside the render temp dir or mix formats.
+fn render_output_path(
+    render: &RenderState,
+    flag: &str,
+    args: &serde_json::Value,
+) -> AppResult<std::path::PathBuf> {
+    if flag != "w" {
+        return Err(AppError::General(
+            "Render output handles are write-only".to_string(),
+        ));
+    }
+    if args.get("path").is_some()
+        || args.get("outputPath").is_some()
+        || args.get("fileName").is_some()
+    {
+        return Err(AppError::General(
+            "Custom render output paths are not allowed".to_string(),
+        ));
+    }
+
+    let format = args
+        .get("format")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::General("Render output format is required".to_string()))?;
+    let extension = args
+        .get("extension")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::General("Render output extension is required".to_string()))?;
+
+    if format != render.format.as_str() || extension != render.format.extension() {
+        return Err(AppError::General(
+            "Render output format does not match the queued render".to_string(),
+        ));
+    }
+
+    Ok(render.temp_dir.join(render.format.output_file_name()))
+}
+
+fn registered_render_output(
+    state: &AppState,
+    args: &Option<serde_json::Value>,
+    flag: &str,
+) -> AppResult<std::path::PathBuf> {
+    let render_args = args
+        .as_ref()
+        .ok_or_else(|| AppError::General("Render output arguments are required".to_string()))?;
+    let render_id = render_args
+        .get("renderId")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| AppError::General("Render id is required".to_string()))?;
+    validate_render_id(render_id)?;
+    let render = state
+        .renders
+        .get(render_id)
+        .ok_or_else(|| AppError::General("Render is not registered".to_string()))?;
+    render_output_path(render, flag, render_args)
+}
+
 #[tauri::command]
 pub async fn open_file(
     app: AppHandle,
@@ -69,6 +130,39 @@ pub async fn open_file(
 
     let project_id = state.project_id.clone().ok_or(AppError::NoProjectOpen)?;
     validate_project_id(&project_id)?;
+
+    // Project media lives in the open project's assets directory rather than at
+    // a fixed state path, so it resolves through the containment-checked helper
+    // instead of the fixed-path table below.
+    if r#type == "projectMedia" {
+        if flag != "r" {
+            return Err(AppError::General(
+                "Project media handles are read-only".to_string(),
+            ));
+        }
+
+        let relative_path = args
+            .as_ref()
+            .and_then(|value| value.get("relativePath"))
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                AppError::General("A relative project media path is required".to_string())
+            })?;
+        let file = crate::commands::projects::open_project_media_file_for_read(
+            &state.temp_dir.clone(),
+            &project_id,
+            relative_path,
+        )?;
+        let id = format!("fh-{}", uuid::Uuid::new_v4());
+        crate::debug_log(&format!(
+            "[open_file] Opened contained project media {} as {}",
+            relative_path, id
+        ));
+        state.file_handles.insert(id.clone(), file);
+        return Ok(id);
+    }
+
     let access = file_access(&r#type, &flag)?;
 
     let file_path = match r#type.as_str() {
@@ -76,7 +170,7 @@ pub async fn open_file(
         "projectCameraVideo" => state.camera_video_file(&project_id),
         "renderScreenVideo" => registered_render_file(&state, &args, "screen.mp4")?,
         "renderCameraVideo" => registered_render_file(&state, &args, "camera.webm")?,
-        "renderOutputVideo" => registered_render_file(&state, &args, "output.mp4")?,
+        "renderOutputVideo" => registered_render_output(&state, &args, &flag)?,
         "recordingScreenVideo" => state.screen_video_file(&project_id),
         "recordingCameraVideo" => state.camera_video_file(&project_id),
         _ => unreachable!("file_access rejects unknown file types"),
@@ -268,6 +362,7 @@ mod tests {
                 project_id: "123e4567-e89b-42d3-a456-426614174000".to_string(),
                 output_path: render_dir.join("output.mp4"),
                 temp_dir: render_dir.clone(),
+                format: crate::state::RenderFormat::Mp4,
                 is_cancelled: false,
             },
         );

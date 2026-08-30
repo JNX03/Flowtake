@@ -695,6 +695,30 @@ fn macos_native_capture_arguments(
     args
 }
 
+fn window_capture_input_args(width: i64, height: i64, fps: u32) -> Vec<String> {
+    vec![
+        "-y".to_string(),
+        // PrintWindow can take longer than the requested frame interval,
+        // especially for large or GPU-heavy windows. Rawvideo otherwise gives
+        // every arriving frame a synthetic 1/fps timestamp, which compresses
+        // the recording and drops the real-world tail in the editor. Preserve
+        // arrival time so FFmpeg duplicates frames as needed for the CFR
+        // output while keeping the complete wall-clock duration.
+        "-use_wallclock_as_timestamps".to_string(),
+        "1".to_string(),
+        "-f".to_string(),
+        "rawvideo".to_string(),
+        "-pixel_format".to_string(),
+        "bgra".to_string(),
+        "-video_size".to_string(),
+        format!("{}x{}", width, height),
+        "-framerate".to_string(),
+        fps.to_string(),
+        "-i".to_string(),
+        "pipe:0".to_string(),
+    ]
+}
+
 fn recording_video_output_args(
     encoder: &str,
     fps: u32,
@@ -1372,19 +1396,7 @@ async fn init_recording_impl(
             );
 
             // FFmpeg reads raw BGRA frames from stdin pipe (Windows PrintWindow API)
-            ffmpeg_args = vec![
-                "-y".to_string(),
-                "-f".to_string(),
-                "rawvideo".to_string(),
-                "-pixel_format".to_string(),
-                "bgra".to_string(),
-                "-video_size".to_string(),
-                format!("{}x{}", w, h),
-                "-framerate".to_string(),
-                fps.to_string(),
-                "-i".to_string(),
-                "pipe:0".to_string(),
-            ];
+            ffmpeg_args = window_capture_input_args(w, h, fps);
         }
 
         #[cfg(target_os = "macos")]

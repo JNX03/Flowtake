@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
-import yaml from "js-yaml"
+import { load as loadYaml } from "js-yaml"
 
 const readRepoFile = path => readFile(new URL(`../${path}`, import.meta.url), "utf8")
 
@@ -14,7 +14,7 @@ const [packageJson, packageLock, qualityWorkflowSource, releaseWorkflow, validat
         readRepoFile("scripts/validate-linux-appimage.sh"),
     ])
 
-const qualityWorkflow = yaml.load(qualityWorkflowSource)
+const qualityWorkflow = loadYaml(qualityWorkflowSource)
 
 test("AppImage packaging uses the Tauri release with relocatable metadata", () => {
     assert.equal(packageJson.devDependencies["@tauri-apps/cli"], "^2.11.4")

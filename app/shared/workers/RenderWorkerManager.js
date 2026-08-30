@@ -2,6 +2,7 @@ import {
     RENDER_CAMERA_VIDEO,
     RENDER_SCREEN_VIDEO
 } from "../constants"
+import { canEncodeVideo } from "mediabunny"
 import {
     RENDER_CANCELED,
     RENDER_INITIALIZING,
@@ -9,6 +10,8 @@ import {
     TOAST_ERROR
 } from "../helpers"
 import { buildGitHubIssueUrl } from "../errorReporting"
+import { sanitizeRenderError } from "../renderDiagnostics"
+import { assertExportCodecSupport } from "../exportFormats"
 import {
     selectCameraVideoBackgroundBlurAmount,
     selectHasCameraVideo,
@@ -64,14 +67,22 @@ export default class RenderWorkerManager extends WorkerManager {
     // failures don't double-report.
     fail(message) {
         if (this.isCancelled) return
-        console.error("[render] Render failed:", message)
+        const safeMessage = sanitizeRenderError(message)
+        console.error("[render] Render failed:", safeMessage)
         this.isCancelled = true
-        renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_CANCELED } }))
+        renderStore.dispatch(updateRender({
+            id: this.render.id,
+            changes: {
+                status: RENDER_CANCELED,
+                error: safeMessage,
+                failedAt: Date.now(),
+            },
+        }))
         renderStore.dispatch(addToast({
             type: TOAST_ERROR,
-            text: `Render failed: ${message}`,
+            text: `Render failed: ${safeMessage}`,
             autoDismiss: false,
-            actions: [{ label: "Report", url: buildGitHubIssueUrl(message) }]
+            actions: [{ label: "Report", url: buildGitHubIssueUrl(safeMessage) }]
         }))
         this.onProcessed?.()
     }
@@ -80,6 +91,12 @@ export default class RenderWorkerManager extends WorkerManager {
         this.onProcessed = onProcessed
 
         renderStore.dispatch(updateRender({ id: this.render.id, changes: { status: RENDER_INITIALIZING } }))
+
+        await assertExportCodecSupport(
+            this.render.config?.format,
+            this.render.config?.resolution,
+            canEncodeVideo
+        )
 
         const hasCameraVideo = selectHasCameraVideo(this.render.state)
         const hasBlur = selectHasCameraVideoBackgroundBlur(this.render.state)

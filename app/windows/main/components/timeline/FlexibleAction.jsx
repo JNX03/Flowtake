@@ -1,5 +1,9 @@
 import PropTypes from "prop-types"
 import { useCallback } from "react"
+import { useSelector } from "react-redux"
+import {
+    selectIsPlaying,
+} from "@shared/redux/editorSlice"
 import Action from "./Action"
 import useDragInteraction from "./useDragInteraction"
 
@@ -18,7 +22,10 @@ export default function FlexibleAction({
     trackDropZone = null,
     getTrackAnims = null,
     onTrackChange = null,
+    disabled = false,
 }) {
+    const isPlaying = useSelector(selectIsPlaying)
+    const isEditingDisabled = disabled || isPlaying
     const {
         moveHandleRef,
         leftResizeRef,
@@ -38,6 +45,7 @@ export default function FlexibleAction({
         getTrackAnims,
         onTrackChange,
         color,
+        disabled: isEditingDisabled,
     })
 
     const onSelectAction = useCallback(() => {
@@ -47,33 +55,33 @@ export default function FlexibleAction({
     return (
         <Action anim={anim} anims={anims} start={start} duration={duration} onSelect={onSelectAction}
             onContextMenu={onContextMenu} isRowSelected={isRowSelected} isClickEnabled={!isDragging} color={color}
-            isMinimized={isMinimized} isDragging={isDragging} actionRef={actionElementRef}>
+            isMinimized={isMinimized} isDragging={isDragging}
+            isDragEnabled={!isEditingDisabled} actionRef={actionElementRef}>
             <div ref={leftResizeRef}
-                title={isMinimized ? undefined : "Drag to trim start"}
-                className={`w-6 ${isMinimized ? "" : "hover:bg-base-content/30 transition-colors cursor-col-resize"} shrink-0 flex items-center justify-center group/left z-10`}>
+                title={isMinimized ? undefined : isEditingDisabled ? "Editing is disabled" : "Drag to trim start"}
+                className={`w-3 ${isMinimized ? "" : isEditingDisabled
+                    ? "cursor-not-allowed opacity-35"
+                    : "cursor-col-resize opacity-0 transition-opacity group-hover/timeline-item:opacity-100 group-focus-within/timeline-item:opacity-100"} shrink-0 flex items-center justify-center group/left z-10`}>
                 {!isMinimized && (
-                    <div className="w-1 h-5 rounded-full bg-base-content/50 group-hover/left:bg-base-content/90 group-hover/left:w-1.5 group-hover/left:h-7 transition-all shadow-sm" />
+                    <div className="h-5 w-0.5 rounded-full bg-base-content/65 group-hover/left:bg-base-content" />
                 )}
             </div>
             <div ref={moveHandleRef}
-                title={isMinimized ? undefined : "Drag to move"}
-                className={`flex-1 flex flex-col justify-evenly min-w-0 relative group/move ${isMinimized ? "" : "cursor-grab active:cursor-grabbing"}`}>
+                title={isMinimized ? undefined : isEditingDisabled ? "Editing is disabled" : "Drag to move"}
+                className={`flex-1 flex flex-col justify-evenly min-w-0 relative group/move ${isMinimized
+                    ? ""
+                    : isEditingDisabled
+                        ? "cursor-not-allowed"
+                        : "cursor-grab active:cursor-grabbing"}`}>
                 {children}
-                {!isMinimized && (
-                    <div className="absolute top-1 left-1/2 -translate-x-1/2 opacity-30 group-hover/move:opacity-70 transition-opacity pointer-events-none">
-                        <div className="flex flex-col gap-0.5">
-                            <div className="w-4 h-px bg-current rounded-full" />
-                            <div className="w-4 h-px bg-current rounded-full" />
-                            <div className="w-4 h-px bg-current rounded-full" />
-                        </div>
-                    </div>
-                )}
             </div>
             <div ref={rightResizeRef}
-                title={isMinimized ? undefined : "Drag to trim end"}
-                className={`w-6 ${isMinimized ? "" : "hover:bg-base-content/30 transition-colors cursor-col-resize"} shrink-0 flex items-center justify-center group/right z-10`}>
+                title={isMinimized ? undefined : isEditingDisabled ? "Editing is disabled" : "Drag to trim end"}
+                className={`w-3 ${isMinimized ? "" : isEditingDisabled
+                    ? "cursor-not-allowed opacity-35"
+                    : "cursor-col-resize opacity-0 transition-opacity group-hover/timeline-item:opacity-100 group-focus-within/timeline-item:opacity-100"} shrink-0 flex items-center justify-center group/right z-10`}>
                 {!isMinimized && (
-                    <div className="w-1 h-5 rounded-full bg-base-content/50 group-hover/right:bg-base-content/90 group-hover/right:w-1.5 group-hover/right:h-7 transition-all shadow-sm" />
+                    <div className="h-5 w-0.5 rounded-full bg-base-content/65 group-hover/right:bg-base-content" />
                 )}
             </div>
         </Action>
@@ -101,4 +109,5 @@ FlexibleAction.propTypes = {
     trackDropZone: PropTypes.string,
     getTrackAnims: PropTypes.func,
     onTrackChange: PropTypes.func,
+    disabled: PropTypes.bool,
 }

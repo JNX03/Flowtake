@@ -8,14 +8,19 @@ export default function App() {
 
     const MIN_WIDTH = 10
     const MIN_HEIGHT = 10
+    const isWindowsLiveOverlay = window.electron?.process?.platform === "win32"
 
     const [areas, setAreas] = useState([])
     const [bgImage, setBgImage] = useState(null)
     const [loadError, setLoadError] = useState(false)
     const [loadAttempt, setLoadAttempt] = useState(0)
 
-    // Fetch the pre-captured screenshot (captured by Rust before this window opened)
+    // Windows uses the transparent Tauri window as a live desktop overlay.
+    // Other platforms retain the snapshot fallback for webviews that cannot
+    // reliably composite a transparent fullscreen window.
     useEffect(() => {
+        if (isWindowsLiveOverlay) return undefined
+
         let imageSrc
         setLoadError(false)
         window.electron.ipcRenderer.invoke("get-picker-screenshot")
@@ -30,7 +35,7 @@ export default function App() {
             })
 
         return () => releasePickerImageSrc(imageSrc)
-    }, [loadAttempt])
+    }, [isWindowsLiveOverlay, loadAttempt])
 
     const onCancel = useCallback(() => window.electron.ipcRenderer.invoke("close-area-picker-window"), [])
 
@@ -50,7 +55,8 @@ export default function App() {
 
     const customRender = areaProps => {
         return (<div key={areaProps.areaNumber}
-            className={`w-full h-full border-4 transition-colors ${areaProps.isChanging ? "border-primary/70" : "border-primary bg-primary/5"}`} />)
+            className={`w-full h-full border-4 transition-colors ${areaProps.isChanging ? "border-primary/70" : "border-primary bg-primary/5"}`}
+            style={isWindowsLiveOverlay ? { boxShadow: "0 0 0 9999px rgba(5, 8, 20, 0.34)" } : undefined} />)
     }
 
     const hasArea = !!areas[0]
@@ -61,7 +67,13 @@ export default function App() {
         <AreaSelector areas={areas} maxAreas={1} minWidth={MIN_WIDTH} minHeight={MIN_HEIGHT}
             unit="percentage" onChange={setAreas}
             customAreaRenderer={customRender}>
-            {loadError
+            {isWindowsLiveOverlay
+                ? <div
+                    data-live-picker-overlay
+                    className="w-screen h-screen select-none pointer-events-none"
+                    style={{ background: hasArea ? "transparent" : "rgba(5, 8, 20, 0.34)" }}
+                    aria-hidden="true" />
+                : loadError
                 ? <div className="w-screen h-screen bg-base-300 flex flex-col items-center justify-center gap-3">
                     <p className="text-sm text-base-content/70">The screen preview could not load.</p>
                     <button type="button" className="btn btn-sm btn-primary" onClick={() => setLoadAttempt(value => value + 1)}>

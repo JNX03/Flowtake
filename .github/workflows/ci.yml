@@ -15,6 +15,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Classifies the pull request diff so the expensive cross-platform Rust matrix
+  # and the marketing-site build only run when their own inputs move. Pushes to
+  # main and manual runs always exercise everything.
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      website: ${{ steps.filter.outputs.website }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: filter
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+            echo "website=true" >> "$GITHUB_OUTPUT"
+            echo "Not a pull request; running every area."
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$BASE_SHA...HEAD")"
+          echo "Changed files:"
+          printf '%s\n' "$changed"
+
+          match() { printf '%s\n' "$changed" | grep -qE "$1"; }
+
+          # A change to this workflow re-validates everything it gates.
+          if match '^\.github/workflows/ci\.yml$'; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+            echo "website=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if match '^(src-tauri/|scripts/(build-macos-capture|run-cargo-audit)\.sh$)'; then
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if match '^website/'; then
+            echo "website=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "website=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check-frontend:
     name: Frontend Quality
     runs-on: ubuntu-latest
@@ -39,6 +96,23 @@ jobs:
 
       - name: Build frontend
         run: npm run build:frontend
+
+  check-website:
+    name: Marketing Site Quality
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
 
       - name: Install marketing-site dependencies
         run: npm ci --prefix website --no-audit --no-fund
@@ -74,8 +148,13 @@ jobs:
         shell: bash
         run: bash ./scripts/run-cargo-audit.sh
 
+  # This job stays a required status check, so it always runs and always
+  # reports. Every step is gated instead, which keeps a pull request that does
+  # not touch Rust down to runner startup rather than three full toolchain
+  # builds -- the macOS runner alone bills at ten times the Linux rate.
   check-rust:
     name: Rust Check (${{ matrix.platform.name }})
+    needs: changes
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -109,31 +188,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        if: needs.changes.outputs.rust == 'true'
         with:
           persist-credentials: false
 
       - name: Install system dependencies
-        if: matrix.platform.deps != ''
+        if: needs.changes.outputs.rust == 'true' && (matrix.platform.deps != '')
         run: ${{ matrix.platform.deps }}
 
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        if: needs.changes.outputs.rust == 'true'
         with:
           toolchain: stable
           targets: ${{ matrix.platform.target }}
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        if: needs.changes.outputs.rust == 'true'
         with:
           workspaces: './src-tauri -> target'
 
       - name: Test native macOS capture helper
-        if: runner.os == 'macOS'
+        if: needs.changes.outputs.rust == 'true' && (runner.os == 'macOS')
         run: >-
           swift run
           --package-path src-tauri/native/macos-capture
           flowtake-macos-capture-tests
 
       - name: Build native macOS capture helper
-        if: runner.os == 'macOS'
+        if: needs.changes.outputs.rust == 'true' && (runner.os == 'macOS')
         run: bash scripts/build-macos-capture.sh --native
 
       # Tauri validates that its configured sidecar exists during build-script
@@ -141,17 +223,20 @@ jobs:
       # needs a host executable so Rust source can be checked without a network
       # download from a mutable third-party release URL.
       - name: Prepare Linux sidecar for compile-only checks
-        if: runner.os == 'Linux'
+        if: needs.changes.outputs.rust == 'true' && (runner.os == 'Linux')
         run: install -Dm755 /bin/true src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
 
       - name: Cargo check
+        if: needs.changes.outputs.rust == 'true'
         run: cargo check --locked --all-targets
         working-directory: src-tauri
 
       - name: Cargo unit tests
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test --lib --locked
         working-directory: src-tauri
 
       - name: Cargo clippy
+        if: needs.changes.outputs.rust == 'true'
         run: cargo clippy --locked --all-targets -- -D warnings --allow dead_code
         working-directory: src-tauri

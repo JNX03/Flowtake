@@ -1,3 +1,8 @@
+import {
+    selectDuration,
+    selectSourceDuration,
+} from "./redux/editorSlice.js"
+
 const DEFAULT_PROJECT_NAME = "Recording"
 
 export const getRenderProjectName = state =>
@@ -5,6 +10,27 @@ export const getRenderProjectName = state =>
 
 export const createRenderableProjectState = (state, rendererDims = null) => {
     if (!state?.undoableState?.present) return null
+
+    const sourcePresent = state.undoableState.present
+    const sourceVideoDetails = sourcePresent.project?.videoDetails
+    const timelineEnd = selectDuration(state)
+    const sourceDuration = selectSourceDuration(state)
+    const present = sourceVideoDetails && Number.isFinite(timelineEnd)
+        ? {
+            ...sourcePresent,
+            project: {
+                ...sourcePresent.project,
+                videoDetails: {
+                    ...sourceVideoDetails,
+                    start: 0,
+                    end: timelineEnd,
+                    duration: Number.isFinite(sourceDuration)
+                        ? sourceDuration
+                        : sourceVideoDetails.duration,
+                },
+            },
+        }
+        : sourcePresent
 
     return {
         animator: {
@@ -18,7 +44,7 @@ export const createRenderableProjectState = (state, rendererDims = null) => {
         // slice so a missing plugin state just disables plugins instead of failing the render.
         plugin: state.plugin ?? { enabled: {}, config: {} },
         undoableState: {
-            present: state.undoableState.present
+            present
         }
     }
 }

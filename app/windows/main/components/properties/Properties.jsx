@@ -49,9 +49,7 @@ import { selectMaskIds } from "@shared/redux/maskSlice"
 import { selectOverlayIds } from "@shared/redux/overlaySlice"
 import {
     selectExtraTracks,
-    selectHasCameraVideo,
-    selectHasMicrophoneAudio,
-    selectHasSystemAudio
+    selectHasCameraVideo
 } from "@shared/redux/projectSlice"
 import {
     selectOpenSection,
@@ -85,14 +83,13 @@ function SidebarButton({ active, onClick, label, children }) {
             type="button"
             onClick={onClick}
             aria-label={label}
-            aria-current={active ? "page" : undefined}
-            data-tip={label}
-            className={`flowtake-sidebar-button tooltip tooltip-left relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
+            title={label}
+            className={`flowtake-sidebar-button relative w-9 h-9 flex items-center justify-center rounded-md transition-colors
                 ${active
                     ? "bg-base-content/10 text-primary"
                     : "text-base-content/70 hover:bg-base-content/5 hover:text-base-content"}`}
         >
-            {active && <span className="absolute right-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-l" />}
+            {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-r" />}
             {children}
         </button>
     )
@@ -107,21 +104,33 @@ SidebarButton.propTypes = {
 
 const ICON_CLS = "w-5 h-5"
 
-export default function Properties({
-    mode = "docked",
-    panelWidth = 320,
-    isDrawerOpen = false,
-    onDrawerChange,
-    side = "right",
-    showRail = true,
-}) {
+const SECTION_LABELS = {
+    [SCREEN_RECORDING]: "Screen recording",
+    [CAMERA_RECORDING]: "Camera",
+    [BACKGROUND]: "Background",
+    [CURSOR]: "Cursor",
+    [TRANSCRIPT]: "Transcript",
+    [CLIPS]: "Clip",
+    [CLICKS]: "Click",
+    [ZOOMS]: "Zoom",
+    [SPATIALS]: "Spatial",
+    [SUBTITLES]: "Subtitles",
+    [MASKS]: "Mask",
+    filters: "Filters",
+    [AUDIO_TRACKS]: "Audio",
+    [OVERLAY_TRACKS]: "Overlay",
+    [SOURCES]: "Sources",
+    [PLUGINS]: "Plugins",
+    [KEYBOARD_LAYOUTS]: "Keyboard",
+    [MOUSE_STYLES]: "Mouse style",
+    [APP_SCENES]: "Scene"
+}
+
+export default function Properties({ mode = "docked", panelWidth = 320, isDrawerOpen = false, onDrawerChange }) {
 
     const dispatch = useDispatch()
 
     const hasCameraVideo = useSelector(selectHasCameraVideo)
-    const hasMicrophoneAudio = useSelector(selectHasMicrophoneAudio)
-    const hasSystemAudio = useSelector(selectHasSystemAudio)
-    const hasAnyAudio = hasMicrophoneAudio || hasSystemAudio
     const clipAnimIds = useSelector(selectClipIds)
     const zoomAnimIds = useSelector(selectZoomIds)
     const spatialAnimIds = useSelector(selectSpatialIds)
@@ -182,9 +191,11 @@ export default function Properties({
         return () => window.removeEventListener("keydown", onKey)
     }, [isDrawer, isDrawerOpen, onDrawerChange])
 
+    const activeLabel = SECTION_LABELS[openSection] || "Inspector"
+
     const iconBar = (
         <nav
-            className="flowtake-icon-rail w-12 h-full shrink-0 bg-base-100 rounded-xl flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar"
+            className="flowtake-icon-rail w-12 h-full min-h-0 shrink-0 bg-base-100 flex flex-col items-center py-2 gap-0.5 overflow-y-auto no-scrollbar"
             aria-label="Inspector tools"
         >
             <SidebarButton label="Screen Recording" active={openSection === SCREEN_RECORDING} onClick={() => open(SCREEN_RECORDING)}>
@@ -201,11 +212,9 @@ export default function Properties({
             <SidebarButton label="Cursor" active={openSection === CURSOR} onClick={() => open(CURSOR)}>
                 <CursorArrowRippleIcon className={ICON_CLS} />
             </SidebarButton>
-            {hasAnyAudio && (
-                <SidebarButton label="Auto Transcribe" active={openSection === TRANSCRIPT} onClick={() => open(TRANSCRIPT)}>
-                    <ChatBubbleOvalLeftEllipsisIcon className={ICON_CLS} />
-                </SidebarButton>
-            )}
+            <SidebarButton label="Captions" active={openSection === TRANSCRIPT} onClick={() => open(TRANSCRIPT)}>
+                <ChatBubbleOvalLeftEllipsisIcon className={ICON_CLS} />
+            </SidebarButton>
 
             <hr className="w-6 border-t border-base-content/10 my-1" />
 
@@ -263,24 +272,28 @@ export default function Properties({
 
     const contentPanel = (
         <div className="flowtake-properties-panel h-full min-h-0 flex flex-col">
-            {isDrawer && (
-                <div className="flex items-center justify-between px-2 pt-2 shrink-0">
-                    <span className="text-[11px] uppercase tracking-wider text-base-content/50 px-2">Properties</span>
+            <header className="flowtake-panel__header h-12 px-3 flex items-center justify-between border-b border-base-content/10 shrink-0">
+                <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-base-content/40">Inspector</p>
+                    <h2 className="text-xs font-semibold truncate">{activeLabel}</h2>
+                </div>
+                {isDrawer && (
                     <button
+                        type="button"
                         onClick={() => onDrawerChange?.(false)}
                         className="btn btn-ghost btn-xs btn-square"
-                        aria-label="Close panel"
+                        aria-label="Close inspector"
                     >
                         <XMarkIcon className="w-4 h-4" />
                     </button>
-                </div>
-            )}
+                )}
+            </header>
             <div className="flex-1 min-h-0 overflow-hidden">
                 {openSection === SCREEN_RECORDING && <ScreenRecordingSection />}
                 {openSection === CAMERA_RECORDING && hasCameraVideo && <CameraSection />}
                 {openSection === BACKGROUND && <BackgroundSection />}
                 {openSection === CURSOR && <CursorSection />}
-                {openSection === TRANSCRIPT && hasAnyAudio && <TranscriptSection />}
+                {openSection === TRANSCRIPT && <TranscriptSection />}
                 {openSection === CLIPS && <ClipSection />}
                 {openSection === CLICKS && <ClickSection />}
                 {openSection === ZOOMS && <ZoomSection />}
@@ -300,35 +313,24 @@ export default function Properties({
     )
 
     if (isDrawer) {
-        if (!showRail && !isDrawerOpen) return null
-        const drawerOffsetClass = showRail ? (side === "right" ? "right-14" : "left-14") : (side === "right" ? "right-0" : "left-0")
         return (
             <>
-                {showRail && <div className="relative h-full shrink-0 z-20">{iconBar}</div>}
+                <div className="flowtake-panel relative h-full shrink-0 z-30 overflow-hidden">
+                    {iconBar}
+                </div>
                 {isDrawerOpen && (
                     <>
                         <button
                             type="button"
                             aria-label="Close inspector"
-                            className="flowtake-panel-backdrop absolute inset-0 z-10"
+                            className="absolute inset-0 bg-base-content/20 backdrop-blur-[1px] z-20 transition-opacity"
                             onClick={() => onDrawerChange?.(false)}
                         />
                         <div
-                            className={`flowtake-panel absolute ${drawerOffsetClass} top-0 bottom-0 z-20 bg-base-100 rounded-xl overflow-hidden`}
-                            style={{
-                                width: showRail
-                                    ? `min(${panelWidth}px, calc(100vw - 60px))`
-                                    : `min(${panelWidth + 48}px, calc(100vw - 12px))`
-                            }}
+                            className="flowtake-panel absolute right-14 top-0 bottom-0 z-30 bg-base-100 overflow-hidden"
+                            style={{ width: panelWidth, maxWidth: "calc(100vw - 7.5rem)" }}
                         >
-                            {showRail
-                                ? contentPanel
-                                : (
-                                    <div className="flex h-full min-w-0 gap-2 p-1.5">
-                                        {iconBar}
-                                        <div className="min-w-0 flex-1">{contentPanel}</div>
-                                    </div>
-                                )}
+                            {contentPanel}
                         </div>
                     </>
                 )}
@@ -338,13 +340,13 @@ export default function Properties({
 
     return (
         <div
-            className={`flowtake-inspector-dock shrink-0 relative h-full flex gap-2 transition-[width] duration-200 ${side === "right" ? "flex-row" : "flex-row-reverse"}`}
-            style={{ width: `calc(${panelWidth}px + 3rem + 0.5rem)` }}
+            className="flowtake-panel shrink-0 relative h-full min-w-0 flex overflow-hidden"
+            style={{ width: panelWidth }}
         >
-            <div className="flex-1 min-w-0 h-full">
+            {iconBar}
+            <div className="flex-1 min-w-0 h-full bg-base-100">
                 {contentPanel}
             </div>
-            {showRail && iconBar}
         </div>
     )
 }
@@ -354,6 +356,4 @@ Properties.propTypes = {
     panelWidth: PropTypes.number,
     isDrawerOpen: PropTypes.bool,
     onDrawerChange: PropTypes.func,
-    side: PropTypes.oneOf(["left", "right"]),
-    showRail: PropTypes.bool,
 }
