@@ -64,7 +64,6 @@ import OnlyScreenLayoutButton from "./OnlyScreenLayoutButton"
 import PositionPicker from "./PositionPicker"
 import SideBySideLayoutButton from "./SideBySideLayoutButton"
 import Slider from "./Slider"
-import SpeedSection from "./SpeedSection"
 import TransitionPicker from "./TransitionPicker"
 
 const PLAYBACK_RATE_MIN = 1
@@ -129,9 +128,10 @@ export default function ClipSection() {
             && !configs.every(({ layout }) => layout.config?.cameraBorderRadius === configs[0]?.layout.config?.cameraBorderRadius),
         [layoutMode, configs])
 
-    const onChangePlaybackRate = useCallback((playbackRate, group) =>
-        dispatch(updateClips(configs.map(({ id }) => ({ id, changes: { playbackRate } })), group)),
-        [dispatch, configs])
+    const onChangePlaybackRate = useCallback((playbackRate, group) => {
+        const action = updateClips(configs.map(({ id }) => ({ id, changes: { playbackRate } })))
+        dispatch(group ? withGroup(action, group) : action)
+    }, [dispatch, configs])
 
     const onChangePlaybackRateInput = useCallback(({ target }) => {
         const playbackRate = clamp(Number(target.value), PLAYBACK_RATE_MIN, PLAYBACK_RATE_MAX)
@@ -206,8 +206,7 @@ export default function ClipSection() {
             id: config.id,
             changes: { layout: { mode: MODE_SIDE_BY_SIDE, config: { ...config.layout.config, ...layoutConfig } } }
         })))
-        if (group) dispatch(action)
-        else dispatch(withGroup(action, group))
+        dispatch(group ? withGroup(action, group) : action)
     }, [dispatch, configs])
 
     const onChangeSideBySideBorderRadius = useCallback((cameraBorderRadius, group) =>
@@ -218,13 +217,15 @@ export default function ClipSection() {
         setSideBySideConfig({ cameraPosition }),
         [setSideBySideConfig])
 
-    const onChangeMicrophoneAudioVolume = useCallback((microphoneAudioVolume, group) =>
-        dispatch(updateClips(configs.map(({ id }) => ({ id, changes: { microphoneAudioVolume } })), group)),
-        [dispatch, configs])
+    const onChangeMicrophoneAudioVolume = useCallback((microphoneAudioVolume, group) => {
+        const action = updateClips(configs.map(({ id }) => ({ id, changes: { microphoneAudioVolume } })))
+        dispatch(group ? withGroup(action, group) : action)
+    }, [dispatch, configs])
 
-    const onChangeSystemAudioVolume = useCallback((systemAudioVolume, group) =>
-        dispatch(updateClips(configs.map(({ id }) => ({ id, changes: { systemAudioVolume } })), group)),
-        [dispatch, configs])
+    const onChangeSystemAudioVolume = useCallback((systemAudioVolume, group) => {
+        const action = updateClips(configs.map(({ id }) => ({ id, changes: { systemAudioVolume } })))
+        dispatch(group ? withGroup(action, group) : action)
+    }, [dispatch, configs])
 
     const setAsDefault = useCallback(() => {
         if (layoutMode && !isIndeterminateCameraOverlayCameraBaseScale
@@ -301,7 +302,7 @@ export default function ClipSection() {
                 </Fieldset>}
             </>}
 
-            <Fieldset legend="Playback Speed">
+            <Fieldset id="clip-speed-control" legend="Playback Speed">
                 <div className="tabs tabs-lift tabs-xs">
                     <input type="radio" name="playback_speed" className="tab" aria-label="Basic"
                         defaultChecked={configs[0]?.playbackRate <= 5} />
@@ -385,12 +386,6 @@ export default function ClipSection() {
                     )}
 
                 </Fieldset>}
-
-            {configs.length === 1 && (
-                <Fieldset legend="Speed">
-                    <SpeedSection />
-                </Fieldset>
-            )}
 
             {configs.length === 1 && (
                 <Fieldset legend="Transitions">

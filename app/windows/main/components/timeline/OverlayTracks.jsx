@@ -1,23 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { PlusIcon } from "@heroicons/react/16/solid"
 import {
     useDispatch,
     useSelector
 } from "react-redux"
 import { subscribe, isDragActive, getHoverTarget } from "../../dragState"
-import { clamp, OVERLAY_TRACKS, pxToMs } from "@shared/helpers"
-import { getGroup, withGroup } from "@shared/redux/actionEnhancers"
+import { OVERLAY_TRACKS, pxToMs } from "@shared/helpers"
 import {
     addOverlay,
-    addOverlayTrack,
     selectAllOverlays,
-    selectNextOverlayTrackId,
     selectOverlayTracks,
 } from "@shared/redux/overlaySlice"
 import {
+    createOverlayLaneItem,
+    getOverlayLaneInsertDuration,
+    planTimelineLaneInsert,
+} from "@shared/editor/timelineLaneInsert"
+import {
     selectIsMaskingModeEnabled,
-    selectPxPerMs
+    selectPxPerMs,
+    selectSelectedIds,
+    setSelectedIds,
+    setSelectedRow,
 } from "@shared/redux/timelineSlice"
-import { selectDuration } from "@shared/redux/editorSlice"
+import {
+    selectDuration,
+    selectIsPlaying,
+} from "@shared/redux/editorSlice"
 import OverlayItem from "./OverlayItem"
 import Row from "./Row"
 
@@ -29,8 +38,9 @@ export default function OverlayTracks() {
     const allOverlays = useSelector(selectAllOverlays)
     const isMinimized = useSelector(selectIsMaskingModeEnabled)
     const duration = useSelector(selectDuration)
+    const isPlaying = useSelector(selectIsPlaying)
     const pxPerMs = useSelector(selectPxPerMs)
-    const nextTrackId = useSelector(selectNextOverlayTrackId)
+    const selectedIds = useSelector(selectSelectedIds)
     const [dragOverTrack, setDragOverTrack] = useState(null)
 
     const overlaysByTrack = useMemo(() => {
@@ -41,33 +51,59 @@ export default function OverlayTracks() {
         })
         return map
     }, [tracks, allOverlays])
+    const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+    const activeTrackIds = useMemo(() => new Set(
+        allOverlays
+            .filter(overlay => selectedIdSet.has(overlay.id))
+            .map(overlay => overlay.trackIndex)
+    ), [allOverlays, selectedIdSet])
 
     // Highlight track when pointer drag is active and hovering over it
     useEffect(() => subscribe(() => {
         if (!isDragActive()) { setDragOverTrack(null); return }
         const hover = getHoverTarget()
-        const hoveredTrack = tracks.find(track => track.id === hover?.trackId)
-        if (hover?.zone === "overlay-track" && hoveredTrack && !hoveredTrack.locked) setDragOverTrack(hover.trackId)
+        if (hover?.zone === "overlay-track") setDragOverTrack(hover.trackId)
         else setDragOverTrack(null)
-    }), [tracks])
+    }), [])
+
+    const insertOverlayAsset = useCallback((trackId, time, asset) => {
+        const track = tracks.find(item => item.id === trackId)
+        const plan = planTimelineLaneInsert({
+            requestedStart: time,
+            requestedDuration: getOverlayLaneInsertDuration(asset),
+            projectDuration: duration,
+            track,
+            items: allOverlays.filter(overlay => overlay.trackIndex === trackId),
+            isPlaying,
+        })
+        if (!plan.ok) return false
+
+        const overlay = createOverlayLaneItem({
+            id: `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            trackId,
+            start: plan.start,
+            end: plan.end,
+            asset,
+        })
+        if (!overlay) return false
+
+        dispatch(addOverlay(overlay))
+        dispatch(setSelectedIds([overlay.id]))
+        dispatch(setSelectedRow(OVERLAY_TRACKS))
+        return true
+    }, [allOverlays, dispatch, duration, isPlaying, tracks])
 
     const handleDoubleClick = useCallback((time, trackId) => {
-        const start = Math.max(time - 2000, 0)
-        const end = Math.min(time + 2000, duration)
-        dispatch(addOverlay({
-            id: `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            start,
-            end,
-            trackIndex: trackId,
-            overlayType: "text",
-            text: "Text",
-            fontSize: 32,
-            fontWeight: 600,
-            color: "#ffffff",
-            position: { x: 0.5, y: 0.5 },
-            opacity: 1,
-        }))
-    }, [dispatch, duration])
+        insertOverlayAsset(trackId, time, {
+            type: "text",
+            config: {
+                text: "Text",
+                fontSize: 32,
+                fontWeight: 600,
+                color: "#ffffff",
+            },
+        })
+    }, [insertOverlayAsset])
 
     // Listen for custom pointer-based drop events
     useEffect(() => {
@@ -77,45 +113,16 @@ export default function OverlayTracks() {
             if (target.zone !== "overlay-track") return
             // Audio goes to audio tracks only
             if (data.type === "audio" || data.category === "audio") return
-            if (!["text", "shape", "image"].includes(data.type)) return
-            if (!duration) return
+            if (!target.rect || !Number.isFinite(clientX)) return
 
+            const trackId = target.trackId
             const offsetX = clientX - target.rect.left
-            const start = clamp(pxToMs(offsetX, pxPerMs), 0, Math.max(0, duration - Math.min(4000, duration)))
-            const end = Math.min(start + 4000, duration)
-            const isTrackAvailable = track => !track.locked && !allOverlays.some(overlay =>
-                overlay.trackIndex === track.id && overlay.start < end && overlay.end > start
-            )
-            const preferredTrack = tracks.find(track => track.id === target.trackId)
-            const availableTrack = preferredTrack && isTrackAvailable(preferredTrack)
-                ? preferredTrack
-                : tracks.find(isTrackAvailable)
-            const trackId = availableTrack?.id ?? nextTrackId
-            const group = getGroup("overlay-drop")
-            if (!availableTrack) dispatch(withGroup(addOverlayTrack(), group))
-            const base = {
-                id: `overlay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                start, end, trackIndex: trackId, opacity: 1, position: { x: 0.5, y: 0.5 },
-            }
-
-            if (data.type === "text") {
-                dispatch(withGroup(addOverlay({ ...base, overlayType: "text", text: data.config?.text || "Text",
-                    fontSize: data.config?.fontSize || 32, fontWeight: data.config?.fontWeight || 600,
-                    color: data.config?.color || "#ffffff" }), group))
-            } else if (data.type === "shape") {
-                dispatch(withGroup(addOverlay({ ...base, overlayType: "shape", shapeType: data.config?.shapeType || "rect",
-                    fill: data.config?.fill || "#6C5CE7", stroke: data.config?.stroke || "none",
-                    strokeWidth: data.config?.strokeWidth || 0, width: data.config?.width || 200,
-                    height: data.config?.height || 100, borderRadius: data.config?.borderRadius || 0,
-                    radius: data.config?.radius || 0 }), group))
-            } else if (data.type === "image") {
-                dispatch(withGroup(addOverlay({ ...base, overlayType: "image", name: data.name || "Image",
-                    src: data.src || null, width: 320, height: 240 }), group))
-            }
+            const time = pxToMs(offsetX, pxPerMs)
+            insertOverlayAsset(trackId, time, data)
         }
         window.addEventListener("flowtake-drop", handleDrop)
         return () => window.removeEventListener("flowtake-drop", handleDrop)
-    }, [allOverlays, dispatch, duration, nextTrackId, pxPerMs, tracks])
+    }, [insertOverlayAsset, pxPerMs])
 
     if (tracks.length === 0) return null
 
@@ -123,26 +130,28 @@ export default function OverlayTracks() {
         <div key={`overlay-track-${track.id}`}
             data-drop-zone="overlay-track"
             data-drop-track-id={track.id}
-            className={`relative transition-colors ${dragOverTrack === track.id ? "bg-accent/10 ring-1 ring-accent/30 ring-inset rounded" : ""}`}
+            className={`relative shrink-0 rounded-sm transition-colors ${activeTrackIds.has(track.id) ? "bg-accent/8" : ""} ${dragOverTrack === track.id ? "bg-accent/10 ring-1 ring-accent/30 ring-inset" : ""}`}
         >
             <Row
                 name={OVERLAY_TRACKS}
                 className="h-12"
                 animIds={(overlaysByTrack[track.id] || []).map(o => o.id)}
                 action={OverlayItem}
-                onDoubleClick={time => { if (!track.locked) handleDoubleClick(time, track.id) }}
+                onDoubleClick={time => handleDoubleClick(time, track.id)}
                 isMinimized={isMinimized}
+                isActive={activeTrackIds.has(track.id)}
             />
             {(overlaysByTrack[track.id] || []).length === 0 && !isMinimized && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <button
                         type="button"
                         onClick={() => handleDoubleClick(0, track.id)}
-                        disabled={track.locked}
-                        className="pointer-events-auto text-xs opacity-60 hover:opacity-100 border border-dashed border-base-content/25 hover:border-accent hover:bg-accent/10 rounded-md px-3 py-1 transition-all flex items-center gap-1.5"
+                        disabled={track.locked || isPlaying}
+                        className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-dashed border-base-content/20 px-2.5 py-1 text-[10px] text-base-content/45 transition-all hover:border-accent/60 hover:bg-accent/10 hover:text-base-content disabled:opacity-30"
+                        aria-label={`Add text to ${track.name}`}
                     >
-                        <span className="text-base leading-none">{track.locked ? "" : "+"}</span>
-                        {track.locked ? "Track locked" : "Click to add text or image"}
+                        <PlusIcon className="size-3" />
+                        Add text
                     </button>
                 </div>
             )}

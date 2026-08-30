@@ -62,13 +62,20 @@ test("audio placement creates a track when every unlocked interval is occupied",
     }), { trackId: 3, needsNewTrack: true })
 })
 
-test("timeline and row insertion paths share the placement resolver", async () => {
+test("timeline and row insertion paths share placement logic instead of reimplementing it", async () => {
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
     const timeline = await readFile(path.join(repoRoot, "app/windows/main/components/timeline/Timeline.jsx"), "utf8")
     const audioTracks = await readFile(path.join(repoRoot, "app/windows/main/components/timeline/AudioTracks.jsx"), "utf8")
 
-    assert.match(timeline, /resolveAudioTrackPlacement/)
+    // Both drop paths plan through the shared lane-insert module so neither
+    // reimplements gap-finding. The timeline additionally scans every lane for
+    // the gap closest to the drop point; the row path resolves a target lane
+    // first, falling back to a free or new track.
+    assert.match(timeline, /planTimelineLaneInsert/)
+    assert.match(audioTracks, /planTimelineLaneInsert/)
     assert.match(audioTracks, /resolveAudioTrackPlacement/)
-    assert.match(audioTracks, /addAudioSource[\s\S]*insertAudioClip/)
-    assert.match(audioTracks, /handleDrop[\s\S]*insertAudioClip/)
+
+    for (const source of [timeline, audioTracks]) {
+        assert.doesNotMatch(source, /clip\.start < end && clip\.end > start/)
+    }
 })

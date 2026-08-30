@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
-import yaml from "js-yaml"
+import { load as loadYaml } from "js-yaml"
 
 const workflowSource = await readFile(
     new URL("../.github/workflows/windows-msi-lifecycle.yml", import.meta.url),
@@ -22,10 +22,10 @@ const installationDocsSource = await readFile(
     "utf8"
 )
 
-const workflow = yaml.load(workflowSource)
-const versionManifest = yaml.load(versionManifestSource)
-const localeManifest = yaml.load(localeManifestSource)
-const installerManifest = yaml.load(installerManifestSource)
+const workflow = loadYaml(workflowSource)
+const versionManifest = loadYaml(versionManifestSource)
+const localeManifest = loadYaml(localeManifestSource)
+const installerManifest = loadYaml(installerManifestSource)
 
 const expected = {
     identifier: "JNX03.Flowtake",

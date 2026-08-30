@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useDispatch, useSelector } from "react-redux"
+import { useDispatch, useSelector, useStore } from "react-redux"
 import { clamp, msToPx, pxToMs } from "@shared/helpers"
+import {
+    findClosestTimelineGap,
+    getTimelineCanvasEnd,
+} from "@shared/editor/timelineMovePlacement"
 import { selectDuration } from "@shared/redux/editorSlice"
 import {
     selectIsSnappingEnabled,
@@ -8,6 +12,7 @@ import {
     selectPxPerMs,
     selectScrollLeft,
     selectSnappingLines,
+    selectTime,
     setActiveSnapLine
 } from "@shared/redux/timelineSlice"
 
@@ -16,93 +21,26 @@ const SNAP_THRESHOLD_PX = 10
 const DRAG_THRESHOLD_PX = 3
 const CROSS_TRACK_THROTTLE_PX = 2
 
-// Find non-overlapping position on a track, closest to the desired start
-function findNonOverlappingPosition(targetStart, clipDuration, existingClips, videoDuration) {
-    const end = targetStart + clipDuration
-    const overlaps = existingClips.some(c => c.start < end && c.end > targetStart)
-    if (!overlaps) return targetStart
-
-    const sorted = [...existingClips].sort((a, b) => a.start - b.start)
-    const gaps = []
-
-    const firstStart = sorted.length > 0 ? sorted[0].start : videoDuration
-    if (firstStart > 0) gaps.push({ start: 0, end: firstStart })
-
-    for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i].end < sorted[i + 1].start)
-            gaps.push({ start: sorted[i].end, end: sorted[i + 1].start })
-    }
-
-    if (sorted.length > 0 && sorted[sorted.length - 1].end < videoDuration)
-        gaps.push({ start: sorted[sorted.length - 1].end, end: videoDuration })
-
-    if (sorted.length === 0)
-        gaps.push({ start: 0, end: videoDuration })
-
-    let bestPos = null
-    let bestDist = Infinity
-
-    for (const gap of gaps) {
-        if (gap.end - gap.start >= clipDuration) {
-            const clampedStart = clamp(targetStart, gap.start, gap.end - clipDuration)
-            const dist = Math.abs(clampedStart - targetStart)
-            if (dist < bestDist) {
-                bestDist = dist
-                bestPos = clampedStart
-            }
-        }
-    }
-
-    return bestPos
-}
-
-// Resolve overlap for free-move: if targetStart causes overlap, snap to nearest valid edge
-function resolveOverlap(targetStart, clipDuration, clipId, allAnims, videoDuration) {
-    const others = allAnims.filter(a => a.id !== clipId)
-    const targetEnd = targetStart + clipDuration
-
-    // Check if position is free
-    const overlapping = others.filter(c => c.start < targetEnd && c.end > targetStart)
-    if (overlapping.length === 0) return clamp(targetStart, 0, videoDuration - clipDuration)
-
-    // Find the nearest non-overlapping snap position (edge of blocking clip)
-    let bestPos = targetStart
-    let bestDist = Infinity
-
-    for (const c of overlapping) {
-        // Try snapping to right edge of blocking clip
-        const posAfter = c.end
-        const distAfter = Math.abs(posAfter - targetStart)
-        if (distAfter < bestDist && posAfter + clipDuration <= videoDuration) {
-            const stillOverlaps = others.some(o => o.id !== c.id && o.start < posAfter + clipDuration && o.end > posAfter)
-            if (!stillOverlaps) { bestDist = distAfter; bestPos = posAfter }
-        }
-
-        // Try snapping to left edge of blocking clip
-        const posBefore = c.start - clipDuration
-        const distBefore = Math.abs(posBefore - targetStart)
-        if (distBefore < bestDist && posBefore >= 0) {
-            const stillOverlaps = others.some(o => o.id !== c.id && o.start < posBefore + clipDuration && o.end > posBefore)
-            if (!stillOverlaps) { bestDist = distBefore; bestPos = posBefore }
-        }
-    }
-
-    return clamp(bestPos, 0, videoDuration - clipDuration)
-}
-
-// Find the hard limit for resize-left (furthest left edge before hitting another clip)
-function getResizeLeftLimit(clipId, allAnims) {
-    const others = allAnims.filter(a => a.id !== clipId)
-    // The left resize limit is the end of any clip that ends before or at the current clip's start
-    // But since we allow gaps, we need the end of the closest clip to the left that would block
-    return others.reduce((limit, c) => c.end > limit ? Math.max(limit, 0) : limit, 0)
-}
-
-// Find the hard limit for resize-right (furthest right edge before hitting another clip)
-function getResizeRightLimit(clipStart, clipId, allAnims, videoDuration) {
-    const others = allAnims.filter(a => a.id !== clipId && a.start > clipStart)
-    if (others.length === 0) return videoDuration
-    return Math.min(...others.map(c => c.start), videoDuration)
+function resolveOverlap(
+    targetStart,
+    clipDuration,
+    clipId,
+    allAnims,
+    timelineDuration,
+    originalStart
+) {
+    const placement = findClosestTimelineGap({
+        targetStart,
+        duration: clipDuration,
+        items: allAnims,
+        itemId: clipId,
+        timelineDuration,
+    })
+    return placement ?? clamp(
+        originalStart,
+        0,
+        Math.max(0, timelineDuration - clipDuration)
+    )
 }
 
 // Find track element under mouse via elementsFromPoint
@@ -150,8 +88,10 @@ export default function useDragInteraction({
     getTrackAnims = null,
     onTrackChange = null,
     color,
+    disabled = false,
 }) {
     const dispatch = useDispatch()
+    const store = useStore()
 
     const [isDragging, setIsDragging] = useState(false)
 
@@ -186,6 +126,7 @@ export default function useDragInteraction({
         rafId: 0,
         pendingUpdate: false,
         highlightedEl: null,
+        snapLines: null,
     })
 
     // Derived values
@@ -211,6 +152,7 @@ export default function useDragInteraction({
     refs.current.maxEnd = maxEnd
     refs.current.lines = lines
     refs.current.videoDuration = videoDuration
+    refs.current.moveTimelineEnd = getTimelineCanvasEnd(videoDuration)
     refs.current.anim = anim
     refs.current.anims = anims
     refs.current.onChange = onChange
@@ -233,7 +175,7 @@ export default function useDragInteraction({
         - drag.current.initialStart, [])
 
     const getClosestLine = useCallback((value) => {
-        const l = refs.current.lines
+        const l = drag.current.snapLines ?? refs.current.lines
         return l?.reduce((closest, current) =>
             Math.abs(current - value) < Math.abs(closest - value) ? current : closest) ?? null
     }, [])
@@ -311,7 +253,10 @@ export default function useDragInteraction({
         const d = drag.current
         const r = refs.current
         let effectiveMinStart = r.minStart
-        let effectiveMaxEnd = r.maxEnd
+        // Moving an item is allowed to grow the timeline. Trimming keeps the
+        // existing finite bounds below, so source ranges cannot accidentally
+        // stretch just because an item was moved.
+        let effectiveMaxEnd = r.moveTimelineEnd
 
         if (!r.crossTrackEnabled || !r.trackDropZone || !r.getTrackAnims) {
             return { effectiveMinStart, effectiveMaxEnd }
@@ -328,10 +273,10 @@ export default function useDragInteraction({
                 const targetAnims = r.getTrackAnims(hoveredTrackId).filter(a => a.id !== r.anim.id)
                 const constraints = computeConstraints(
                     { start: newStart, end: newStart + d.initialDuration },
-                    targetAnims, r.videoDuration
+                    targetAnims, r.moveTimelineEnd
                 )
                 effectiveMinStart = constraints.minStart
-                effectiveMaxEnd = constraints.maxEnd ?? r.maxEnd
+                effectiveMaxEnd = constraints.maxEnd ?? r.moveTimelineEnd
 
                 if (d.highlightedEl !== track.element) {
                     clearTrackHighlight()
@@ -348,10 +293,10 @@ export default function useDragInteraction({
             const targetAnims = r.getTrackAnims(d.targetTrack).filter(a => a.id !== r.anim.id)
             const constraints = computeConstraints(
                 { start: newStart, end: newStart + d.initialDuration },
-                targetAnims, r.videoDuration
+                targetAnims, r.moveTimelineEnd
             )
             effectiveMinStart = constraints.minStart
-            effectiveMaxEnd = constraints.maxEnd ?? r.maxEnd
+            effectiveMaxEnd = constraints.maxEnd ?? r.moveTimelineEnd
         }
 
         return { effectiveMinStart, effectiveMaxEnd }
@@ -376,7 +321,6 @@ export default function useDragInteraction({
                 let newStart = d.initialStart + delta
                 const snap = snapMove(newStart, d.initialDuration)
                 newStart = snap.newStart
-                dispatchSnapLine(snap.activeSnap)
 
                 const r = refs.current
                 if (r.crossTrackEnabled && r.trackDropZone && r.getTrackAnims) {
@@ -386,15 +330,28 @@ export default function useDragInteraction({
                 } else {
                     // Free movement with overlap prevention
                     d.currentStart = resolveOverlap(
-                        newStart, d.initialDuration, r.anim.id, r.anims, r.videoDuration
+                        newStart,
+                        d.initialDuration,
+                        r.anim.id,
+                        r.anims,
+                        r.moveTimelineEnd,
+                        r.anim.start
                     )
                 }
+                const activeSnap = snap.activeSnap !== null
+                    && (getDiff(d.currentStart, snap.activeSnap) < 0.5
+                        || getDiff(
+                            d.currentStart + d.currentDuration,
+                            snap.activeSnap
+                        ) < 0.5)
+                    ? snap.activeSnap
+                    : null
+                dispatchSnapLine(activeSnap)
 
             } else if (d.mode === "resize-left") {
                 let newStart = d.initialStart + delta
                 const snap = snapEdge(newStart)
                 newStart = snap.value
-                dispatchSnapLine(snap.activeSnap)
 
                 const r = refs.current
                 const currentEnd = d.currentStart + d.currentDuration
@@ -405,12 +362,17 @@ export default function useDragInteraction({
                     : 0
                 d.currentStart = clamp(newStart, leftLimit, currentEnd - MIN_DURATION)
                 d.currentDuration = currentEnd - d.currentStart
+                dispatchSnapLine(
+                    snap.activeSnap !== null
+                        && getDiff(d.currentStart, snap.activeSnap) < 0.5
+                        ? snap.activeSnap
+                        : null
+                )
 
             } else if (d.mode === "resize-right") {
                 let newEnd = d.initialStart + d.initialDuration + delta
                 const snap = snapEdge(newEnd)
                 newEnd = snap.value
-                dispatchSnapLine(snap.activeSnap)
 
                 const r = refs.current
                 // Find the nearest clip edge to the right that would block resize
@@ -422,6 +384,15 @@ export default function useDragInteraction({
                     newEnd - d.currentStart,
                     MIN_DURATION,
                     rightLimit - d.currentStart
+                )
+                dispatchSnapLine(
+                    snap.activeSnap !== null
+                        && getDiff(
+                            d.currentStart + d.currentDuration,
+                            snap.activeSnap
+                        ) < 0.5
+                        ? snap.activeSnap
+                        : null
                 )
             }
 
@@ -453,7 +424,13 @@ export default function useDragInteraction({
                 if (d.mode === "move" && r.crossTrackEnabled && d.targetTrack !== null
                     && d.targetTrack !== r.currentTrackId && r.onTrackChange && r.getTrackAnims) {
                     const targetAnims = r.getTrackAnims(d.targetTrack).filter(a => a.id !== r.anim.id)
-                    const validStart = findNonOverlappingPosition(s, dur, targetAnims, Infinity)
+                    const validStart = findClosestTimelineGap({
+                        targetStart: s,
+                        duration: dur,
+                        items: targetAnims,
+                        itemId: r.anim.id,
+                        timelineDuration: r.moveTimelineEnd,
+                    })
                     if (validStart !== null) {
                         r.onTrackChange(validStart, validStart + dur, d.targetTrack)
                     } else {
@@ -468,6 +445,7 @@ export default function useDragInteraction({
             d.active = false
             d.mode = null
             d.lastSnapLine = null
+            d.snapLines = null
             setIsDragging(false)
             dispatch(setActiveSnapLine(null))
             moveHandleRef.current?.classList.remove("cursor-grabbing")
@@ -485,11 +463,16 @@ export default function useDragInteraction({
             d.thresholdMet = false
             d.targetTrack = null
             d.lastSnapLine = null
+            const playhead = selectTime(store.getState())
+            const baseLines = refs.current.lines || []
+            d.snapLines = Number.isFinite(playhead)
+                ? [...new Set([...baseLines, playhead])]
+                : baseLines
             window.addEventListener("mousemove", onMouseMove)
             window.addEventListener("mouseup", onMouseUp)
         }
 
-        const canDrag = refs.current.maxEnd !== null
+        const canDrag = refs.current.maxEnd !== null && !disabled
         const moveEl = moveHandleRef.current
         const leftEl = leftResizeRef.current
         const rightEl = rightResizeRef.current
@@ -507,20 +490,44 @@ export default function useDragInteraction({
         }
 
         return () => {
+            const hadPendingGesture = d.mode !== null
+                || d.active
+                || d.lastSnapLine !== null
             moveEl?.removeEventListener("mousedown", moveDown)
             leftEl?.removeEventListener("mousedown", leftDown)
             rightEl?.removeEventListener("mousedown", rightDown)
             window.removeEventListener("mousemove", onMouseMove)
             window.removeEventListener("mouseup", onMouseUp)
             cancelAnimationFrame(d.rafId)
+            d.rafId = 0
             d.pendingUpdate = false
-            if (d.active) {
-                d.active = false
-                d.mode = null
-                clearTrackHighlight()
+            clearTrackHighlight()
+
+            if (hadPendingGesture) {
+                const originalStart = refs.current.anim?.start ?? 0
+                const originalDuration = refs.current.anim
+                    ? refs.current.anim.end - refs.current.anim.start
+                    : 0
+                d.currentStart = originalStart
+                d.currentDuration = originalDuration
+                if (actionElementRef.current) {
+                    const scale = refs.current.pxPerMs
+                    actionElementRef.current.style.left = `${msToPx(originalStart, scale)}px`
+                    actionElementRef.current.style.width = `${msToPx(originalDuration, scale)}px`
+                }
+                setIsDragging(false)
+                dispatch(setActiveSnapLine(null))
+                moveHandleRef.current?.classList.remove("cursor-grabbing")
             }
+
+            d.active = false
+            d.mode = null
+            d.thresholdMet = false
+            d.targetTrack = null
+            d.lastSnapLine = null
+            d.snapLines = null
         }
-    }, [isMinimized, dispatch, getDelta, snapMove, snapEdge, handleCrossTrack, scheduleDomUpdate, dispatchSnapLine, clearTrackHighlight])
+    }, [isMinimized, disabled, dispatch, store, getDelta, snapMove, snapEdge, handleCrossTrack, scheduleDomUpdate, dispatchSnapLine, clearTrackHighlight])
 
     const setActionRef = useCallback(el => {
         actionElementRef.current = el

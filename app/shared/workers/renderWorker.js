@@ -3,9 +3,13 @@ import "pixi.js/graphics"
 import "pixi.js/mesh"
 import "pixi.js/text"
 
-import { Mp4OutputFormat } from "mediabunny"
+import {
+    Mp4OutputFormat,
+    WebMOutputFormat
+} from "mediabunny"
 import throttle from "throttleit"
 import {
+    PROJECT_MEDIA,
     RENDER_CAMERA_VIDEO,
     RENDER_OUTPUT_VIDEO,
     RENDER_SCREEN_VIDEO
@@ -16,10 +20,29 @@ import {
     RENDER_PROCESSING_AUDIO,
     RENDER_UPLOADING
 } from "../helpers"
+import {
+    createVideoOverlaySourceTimestamps,
+    getVideoOverlaySourceTime,
+    isVideoOverlay,
+    isVideoOverlayActive
+} from "../editor/videoOverlay"
+import {
+    buildRenderTimelineFrames,
+    getClipSourceRange
+} from "../editor/playbackClock"
+import {
+    buildCustomAudioExportClips,
+    hasAudibleTimelineAudio
+} from "../editor/audioTimeline"
+import { getExportFormatConfig } from "../exportFormats"
 import { selectRendererDims } from "../redux/animatorSlice"
 import { selectAllCameraZooms } from "../redux/cameraZoomSlice"
 import { selectAllClicks } from "../redux/clickSlice"
 import { selectAllClips } from "../redux/clipSlice"
+import {
+    selectAllAudioClips,
+    selectAudioTracks
+} from "../redux/audioTrackSlice"
 import {
     selectBlurStrength,
     selectCutOff,
@@ -79,7 +102,6 @@ import {
 import { selectAllZooms } from "../redux/zoomSlice"
 import {
     FEATURE_IDS as PLUGIN_FEATURE_IDS,
-    selectFeatureConfig as selectPluginFeatureConfig,
     selectIsFeatureEnabled as selectIsPluginFeatureEnabled
 } from "../redux/pluginSlice"
 import {
@@ -118,6 +140,55 @@ import WorkerOutputWriter from "./WorkerOutputWriter"
 // Replace console methods with worker console
 Object.assign(console, workerConsole)
 
+const hasIncludedAudio = render =>
+    render.config?.includeAudio !== false &&
+    (
+        selectHasMicrophoneAudio(render.state)
+        || selectHasSystemAudio(render.state)
+        || hasAudibleTimelineAudio(
+            selectAllAudioClips(render.state),
+            selectAudioTracks(render.state),
+            { requireProjectPath: true }
+        )
+    )
+
+const buildAudioPlan = render => {
+    const videoDetails = selectVideoDetails(render.state)
+    const customClips = buildCustomAudioExportClips({
+        clips: selectAllAudioClips(render.state),
+        tracks: selectAudioTracks(render.state),
+        timelineStart: videoDetails.start,
+        timelineEnd: videoDetails.end,
+    })
+    return {
+        hasSystemAudio: selectHasSystemAudio(render.state),
+        hasMicrophoneAudio: selectHasMicrophoneAudio(render.state),
+        timelineStart: videoDetails.start,
+        timelineEnd: videoDetails.end,
+        clips: selectAllClips(render.state)
+            .slice()
+            .sort((left, right) => left.start - right.start)
+            .map(clip => {
+                const { sourceStart, sourceEnd } = getClipSourceRange(clip)
+                return {
+                    start: clip.start,
+                    end: clip.end,
+                    sourceStart,
+                    sourceEnd,
+                    playbackRate: clip.playbackRate ?? 1,
+                    systemAudioVolume: clip.systemAudioVolume ?? 1,
+                    microphoneAudioVolume: clip.microphoneAudioVolume ?? 1,
+                }
+            }),
+        customClips,
+    }
+}
+
+const OUTPUT_FORMAT_CLASSES = {
+    mp4: Mp4OutputFormat,
+    webm: WebMOutputFormat,
+}
+
 // Enhanced Renderer class for web worker
 class WorkerRenderer {
     constructor(render) {
@@ -130,19 +201,17 @@ class WorkerRenderer {
         this.initPromise = null
         this.renderFramesPromise = null
         this.readers = {}
+        this.videoOverlayReaders = new Map()
+        this.videoOverlayConfigs = []
         this.fhId = null
     }
 
     async init(screenVideoDimensions, cameraVideoDimensions) {
         postDispatch(setProgress(0))
 
-        const hasMicrophoneAudio = selectHasMicrophoneAudio(this.render.state)
-        const hasSystemAudio = selectHasSystemAudio(this.render.state)
         const hasCameraVideo = selectHasCameraVideo(this.render.state)
         const rendererDims = selectRendererDims(this.render.state)
         const videoDetails = selectVideoDetails(this.render.state)
-
-        if (hasMicrophoneAudio || hasSystemAudio) await postIpc("process-audio", [this.render.id])
 
         await this.scene.createApp()
         this.scene.background.renderId = this.render.id
@@ -226,80 +295,78 @@ class WorkerRenderer {
             },
             duration)
 
-        const msPerFrame = 1000 / this.render.config.fps
-
-        let currentRendererTimestamp = videoDetails.start
-        let currentOutputTimestamp = 0
-
-        this.timestamps = []
-        this.timestamps.push({ rendererTimestamp: currentRendererTimestamp, outputTimestamp: currentOutputTimestamp })
-
         const clips = selectAllClips(this.render.state)
-
-        clips.forEach((config, i) => {
-            let firstFrame = true
-            while (currentRendererTimestamp < config.end - msPerFrame * config.playbackRate) {
-                let msPerFrameAdjusted = 0
-
-                const isAdjacent = i === 0 || clips[i - 1].end === config.start
-
-                if (firstFrame && !isAdjacent) {
-                    // if this is the first frame in a new clip and there is a gap between the two
-                    // clips, just set the renderer timestamp to the start of the new clip.
-                    firstFrame = false
-                    currentRendererTimestamp = config.start
-                } else if (firstFrame && i > 0) {
-                    // if this is the first frame in a new clip, calculate the correct timestamp,
-                    // taking into account how much time there was left after the last frame with the
-                    // old speed, and how much of the new speed needs to be added.
-
-                    firstFrame = false
-
-                    const prevPlaybackRate = clips[i - 1].playbackRate
-                    const prevTimestamp = this.timestamps.at(-1).rendererTimestamp
-                    const prevConfig = clips[i - 1]
-
-                    const prevFraction = (prevConfig.end - prevTimestamp) / (prevPlaybackRate * msPerFrame)
-                    const currFraction = 1 - prevFraction
-
-                    const speed = prevFraction * prevPlaybackRate + currFraction * config.playbackRate
-
-                    msPerFrameAdjusted = msPerFrame * speed
-                } else
-                    msPerFrameAdjusted = msPerFrame * config.playbackRate
-
-                currentRendererTimestamp += msPerFrameAdjusted
-                currentOutputTimestamp += msPerFrame
-                this.timestamps.push({ rendererTimestamp: currentRendererTimestamp, outputTimestamp: currentOutputTimestamp })
-            }
-        })
-
-        this.timestamps.forEach(timestamp => {
-            timestamp.rendererTimestamp = Math.round(timestamp.rendererTimestamp)
-        })
+        this.timestamps = buildRenderTimelineFrames({
+            clips,
+            timelineStart: videoDetails.start,
+            timelineEnd: videoDetails.end,
+            fps: this.render.config.fps,
+        }).map(timestamp => ({
+            ...timestamp,
+            rendererTimestamp: timestamp.sourceTimestamp === null
+                ? null
+                : Math.round(timestamp.sourceTimestamp),
+            sourceTimestamp: timestamp.sourceTimestamp === null
+                ? null
+                : Math.round(timestamp.sourceTimestamp),
+            sceneTimestamp: Math.round(timestamp.timelineTimestamp),
+        }))
 
         this.numberOfFrames = this.timestamps.length
 
-        this.readers.screen = new WorkerInputReader(RENDER_SCREEN_VIDEO, { renderId: this.render.id })
-        await this.readers.screen.init()
-        await this.readers.screen.createSink(this.timestamps)
+        const mediaTimestamps = this.timestamps.filter(timestamp => !timestamp.isGap)
+        if (mediaTimestamps.length > 0) {
+            this.readers.screen = new WorkerInputReader(RENDER_SCREEN_VIDEO, { renderId: this.render.id })
+            await this.readers.screen.init()
+            await this.readers.screen.createSink(mediaTimestamps)
 
-        if (hasCameraVideo) {
-            this.readers.camera = new WorkerInputReader(RENDER_CAMERA_VIDEO, { renderId: this.render.id })
-            await this.readers.camera.init()
-            await this.readers.camera.createSink(this.timestamps)
+            if (hasCameraVideo) {
+                this.readers.camera = new WorkerInputReader(RENDER_CAMERA_VIDEO, { renderId: this.render.id })
+                await this.readers.camera.init()
+                await this.readers.camera.createSink(mediaTimestamps)
+            }
+        }
+
+        const videoOverlays = selectAllOverlays(this.render.state).filter(isVideoOverlay)
+        for (const config of videoOverlays) {
+            if (!config.relativePath) {
+                throw new Error(`Video overlay "${config.name || config.id}" is missing its project media path`)
+            }
+
+            const sourceTimestamps = createVideoOverlaySourceTimestamps(config, this.timestamps)
+            if (sourceTimestamps.length === 0) continue
+
+            const reader = new WorkerInputReader(PROJECT_MEDIA, {
+                relativePath: config.relativePath,
+            })
+            await reader.init()
+            await reader.createSink(sourceTimestamps)
+            this.videoOverlayReaders.set(config.id, reader)
+            this.videoOverlayConfigs.push(config)
         }
 
         // init sprites scale and dims with first frames
+        const firstTimestamp = this.timestamps[0] ?? {
+            rendererTimestamp: videoDetails.start,
+            sourceTimestamp: videoDetails.start,
+            sceneTimestamp: videoDetails.start,
+        }
         await Promise.all([
-            this.getNewFrame("screen", { rendererTimestamp: videoDetails.start }),
-            this.getNewFrame("camera", { rendererTimestamp: videoDetails.start }),
+            this.getNewFrame("screen", firstTimestamp),
+            this.getNewFrame("camera", firstTimestamp),
+            this.getNewVideoOverlayFrames(firstTimestamp),
         ])
 
+        const exportFormat = getExportFormatConfig(this.render.config?.format)
         this.writer = new WorkerOutputWriter(
             RENDER_OUTPUT_VIDEO,
-            { renderId: this.render.id },
-            Mp4OutputFormat,
+            {
+                renderId: this.render.id,
+                format: exportFormat.value,
+                extension: exportFormat.extension,
+            },
+            OUTPUT_FORMAT_CLASSES[exportFormat.value],
+            exportFormat.videoCodec,
             this.render.config.fps,
             this.render.config.resolution,
             this.render.config.quality
@@ -309,7 +376,9 @@ class WorkerRenderer {
         await this.writer.start()
     }
 
-    async getNewFrame(type, { rendererTimestamp: t }) {
+    async getNewFrame(type, { sourceTimestamp, rendererTimestamp }) {
+        const t = sourceTimestamp ?? rendererTimestamp
+        if (t === null || t === undefined) return
         const wrappedCanvas = await this.readers[type]?.getCanvas(t)
         if (wrappedCanvas) {
 
@@ -327,6 +396,21 @@ class WorkerRenderer {
         }
     }
 
+    async getNewVideoOverlayFrames({ sceneTimestamp, timelineTimestamp, rendererTimestamp }) {
+        const editorTime = sceneTimestamp ?? timelineTimestamp ?? rendererTimestamp
+        await Promise.all(this.videoOverlayConfigs.map(async config => {
+            if (!isVideoOverlayActive(config, editorTime)) return
+
+            const reader = this.videoOverlayReaders.get(config.id)
+            const sourceTime = getVideoOverlaySourceTime(config, editorTime)
+            const wrappedCanvas = await reader?.getCanvas(sourceTime)
+            if (!wrappedCanvas?.canvas) return
+
+            this.scene.overlayAnimator?.setVideoFrame(config.id, wrappedCanvas.canvas)
+            wrappedCanvas.canvas = null
+        }))
+    }
+
     async renderFrames() {
         let i = 0
 
@@ -340,10 +424,15 @@ class WorkerRenderer {
 
             onProgress(Math.max(0, i / this.numberOfFrames * 100))
 
-            await Promise.all([this.getNewFrame("screen", timestamp), this.getNewFrame("camera", timestamp)])
+            await Promise.all([
+                this.getNewFrame("screen", timestamp),
+                this.getNewFrame("camera", timestamp),
+                this.getNewVideoOverlayFrames(timestamp),
+            ])
 
-            this.scene.time = timestamp.rendererTimestamp
+            this.scene.time = timestamp.sceneTimestamp
             this.scene.update()
+            this.scene.setPrimaryMediaVisible(!timestamp.isGap)
 
             const buffer = this.scene.renderToPixelBuffer()
             await this.writer.addFrame(buffer, timestamp.outputTimestamp)
@@ -368,10 +457,14 @@ class WorkerRenderer {
         console.log("closing readers screen done")
         await this.readers.camera?.close()
         console.log("closing readers camera done")
+        for (const reader of this.videoOverlayReaders.values()) await reader.close()
+        this.videoOverlayReaders.clear()
+        console.log("closing video overlay readers done")
 
-        if (selectHasMicrophoneAudio(this.render.state) || selectHasSystemAudio(this.render.state)) {
+        if (hasIncludedAudio(this.render)) {
             console.log("adding audio")
             postDispatch(updateRender({ id: this.render.id, changes: { status: RENDER_PROCESSING_AUDIO } }))
+            await postIpc("process-audio", [this.render.id, buildAudioPlan(this.render)])
             await postIpc("add-audio", [this.render.id])
             console.log("adding audio done")
         }
@@ -405,6 +498,8 @@ class WorkerRenderer {
         this.scene?.destroy()
         await this.readers.screen?.close()
         await this.readers.camera?.close()
+        for (const reader of this.videoOverlayReaders.values()) await reader.close()
+        this.videoOverlayReaders.clear()
         await postIpc("cancel-render", [this.render.id])
         await postIpc("clean-up-temp-folder", [this.render.id])
         postDispatch(updateRender({ id: this.render.id, changes: { status: RENDER_CANCELED } }))
