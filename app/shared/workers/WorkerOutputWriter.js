@@ -12,8 +12,9 @@ import { toS } from "../helpers"
 import { postIpc } from "./helpers"
 
 export default class WorkerOutputWriter extends OutputWriter {
-    constructor(videoType, args, Format, fps, resolution, quality) {
+    constructor(videoType, args, Format, codec, fps, resolution, quality) {
         super(videoType, args, Format)
+        this.codec = codec
         this.fps = fps
         this.resolution = resolution
         this.quality = this.getQuality(quality)
@@ -22,7 +23,7 @@ export default class WorkerOutputWriter extends OutputWriter {
 
     async init() {
         await super.init()
-        this.videoSampleSource = new VideoSampleSource({ codec: 'avc', bitrate: this.quality })
+        this.videoSampleSource = new VideoSampleSource({ codec: this.codec, bitrate: this.quality })
         this.output.addVideoTrack(this.videoSampleSource, { frameRate: this.fps })
     }
 

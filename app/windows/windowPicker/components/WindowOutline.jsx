@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 
-export default function WindowOutline({ activeWindow }) {
+export default function WindowOutline({ activeWindow, liveOverlay = false }) {
     const dpr = window.devicePixelRatio || 1
     const [hasPrevious, setHasPrevious] = useState(false)
     const [lastPos, setLastPos] = useState({ left: 0, top: 0, width: 0, height: 0 })
@@ -33,8 +33,17 @@ export default function WindowOutline({ activeWindow }) {
 
     return (
         <div
-            className="absolute border-4 border-primary bg-primary/10 rounded-md pointer-events-none flex justify-center items-center"
-            style={{ left, top, width, height, opacity: visible ? 1 : 0, transition }}
+            className="absolute border-4 border-primary rounded-md pointer-events-none flex justify-center items-center"
+            style={{
+                left,
+                top,
+                width,
+                height,
+                opacity: visible ? 1 : 0,
+                transition,
+                background: liveOverlay ? "rgba(108, 92, 231, 0.08)" : undefined,
+                boxShadow: liveOverlay ? "0 0 0 9999px rgba(5, 8, 20, 0.34)" : undefined,
+            }}
         >
             {activeWindow?.name && (
                 <div className="absolute top-2 left-2 px-2 py-1 bg-base-300/90 rounded text-xs text-base-content max-w-[300px] truncate pointer-events-none">
@@ -56,4 +65,5 @@ WindowOutline.propTypes = {
         y: PropTypes.number.isRequired,
         name: PropTypes.string,
     }),
+    liveOverlay: PropTypes.bool,
 }

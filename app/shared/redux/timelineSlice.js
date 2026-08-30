@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit'
 
 const initialState = {
-    isSnappingEnabled: false,
+    isSnappingEnabled: true,
     visibleRange: { start: 0, end: 0 },
     scrollLeft: 0,
     offset: 0,
@@ -11,6 +11,7 @@ const initialState = {
     lastSelectedAnim: null,
     selectedRow: null,
     selectedIds: [],
+    selectedBookmarkId: null,
     openSection: "screen-recording",
     time: 0,
     isMaskingModeEnabled: false,
@@ -53,6 +54,11 @@ export const timelineSlice = createSlice({
         setSelectedIds: (state, action) => {
             state.selectedIds = action.payload
         },
+        setSelectedBookmarkId: (state, action) => {
+            state.selectedBookmarkId = typeof action.payload === "string"
+                ? action.payload
+                : null
+        },
         setOpenSection: (state, action) => {
             state.openSection = action.payload
         },
@@ -84,6 +90,7 @@ export const {
     setLastSelectedAnim,
     setSelectedRow,
     setSelectedIds,
+    setSelectedBookmarkId,
     setOpenSection,
     setTime,
     setIsMaskingModeEnabled,
@@ -101,6 +108,7 @@ export const selectPxPerMs = state => state.timeline.pxPerMs
 export const selectlastSelectedAnim = state => state.timeline.lastSelectedAnim
 export const selectSelectedRow = state => state.timeline.selectedRow
 export const selectSelectedIds = state => state.timeline.selectedIds
+export const selectSelectedBookmarkId = state => state.timeline.selectedBookmarkId
 export const selectOpenSection = state => state.timeline.openSection
 export const selectTime = state => state.timeline.time
 export const selectIsMaskingModeEnabled = state => state.timeline.isMaskingModeEnabled

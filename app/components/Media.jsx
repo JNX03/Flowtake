@@ -36,75 +36,57 @@ const Media = forwardRef(({ isVideo, src, title, controls, muted, preload, class
 
 
     useEffect(() => {
-        if (fullSrc) {
-            const video = internalRef.current
-            let timeoutId
-            let canPlayListener
+        if (!fullSrc) return
 
-            console.log("[Media] mounting video element", {
-                fullSrc,
-                initialReadyState: video?.readyState,
-                networkState: video?.networkState,
-            })
+        const video = internalRef.current
+        if (!video) return
 
-            const handleVideoError = () => {
-                const err = video.error
-                if (err?.code === 4 && !video.getAttribute("src")) return
-                console.error("[Media] Video error:", err?.code, err?.message, "src:", fullSrc)
-            }
-            video.addEventListener('error', handleVideoError)
+        let timeoutId = null
+        let canPlayListener = null
 
-            const handleCanPlay = () => {
-                console.log("[Media] canplay fired for", fullSrc, "readyState=", video.readyState)
-                clearTimeout(timeoutId)
-                onReady?.()
-            }
+        const handleVideoError = () => {
+            const err = video.error
+            if (err?.code === 4 && !video.getAttribute("src")) return
+            console.error("[Media] Video error:", err?.code, err?.message, "src:", fullSrc)
+        }
+        video.addEventListener('error', handleVideoError)
 
-            const setupListeners = () => {
-                if (canPlayListener) video.removeEventListener('canplay', canPlayListener)
-                canPlayListener = () => { handleCanPlay() }
-                video.addEventListener('canplay', canPlayListener, { once: true })
-            }
+        const handleCanPlay = () => {
+            if (timeoutId !== null) clearTimeout(timeoutId)
+            onReady?.()
+        }
 
-            const recoverVideo = () => {
-                console.warn(`Video load timeout (attempt ${retryCount + 1}/${maxRetries})`)
+        const setupListeners = () => {
+            if (canPlayListener) video.removeEventListener('canplay', canPlayListener)
+            canPlayListener = handleCanPlay
+            video.addEventListener('canplay', canPlayListener, { once: true })
+        }
 
-                video.pause()
-                video.removeAttribute('src')
-                video.load()
+        const recoverVideo = () => {
+            video.pause()
+            video.removeAttribute('src')
+            video.load()
 
-                const separator = fullSrc.includes('?') ? '&' : '?'
-                const newSrc = `${fullSrc}${separator}t=${Date.now()}&retry=${retryCount}`
-
-                video.src = newSrc
-                setupListeners()
-
-                setRetryCount(prev => prev + 1)
-            }
-
-            // Immediate check if already loaded
-            if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-                handleCanPlay()
-                return
-            }
-
+            const separator = fullSrc.includes('?') ? '&' : '?'
+            video.src = `${fullSrc}${separator}t=${Date.now()}&retry=${retryCount}`
             setupListeners()
+            setRetryCount(previous => previous + 1)
+        }
 
+        if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+            handleCanPlay()
+        } else {
+            setupListeners()
             timeoutId = setTimeout(() => {
-                if (retryCount < maxRetries - 1) {
-                    recoverVideo()
-                    timeoutId = setTimeout(() => recoverVideo(), 5000)
-                } else {
-                    console.error('Max retries reached, giving up')
-                    onError?.()
-                }
+                if (retryCount < maxRetries - 1) recoverVideo()
+                else onError?.()
             }, 5000)
+        }
 
-            return () => {
-                clearTimeout(timeoutId)
-                if (canPlayListener) video.removeEventListener('canplay', canPlayListener)
-                video.removeEventListener('error', handleVideoError)
-            }
+        return () => {
+            if (timeoutId !== null) clearTimeout(timeoutId)
+            if (canPlayListener) video.removeEventListener('canplay', canPlayListener)
+            video.removeEventListener('error', handleVideoError)
         }
     }, [retryCount, fullSrc, onReady, onError])
 

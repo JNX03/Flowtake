@@ -1,4 +1,4 @@
-import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'
+import { createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit'
 
 const assetsAdapter = createEntityAdapter()
 
@@ -24,8 +24,17 @@ export const assetSlice = createSlice({
     initialState,
     reducers: {
         reset: () => initialState,
-        addAsset: assetsAdapter.addOne,
+        addAsset: {
+            reducer: (state, action) => assetsAdapter.addOne(state, action),
+            prepare: asset => ({
+                payload: {
+                    ...asset,
+                    createdAt: asset.createdAt ?? Date.now(),
+                }
+            }),
+        },
         removeAsset: assetsAdapter.removeOne,
+        removeAssets: assetsAdapter.removeMany,
         updateAsset: assetsAdapter.updateOne,
         setAssets: assetsAdapter.setAll,
         setIsImporting: (state, action) => { state.isImporting = action.payload },
@@ -36,6 +45,7 @@ export const {
     reset,
     addAsset,
     removeAsset,
+    removeAssets,
     updateAsset,
     setAssets,
     setIsImporting,
@@ -53,5 +63,55 @@ export const selectAssetsByCategory = (state, category) =>
     selectAll(state.assets).filter(a => a.category === category)
 export const selectBuiltInAssetsByCategory = (state, category) =>
     state.assets.builtInAssets.filter(a => a.category === category)
+
+const selectLibraryCategory = (_state, category) => category
+const selectLibraryQuery = (_state, _category, query = "") => query
+const selectLibrarySort = (_state, _category, _query, sortBy = "newest") => sortBy
+
+function getAssetTimestamp(asset) {
+    const explicitTimestamp = Number(asset.createdAt ?? asset.updatedAt ?? asset.modifiedAt)
+    if (Number.isFinite(explicitTimestamp)) return explicitTimestamp
+
+    const idTimestamp = String(asset.id).match(/(?:import|audio)-(\d{10,})/)
+    return idTimestamp ? Number(idTimestamp[1]) : 0
+}
+
+function compareAssetNames(left, right) {
+    return String(left.name || "").localeCompare(String(right.name || ""), undefined, {
+        numeric: true,
+        sensitivity: "base",
+    })
+}
+
+/**
+ * Creates an independently memoized selector for a media-library surface.
+ * Keep one selector instance per mounted panel so search and sort do not
+ * allocate a new result array during unrelated editor updates.
+ */
+export const makeSelectLibraryAssets = () => createSelector(
+    [selectAllAssets, selectLibraryCategory, selectLibraryQuery, selectLibrarySort],
+    (assets, category, query, sortBy) => {
+        const normalizedQuery = String(query || "").trim().toLocaleLowerCase()
+        const filteredAssets = assets.filter(asset => {
+            if (category && asset.category !== category) return false
+            if (!normalizedQuery) return true
+
+            return [asset.name, asset.type, asset.mimeType, asset.category]
+                .some(value => String(value || "").toLocaleLowerCase().includes(normalizedQuery))
+        })
+
+        return filteredAssets.slice().sort((left, right) => {
+            if (sortBy === "name") return compareAssetNames(left, right)
+            if (sortBy === "type") {
+                return String(left.type || "").localeCompare(String(right.type || ""), undefined, {
+                    sensitivity: "base",
+                }) || compareAssetNames(left, right)
+            }
+
+            return getAssetTimestamp(right) - getAssetTimestamp(left)
+                || compareAssetNames(left, right)
+        })
+    }
+)
 
 export default assetSlice.reducer

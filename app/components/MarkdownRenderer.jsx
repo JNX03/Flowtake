@@ -9,16 +9,16 @@ const components = {
             {children}
         </button>
     ),
-    code: ({ inline, className, children }) => {
-        if (inline) {
-            return <code className="bg-base-300 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
-        }
-        return (
-            <pre className="bg-base-300 rounded-box p-3 overflow-x-auto">
-                <code className={`text-sm font-mono ${className || ""}`}>{children}</code>
-            </pre>
-        )
-    },
+    code: ({ className, children }) => (
+        <code className={`bg-base-300 px-1.5 py-0.5 rounded text-sm font-mono ${className || ""}`}>
+            {children}
+        </code>
+    ),
+    pre: ({ children }) => (
+        <pre className="bg-base-300 rounded-box p-3 overflow-x-auto">
+            {children}
+        </pre>
+    ),
     blockquote: ({ children }) => (
         <blockquote className="border-l-4 border-primary/40 pl-3 text-base-content/60 italic">{children}</blockquote>
     ),

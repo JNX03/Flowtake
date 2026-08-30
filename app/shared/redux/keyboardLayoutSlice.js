@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit'
+import { createSelector, createSlice } from '@reduxjs/toolkit'
 import {
     animsAdapter,
     applyAnimProperties,
@@ -7,7 +7,7 @@ import {
     selectEntities,
     selectIds,
     validateAnim
-} from "./animsAdapter"
+} from "./animsAdapter.js"
 
 // Slice-level defaults (the FALLBACK config when an entity has no override)
 const initialState = animsAdapter.getInitialState({
@@ -81,10 +81,17 @@ export const selectKeyboardLayoutIds = state => selectIds(slice(state))
 export const selectKeyboardLayoutMode = state => slice(state).mode
 export const selectKeyboardLayoutPosition = state => slice(state).position
 export const selectKeyboardLayoutSize = state => slice(state).size
-export const selectKeyboardLayoutDefaults = state => ({
-    mode: slice(state).mode,
-    position: slice(state).position,
-    size: slice(state).size,
-})
+export const selectKeyboardLayoutDefaults = createSelector(
+    [
+        selectKeyboardLayoutMode,
+        selectKeyboardLayoutPosition,
+        selectKeyboardLayoutSize,
+    ],
+    (mode, position, size) => ({
+        mode,
+        position,
+        size,
+    })
+)
 
 export default keyboardLayoutSlice.reducer

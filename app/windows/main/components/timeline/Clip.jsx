@@ -23,6 +23,7 @@ import {
     formatPercent,
     formatX
 } from "@shared/helpers"
+import { resolveClipTimingChange } from "@shared/editor/playbackClock"
 import {
     selectAllClips,
     selectClipById,
@@ -58,8 +59,11 @@ export default function Clip({ id }) {
     const isMinimized = useSelector(selectIsMaskingModeEnabled)
 
     const onChange = useCallback(
-        (start, end) => dispatch(updateClip({ id, changes: { start, end } })),
-        [dispatch, id]
+        (start, end) => dispatch(updateClip({
+            id,
+            changes: resolveClipTimingChange(anim, start, end),
+        })),
+        [anim, dispatch, id]
     )
 
     const onSelect = useCallback(() => {

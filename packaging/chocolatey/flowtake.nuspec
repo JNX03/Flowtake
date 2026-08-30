@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>flowtake</id>
+    <version>1.6.0</version>
+    <title>Flowtake</title>
+    <authors>JNX03</authors>
+    <owners>JNX03</owners>
+    <projectUrl>https://github.com/JNX03/Flowtake</projectUrl>
+    <packageSourceUrl>https://github.com/JNX03/Flowtake/tree/main/packaging/chocolatey</packageSourceUrl>
+    <licenseUrl>https://github.com/JNX03/Flowtake/blob/v1.6.0/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/JNX03/Flowtake</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/JNX03/Flowtake/issues</bugTrackerUrl>
+    <releaseNotes>https://github.com/JNX03/Flowtake/releases/tag/v1.6.0</releaseNotes>
+    <summary>Local-first screen recorder with automatic zoom.</summary>
+    <description>Flowtake records, arranges, and exports polished developer demos locally with editable screen sources, timeline controls, and automatic zoom.</description>
+    <tags>flowtake screen-recorder screencast video-editor devrel</tags>
+    <copyright>Copyright (c) 2025-present JNX03</copyright>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
