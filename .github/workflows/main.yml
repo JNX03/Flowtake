@@ -334,7 +334,11 @@ jobs:
           FFMPEG_SHA256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
 
           echo "Downloading pinned FFmpeg static build for Linux x64..."
+          # This host intermittently answers with 415/5xx. Retry every failure
+          # class with backoff; the pinned SHA-256 below still gates the result,
+          # so a retry can never smuggle in a different artifact.
           curl --fail --location --show-error --silent \
+            --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
             "$FFMPEG_URL" \
             --output ffmpeg.tar.xz
           printf '%s  %s\n' "$FFMPEG_SHA256" ffmpeg.tar.xz | sha256sum --check --strict -

@@ -5,6 +5,7 @@ import {
     IS_PLAYING,
     post,
     SET_EXTRA_VISIBILITY,
+    SNAPSHOT,
     TIME,
     UPDATE,
     workerConsole
@@ -34,6 +35,14 @@ const previewSceneClassPromise = (async () => {
 })
 
 const MIN_RENDER_INTERVAL = 16 // ~60fps cap
+
+const closeFrameResource = resource => {
+    try {
+        resource?.close?.()
+    } catch {
+        // The frame may already have been consumed and closed by the scene.
+    }
+}
 
 class PreviewRenderer {
     constructor() {
@@ -75,15 +84,27 @@ class PreviewRenderer {
         } catch (e) {
             e.message = `${e?.message || String(e)} (during ${phase})`
             throw e
+        } finally {
+            // Scene canvas wrappers close frames after drawing. These guards
+            // also release transferred frames if initialization exits early.
+            closeFrameResource(screenFrame)
+            closeFrameResource(cameraFrame)
         }
     }
 
     async setVideoFrame({ type, frame, mask, landmarks }) {
-        if (type === "camera" && this.scene?.camera) {
-            this.scene.camera.setEyeContactData(landmarks, !!landmarks)
+        try {
+            if (type === "camera" && this.scene?.camera) {
+                this.scene.camera.setEyeContactData(landmarks, !!landmarks)
+            }
+            this.scene?.setFrame(type, frame, mask)
+            if (!this.isPlaying) this.scene?.render()
+        } finally {
+            // Keep worker memory bounded even when a frame targets a missing
+            // scene slot or rendering throws before CanvasWrapper consumes it.
+            closeFrameResource(frame)
+            closeFrameResource(mask)
         }
-        this.scene?.setFrame(type, frame, mask)
-        if (!this.isPlaying) this.scene?.render()
     }
 
     async update(payload) {
@@ -101,6 +122,17 @@ class PreviewRenderer {
         }
         this.scene?.update()
         this.scene?.render()
+    }
+
+    async snapshot() {
+        if (!this.isInitialized || !this.scene?.app?.renderer) {
+            throw new Error("Preview renderer is not ready")
+        }
+        this.scene.render()
+        return this.scene.app.renderer.extract.base64({
+            target: this.scene.app.stage,
+            format: "png",
+        })
     }
 }
 
@@ -156,6 +188,11 @@ self.addEventListener('message', async (event) => {
 
             case SET_EXTRA_VISIBILITY: {
                 renderer?.scene?.setExtraVisibility(payload.index, payload.visible)
+                break
+            }
+
+            case SNAPSHOT: {
+                result = await renderer?.snapshot()
                 break
             }
 

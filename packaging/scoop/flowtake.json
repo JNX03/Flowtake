@@ -1,0 +1,29 @@
+{
+    "version": "1.6.0",
+    "description": "Local-first screen recorder and timeline editor with automatic zoom.",
+    "homepage": "https://github.com/JNX03/Flowtake",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/JNX03/Flowtake/releases/download/v1.6.0/Flowtake-windows-x64-portable.zip",
+            "hash": "e5503e9c3d7c3de0b454fb94a0bff583beee6a526cc31e04455cb7e1575d2afe"
+        }
+    },
+    "shortcuts": [
+        [
+            "Flowtake\\Flowtake.exe",
+            "Flowtake"
+        ]
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/JNX03/Flowtake/releases/download/v$version/Flowtake-windows-x64-portable.zip"
+            }
+        },
+        "hash": {
+            "url": "https://github.com/JNX03/Flowtake/releases/download/v$version/SHA256SUMS.txt"
+        }
+    }
+}

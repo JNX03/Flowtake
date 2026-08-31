@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
-import yaml from "js-yaml"
+import { load as loadYaml } from "js-yaml"
 
 const workflow = await readFile(
     new URL("../.github/workflows/main.yml", import.meta.url),
@@ -24,10 +24,10 @@ const cargoAuditScript = await readFile(
     "utf8"
 )
 
-const parsedReleaseWorkflow = yaml.load(workflow)
-const parsedCiWorkflow = yaml.load(ciWorkflow)
-const parsedPagesWorkflow = yaml.load(pagesWorkflow)
-const parsedRustAuditWorkflow = yaml.load(rustAuditWorkflow)
+const parsedReleaseWorkflow = loadYaml(workflow)
+const parsedCiWorkflow = loadYaml(ciWorkflow)
+const parsedPagesWorkflow = loadYaml(pagesWorkflow)
+const parsedRustAuditWorkflow = loadYaml(rustAuditWorkflow)
 
 test("tracked GitHub workflows remain valid YAML", () => {
     for (const [name, parsed] of [

@@ -601,13 +601,13 @@ pub async fn youtube_upload_video(
 ) -> AppResult<Value> {
     let token = get_valid_token(&app).await?;
 
-    let video_path = {
+    let (video_path, video_mime_type) = {
         let state = app.state::<Mutex<AppState>>();
         let state = state.lock().unwrap();
         state
             .renders
             .get(&render_id)
-            .map(|r| r.output_path.clone())
+            .map(|render| (render.output_path.clone(), render.format.mime_type()))
             .ok_or_else(|| AppError::General(format!("Render not found: {}", render_id)))?
     };
 
@@ -641,7 +641,7 @@ pub async fn youtube_upload_video(
         ))
         .bearer_auth(&token)
         .header("Content-Type", "application/json; charset=UTF-8")
-        .header("X-Upload-Content-Type", "video/mp4")
+        .header("X-Upload-Content-Type", video_mime_type)
         .header("X-Upload-Content-Length", file_size.to_string())
         .json(&metadata)
         .send()
@@ -701,7 +701,7 @@ pub async fn youtube_upload_video(
                 "Content-Range",
                 format!("bytes {}-{}/{}", start, end, file_size),
             )
-            .header("Content-Type", "video/mp4")
+            .header("Content-Type", video_mime_type)
             .body(chunk)
             .send()
             .await

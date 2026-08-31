@@ -188,7 +188,80 @@ pub struct RenderState {
     pub project_id: String,
     pub output_path: PathBuf,
     pub temp_dir: PathBuf,
+    pub format: RenderFormat,
     pub is_cancelled: bool,
+}
+
+/// Container the queued render writes. Every file name the export pipeline
+/// touches is derived from here so a render can never mix containers.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum RenderFormat {
+    #[default]
+    Mp4,
+    WebM,
+}
+
+impl RenderFormat {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "mp4" => Some(Self::Mp4),
+            "webm" => Some(Self::WebM),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Mp4 => "mp4",
+            Self::WebM => "webm",
+        }
+    }
+
+    pub const fn extension(self) -> &'static str {
+        self.as_str()
+    }
+
+    pub const fn output_file_name(self) -> &'static str {
+        match self {
+            Self::Mp4 => "output.mp4",
+            Self::WebM => "output.webm",
+        }
+    }
+
+    pub const fn processed_audio_file_name(self) -> &'static str {
+        match self {
+            Self::Mp4 => "processed-audio.m4a",
+            Self::WebM => "processed-audio.webm",
+        }
+    }
+
+    pub const fn muxed_file_name(self) -> &'static str {
+        match self {
+            Self::Mp4 => "output-with-audio.mp4",
+            Self::WebM => "output-with-audio.webm",
+        }
+    }
+
+    pub const fn backup_file_name(self) -> &'static str {
+        match self {
+            Self::Mp4 => "output-video-only.mp4",
+            Self::WebM => "output-video-only.webm",
+        }
+    }
+
+    pub const fn audio_encoder(self) -> &'static str {
+        match self {
+            Self::Mp4 => "aac",
+            Self::WebM => "libopus",
+        }
+    }
+
+    pub const fn mime_type(self) -> &'static str {
+        match self {
+            Self::Mp4 => "video/mp4",
+            Self::WebM => "video/webm",
+        }
+    }
 }
 
 impl AppState {
