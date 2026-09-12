@@ -42,7 +42,7 @@ function workerFailureError(kind, event) {
 }
 
 export default class PreviewWorkerManager extends WorkerManager {
-    constructor(screenVideo, cameraVideo) {
+    constructor(screenVideo, cameraVideo, performanceProfile = {}) {
         super()
         this.worker = new PreviewWorker()
         this.pendingRequestController = new AbortController()
@@ -69,6 +69,13 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.worker.addEventListener("message", event => this.onMessage(event))
         this.screenVideo = screenVideo
         this.cameraVideo = cameraVideo
+        const previewFps = Math.min(60, Math.max(12, Number(performanceProfile.previewFps) || 30))
+        this.previewFrameIntervalMs = 1000 / previewFps
+        this.performanceProfileId = performanceProfile.id || null
+        this.previewMaxWidth = Number(performanceProfile.previewMaxWidth) || null
+        this.previewMaxHeight = Number(performanceProfile.previewMaxHeight) || null
+        this.lastScreenFrameAt = Number.NEGATIVE_INFINITY
+        this.lastCameraFrameAt = Number.NEGATIVE_INFINITY
 
         this.isPlaying = false
         this.hasCameraVideoBackgroundBlur = false
@@ -114,7 +121,12 @@ export default class PreviewWorkerManager extends WorkerManager {
      */
     registerExtraVideo(index, videoEl, dims) {
         if (!videoEl || this.stopped || !this.worker) return
-        this.extraVideos[index] = { video: videoEl, isPending: false }
+        this.extraVideos[index] = {
+            video: videoEl,
+            isPending: false,
+            isVisible: true,
+            lastFrameAt: Number.NEGATIVE_INFINITY,
+        }
 
         // Tell the worker to allocate the ExtraVideo Pixi sprite.
         this.post(INIT_EXTRA_VIDEO, { index, dims })
@@ -134,12 +146,16 @@ export default class PreviewWorkerManager extends WorkerManager {
             }
         }
 
-        const cb = async () => {
+        const cb = async now => {
             if (this.stopped) return
             const slot = this.extraVideos[index]
             if (!slot || slot.video !== videoEl) return        // unregistered
-            if (!slot.isPending) {
+            const frameTime = Number.isFinite(now) ? now : performance.now()
+            const isFrameDue = !this.isPlaying
+                || frameTime - slot.lastFrameAt >= this.previewFrameIntervalMs
+            if (slot.isVisible && isFrameDue && !slot.isPending) {
                 slot.isPending = true
+                slot.lastFrameAt = frameTime
                 let frame = null
                 try {
                     frame = new VideoFrame(videoEl)
@@ -167,6 +183,8 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     setExtraVisibility(index, visible) {
+        const slot = this.extraVideos[index]
+        if (slot) slot.isVisible = Boolean(visible)
         this.postIfActive(SET_EXTRA_VISIBILITY, { index, visible })
     }
 
@@ -255,10 +273,14 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     setupVideoFrameCallbacks(hasCameraVideo) {
-        const screenFrameCallback = async () => {
+        const screenFrameCallback = async now => {
             if (this.stopped) return
-            if (!this.isScreenFramePending) {
+            const frameTime = Number.isFinite(now) ? now : performance.now()
+            const isFrameDue = !this.isPlaying
+                || frameTime - this.lastScreenFrameAt >= this.previewFrameIntervalMs
+            if (isFrameDue && !this.isScreenFramePending) {
                 this.isScreenFramePending = true
+                this.lastScreenFrameAt = frameTime
                 let frame = null
                 try {
                     frame = new VideoFrame(this.screenVideo)
@@ -275,10 +297,14 @@ export default class PreviewWorkerManager extends WorkerManager {
             if (!this.stopped) this.screenVideo.requestVideoFrameCallback(screenFrameCallback)
         }
 
-        const cameraFrameCallback = async () => {
+        const cameraFrameCallback = async now => {
             if (this.stopped) return
-            if (!this.isCameraFramePending) {
+            const frameTime = Number.isFinite(now) ? now : performance.now()
+            const isFrameDue = !this.isPlaying
+                || frameTime - this.lastCameraFrameAt >= this.previewFrameIntervalMs
+            if (isFrameDue && !this.isCameraFramePending) {
                 this.isCameraFramePending = true
+                this.lastCameraFrameAt = frameTime
                 let frame = null
                 let mask = null
                 try {
@@ -346,6 +372,102 @@ export default class PreviewWorkerManager extends WorkerManager {
         void this.postCameraVideoMaskUpdate(data).catch(error => {
             if (!this.stopped) {
                 console.warn("[PreviewWorkerManager] camera mask update failed:", error)
+            }
+        })
+    }
+
+    setPerformanceProfile(performanceProfile = {}) {
+        const previewFps = Math.min(60, Math.max(12, Number(performanceProfile.previewFps) || 30))
+        const previewMaxWidth = Number(performanceProfile.previewMaxWidth) || null
+        const previewMaxHeight = Number(performanceProfile.previewMaxHeight) || null
+        if (this.performanceProfileId === (performanceProfile.id || null)
+            && this.previewFrameIntervalMs === 1000 / previewFps
+            && this.previewMaxWidth === previewMaxWidth
+            && this.previewMaxHeight === previewMaxHeight) return
+
+        this.performanceProfileId = performanceProfile.id || null
+        this.previewMaxWidth = previewMaxWidth
+        this.previewMaxHeight = previewMaxHeight
+        this.previewFrameIntervalMs = 1000 / previewFps
+        this.lastScreenFrameAt = Number.NEGATIVE_INFINITY
+        this.lastCameraFrameAt = Number.NEGATIVE_INFINITY
+        this.extraVideos.forEach(slot => {
+            if (slot) slot.lastFrameAt = Number.NEGATIVE_INFINITY
+        })
+        if (!this.postIfActive(UPDATE, {
+            type: 'preview.performanceProfile',
+            payload: performanceProfile,
+        })) return
+
+        // Resizing clears every bounded worker canvas. Paused media will not
+        // naturally produce another callback, so immediately repopulate all
+        // screen, camera/mask, and extra-video preview textures.
+        this.refreshPausedFrames()
+    }
+
+    refreshPausedFrames() {
+        if (this.isPlaying) return
+
+        if (this.screenVideo?.readyState >= 2 && !this.isScreenFramePending) {
+            this.isScreenFramePending = true
+            let frame = null
+            try {
+                frame = new VideoFrame(this.screenVideo)
+                void this.postFrame(SCREEN_VIDEO, frame)
+                    .catch(error => {
+                        if (!this.stopped) console.warn("[PreviewWorkerManager] screen profile refresh failed:", error)
+                    })
+                    .finally(() => {
+                        closeFrameResource(frame)
+                        this.isScreenFramePending = false
+                    })
+            } catch (error) {
+                closeFrameResource(frame)
+                this.isScreenFramePending = false
+                if (!this.stopped) console.warn("[PreviewWorkerManager] screen profile frame failed:", error)
+            }
+        }
+
+        if (this.cameraVideo?.readyState >= 2 && !this.isCameraFramePending) {
+            this.isCameraFramePending = true
+            void (async () => {
+                let frame = null
+                let mask = null
+                try {
+                    frame = new VideoFrame(this.cameraVideo)
+                    if (this.hasCameraBlur()) mask = await this.segment(frame, false)
+                    const landmarks = this.eyeContactEnabled && this.faceLandmarkerReady
+                        ? this.detectFaceLandmarks(frame)
+                        : null
+                    await this.postFrame(CAMERA_VIDEO, frame, mask, landmarks)
+                } catch (error) {
+                    if (!this.stopped) console.warn("[PreviewWorkerManager] camera profile refresh failed:", error)
+                } finally {
+                    closeFrameResource(frame)
+                    closeFrameResource(mask)
+                    this.isCameraFramePending = false
+                }
+            })()
+        }
+
+        this.extraVideos.forEach((slot, index) => {
+            if (!slot || !slot.isVisible || slot.video?.readyState < 2 || slot.isPending) return
+            slot.isPending = true
+            let frame = null
+            try {
+                frame = new VideoFrame(slot.video)
+                void this.postFrame(`extra-${index}`, frame)
+                    .catch(error => {
+                        if (!this.stopped) console.warn(`[PreviewWorkerManager] extra-${index} profile refresh failed:`, error)
+                    })
+                    .finally(() => {
+                        closeFrameResource(frame)
+                        slot.isPending = false
+                    })
+            } catch (error) {
+                closeFrameResource(frame)
+                slot.isPending = false
+                if (!this.stopped) console.warn(`[PreviewWorkerManager] extra-${index} profile frame failed:`, error)
             }
         })
     }

@@ -18,6 +18,7 @@ import {
   CONSTRAINTS_AUDIO,
   CONSTRAINTS_VIDEO
 } from "@shared/helpers"
+import { getAdaptiveCameraConstraints } from "@shared/adaptivePerformance"
 import {
   selectCapturers,
   selectEncoders,
@@ -28,13 +29,14 @@ import {
 } from "@shared/redux/appSlice"
 import {
   selectIsRecording,
+  selectIsSourceConfirmed,
   selectSource,
   setIsRecording
 } from "@shared/redux/recorderSlice"
 import RecordModal from "./RecordModal"
 import { SETTINGS_RECORDER } from "../settings/constants"
 
-export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids = [], audioProcessingSettings }) {
+export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids = [], audioProcessingSettings, cameraCaptureProfile }) {
 
   const dispatch = useDispatch()
 
@@ -45,6 +47,7 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
 
   const source = useSelector(selectSource)
   const isRecording = useSelector(selectIsRecording)
+  const isSourceConfirmed = useSelector(selectIsSourceConfirmed)
   const capturers = useSelector(selectCapturers)
   const encoders = useSelector(selectEncoders)
   const renderQueueProgress = useSelector(selectRenderQueueProgress)
@@ -85,7 +88,7 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
   }, [dispatch, isRecording, isProjectClosing])
 
   const start = useCallback(async () => {
-    if (startInFlightRef.current || isRecording) return
+    if (startInFlightRef.current || isRecording || !isSourceConfirmed) return
     startInFlightRef.current = true
     setIsStarting(true)
 
@@ -97,7 +100,10 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
       audioTrack: audio?.track.label,
       constraints: {
         video: video
-          ? { ...CONSTRAINTS_VIDEO, deviceId: { exact: video.deviceId } }
+          ? getAdaptiveCameraConstraints(cameraCaptureProfile, {
+            ...CONSTRAINTS_VIDEO,
+            deviceId: { exact: video.deviceId },
+          })
           : false,
         audio: audio
           ? { ...CONSTRAINTS_AUDIO, ...audioProcessingSettings, deviceId: { exact: audio.deviceId } }
@@ -123,7 +129,7 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
       startInFlightRef.current = false
       setIsStarting(false)
     }
-  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids, audioProcessingSettings, isRecording])
+  }, [cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids, audioProcessingSettings, isRecording, isSourceConfirmed, cameraCaptureProfile])
 
   const onClick = useCallback(() => {
     if (renderQueueProgress === -1) start()
@@ -148,11 +154,11 @@ export default function RecordButton({ isRecordingSystemAudio, excludedAudioPids
     <Button
       onClick={primaryAction}
       isLoading={isStarting || isPending}
-      disabled={isStarting || isRecording || isPending}
+      disabled={isStarting || isRecording || isPending || !isSourceConfirmed}
       icon={ArrowRightIcon}
       className="btn-primary w-full"
     >
-      {hasRecorderEngine ? "Record" : "Set up recorder"}
+      {!isSourceConfirmed ? "Choose a source" : hasRecorderEngine ? "Record" : "Set up recorder"}
     </Button>
     {!isPending && !hasRecorderEngine && (
       <p className="mt-1 text-[11px] leading-snug text-warning" role="status">
@@ -179,5 +185,10 @@ RecordButton.propTypes = {
     noiseSuppression: PropTypes.bool,
     echoCancellation: PropTypes.bool,
     autoGainControl: PropTypes.bool,
+  }).isRequired,
+  cameraCaptureProfile: PropTypes.shape({
+    cameraWidth: PropTypes.number.isRequired,
+    cameraHeight: PropTypes.number.isRequired,
+    cameraFps: PropTypes.number.isRequired,
   }).isRequired,
 }

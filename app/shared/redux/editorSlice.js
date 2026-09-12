@@ -1,5 +1,11 @@
 import { createSelector, createSlice } from '@reduxjs/toolkit'
 
+export const SAVE_STATUS_IDLE = 'idle'
+export const SAVE_STATUS_PENDING = 'pending'
+export const SAVE_STATUS_SAVING = 'saving'
+export const SAVE_STATUS_SAVED = 'saved'
+export const SAVE_STATUS_ERROR = 'error'
+
 // Only content tracks define the sequence length. Source-synchronised effects
 // such as click rings and cursor/zoom animations can contain noisy capture
 // timestamps and must not create an invisible tail after the last clip.
@@ -41,6 +47,8 @@ const initialState = {
     isCleaningUpSceneDone: false,
     areHotkeysEnabled: true,
     isSaving: false,
+    saveStatus: SAVE_STATUS_IDLE,
+    saveError: null,
     areClickAnimEntitiesGenerated: false,
     areCursorTypeAnimEntitiesGenerated: false,
     arePanAnimEntitiesGenerated: false,
@@ -99,8 +107,17 @@ export const editorSlice = createSlice({
         setAreHotkeysEnabled: (state, action) => {
             state.areHotkeysEnabled = action.payload
         },
-        setIsSaving: (state, action) => {
-            state.isSaving = action.payload
+        setSaveStatus: (state, action) => {
+            const payload = typeof action.payload === 'string'
+                ? { status: action.payload }
+                : action.payload
+            const status = payload?.status ?? SAVE_STATUS_IDLE
+
+            state.saveStatus = status
+            state.saveError = status === SAVE_STATUS_ERROR
+                ? payload?.error ?? "Couldn't save project."
+                : null
+            state.isSaving = status === SAVE_STATUS_PENDING || status === SAVE_STATUS_SAVING
         },
         setAreClickAnimEntitiesGenerated: (state, action) => {
             state.areClickAnimEntitiesGenerated = action.payload
@@ -142,7 +159,7 @@ export const {
     setIsCleaningUpScene,
     setIsCleaningUpSceneDone,
     setAreHotkeysEnabled,
-    setIsSaving,
+    setSaveStatus,
     setAreClickAnimEntitiesGenerated,
     setAreCursorTypeAnimEntitiesGenerated,
     setArePanAnimEntitiesGenerated,
@@ -165,6 +182,8 @@ export const selectIsCleaningUpScene = state => state.editor.isCleaningUpScene
 export const selectIsCleaningUpSceneDone = state => state.editor.isCleaningUpSceneDone
 export const selectAreHotkeysEnabled = state => state.editor.areHotkeysEnabled
 export const selectIsSaving = state => state.editor.isSaving
+export const selectSaveStatus = state => state.editor.saveStatus
+export const selectSaveError = state => state.editor.saveError
 export const selectAreClickAnimEntitiesGenerated = state => state.editor.areClickAnimEntitiesGenerated
 export const selectAreCursorTypeAnimEntitiesGenerated = state => state.editor.areCursorTypeAnimEntitiesGenerated
 export const selectArePanAnimEntitiesGenerated = state => state.editor.arePanAnimEntitiesGenerated

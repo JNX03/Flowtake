@@ -184,6 +184,8 @@ import PanConfig from "@shared/scene/pan/PanConfig"
 import SubtitleConfig from "@shared/scene/subtitle/SubtitleConfig"
 import ZoomConfig from "@shared/scene/zoom/ZoomConfig"
 import PreviewWorkerManager from "@shared/workers/PreviewWorkerManager"
+import { getAdaptiveRendererBounds } from "@shared/adaptivePerformance"
+import useAdaptivePerformanceProfile from "@shared/useAdaptivePerformanceProfile"
 import AspectRatioDropdown from "./AspectRatioDropdown"
 import OverlayCanvas from "./OverlayCanvas"
 import VideoWrapper from "./VideoWrapper"
@@ -192,10 +194,11 @@ import VideoWrapper from "./VideoWrapper"
 // per-frame time updates from re-rendering the whole editor. During playback it
 // follows the video element rather than the timeline store, which only publishes
 // at 30fps, so the preview stays smooth and in sync with real playback.
-function PreviewClockBridge({ manager, screenVideoRef }) {
+function PreviewClockBridge({ manager, screenVideoRef, previewFps }) {
     const time = useSelector(selectTime)
     const isPlaying = useSelector(selectIsPlaying)
     const fallbackTimeRef = useRef(time)
+    const lastPublishedAtRef = useRef(Number.NEGATIVE_INFINITY)
 
     useEffect(() => {
         fallbackTimeRef.current = time
@@ -206,21 +209,25 @@ function PreviewClockBridge({ manager, screenVideoRef }) {
         if (!manager || !isPlaying) return
 
         let animationFrame = null
-        const publishPlaybackTime = () => {
-            const currentTime = screenVideoRef.current?.currentTime
-            manager.postTime(
-                Number.isFinite(currentTime)
-                    ? currentTime * 1000
-                    : fallbackTimeRef.current
-            )
+        const minimumInterval = 1000 / Math.min(60, Math.max(12, previewFps || 30))
+        const publishPlaybackTime = now => {
+            if (now - lastPublishedAtRef.current >= minimumInterval) {
+                const currentTime = screenVideoRef.current?.currentTime
+                manager.postTime(
+                    Number.isFinite(currentTime)
+                        ? currentTime * 1000
+                        : fallbackTimeRef.current
+                )
+                lastPublishedAtRef.current = now
+            }
             animationFrame = requestAnimationFrame(publishPlaybackTime)
         }
 
-        publishPlaybackTime()
+        animationFrame = requestAnimationFrame(publishPlaybackTime)
         return () => {
             if (animationFrame !== null) cancelAnimationFrame(animationFrame)
         }
-    }, [isPlaying, manager, screenVideoRef])
+    }, [isPlaying, manager, previewFps, screenVideoRef])
 
     return null
 }
@@ -228,12 +235,14 @@ function PreviewClockBridge({ manager, screenVideoRef }) {
 PreviewClockBridge.propTypes = {
     manager: PropTypes.instanceOf(PreviewWorkerManager),
     screenVideoRef: PropTypes.object.isRequired,
+    previewFps: PropTypes.number.isRequired,
 }
 
 export default function Preview() {
 
     const dispatch = useDispatch()
     const store = useStore()
+    const { mode: performanceMode, profile: performanceProfile } = useAdaptivePerformanceProfile()
 
     // TODO: masks can also be used to highlight information. just draw a border. easy to do!
 
@@ -363,13 +372,24 @@ export default function Preview() {
         console.log("[Preview] createManager start", { duration, hasCameraVideo, projectId: id })
         let phase = "construct preview worker manager"
         try {
-            const manager = new PreviewWorkerManager(screenVideoRef.current, cameraVideoRef.current)
+            const manager = new PreviewWorkerManager(
+                screenVideoRef.current,
+                cameraVideoRef.current,
+                performanceProfile
+            )
             console.log("[Preview] awaiting manager.init()")
             phase = "initialize preview worker manager"
             await manager.init(
                 canvasRef.current,
                 duration,
-                { cursorFill, cursorStroke, mouseEvents, hasCameraVideo, projectId: id })
+                {
+                    cursorFill,
+                    cursorStroke,
+                    mouseEvents,
+                    hasCameraVideo,
+                    projectId: id,
+                    previewProfile: performanceProfile,
+                })
             console.log("[Preview] manager.init() resolved")
 
             setManager(manager)
@@ -382,7 +402,7 @@ export default function Preview() {
             hasManagerRef.current = false
         }
 
-    }, [cursorFill, cursorStroke, dispatch, duration, hasCameraVideo, id, mouseEvents])
+    }, [cursorFill, cursorStroke, dispatch, duration, hasCameraVideo, id, mouseEvents, performanceProfile])
 
     useEffect(() => {
         if (!manager && !hasManagerRef.current && areVideosReady && duration && mouseEvents) {
@@ -396,6 +416,10 @@ export default function Preview() {
             if (manager) manager.terminate()
         }
     }, [manager])
+
+    useEffect(() => {
+        manager?.setPerformanceProfile(performanceProfile)
+    }, [manager, performanceProfile])
 
     useEffect(() => {
         const getDims = (aspectWidth, aspectHeight, maxRendererWidth, maxRendererHeight) => {
@@ -426,18 +450,19 @@ export default function Preview() {
         }
         if (wrapperWidth && wrapperHeight) {
             let dims
+            const rendererBounds = getAdaptiveRendererBounds(performanceProfile, aspectRatio)
             switch (aspectRatio) {
                 case "16x9":
-                    dims = getDims(16, 9, 1280, 720)
+                    dims = getDims(16, 9, rendererBounds.width, rendererBounds.height)
                     break
                 case "9x16":
-                    dims = getDims(9, 16, 405, 720)
+                    dims = getDims(9, 16, rendererBounds.width, rendererBounds.height)
                     break
                 case "1x1":
-                    dims = getDims(1, 1, 720, 720)
+                    dims = getDims(1, 1, rendererBounds.width, rendererBounds.height)
                     break
                 default:
-                    dims = getDims(16, 9, 1280, 720)
+                    dims = getDims(16, 9, rendererBounds.width, rendererBounds.height)
                     break
             }
             const zoom = viewportZoom === "fit" ? null : Number(viewportZoom)
@@ -457,7 +482,7 @@ export default function Preview() {
                 height: display.y,
             })
         }
-    }, [aspectRatio, dispatch, viewportZoom, wrapperWidth, wrapperHeight])
+    }, [aspectRatio, dispatch, performanceProfile, viewportZoom, wrapperWidth, wrapperHeight])
 
     // handles creation of zoom, pan and camera zoom anim configs
     useEffect(() => {
@@ -889,6 +914,12 @@ export default function Preview() {
                         <option value="1">100%</option>
                         <option value="2">200%</option>
                     </select>
+                    <span
+                        className="badge badge-sm badge-ghost whitespace-nowrap"
+                        title={`${performanceProfile.description}. Final export quality is unchanged.`}
+                    >
+                        {performanceMode === "auto" ? "Auto · " : ""}{performanceProfile.label}
+                    </span>
                     <button
                         onClick={toggleDrawMouseMode}
                         disabled={isPlaying}
@@ -916,7 +947,11 @@ export default function Preview() {
                     </div>
                 )}
             </div>
-            <PreviewClockBridge manager={manager} screenVideoRef={screenVideoRef} />
+            <PreviewClockBridge
+                manager={manager}
+                screenVideoRef={screenVideoRef}
+                previewFps={performanceProfile.previewFps}
+            />
             <PreviewTransport manager={manager} />
             <VideoWrapper screenVideoRef={screenVideoRef} cameraVideoRef={cameraVideoRef} extraVideoRefs={extraVideoRefs} />
         </div>

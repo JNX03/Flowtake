@@ -4,8 +4,9 @@ import {
     createListenerMiddleware,
     isAnyOf
 } from '@reduxjs/toolkit'
-import debounce from 'debounce'
 import undoable, { ActionTypes, combineFilters } from 'redux-undo'
+import { createProjectSaveCoordinator } from '../editor/projectSaveCoordinator'
+import { closeProjectSafely } from '../editor/projectCloseCoordinator'
 import {
     serializeEntitySlice,
     TOAST_ERROR
@@ -50,12 +51,17 @@ import cursorTypeAnimsReducer, {
 } from './cursorTypeSlice'
 import editorReducer, {
     reset as resetEditor,
+    SAVE_STATUS_ERROR,
+    SAVE_STATUS_IDLE,
+    SAVE_STATUS_PENDING,
+    SAVE_STATUS_SAVED,
+    SAVE_STATUS_SAVING,
     selectIsCleaningUpSceneDone,
     selectIsCleaningUpVideosDone,
     setIsCleaningUpScene,
     setIsCleaningUpVideos,
     setIsPlaying,
-    setIsSaving
+    setSaveStatus
 } from './editorSlice'
 import maskAnimsReducer, {
     maskSlice,
@@ -114,6 +120,8 @@ import pluginReducer from './pluginSlice'
 // Create the middleware instance and methods
 const saveListenerMiddleware = createListenerMiddleware()
 const closeListenerMiddleware = createListenerMiddleware()
+const projectSaveCoordinator = createProjectSaveCoordinator()
+const EDITOR_CLEANUP_TIMEOUT_MS = 10_000
 
 // Create matcher for all actions from saveable slices
 const filterSlices = isAnyOf(
@@ -182,8 +190,17 @@ const filterPreventUndo = action => !action.meta?.preventUndo
 saveListenerMiddleware.startListening({
     matcher: matchesSaveableChange,
     effect: (_action, { dispatch, getState }) => {
-        if (!getState().editor.isSaving) dispatch(setIsSaving(true))
-        save(dispatch, getState)
+        // Reset/hydration actions can fire while no project is open. They do
+        // not represent a pending disk write and should not light the save UI.
+        if (!getState().undoableState.present.project.id) {
+            dispatch(setSaveStatus(SAVE_STATUS_IDLE))
+            return
+        }
+
+        dispatch(setSaveStatus(SAVE_STATUS_PENDING))
+        projectSaveCoordinator.request(saveContext =>
+            saveProject(dispatch, getState, saveContext)
+        )
     },
 })
 
@@ -192,53 +209,97 @@ closeListenerMiddleware.startListening({
         return appSlice.actions.setIsProjectClosing.match(action) && action.payload === true
     },
     effect: async (_action, { dispatch, condition, getState }) => {
-
         dispatch(setLoaderMessage("Closing editor..."))
 
-        if (getState().editor.isSaving) await condition((_action, currentState) => !currentState.editor.isSaving)
+        try {
+            const { teardownError, finalizeError } = await closeProjectSafely({
+                // Cancel the debounce and wait for every requested revision.
+                // If a write or native archive commit fails, the live editor is
+                // deliberately left intact and can be retried.
+                flushSaves: () => projectSaveCoordinator.flush(),
+                commitNativeProject: async () => {
+                    dispatch(setLoaderMessage("Finalizing project..."))
+                    await window.electron.ipcRenderer.invoke("commit-project-close")
+                },
+                teardownEditorResources: async () => {
+                    dispatch(setIsPlaying(false))
+                    dispatch(setIsCleaningUpScene(true))
 
-        dispatch(setIsPlaying(false))
-        dispatch(setIsCleaningUpScene(true))
+                    if (!selectIsCleaningUpSceneDone(getState())) {
+                        const sceneWasCleaned = await condition(
+                            (_action, currentState) => currentState.editor.isCleaningUpSceneDone,
+                            EDITOR_CLEANUP_TIMEOUT_MS
+                        )
+                        if (!sceneWasCleaned) throw new Error("Editor scene cleanup timed out")
+                    }
 
-        if (!selectIsCleaningUpSceneDone(getState()))
-            await condition((_action, currentState) => currentState.editor.isCleaningUpSceneDone)
+                    dispatch(setIsCleaningUpVideos(true))
 
-        dispatch(setIsCleaningUpVideos(true))
+                    if (!selectIsCleaningUpVideosDone(getState())) {
+                        const videosWereCleaned = await condition(
+                            (_action, currentState) => currentState.editor.isCleaningUpVideosDone,
+                            EDITOR_CLEANUP_TIMEOUT_MS
+                        )
+                        if (!videosWereCleaned) throw new Error("Editor video cleanup timed out")
+                    }
+                },
+                finalizeNativeProject: () =>
+                    window.electron.ipcRenderer.invoke("finalize-project-close"),
+            })
 
-        // Only wait if not already done
-        if (!selectIsCleaningUpVideosDone(getState()))
-            await condition((_action, currentState) => currentState.editor.isCleaningUpVideosDone)
+            if (teardownError) console.error("[closeProject:teardown]", teardownError)
+            if (finalizeError) console.error("[closeProject:finalize]", finalizeError)
 
-        dispatch(setHasProject(false))
-        dispatch(resetProject())
-        dispatch(resetEditorDomain())
-        dispatch(resetRecorder())
-        dispatch(resetEditor())
-        dispatch(resetAnimator())
-        dispatch(resetCameraZoomAnims())
-        dispatch(resetClickAnims())
-        dispatch(resetClipAnims())
-        dispatch(resetCursorTypeAnims())
-        dispatch(resetPanAnims())
-        dispatch(resetSubtitleAnims())
-        dispatch(resetTimeline())
-        dispatch(resetContextMenu())
-        dispatch(resetZoomAnims())
-        dispatch(resetCursorCoords())
-        dispatch(resetMaskAnims())
-        dispatch(resetAudioTrackAnims())
-        dispatch(resetOverlayAnims())
-        dispatch(resetFilterAnims())
-        dispatch(resetSpatialAnims())
-        dispatch(resetKeyboardLayoutAnims())
-        dispatch(resetMouseStyleAnims())
-        dispatch(resetDrawnMouseAnims())
-        dispatch(resetAppSceneAnims())
-        dispatch(resetAssets())
-        dispatch(setLoaderMessage("Saving project..."))
-        await window.electron.ipcRenderer.invoke("close-project")
-        dispatch(setIsProjectClosing(false))
-        dispatch(setLoaderMessage(null))
+            // The archive is durable at this point. Reset even if bounded
+            // resource cleanup timed out so the user is never stranded in a
+            // half-destroyed editor.
+            dispatch(setHasProject(false))
+            dispatch(resetProject())
+            dispatch(resetEditorDomain())
+            dispatch(resetRecorder())
+            dispatch(resetEditor())
+            dispatch(resetAnimator())
+            dispatch(resetCameraZoomAnims())
+            dispatch(resetClickAnims())
+            dispatch(resetClipAnims())
+            dispatch(resetCursorTypeAnims())
+            dispatch(resetPanAnims())
+            dispatch(resetSubtitleAnims())
+            dispatch(resetTimeline())
+            dispatch(resetContextMenu())
+            dispatch(resetZoomAnims())
+            dispatch(resetCursorCoords())
+            dispatch(resetMaskAnims())
+            dispatch(resetAudioTrackAnims())
+            dispatch(resetOverlayAnims())
+            dispatch(resetFilterAnims())
+            dispatch(resetSpatialAnims())
+            dispatch(resetKeyboardLayoutAnims())
+            dispatch(resetMouseStyleAnims())
+            dispatch(resetDrawnMouseAnims())
+            dispatch(resetAppSceneAnims())
+            dispatch(resetAssets())
+
+            if (teardownError || finalizeError) {
+                dispatch(addToast({
+                    type: TOAST_ERROR,
+                    text: "Project saved and closed, but some editor resources needed forced cleanup. Restart Flowtake if playback does not recover.",
+                    autoDismiss: false,
+                }))
+            }
+        } catch (error) {
+            console.error("[closeProject]", error)
+            if (getState().editor.saveStatus !== SAVE_STATUS_ERROR) {
+                dispatch(addToast({
+                    type: TOAST_ERROR,
+                    text: `Couldn't close project: ${error?.message || error}`,
+                    autoDismiss: false,
+                }))
+            }
+        } finally {
+            dispatch(setIsProjectClosing(false))
+            dispatch(setLoaderMessage(null))
+        }
     },
 })
 
@@ -289,7 +350,7 @@ export default configureStore({
             .prepend(saveListenerMiddleware.middleware)
 })
 
-const save = debounce(async (dispatch, getState) => {
+const saveProject = async (dispatch, getState, { isLatest }) => {
     // Access the present state for all slices
     const {
         project,
@@ -313,10 +374,9 @@ const save = debounce(async (dispatch, getState) => {
         appSceneAnims
     } = getState().undoableState.present
 
-    // Saveable reset/hydration actions can fire while no project is open.
-    // Always release the saving flag so project close never waits forever.
+    // A project can disappear if an external native event closes it first.
     if (!project.id) {
-        dispatch(setIsSaving(false))
+        dispatch(setSaveStatus(SAVE_STATUS_IDLE))
         return
     }
 
@@ -342,16 +402,26 @@ const save = debounce(async (dispatch, getState) => {
             appSceneAnims: serializeEntitySlice(appSceneAnims),
     }
 
+    dispatch(setSaveStatus(SAVE_STATUS_SAVING))
+
     try {
         await window.electron.ipcRenderer.invoke("save-json", slices)
     } catch (error) {
         console.error("[saveProject]", error)
+        const message = error?.message || String(error)
+        dispatch(setSaveStatus({
+            status: SAVE_STATUS_ERROR,
+            error: message,
+        }))
         dispatch(addToast({
             type: TOAST_ERROR,
-            text: `Couldn't save project: ${error?.message || error}`,
+            text: `Couldn't save project: ${message}`,
             autoDismiss: false,
         }))
-    } finally {
-        dispatch(setIsSaving(false))
+        throw error
     }
-}, 3000)
+
+    // A newer edit may have arrived while this IPC call was in flight. Keep
+    // its pending status; the coordinator will immediately persist it next.
+    if (isLatest()) dispatch(setSaveStatus(SAVE_STATUS_SAVED))
+}

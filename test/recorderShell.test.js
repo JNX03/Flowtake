@@ -89,7 +89,8 @@ test("record shell exposes responsive readiness and accessible source controls",
     assert.match(newRecording, /\{screenFps \?\? 30\} FPS/)
     assert.match(newRecording, /recordingQuality \|\| "balanced"/)
     assert.match(newRecording, /aria-pressed=\{active\}/)
-    assert.match(newRecording, /refetchInterval: screenPermissionDenied \|\| previewUnavailable \? 10000 : 5000/)
+    assert.match(newRecording, /enabled: isOpen && isSourceConfirmed && !!previewSource/)
+    assert.match(newRecording, /: performanceProfile\.sourcePreviewIntervalMs/)
 })
 
 test("settings show only controls backed by working behavior", () => {
@@ -98,7 +99,8 @@ test("settings show only controls backed by working behavior", () => {
     }
     assert.doesNotMatch(speechSettings, /sttAutoGenerate/)
     assert.doesNotMatch(updateSettings, /autoUpdateEnabled/)
-    assert.doesNotMatch(recorderSettings, /value="auto"/)
+    assert.match(recorderSettings, /value="auto">Auto — recommended/)
+    assert.match(recorderSettings, /store-set", "performanceMode"/)
     assert.match(recorderSettings, /item\?\.value \?\? item\?\.name/)
     assert.match(recorderSettings, /Refresh video encoders/)
     assert.match(recorderSettings, /store-get", "recordingQuality"/)

@@ -9,6 +9,7 @@ import {
     isFreezePlaybackRate,
     mediaTimeToClipTimelineMs,
     mediaTimeToTimelineMs,
+    MIN_PLAYBACK_PUBLISH_DELTA_MS,
     normalizePlaybackRate,
     resolveClipTimingChange,
     shouldPublishPlaybackTime,
@@ -24,9 +25,10 @@ test("media time is authoritative and clamps to timeline bounds", () => {
 })
 
 test("playback publication ignores duplicate sub-frame values", () => {
+    assert.equal(MIN_PLAYBACK_PUBLISH_DELTA_MS, 33)
     assert.equal(shouldPublishPlaybackTime(1000, null), true)
-    assert.equal(shouldPublishPlaybackTime(1004, 1000), false)
-    assert.equal(shouldPublishPlaybackTime(1008, 1000), true)
+    assert.equal(shouldPublishPlaybackTime(1032, 1000), false)
+    assert.equal(shouldPublishPlaybackTime(1033, 1000), true)
     assert.equal(shouldPublishPlaybackTime(Number.NaN, 1000), false)
 })
 

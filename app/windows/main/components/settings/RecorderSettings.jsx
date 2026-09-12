@@ -1,5 +1,5 @@
 import { ArrowPathIcon } from "@heroicons/react/24/outline"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useCallback, useMemo, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import Button from "../../../../components/Button"
@@ -12,14 +12,23 @@ import {
 } from "@shared/redux/appSlice"
 import Fieldset from "../properties/Fieldset"
 import SystemAudio from "./SystemAudio"
+import useAdaptivePerformanceProfile, {
+    PERFORMANCE_MODE_QUERY_KEY,
+} from "@shared/useAdaptivePerformanceProfile"
 
 const optionValue = item => item?.value ?? item?.name ?? ""
 const optionLabel = item => item?.displayName ?? item?.name ?? item?.value ?? "Unknown"
 
 export default function RecorderSettings() {
     const dispatch = useDispatch()
+    const queryClient = useQueryClient()
     const capturers = useSelector(selectCapturers)
     const encoders = useSelector(selectEncoders)
+    const {
+        mode: performanceMode,
+        profile: performanceProfile,
+        captureProfile,
+    } = useAdaptivePerformanceProfile()
 
     const [userCapturer, setUserCapturer] = useState(null)
     const [userEncoder, setUserEncoder] = useState(null)
@@ -28,6 +37,7 @@ export default function RecorderSettings() {
     const [engineError, setEngineError] = useState(null)
     const [isFpsLoading, setIsFpsLoading] = useState(false)
     const [isQualityLoading, setIsQualityLoading] = useState(false)
+    const [isPerformanceModeLoading, setIsPerformanceModeLoading] = useState(false)
 
     const capturer = useMemo(() => {
         if (userCapturer) return userCapturer
@@ -129,6 +139,16 @@ export default function RecorderSettings() {
         }
     }
 
+    const onSelectPerformanceMode = async ({ target }) => {
+        setIsPerformanceModeLoading(true)
+        try {
+            await window.electron.ipcRenderer.invoke("store-set", "performanceMode", target.value)
+            await queryClient.invalidateQueries({ queryKey: PERFORMANCE_MODE_QUERY_KEY })
+        } finally {
+            setIsPerformanceModeLoading(false)
+        }
+    }
+
     return (<div className="flex flex-col gap-4">
         <h4 className="font-semibold text-lg">Recorder</h4>
         <Hint>
@@ -203,6 +223,28 @@ export default function RecorderSettings() {
         </Fieldset>
 
         {engineError && <p className="text-sm text-error" role="alert">{engineError}</p>}
+
+        <Fieldset legend="Device performance" description="Auto adjusts editor preview work and camera capture to the device. Screen capture and the chosen export canvas size stay unchanged.">
+            <label className="label" htmlFor="performance-mode">Preview performance</label>
+            <select
+                id="performance-mode"
+                className="select w-full"
+                value={performanceMode}
+                onChange={onSelectPerformanceMode}
+                disabled={isPerformanceModeLoading}
+            >
+                <option value="auto">Auto — recommended</option>
+                <option value="efficiency">Efficiency — lowest memory use</option>
+                <option value="balanced">Balanced — smooth 720p preview</option>
+                <option value="quality">Quality — sharper preview</option>
+            </select>
+            <p className="mt-2 text-xs text-base-content/55" role="status">
+                {performanceMode === "auto"
+                    ? `Auto selected ${performanceProfile.label} preview and ${captureProfile.label} camera capture. `
+                    : ""}
+                {performanceProfile.description}; up to {performanceProfile.previewFps} FPS.
+            </p>
+        </Fieldset>
 
         <Fieldset legend="Recording quality" description="Adjust the real encoder preset and resolution-aware bitrate. Performance uses the least CPU and storage bandwidth; Quality keeps more detail.">
             <label className="label" htmlFor="recording-quality">Quality preset</label>

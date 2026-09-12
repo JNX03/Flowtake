@@ -28,10 +28,13 @@ import {
   setOpenSettings,
 } from "@shared/redux/appSlice"
 import {
+  confirmSource,
+  selectIsSourceConfirmed,
   selectSource,
   setSource
 } from "@shared/redux/recorderSlice"
 import { isLikelySystemAudioSource } from "@shared/systemAudio"
+import useAdaptivePerformanceProfile from "@shared/useAdaptivePerformanceProfile"
 import Toggle from "../properties/Toggle"
 import { SETTINGS_RECORDER } from "../settings/constants"
 import CameraMicrophoneSelect from "./CameraMicrophoneSelect"
@@ -43,7 +46,13 @@ export default function NewRecording({ isOpen }) {
 
   const dispatch = useDispatch()
   const queryClient = useQueryClient()
+  const {
+    mode: performanceMode,
+    profile: performanceProfile,
+    captureProfile,
+  } = useAdaptivePerformanceProfile()
   const source = useSelector(selectSource)
+  const isSourceConfirmed = useSelector(selectIsSourceConfirmed)
   const capturers = useSelector(selectCapturers)
   const encoders = useSelector(selectEncoders)
   const [isRecordingSystemAudio, setIsRecordingSystemAudio] = useState(false)
@@ -160,7 +169,10 @@ export default function NewRecording({ isOpen }) {
   const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError, error: previewError, refetch: refetchCaptureSourcePreview } = useQuery({
     queryKey: ['captureSourcePreview', previewSource],
     queryFn: () => window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource),
-    enabled: isOpen && !!previewSource,
+    // Do not capture even a thumbnail until the user explicitly confirms the
+    // source. This keeps the recorder's initial state genuinely neutral and
+    // avoids surfacing an unrelated desktop inside Flowtake.
+    enabled: isOpen && isSourceConfirmed && !!previewSource,
     gcTime: 0,
     // Smooth over one transient native-capture startup failure. Permission errors
     // still stop immediately so the UI can show the correct recovery action.
@@ -170,7 +182,9 @@ export default function NewRecording({ isOpen }) {
     },
     retryDelay: 500,
     // Keep preview fresh; permission failures use the cheap native permission probe before screencapture.
-    refetchInterval: screenPermissionDenied || previewUnavailable ? 10000 : 5000,
+    refetchInterval: screenPermissionDenied || previewUnavailable
+      ? 10000
+      : performanceProfile.sourcePreviewIntervalMs,
     refetchIntervalInBackground: false,
   })
 
@@ -256,9 +270,11 @@ export default function NewRecording({ isOpen }) {
         physicalHeight: m.physicalHeight ?? m.height,
         scaleFactor: m.scaleFactor ?? 1,
       }))
+      dispatch(confirmSource())
     } else {
       // Fallback: select screen without monitor info (captures entire desktop)
       dispatch(setSource({ name: "Screen", type: SOURCE_TYPE_SCREEN, id: "screen" }))
+      dispatch(confirmSource())
     }
   }
 
@@ -278,6 +294,7 @@ export default function NewRecording({ isOpen }) {
       physicalHeight: m.physicalHeight ?? m.height,
       scaleFactor: m.scaleFactor ?? 1,
     }))
+    dispatch(confirmSource())
     setShowMonitorPicker(false)
   }
 
@@ -295,6 +312,7 @@ export default function NewRecording({ isOpen }) {
       windowSelectedCbRef.current = null
       setPickerError(null)
       dispatch(setSource(selectedWindow))
+      dispatch(confirmSource())
     }
     windowSelectedCbRef.current = cb
     window.electron.ipcRenderer.once("window-selected", cb)
@@ -319,6 +337,7 @@ export default function NewRecording({ isOpen }) {
       areaSelectedCbRef.current = null
       setPickerError(null)
       dispatch(setSource(selectedArea))
+      dispatch(confirmSource())
     }
     areaSelectedCbRef.current = cb
     window.electron.ipcRenderer.once("area-selected", cb)
@@ -436,7 +455,10 @@ export default function NewRecording({ isOpen }) {
                 </div>
               )}
             </div>
-            <CameraPreview audioProcessingSettings={audioProcessingSettings} />
+            <CameraPreview
+              audioProcessingSettings={audioProcessingSettings}
+              performanceProfile={performanceProfile}
+            />
 
             {/* Bottom gradient overlay for badges */}
             {(captureSourcePreview || prevPreviewRef.current) && (
@@ -446,11 +468,12 @@ export default function NewRecording({ isOpen }) {
             {/* Source type badge - bottom left */}
             <div className="absolute bottom-3 left-3 flex items-center gap-2">
               <span className="badge badge-sm bg-black/50 backdrop-blur-md border-white/10 text-white/80 gap-1.5 font-medium">
-                {source.type === SOURCE_TYPE_SCREEN && <><ComputerDesktopIcon className="size-3" /> {screenLabel()}</>}
-                {source.type === SOURCE_TYPE_WINDOW && <><WindowIcon className="size-3 scale-x-[-1]" /> {source.name || "Window"}</>}
-                {source.type === SOURCE_TYPE_AREA && <><CursorArrowRaysIcon className="size-3" /> Area</>}
+                {!isSourceConfirmed && <><ComputerDesktopIcon className="size-3" /> No source</>}
+                {isSourceConfirmed && source.type === SOURCE_TYPE_SCREEN && <><ComputerDesktopIcon className="size-3" /> {screenLabel()}</>}
+                {isSourceConfirmed && source.type === SOURCE_TYPE_WINDOW && <><WindowIcon className="size-3 scale-x-[-1]" /> {source.name || "Window"}</>}
+                {isSourceConfirmed && source.type === SOURCE_TYPE_AREA && <><CursorArrowRaysIcon className="size-3" /> Area</>}
               </span>
-              {sourceDetail() && (
+              {isSourceConfirmed && sourceDetail() && (
                 <span className="badge badge-sm bg-black/40 backdrop-blur-md border-white/10 text-white/50 font-mono text-[10px]">
                   {sourceDetail()}
                 </span>
@@ -487,32 +510,32 @@ export default function NewRecording({ isOpen }) {
               <SourceSegment
                 icon={ComputerDesktopIcon}
                 label="Screen"
-                active={source.type === SOURCE_TYPE_SCREEN}
+                active={isSourceConfirmed && source.type === SOURCE_TYPE_SCREEN}
                 onClick={selectScreen}
                 hasDropdown={monitors && monitors.length > 1}
               />
               <SourceSegment
                 icon={WindowIcon}
                 label="Window"
-                active={source.type === SOURCE_TYPE_WINDOW}
+                active={isSourceConfirmed && source.type === SOURCE_TYPE_WINDOW}
                 onClick={openWindowPicker}
                 iconFlip
               />
               <SourceSegment
                 icon={CursorArrowRaysIcon}
                 label="Area"
-                active={source.type === SOURCE_TYPE_AREA}
+                active={isSourceConfirmed && source.type === SOURCE_TYPE_AREA}
                 onClick={openAreaPicker}
               />
             </div>
             {/* Active source detail */}
-            <div className="mt-1 px-1 text-[10px] text-base-content/40 truncate">
+            {isSourceConfirmed && <div className="mt-1 px-1 text-[10px] text-base-content/40 truncate">
               {source.type === SOURCE_TYPE_SCREEN && (monitors && monitors.length > 1 && source.id
                 ? `${monitors.find(m => m.id === source.id)?.isPrimary ? "Primary display" : `Monitor ${monitors.findIndex(m => m.id === source.id) + 1}`} · ${source.monitorWidth}×${source.monitorHeight}`
                 : "Full display capture")}
               {source.type === SOURCE_TYPE_WINDOW && (source.name || "Click to pick a window")}
               {source.type === SOURCE_TYPE_AREA && "Custom screen region"}
-            </div>
+            </div>}
             {/* Monitor picker dropdown */}
             {showMonitorPicker && monitors && monitors.length > 1 && (
               <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-base-200 border border-base-content/10 rounded-lg shadow-xl overflow-hidden">
@@ -614,6 +637,9 @@ export default function NewRecording({ isOpen }) {
                 Adjust
               </button>
             </div>
+            <p className="mt-1 text-[10px] text-base-content/40">
+              {performanceMode === "auto" ? "Auto: " : ""}{performanceProfile.label} preview · export size stays at your chosen setting
+            </p>
           </div>
 
           </div>
@@ -624,12 +650,18 @@ export default function NewRecording({ isOpen }) {
                 isRecordingSystemAudio={isRecordingSystemAudio}
                 excludedAudioPids={excludedAudioPids}
                 audioProcessingSettings={audioProcessingSettings}
+                cameraCaptureProfile={captureProfile}
               />
             </div>
             <button type="button" onClick={addNote} className="flex-[1] btn btn-sm btn-ghost bg-base-200/30 border border-base-content/5 text-base-content/40 hover:text-base-content/60 h-auto" title="Teleprompter Notes" aria-label="Open teleprompter notes">
               <DocumentIcon className="size-4" />
             </button>
           </div>
+          {!isSourceConfirmed && (
+            <p className="text-[10px] text-warning/80" role="status">
+              Choose Screen, Window, or Area once to confirm exactly what Flowtake may capture.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -207,9 +207,12 @@ pub async fn open_project(app: AppHandle, id: String) -> AppResult<Value> {
     }
 }
 
-#[tauri::command]
-pub async fn close_project(app: AppHandle) -> AppResult<()> {
+fn commit_open_project(app: &AppHandle) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
+    commit_open_project_state(&state)
+}
+
+fn commit_open_project_state(state: &Mutex<AppState>) -> AppResult<()> {
     let (project_id, projects_dir, temp_dir) = {
         let state = state.lock().unwrap();
         (
@@ -222,26 +225,61 @@ pub async fn close_project(app: AppHandle) -> AppResult<()> {
         )
     };
 
-    if let Some(id) = &project_id {
-        validate_project_id(id)?;
-        // Zip project back
-        if let Some(temp) = &temp_dir {
-            let zip_path = projects_dir.join(format!("{}.zip", id));
-            zip_directory(temp, &zip_path)?;
-        }
+    let id = project_id.ok_or_else(|| AppError::General("No project is open".to_string()))?;
+    validate_project_id(&id)?;
+    let temp = temp_dir
+        .ok_or_else(|| AppError::General("Open project directory is unavailable".to_string()))?;
 
-        // Clean up temp folder
-        if let Some(temp) = &temp_dir {
-            std::fs::remove_dir_all(temp).ok();
+    // Commit a complete replacement archive while the native session and
+    // extracted project remain open. Frontend cleanup can now fail without
+    // losing the last known-good archive or stranding an unusable editor.
+    let zip_path = projects_dir.join(format!("{}.zip", id));
+    zip_directory(&temp, &zip_path)?;
+
+    Ok(())
+}
+
+fn finalize_open_project(app: &AppHandle) {
+    let state = app.state::<Mutex<AppState>>();
+    let temp_dir = {
+        let state = state.lock().unwrap();
+        state
+            .project_id
+            .as_ref()
+            .map(|id| state.project_temp_dir(id))
+    };
+
+    if let Some(temp) = temp_dir {
+        if let Err(error) = std::fs::remove_dir_all(temp) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                log::warn!("[finalize_project_close] temp cleanup failed: {}", error);
+            }
         }
     }
 
-    // Clear project ID
-    {
-        let mut state = state.lock().unwrap();
-        state.project_id = None;
-        state.file_handles.clear();
-    }
+    let mut state = state.lock().unwrap();
+    state.project_id = None;
+    state.file_handles.clear();
+}
+
+#[tauri::command]
+pub async fn commit_project_close(app: AppHandle) -> AppResult<()> {
+    commit_open_project(&app)
+}
+
+#[tauri::command]
+pub async fn finalize_project_close(app: AppHandle) -> AppResult<()> {
+    finalize_open_project(&app);
+    Ok(())
+}
+
+// Backward-compatible one-shot close for callers outside the editor. The
+// editor uses the two-phase commands so resources are only torn down after a
+// durable archive commit.
+#[tauri::command]
+pub async fn close_project(app: AppHandle) -> AppResult<()> {
+    commit_open_project(&app)?;
+    finalize_open_project(&app);
 
     Ok(())
 }
@@ -765,6 +803,116 @@ fn unzip_project(zip_path: &str, dest_dir: &std::path::Path) -> AppResult<()> {
 }
 
 fn zip_directory(src_dir: &std::path::Path, zip_path: &std::path::Path) -> AppResult<()> {
+    if !src_dir.is_dir() {
+        return Err(AppError::General(
+            "Open project directory is unavailable".to_string(),
+        ));
+    }
+
+    let file_name = zip_path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .ok_or_else(|| AppError::General("Project archive path is invalid".to_string()))?;
+    let staged_path = zip_path.with_file_name(format!(
+        ".{file_name}.{}.tmp",
+        uuid::Uuid::new_v4().simple()
+    ));
+
+    #[cfg(test)]
+    let staging_fault =
+        maybe_inject_archive_test_fault(ArchiveTestFaultPoint::StagingWrite, &staged_path);
+    #[cfg(not(test))]
+    let staging_fault: AppResult<()> = Ok(());
+
+    let result = staging_fault
+        .and_then(|_| write_zip_directory(src_dir, &staged_path))
+        .and_then(|_| validate_project_archive(&staged_path))
+        .and_then(|_| {
+            // The staged archive lives beside the destination, so rename performs
+            // a same-volume atomic replacement. If replacement is denied (for
+            // example by a locked file), the previous archive remains untouched.
+            #[cfg(test)]
+            maybe_inject_archive_test_fault(ArchiveTestFaultPoint::Rename, &staged_path)?;
+            std::fs::rename(&staged_path, zip_path)?;
+            Ok(())
+        });
+
+    if result.is_err() {
+        std::fs::remove_file(&staged_path).ok();
+    }
+    result
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ArchiveTestFaultPoint {
+    StagingWrite,
+    Rename,
+}
+
+#[cfg(test)]
+thread_local! {
+    static ARCHIVE_TEST_FAULT: std::cell::Cell<Option<ArchiveTestFaultPoint>> = const {
+        std::cell::Cell::new(None)
+    };
+}
+
+#[cfg(test)]
+fn set_archive_test_fault(fault_point: ArchiveTestFaultPoint) {
+    ARCHIVE_TEST_FAULT.with(|fault| fault.set(Some(fault_point)));
+}
+
+#[cfg(test)]
+fn maybe_inject_archive_test_fault(
+    fault_point: ArchiveTestFaultPoint,
+    staged_path: &std::path::Path,
+) -> AppResult<()> {
+    let should_fail = ARCHIVE_TEST_FAULT.with(|fault| {
+        if fault.get() == Some(fault_point) {
+            fault.set(None);
+            true
+        } else {
+            false
+        }
+    });
+    if !should_fail {
+        return Ok(());
+    }
+
+    match fault_point {
+        ArchiveTestFaultPoint::StagingWrite => {
+            // Leave realistic partial bytes behind before returning a portable
+            // ENOSPC-equivalent. zip_directory must remove this staging file.
+            std::fs::write(staged_path, b"partial-project-archive")?;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::StorageFull,
+                "injected project archive staging write failure",
+            )
+            .into())
+        }
+        ArchiveTestFaultPoint::Rename => Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "injected project archive replacement failure",
+        )
+        .into()),
+    }
+}
+
+fn validate_project_archive(zip_path: &std::path::Path) -> AppResult<()> {
+    let file = std::fs::File::open(zip_path)?;
+    let mut archive = zip::ZipArchive::new(file)?;
+    let project_json = archive.by_name("project.json").map_err(|_| {
+        AppError::General("Staged project archive is missing project.json".to_string())
+    })?;
+    if project_json.is_dir() {
+        return Err(AppError::General(
+            "Staged project archive has an invalid project.json entry".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn write_zip_directory(src_dir: &std::path::Path, zip_path: &std::path::Path) -> AppResult<()> {
     let file = std::fs::File::create(zip_path)?;
     let mut zip_writer = zip::ZipWriter::new(file);
     let options =
@@ -789,7 +937,8 @@ fn zip_directory(src_dir: &std::path::Path, zip_path: &std::path::Path) -> AppRe
             zip_writer.add_directory(&name, options)?;
         }
     }
-    zip_writer.finish()?;
+    let file = zip_writer.finish()?;
+    file.sync_all()?;
     Ok(())
 }
 
@@ -812,8 +961,165 @@ fn walkdir(dir: &std::path::Path) -> AppResult<Vec<std::path::PathBuf>> {
 
 #[cfg(test)]
 mod path_boundary_tests {
-    use super::remove_project_storage;
+    use super::{
+        commit_open_project_state, remove_project_storage, set_archive_test_fault, zip_directory,
+        ArchiveTestFaultPoint,
+    };
+    use crate::error::AppError;
     use crate::state::AppState;
+    use std::sync::Mutex;
+
+    fn read_project_json_from_archive(archive_path: &std::path::Path) -> String {
+        let archive_file = std::fs::File::open(archive_path).unwrap();
+        let mut archive = zip::ZipArchive::new(archive_file).unwrap();
+        let mut project_json = String::new();
+        std::io::Read::read_to_string(
+            &mut archive.by_name("project.json").unwrap(),
+            &mut project_json,
+        )
+        .unwrap();
+        project_json
+    }
+
+    fn assert_failed_commit_is_retryable(
+        fault_point: ArchiveTestFaultPoint,
+        expected_error_kind: std::io::ErrorKind,
+    ) {
+        let root = std::env::temp_dir().join(format!(
+            "flowtake-project-close-fault-test-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let project_id = uuid::Uuid::new_v4().hyphenated().to_string();
+        let projects_dir = root.join("projects");
+        let temp_dir = root.join("temp");
+        let project_dir = temp_dir.join(&project_id);
+        let previous_project = root.join("previous-project");
+        let archive_path = projects_dir.join(format!("{project_id}.zip"));
+        std::fs::create_dir_all(&projects_dir).unwrap();
+        std::fs::create_dir_all(&project_dir).unwrap();
+        std::fs::create_dir_all(&previous_project).unwrap();
+
+        std::fs::write(previous_project.join("project.json"), br#"{"revision":1}"#).unwrap();
+        zip_directory(&previous_project, &archive_path).unwrap();
+        let original_archive = std::fs::read(&archive_path).unwrap();
+
+        std::fs::write(project_dir.join("project.json"), br#"{"revision":2}"#).unwrap();
+        let active_media_path = project_dir.join("screen.mp4");
+        std::fs::write(&active_media_path, b"active-media").unwrap();
+
+        let mut state = AppState::new();
+        state.projects_dir = projects_dir.clone();
+        state.temp_dir = temp_dir;
+        state.project_id = Some(project_id.clone());
+        state.file_handles.insert(
+            "active-screen".to_string(),
+            std::fs::File::open(&active_media_path).unwrap(),
+        );
+
+        let state = Mutex::new(state);
+
+        set_archive_test_fault(fault_point);
+        let error = commit_open_project_state(&state).unwrap_err();
+        assert!(matches!(
+            error,
+            AppError::Io(ref io_error) if io_error.kind() == expected_error_kind
+        ));
+
+        // The prior durable archive must be byte-identical and no failed
+        // staging file may be left beside it.
+        assert_eq!(std::fs::read(&archive_path).unwrap(), original_archive);
+        let project_entries = std::fs::read_dir(&projects_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(project_entries, vec![archive_path.file_name().unwrap()]);
+
+        // A failed commit is phase one of close: native state, extracted files,
+        // and open media handles remain alive so the same close can be retried.
+        {
+            let active_state = state.lock().unwrap();
+            assert_eq!(
+                active_state.project_id.as_deref(),
+                Some(project_id.as_str())
+            );
+            assert!(active_state.file_handles.contains_key("active-screen"));
+            assert!(active_state.project_temp_dir(&project_id).is_dir());
+        }
+
+        commit_open_project_state(&state).unwrap();
+        assert_eq!(
+            read_project_json_from_archive(&archive_path),
+            r#"{"revision":2}"#
+        );
+        {
+            let active_state = state.lock().unwrap();
+            assert_eq!(
+                active_state.project_id.as_deref(),
+                Some(project_id.as_str())
+            );
+            assert!(active_state.file_handles.contains_key("active-screen"));
+        }
+
+        drop(state);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn commit_project_close_recovers_from_partial_staging_write_failure() {
+        assert_failed_commit_is_retryable(
+            ArchiveTestFaultPoint::StagingWrite,
+            std::io::ErrorKind::StorageFull,
+        );
+    }
+
+    #[test]
+    fn commit_project_close_recovers_from_archive_rename_failure() {
+        assert_failed_commit_is_retryable(
+            ArchiveTestFaultPoint::Rename,
+            std::io::ErrorKind::PermissionDenied,
+        );
+    }
+
+    #[test]
+    fn archive_replacement_is_complete_and_preserves_previous_bytes_on_staging_failure() {
+        let root = std::env::temp_dir().join(format!(
+            "flowtake-project-archive-test-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let project = root.join("project");
+        let nested = project.join("assets").join("nested");
+        let archive_path = root.join("project.zip");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(project.join("project.json"), br#"{"id":"demo"}"#).unwrap();
+        std::fs::write(nested.join("clip.bin"), b"media-bytes").unwrap();
+        std::fs::write(&archive_path, b"previous-archive").unwrap();
+
+        zip_directory(&project, &archive_path).unwrap();
+
+        let archive_file = std::fs::File::open(&archive_path).unwrap();
+        let mut archive = zip::ZipArchive::new(archive_file).unwrap();
+        let mut project_json = String::new();
+        std::io::Read::read_to_string(
+            &mut archive.by_name("project.json").unwrap(),
+            &mut project_json,
+        )
+        .unwrap();
+        assert_eq!(project_json, r#"{"id":"demo"}"#);
+        let mut media = Vec::new();
+        std::io::Read::read_to_end(
+            &mut archive.by_name("assets/nested/clip.bin").unwrap(),
+            &mut media,
+        )
+        .unwrap();
+        assert_eq!(media, b"media-bytes");
+        drop(archive);
+
+        let committed_bytes = std::fs::read(&archive_path).unwrap();
+        assert!(zip_directory(&root.join("missing"), &archive_path).is_err());
+        assert_eq!(std::fs::read(&archive_path).unwrap(), committed_bytes);
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     #[test]
     fn invalid_project_ids_cannot_delete_outside_storage_roots() {

@@ -17,8 +17,11 @@ const GRID_GAP = 8                 // px between grid cells
  * positions itself in the top-right stack based on its `index`.
  */
 export default class ExtraVideo extends CanvasWrapper {
-    constructor(dims, index) {
-        super(dims)
+    constructor(dims, index, textureDims = dims) {
+        super(textureDims)
+        // Scene roles and layout stay in source-video coordinates while the
+        // editor can use a bounded backing texture.
+        this.dims = dims
         this.index = index
         this.rendererDims = null
 
@@ -39,6 +42,8 @@ export default class ExtraVideo extends CanvasWrapper {
         this.texture = new Texture({ source: new CanvasSource({ resource: this.canvas }) })
 
         this.sprite = new Sprite(this.texture)
+        this.sprite.width = dims.x
+        this.sprite.height = dims.y
 
         // Border + subtle outline so the PiP reads as its own surface
         this.border = new Graphics()
@@ -61,6 +66,18 @@ export default class ExtraVideo extends CanvasWrapper {
         if (!this.content) return
         super.drawContent()
         this.texture.source.update()
+    }
+
+    setTextureDimensions(textureDims) {
+        const width = Math.max(1, Math.round(Number(textureDims?.x) || this.canvas.width))
+        const height = Math.max(1, Math.round(Number(textureDims?.y) || this.canvas.height))
+
+        if (!this.texture.source.resize(width, height)) return false
+
+        this.canvas.context = this.canvas.getContext('2d')
+        this.sprite.width = this.dims.x
+        this.sprite.height = this.dims.y
+        return true
     }
 
     setVisible(visible) {

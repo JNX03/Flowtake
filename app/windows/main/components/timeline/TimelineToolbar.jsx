@@ -353,6 +353,43 @@ export default function TimelineToolbar({
                                 </span>
                             </button>
                         </li>
+                        <li className="menu-title xl:hidden">
+                            <span>Timeline view</span>
+                        </li>
+                        <li className="xl:hidden">
+                            <button type="button" className={menuItemClass}
+                                onClick={event => { handleToggleRipple(); closeTimelineMenu(event) }}
+                                aria-pressed={editingMode === "ripple"}
+                                disabled={isPlaying}>
+                                <ArrowsRightLeftIcon className="size-3.5" />
+                                <span className="flex-1">Ripple editing</span>
+                                <span className={`badge badge-xs ${editingMode === "ripple" ? "badge-warning" : "badge-ghost"}`}>
+                                    {editingMode === "ripple" ? "On" : "Off"}
+                                </span>
+                            </button>
+                        </li>
+                        <li className="xl:hidden">
+                            <button type="button" className={menuItemClass}
+                                onClick={event => { onToggleFollow(); closeTimelineMenu(event) }}
+                                aria-pressed={isFollowingPlayback}>
+                                <MapPinIcon className="size-3.5" />
+                                <span className="flex-1">Follow playhead</span>
+                                <span className={`badge badge-xs ${isFollowingPlayback ? "badge-info" : "badge-ghost"}`}>
+                                    {isFollowingPlayback ? "On" : "Off"}
+                                </span>
+                            </button>
+                        </li>
+                        <li className="xl:hidden">
+                            <button type="button" className={menuItemClass}
+                                onClick={event => { onToggleOverview(); closeTimelineMenu(event) }}
+                                aria-pressed={isOverviewOpen}>
+                                <MapIcon className="size-3.5" />
+                                <span className="flex-1">Timeline overview</span>
+                                <span className={`badge badge-xs ${isOverviewOpen ? "badge-info" : "badge-ghost"}`}>
+                                    {isOverviewOpen ? "On" : "Off"}
+                                </span>
+                            </button>
+                        </li>
                     </ul>
                 </details>
             </div>
@@ -381,7 +418,7 @@ export default function TimelineToolbar({
                     {isSnappingEnabled ? <LinkIcon className="size-3.5" /> : <LinkSlashIcon className="size-3.5" />}
                 </button>
                 <button type="button"
-                    className={`${toolButtonClass} ${editingMode === "ripple" ? "bg-warning/15 text-warning" : ""}`}
+                    className={`${toolButtonClass} hidden xl:inline-flex ${editingMode === "ripple" ? "bg-warning/15 text-warning" : ""}`}
                     data-tip={editingMode === "ripple" ? "Ripple editing on" : "Ripple editing off"}
                     aria-label="Toggle ripple editing"
                     aria-pressed={editingMode === "ripple"}
@@ -390,7 +427,7 @@ export default function TimelineToolbar({
                     <ArrowsRightLeftIcon className="size-3.5" />
                 </button>
                 <button type="button"
-                    className={`${toolButtonClass} ${isFollowingPlayback ? "bg-info/15 text-info" : ""}`}
+                    className={`${toolButtonClass} hidden xl:inline-flex ${isFollowingPlayback ? "bg-info/15 text-info" : ""}`}
                     data-tip={isFollowingPlayback ? "Following playhead" : "Follow playhead"}
                     aria-label="Follow playhead"
                     aria-pressed={isFollowingPlayback}
@@ -398,7 +435,7 @@ export default function TimelineToolbar({
                     <MapPinIcon className="size-3.5" />
                 </button>
                 <button type="button"
-                    className={`${toolButtonClass} ${isOverviewOpen ? "bg-info/15 text-info" : ""}`}
+                    className={`${toolButtonClass} hidden xl:inline-flex ${isOverviewOpen ? "bg-info/15 text-info" : ""}`}
                     data-tip={isOverviewOpen ? "Hide timeline overview" : "Show timeline overview"}
                     aria-label="Toggle timeline overview"
                     aria-pressed={isOverviewOpen}

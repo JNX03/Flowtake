@@ -1,7 +1,9 @@
+import { BALANCED_EDITOR_FRAME_INTERVAL_MS } from "./performanceCadence.js"
+
 const finiteNumber = value => Number.isFinite(Number(value))
 
 export const DEFAULT_PLAYBACK_RATE = 1
-export const MIN_PLAYBACK_PUBLISH_DELTA_MS = 8
+export const MIN_PLAYBACK_PUBLISH_DELTA_MS = BALANCED_EDITOR_FRAME_INTERVAL_MS
 
 const clamp = (value, minimum, maximum) =>
     Math.min(Math.max(value, minimum), maximum)

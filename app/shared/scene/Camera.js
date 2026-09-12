@@ -21,8 +21,12 @@ import vertex from "./shaders/selfieSegmentation.vert?raw"
 import source from "./shaders/selfieSegmentation.wgsl?raw"
 
 export default class Camera extends CanvasWrapper {
-    constructor(dims) {
-        super(dims)
+    constructor(dims, textureDims = dims) {
+        super(textureDims)
+
+        // Camera layout, zoom, and mirror transforms stay in source-video
+        // coordinates even when the editor uploads a smaller preview texture.
+        this.dims = dims
 
         this.hasBlur = false
         this.blurAmount = 0
@@ -33,10 +37,10 @@ export default class Camera extends CanvasWrapper {
 
         this.texture = new Texture({ source: new CanvasSource({ resource: this.canvas }) })
 
-        this.fgMaskCanvas = new OffscreenCanvas(dims.x, dims.y)
+        this.fgMaskCanvas = new OffscreenCanvas(textureDims.x, textureDims.y)
         this.fgMaskCanvas.context = this.fgMaskCanvas.getContext('2d')
         this.fgMaskCanvas.context.fillStyle = 'black'
-        this.fgMaskCanvas.context.fillRect(0, 0, dims.x, dims.y)
+        this.fgMaskCanvas.context.fillRect(0, 0, textureDims.x, textureDims.y)
 
         this.fgMaskTexture = new Texture({ source: new CanvasSource({ resource: this.fgMaskCanvas }) })
 
@@ -69,6 +73,7 @@ export default class Camera extends CanvasWrapper {
         this.fg = new Mesh({ geometry, shader })
 
         this.bg = new Sprite(this.texture)
+        this.configureMirror()
         this.bgContainer = new Container()
         this.bgBlur = new BlurFilter({ quality: 10 })
         this.bgContainer.filters = [this.bgBlur]
@@ -139,8 +144,32 @@ export default class Camera extends CanvasWrapper {
     configureMirror() {
         this.fg.scale.x = this.isMirrored ? -1 : 1
         this.fg.pivot.x = this.isMirrored ? this.dims.x : 0
-        this.bg.scale.x = this.isMirrored ? -1 : 1
-        this.bg.pivot.x = this.isMirrored ? this.dims.x : 0
+
+        // A Sprite's local coordinates use backing-texture pixels. Scale it
+        // back into source space, then mirror around the backing edge so blur
+        // and foreground meshes keep the exact same logical bounds.
+        const scaleX = this.dims.x / this.canvas.width
+        const scaleY = this.dims.y / this.canvas.height
+        this.bg.scale.set((this.isMirrored ? -1 : 1) * scaleX, scaleY)
+        this.bg.pivot.x = this.isMirrored ? this.canvas.width : 0
+    }
+
+    setTextureDimensions(textureDims) {
+        const width = Math.max(1, Math.round(Number(textureDims?.x) || this.canvas.width))
+        const height = Math.max(1, Math.round(Number(textureDims?.y) || this.canvas.height))
+        const frameResized = this.texture.source.resize(width, height)
+        const maskResized = this.fgMaskTexture.source.resize(width, height)
+
+        if (!frameResized && !maskResized) return false
+
+        // Resizing OffscreenCanvas clears it. Recreate both contexts and leave
+        // a neutral mask until the next preview frame/mask is transferred.
+        this.canvas.context = this.canvas.getContext('2d')
+        this.fgMaskCanvas.context = this.fgMaskCanvas.getContext('2d')
+        this.fgMaskCanvas.context.fillStyle = 'black'
+        this.fgMaskCanvas.context.fillRect(0, 0, width, height)
+        this.configureMirror()
+        return true
     }
 
     setEyeContactData(landmarks, enabled) {
@@ -151,13 +180,24 @@ export default class Camera extends CanvasWrapper {
     drawContent() {
         super.drawContent()
         if (this.eyeContactEnabled && this.eyeContactLandmarks) {
-            applyEyeContactCorrection(this.canvas.context, this.eyeContactLandmarks, this.dims.x, this.dims.y)
+            applyEyeContactCorrection(
+                this.canvas.context,
+                this.eyeContactLandmarks,
+                this.canvas.width,
+                this.canvas.height
+            )
         }
         this.texture.source.update()
     }
 
     drawBlurMask() {
-        this.fgMaskCanvas.context.drawImage(this.blurMask, 0, 0)
+        this.fgMaskCanvas.context.drawImage(
+            this.blurMask,
+            0,
+            0,
+            this.fgMaskCanvas.width,
+            this.fgMaskCanvas.height
+        )
         this.fgMaskTexture.source.update()
         this.blurMask.close()
         this.blurMask = null

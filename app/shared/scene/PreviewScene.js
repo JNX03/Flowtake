@@ -11,17 +11,68 @@ import { getPreviewTextureDimensions } from "./previewQuality"
 import Scene from "./Scene"
 
 export default class PreviewScene extends Scene {
-    constructor() {
+    constructor(previewProfile = {}) {
         super({ isPreview: true })
 
         this.cursorFill = null
         this.cursorStroke = null
 
         this.rendererDims = null
+        this.previewMaxWidth = previewProfile.previewMaxWidth
+        this.previewMaxHeight = previewProfile.previewMaxHeight
     }
 
     initScreenVideo(dims, content = null) {
-        super.initScreenVideo(dims, content, getPreviewTextureDimensions(dims))
+        super.initScreenVideo(
+            dims,
+            content,
+            getPreviewTextureDimensions(dims, this.previewMaxWidth, this.previewMaxHeight)
+        )
+    }
+
+    initCameraVideo(dims, content = null) {
+        super.initCameraVideo(
+            dims,
+            content,
+            getPreviewTextureDimensions(dims, this.previewMaxWidth, this.previewMaxHeight)
+        )
+    }
+
+    initExtraVideo(index, dims) {
+        return super.initExtraVideo(
+            index,
+            dims,
+            getPreviewTextureDimensions(dims, this.previewMaxWidth, this.previewMaxHeight)
+        )
+    }
+
+    setPerformanceProfile(previewProfile = {}) {
+        this.previewMaxWidth = previewProfile.previewMaxWidth
+        this.previewMaxHeight = previewProfile.previewMaxHeight
+        let resized = false
+        if (this.screen) {
+            resized = this.screen.setTextureDimensions(getPreviewTextureDimensions(
+                this.screen.dims,
+                this.previewMaxWidth,
+                this.previewMaxHeight
+            )) || resized
+        }
+        if (this.camera) {
+            resized = this.camera.setTextureDimensions(getPreviewTextureDimensions(
+                this.camera.dims,
+                this.previewMaxWidth,
+                this.previewMaxHeight
+            )) || resized
+        }
+        for (const extraVideo of this.extraVideos) {
+            if (!extraVideo) continue
+            resized = extraVideo.setTextureDimensions(getPreviewTextureDimensions(
+                extraVideo.dims,
+                this.previewMaxWidth,
+                this.previewMaxHeight
+            )) || resized
+        }
+        return resized
     }
 
     createApp(canvas = null) {

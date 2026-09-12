@@ -131,9 +131,9 @@ export default class Scene {
         this.sceneTrackOrder = []
     }
 
-    initExtraVideo(index, dims) {
+    initExtraVideo(index, dims, textureDims = dims) {
         if (this.extraVideos[index]) return this.extraVideos[index]
-        const ev = new ExtraVideo(dims, index)
+        const ev = new ExtraVideo(dims, index, textureDims)
         this.app.stage.addChild(ev.outerContainer)
         if (this.rendererDims) ev.setRendererDims(this.rendererDims)
         this.extraVideos[index] = ev
@@ -344,8 +344,8 @@ export default class Scene {
         this.setFrame(SCREEN_VIDEO, content)
     }
 
-    initCameraVideo(dims, content = null) {
-        this.camera = new Camera(dims)
+    initCameraVideo(dims, content = null, textureDims = dims) {
+        this.camera = new Camera(dims, textureDims)
         this.app.stage.addChild(this.camera.outerContainer)
         this.setFrame(CAMERA_VIDEO, content)
     }

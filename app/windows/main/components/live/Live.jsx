@@ -21,7 +21,10 @@ import {
     SOURCE_TYPE_WINDOW,
 } from "@shared/constants"
 import { setOpenSettings } from "@shared/redux/appSlice"
+import useAdaptivePerformanceProfile from "@shared/useAdaptivePerformanceProfile"
 import {
+    confirmSource,
+    selectIsSourceConfirmed,
     selectSource,
     setSource
 } from "@shared/redux/recorderSlice"
@@ -39,6 +42,8 @@ export default function Live({ isOpen }) {
     const dispatch = useDispatch()
     const queryClient = useQueryClient()
     const source = useSelector(selectSource)
+    const isSourceConfirmed = useSelector(selectIsSourceConfirmed)
+    const { profile: performanceProfile, captureProfile } = useAdaptivePerformanceProfile()
     const [isRecordingSystemAudio, setIsRecordingSystemAudio] = useState(false)
     const [excludedAudioPids, setExcludedAudioPids] = useState([])
     const [showMonitorPicker, setShowMonitorPicker] = useState(false)
@@ -71,6 +76,12 @@ export default function Live({ isOpen }) {
         queryFn: async () => (await window.electron.ipcRenderer.invoke("store-get", "autoGainControl")) ?? true,
         staleTime: Infinity
     })
+
+    const audioProcessingSettings = useMemo(() => ({
+        noiseSuppression: noiseSuppression ?? true,
+        echoCancellation: echoCancellation ?? true,
+        autoGainControl: autoGainControl ?? true,
+    }), [noiseSuppression, echoCancellation, autoGainControl])
 
     const { data: liveSettings } = useQuery({
         queryKey: ['liveSettings'],
@@ -124,27 +135,38 @@ export default function Live({ isOpen }) {
         setScreenPermissionDenied(false)
     }, [previewSource])
 
-    const { data: captureSourcePreview, isPending: isPendingCaptureSourcePreview, isError: isPreviewError, refetch: refetchCaptureSourcePreview } = useQuery({
+    const {
+        data: captureSourcePreview,
+        isPending: isPendingCaptureSourcePreview,
+        isError: isPreviewError,
+        error: previewError,
+        refetch: refetchCaptureSourcePreview,
+    } = useQuery({
         queryKey: ['captureSourcePreview', previewSource],
-        queryFn: async () => {
-            try {
-                const result = await window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource)
-                setScreenPermissionDenied(false)
-                setPreviewUnavailable(false)
-                return result
-            } catch (e) {
-                const msg = typeof e === 'string' ? e : e?.message || String(e)
-                setScreenPermissionDenied(msg.includes("ScreenPermissionDenied"))
-                setPreviewUnavailable(true)
-                throw e
-            }
-        },
-        enabled: isOpen && !!previewSource,
+        queryFn: () => window.electron.ipcRenderer.invoke("get-source-screenshot", previewSource),
+        enabled: isOpen && isSourceConfirmed && !!previewSource,
         gcTime: 0,
         retry: false,
-        refetchInterval: screenPermissionDenied || previewUnavailable ? 5000 : 2000,
+        refetchInterval: screenPermissionDenied || previewUnavailable
+            ? 10000
+            : performanceProfile.sourcePreviewIntervalMs,
         refetchIntervalInBackground: false,
     })
+
+    useEffect(() => {
+        if (captureSourcePreview) {
+            setScreenPermissionDenied(false)
+            setPreviewUnavailable(false)
+            return
+        }
+        if (isPreviewError) {
+            const message = typeof previewError === "string"
+                ? previewError
+                : previewError?.message || String(previewError)
+            setScreenPermissionDenied(message.includes("ScreenPermissionDenied"))
+            setPreviewUnavailable(true)
+        }
+    }, [captureSourcePreview, isPreviewError, previewError])
 
     const retryPreview = useCallback(() => {
         setScreenPermissionDenied(false)
@@ -208,8 +230,10 @@ export default function Live({ isOpen }) {
                 physicalHeight: m.physicalHeight ?? m.height,
                 scaleFactor: m.scaleFactor ?? 1,
             }))
+            dispatch(confirmSource())
         } else {
             dispatch(setSource({ name: "Screen", type: SOURCE_TYPE_SCREEN, id: "screen" }))
+            dispatch(confirmSource())
         }
     }
 
@@ -229,6 +253,7 @@ export default function Live({ isOpen }) {
             physicalHeight: m.physicalHeight ?? m.height,
             scaleFactor: m.scaleFactor ?? 1,
         }))
+        dispatch(confirmSource())
         setShowMonitorPicker(false)
     }
 
@@ -242,6 +267,7 @@ export default function Live({ isOpen }) {
         const cb = (_e, selectedWindow) => {
             windowSelectedCbRef.current = null
             dispatch(setSource(selectedWindow))
+            dispatch(confirmSource())
         }
         windowSelectedCbRef.current = cb
         window.electron.ipcRenderer.once("window-selected", cb)
@@ -260,6 +286,7 @@ export default function Live({ isOpen }) {
         const cb = (_e, selectedArea) => {
             areaSelectedCbRef.current = null
             dispatch(setSource(selectedArea))
+            dispatch(confirmSource())
         }
         areaSelectedCbRef.current = cb
         window.electron.ipcRenderer.once("area-selected", cb)
@@ -362,7 +389,10 @@ export default function Live({ isOpen }) {
                                 </div>
                             )}
                         </div>
-                        <CameraPreview />
+                        <CameraPreview
+                            audioProcessingSettings={audioProcessingSettings}
+                            performanceProfile={performanceProfile}
+                        />
 
                         {(captureSourcePreview || prevPreviewRef.current) && (
                             <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
@@ -371,11 +401,12 @@ export default function Live({ isOpen }) {
                         {/* Source badge */}
                         <div className="absolute bottom-3 left-3 flex items-center gap-2">
                             <span className="badge badge-sm bg-black/50 backdrop-blur-md border-white/10 text-white/80 gap-1.5 font-medium">
-                                {source.type === SOURCE_TYPE_SCREEN && <><ComputerDesktopIcon className="size-3" /> {screenLabel()}</>}
-                                {source.type === SOURCE_TYPE_WINDOW && <><WindowIcon className="size-3 scale-x-[-1]" /> {source.name || "Window"}</>}
-                                {source.type === SOURCE_TYPE_AREA && <><CursorArrowRaysIcon className="size-3" /> Area</>}
+                                {!isSourceConfirmed && <><ComputerDesktopIcon className="size-3" /> No source</>}
+                                {isSourceConfirmed && source.type === SOURCE_TYPE_SCREEN && <><ComputerDesktopIcon className="size-3" /> {screenLabel()}</>}
+                                {isSourceConfirmed && source.type === SOURCE_TYPE_WINDOW && <><WindowIcon className="size-3 scale-x-[-1]" /> {source.name || "Window"}</>}
+                                {isSourceConfirmed && source.type === SOURCE_TYPE_AREA && <><CursorArrowRaysIcon className="size-3" /> Area</>}
                             </span>
-                            {sourceDetail() && (
+                            {isSourceConfirmed && sourceDetail() && (
                                 <span className="badge badge-sm bg-black/40 backdrop-blur-md border-white/10 text-white/50 font-mono text-[10px]">
                                     {sourceDetail()}
                                 </span>
@@ -420,30 +451,33 @@ export default function Live({ isOpen }) {
                             <SourceSegment
                                 icon={ComputerDesktopIcon}
                                 label="Screen"
-                                active={source.type === SOURCE_TYPE_SCREEN}
+                                active={isSourceConfirmed && source.type === SOURCE_TYPE_SCREEN}
                                 onClick={selectScreen}
                                 hasDropdown={monitors && monitors.length > 1}
                             />
                             <SourceSegment
                                 icon={WindowIcon}
                                 label="Window"
-                                active={source.type === SOURCE_TYPE_WINDOW}
+                                active={isSourceConfirmed && source.type === SOURCE_TYPE_WINDOW}
                                 onClick={openWindowPicker}
                                 iconFlip
                             />
                             <SourceSegment
                                 icon={CursorArrowRaysIcon}
                                 label="Area"
-                                active={source.type === SOURCE_TYPE_AREA}
+                                active={isSourceConfirmed && source.type === SOURCE_TYPE_AREA}
                                 onClick={openAreaPicker}
                             />
                         </div>
                         <div className="mt-1 px-1 text-[10px] text-base-content/40 truncate">
+                            {!isSourceConfirmed && "Choose what Flowtake may capture"}
+                            {isSourceConfirmed && <>
                             {source.type === SOURCE_TYPE_SCREEN && (monitors && monitors.length > 1 && source.id
                                 ? `${monitors.find(m => m.id === source.id)?.isPrimary ? "Primary display" : `Monitor ${monitors.findIndex(m => m.id === source.id) + 1}`} · ${source.monitorWidth}×${source.monitorHeight}`
                                 : "Full display capture")}
                             {source.type === SOURCE_TYPE_WINDOW && (source.name || "Click to pick a window")}
                             {source.type === SOURCE_TYPE_AREA && "Custom screen region"}
+                            </>}
                         </div>
                         {showMonitorPicker && monitors && monitors.length > 1 && (
                             <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-base-200 border border-base-content/10 rounded-lg shadow-xl overflow-hidden">
@@ -540,6 +574,8 @@ export default function Live({ isOpen }) {
                         <GoLiveButton
                             isRecordingSystemAudio={isRecordingSystemAudio}
                             excludedAudioPids={excludedAudioPids}
+                            audioProcessingSettings={audioProcessingSettings}
+                            cameraCaptureProfile={captureProfile}
                         />
                         {!isConfigured && (
                             <button

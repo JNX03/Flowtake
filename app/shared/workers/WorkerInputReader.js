@@ -2,8 +2,16 @@ import { CanvasSink } from 'mediabunny'
 import { toS } from "../helpers"
 import RendererInputReader from "../RendererInputReader"
 import { postIpc } from "./helpers"
+import {
+    DECODE_CANVAS_POOL_SIZE,
+    SequentialCanvasCursor,
+} from "./sequentialCanvasCursor.js"
 
-const BATCH_SIZE = 100
+// CanvasSink keeps one native-resolution RGBA canvas per pool slot. Reuse one
+// canvas through a continuous decode iterator so 4K exports do not reserve
+// gigabytes of canvases or repeatedly seek at artificial batch boundaries.
+// Width/height are intentionally omitted below: this only bounds decode memory
+// and never changes the source or export resolution.
 
 // Decode base64 string to Uint8Array (Tauri backend returns base64-encoded binary data)
 function base64ToUint8Array(base64) {
@@ -19,50 +27,23 @@ export default class WorkerInputReader extends RendererInputReader {
     constructor(videoType, args) {
         super(videoType, args)
         this.sink = null
-        this.prevCanvas = null
         this.timestamps = null
-        this.canvases = {}
-        this.hasUnextractedCanvases = true
+        this.canvasCursor = null
     }
 
     async createSink(timestamps) {
         const track = await this.input.getPrimaryVideoTrack()
         if (!track) throw new Error(`No video track found in "${this.videoType}" — the recording may be missing or corrupted`)
-        this.sink = new CanvasSink(track, { poolSize: BATCH_SIZE })
+        this.sink = new CanvasSink(track, { poolSize: DECODE_CANVAS_POOL_SIZE })
         this.timestamps = timestamps.map(({ rendererTimestamp, sourceTimestamp }) =>
             toS(sourceTimestamp ?? rendererTimestamp))
+        this.canvasCursor = new SequentialCanvasCursor(
+            this.sink.canvasesAtTimestamps(this.timestamps)
+        )
     }
 
     async getCanvas(t) {
-        const timestamp = toS(t)
-
-        const canvas = this.canvases[timestamp]
-
-        if (canvas) {
-            if (!this.prevCanvas || this.prevCanvas.timestamp !== canvas.timestamp) {
-                this.prevCanvas = canvas
-                return canvas
-            }
-        } else if (this.hasUnextractedCanvases) {
-            await this.extract()
-            this.prevCanvas = this.canvases[timestamp]
-            return this.prevCanvas
-        }
-        return null
-    }
-
-    async extract() {
-        const timestamps = this.timestamps.splice(0, BATCH_SIZE)
-
-        const canvases = []
-
-        for await (const canvas of this.sink.canvasesAtTimestamps(timestamps)) {
-            canvases.push(canvas)
-        }
-
-        canvases.forEach((canvas, i) => this.canvases[timestamps[i]] = canvas)
-
-        this.hasUnextractedCanvases = BATCH_SIZE === canvases.length
+        return this.canvasCursor?.read(toS(t)) ?? null
     }
 
     async open() {
@@ -82,7 +63,21 @@ export default class WorkerInputReader extends RendererInputReader {
         return postIpc("get-size", [this.fhId])
     }
 
-    close() {
-        return postIpc("close", [this.fhId])
+    async close() {
+        let iteratorError = null
+        try {
+            await this.canvasCursor?.close()
+        } catch (error) {
+            iteratorError = error
+        }
+        this.canvasCursor = null
+        this.sink = null
+        this.input?.dispose()
+        this.input = null
+
+        const fhId = this.fhId
+        this.fhId = null
+        if (fhId !== null) await postIpc("close", [fhId])
+        if (iteratorError) throw iteratorError
     }
 }

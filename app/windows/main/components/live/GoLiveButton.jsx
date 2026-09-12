@@ -8,24 +8,32 @@ import {
     CONSTRAINTS_AUDIO,
     CONSTRAINTS_VIDEO
 } from "@shared/helpers"
+import { getAdaptiveCameraConstraints } from "@shared/adaptivePerformance"
 import {
     selectCapturers,
     selectEncoders,
 } from "@shared/redux/appSlice"
 import {
     selectIsRecording,
+    selectIsSourceConfirmed,
     selectSource,
     setIsRecording
 } from "@shared/redux/recorderSlice"
 import { loadLiveSettings } from "../settings/liveSettingsStore"
 
-export default function GoLiveButton({ isRecordingSystemAudio, excludedAudioPids = [] }) {
+export default function GoLiveButton({
+    isRecordingSystemAudio,
+    excludedAudioPids = [],
+    audioProcessingSettings,
+    cameraCaptureProfile,
+}) {
 
     const dispatch = useDispatch()
     const [isStarting, setIsStarting] = useState(false)
 
     const source = useSelector(selectSource)
     const isRecording = useSelector(selectIsRecording)
+    const isSourceConfirmed = useSelector(selectIsSourceConfirmed)
     const capturers = useSelector(selectCapturers)
     const encoders = useSelector(selectEncoders)
 
@@ -65,7 +73,7 @@ export default function GoLiveButton({ isRecordingSystemAudio, excludedAudioPids
     const isConfigured = hasRtmp && hasStreamKey
 
     const onClick = useCallback(async () => {
-        if (isStarting || isRecording) return
+        if (isStarting || isRecording || !isSourceConfirmed) return
         if (!isConfigured) return
 
         setIsStarting(true)
@@ -77,10 +85,17 @@ export default function GoLiveButton({ isRecordingSystemAudio, excludedAudioPids
             audioTrack: audio?.track.label,
             constraints: {
                 video: video
-                    ? { ...CONSTRAINTS_VIDEO, deviceId: video.deviceId }
+                    ? getAdaptiveCameraConstraints(cameraCaptureProfile, {
+                        ...CONSTRAINTS_VIDEO,
+                        deviceId: { exact: video.deviceId },
+                    })
                     : false,
                 audio: audio
-                    ? { ...CONSTRAINTS_AUDIO, deviceId: audio.deviceId }
+                    ? {
+                        ...CONSTRAINTS_AUDIO,
+                        ...audioProcessingSettings,
+                        deviceId: { exact: audio.deviceId },
+                    }
                     : false,
             },
         }
@@ -103,20 +118,22 @@ export default function GoLiveButton({ isRecordingSystemAudio, excludedAudioPids
         } finally {
             setIsStarting(false)
         }
-    }, [isStarting, isRecording, isConfigured, cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids])
+    }, [isStarting, isRecording, isSourceConfirmed, isConfigured, cameras, microphones, source, isRecordingSystemAudio, systemAudio, dispatch, camera, microphone, excludedAudioPids, audioProcessingSettings, cameraCaptureProfile])
 
     const isPending = isPendingCamera || isPendingCameras || isPendingMicrophone || isPendingMicrophones ||
         isPendingSystemAudio || isPendingLive
 
-    const tooltip = !isConfigured && !isPending
-        ? (hasRtmp ? "Add your stream key in destination settings" : "Set the RTMP destination first")
-        : undefined
+    const tooltip = !isSourceConfirmed
+        ? "Choose Screen, Window, or Area first"
+        : !isConfigured && !isPending
+            ? (hasRtmp ? "Add your stream key in destination settings" : "Set the RTMP destination first")
+            : undefined
 
     return (
         <Button
             onClick={onClick}
             isLoading={isStarting || isPending || !capturers?.length || !encoders?.length}
-            disabled={isStarting || isPending || !capturers?.length || !encoders?.length || !isConfigured}
+            disabled={isStarting || isPending || !capturers?.length || !encoders?.length || !isConfigured || !isSourceConfirmed}
             icon={SignalIcon}
             tooltip={tooltip}
             className="btn-error w-full"
@@ -129,4 +146,14 @@ export default function GoLiveButton({ isRecordingSystemAudio, excludedAudioPids
 GoLiveButton.propTypes = {
     isRecordingSystemAudio: PropTypes.bool.isRequired,
     excludedAudioPids: PropTypes.arrayOf(PropTypes.number),
+    audioProcessingSettings: PropTypes.shape({
+        noiseSuppression: PropTypes.bool,
+        echoCancellation: PropTypes.bool,
+        autoGainControl: PropTypes.bool,
+    }).isRequired,
+    cameraCaptureProfile: PropTypes.shape({
+        cameraWidth: PropTypes.number.isRequired,
+        cameraHeight: PropTypes.number.isRequired,
+        cameraFps: PropTypes.number.isRequired,
+    }).isRequired,
 }
