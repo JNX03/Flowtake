@@ -321,11 +321,23 @@ pub async fn get_video_path(
 #[cfg(test)]
 mod tests {
     use super::{file_access, registered_render_file, FileAccess};
+    use base64::Engine as _;
     use crate::state::{AppState, RenderState};
     use serde_json::json;
     use std::path::PathBuf;
 
     const RENDER_ID: &str = "render-123e4567-e89b-42d3-a456-426614174000";
+
+    #[test]
+    fn binary_ipc_base64_round_trip_preserves_every_byte_value() {
+        let original = (0_u8..=u8::MAX).collect::<Vec<_>>();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&original);
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(&encoded)
+            .expect("encoded binary payload should decode");
+
+        assert_eq!(decoded, original);
+    }
 
     #[test]
     fn file_modes_are_least_privilege_by_type() {
