@@ -321,6 +321,7 @@ pub async fn get_video_path(
 #[cfg(test)]
 mod tests {
     use super::{file_access, registered_render_file, FileAccess};
+    use base64::Engine as _;
     use crate::state::{AppState, RenderState};
     use serde_json::json;
     use std::path::PathBuf;
