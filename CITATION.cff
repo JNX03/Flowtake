@@ -4,14 +4,14 @@ title: "Flowtake"
 type: software
 authors:
   - family-names: "Jnx03"
-version: 1.7.0
+version: 1.7.1
 date-released: 2026-09-12
 license: MIT
 repository-code: "https://github.com/JNX03/Flowtake"
 url: "https://jnx03.github.io/Flowtake/"
 abstract: >-
-  Flowtake is a free, MIT-licensed, local-first desktop screen recorder and
-  timeline editor with cursor-driven zoom and local MP4 export.
+  Flowtake is a free, local-first desktop screen recorder and timeline editor with
+  MIT-licensed application code, cursor-driven zoom, and local MP4 export.
 keywords:
   - screen recording
   - screencast

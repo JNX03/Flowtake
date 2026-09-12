@@ -50,6 +50,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             desktop-file-utils \
+            ffmpeg \
             libayatana-appindicator3-dev \
             libfile-mimeinfo-perl \
             libfuse2 \
@@ -82,63 +83,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Download verified FFmpeg sidecar
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Match the immutable BtbN release asset used by the release workflow.
-          ffmpeg_url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-linux64-gpl.tar.xz"
-          ffmpeg_sha256="85fe3e1754ddf9ad7b9e55b0b6a1bd97dc442ebcafc48c027ae5abaf9257281f"
-          ffmpeg_archive="ffmpeg.tar.xz"
-          ffmpeg_max_attempts=4
-
-          # Retry the full download + digest transaction because artifact
-          # delivery can occasionally return a bad HTTP-200 payload. Never
-          # extract a response unless it matches the immutable pinned SHA-256.
-          ffmpeg_verified=0
-          for attempt in $(seq 1 "$ffmpeg_max_attempts"); do
-            rm -f -- "$ffmpeg_archive"
-            attempt_url="${ffmpeg_url}?flowtake_run=${GITHUB_RUN_ID:-local}&flowtake_attempt=${GITHUB_RUN_ATTEMPT:-0}-${attempt}"
-            echo "FFmpeg download attempt ${attempt}/${ffmpeg_max_attempts}"
-
-            if response_meta="$(curl --fail --location --show-error --silent \
-              --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
-              --proto '=https' --tlsv1.2 \
-              --user-agent "Flowtake-appimage/${GITHUB_RUN_ID:-local}" \
-              --header 'Accept: application/octet-stream' \
-              --header 'Cache-Control: no-cache' \
-              --write-out 'HTTP %{http_code}; type %{content_type}; downloaded %{size_download} bytes' \
-              "$attempt_url" \
-              --output "$ffmpeg_archive")"; then
-              actual_sha256="$(sha256sum "$ffmpeg_archive" | cut -d ' ' -f 1)"
-              archive_bytes="$(wc -c < "$ffmpeg_archive" | tr -d '[:space:]')"
-              echo "${response_meta}; stored ${archive_bytes} bytes; SHA-256 ${actual_sha256}"
-              if [[ "$actual_sha256" == "$ffmpeg_sha256" ]]; then
-                ffmpeg_verified=1
-                break
-              fi
-              echo "::warning::Rejected FFmpeg payload on attempt ${attempt}: SHA-256 ${actual_sha256}"
-            else
-              echo "::warning::FFmpeg download attempt ${attempt} failed before verification"
-            fi
-
-            rm -f -- "$ffmpeg_archive"
-            if (( attempt < ffmpeg_max_attempts )); then
-              sleep $((attempt * 5))
-            fi
-          done
-
-          if [[ "$ffmpeg_verified" != 1 ]]; then
-            echo "ERROR: unable to download the pinned FFmpeg archive with the expected SHA-256" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$ffmpeg_sha256" "$ffmpeg_archive" | sha256sum --check --strict -
-
-          mkdir -p ffmpeg_tmp src-tauri/binaries
-          tar -xf "$ffmpeg_archive" -C ffmpeg_tmp
-          ffmpeg_bin="$(find ffmpeg_tmp -maxdepth 3 -name ffmpeg -type f -print -quit)"
-          test -n "$ffmpeg_bin"
-          install -m 755 "$ffmpeg_bin" src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+      - name: Probe the system FFmpeg dependency
+        run: ffmpeg -hide_banner -version
 
       - name: Build real AppImage
         run: npm run tauri -- build --bundles appimage --target x86_64-unknown-linux-gnu

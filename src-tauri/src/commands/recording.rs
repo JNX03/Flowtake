@@ -152,7 +152,7 @@ fn ffmpeg_binary_is_usable(path: &std::path::Path) -> bool {
     }
 }
 
-/// Get platform-specific FFmpeg sidecar binary names
+/// Get legacy/local-development FFmpeg candidate names.
 fn platform_ffmpeg_sidecar_names() -> Vec<String> {
     let mut names = Vec::new();
 
@@ -165,7 +165,7 @@ fn platform_ffmpeg_sidecar_names() -> Vec<String> {
         names.push("ffmpeg-aarch64-pc-windows-msvc.exe".to_string());
     }
 
-    // macOS universal binary (produced by CI via lipo) must be checked first
+    // Preserve legacy/local universal naming for developer-provided binaries.
     #[cfg(target_os = "macos")]
     {
         names.push("ffmpeg-universal-apple-darwin".to_string());

@@ -1,7 +1,7 @@
 # Product Hunt launch draft
 
-> **Draft only — not posted.** This copy targets v1.7.0. Use it only after the
-> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.1. Use it only after the
+> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 ## Name
@@ -21,7 +21,7 @@ Free, open-source screen recording with an editable timeline
 ```text
 Flowtake records a display, window, or custom area and turns cursor activity into editable zoom and pan motion. Trim and split clips, tune cursor effects, add masks, backgrounds, overlays, audio, and subtitles, then export locally.
 
-Windows is the primary development target. macOS and Linux builds are previews; pure Wayland capture is not supported. Flowtake is one MIT-licensed product with no paid Studio mode, app tier, or export paywall.
+Windows is the primary development target. macOS and Linux builds are previews; pure Wayland capture is not supported. Flowtake is one free product with MIT-licensed app code and no paid Studio mode, app tier, or export paywall. Flowtake packages do not include an FFmpeg executable; install a compatible system FFmpeg separately before recording or exporting.
 ```
 
 ## Maker comment

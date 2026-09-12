@@ -6,8 +6,8 @@ Welcome to Flowtake. This section covers everything you need to get up and runni
 
 If you just want to record and edit your screen:
 
-1. [Download and install Flowtake](installation.md)
-2. Launch the app and start recording
+1. [Install Flowtake and its system FFmpeg dependency](installation.md)
+2. Launch the app, complete the readiness check, and start recording
 
 ## For Developers
 

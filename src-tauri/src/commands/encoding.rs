@@ -585,7 +585,7 @@ pub async fn set_capturer(app: AppHandle, capturer: String) -> AppResult<()> {
     Ok(())
 }
 
-/// Extract audio from a video file using FFmpeg sidecar and return as WAV buffer.
+/// Extract audio with the execute-probed system FFmpeg and return a WAV buffer.
 /// This is more memory-efficient for large screen recordings since it only returns
 /// the audio track, not the full video.
 #[tauri::command]

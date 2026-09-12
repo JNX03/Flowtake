@@ -1,14 +1,14 @@
 # r/selfhosted post draft
 
-> **Draft only — not posted.** This copy targets v1.7.0. Flowtake is a local
+> **Draft only — not posted.** This copy targets v1.7.1. Flowtake is a local
 > desktop application, not a self-hosted server, so check the community rules.
-> Use this only after the exact v1.7.0 artifacts, privacy-reviewed demo, and
+> Use this only after the exact v1.7.1 artifacts, privacy-reviewed demo, and
 > live links are verified; recheck all three immediately before posting.
 
 ## Title
 
 ```text
-Flowtake — a local-first, MIT-licensed desktop screen recorder and editor
+Flowtake — a free local-first screen recorder and editor with MIT app code
 ```
 
 ## Body
@@ -24,7 +24,7 @@ Developers can optionally run a local stdio MCP from a source checkout. It makes
 
 Windows is the primary development target. macOS and Linux builds are previews; pure Wayland capture is not supported.
 
-There is one MIT-licensed product with no paid Studio mode, app tier, or export paywall.
+There is one free product with MIT-licensed app code and no paid Studio mode, app tier, or export paywall. Flowtake packages do not include an FFmpeg executable; install a compatible system FFmpeg separately before recording or exporting.
 
 Source and verified downloads: https://github.com/JNX03/Flowtake
 ```

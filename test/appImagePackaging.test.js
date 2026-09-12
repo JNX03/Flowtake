@@ -50,22 +50,9 @@ test("Linux packaging CI builds, lints, and launches the real AppImage", () => {
     assert.match(commands, /Xvfb display did not become ready within 30 seconds/)
     assert.match(commands, /xdotool search --name Flowtake/)
     assert.match(commands, /AppImage exited before showing a Flowtake window/)
-    assert.match(
-        commands,
-        /autobuild-2026-06-30-13-34\/ffmpeg-N-125365-g9a01c1cb6a-linux64-gpl\.tar\.xz/
-    )
-    assert.match(commands, /85fe3e1754ddf9ad7b9e55b0b6a1bd97dc442ebcafc48c027ae5abaf9257281f/)
-    assert.match(commands, /ffmpeg_max_attempts=4/)
-    assert.match(commands, /for attempt in \$\(seq 1 "\$ffmpeg_max_attempts"\)/)
-    assert.match(commands, /rm -f -- "\$ffmpeg_archive"/)
-    assert.match(commands, /flowtake_attempt=\$\{GITHUB_RUN_ATTEMPT:-0\}-\$\{attempt\}/)
-    assert.match(commands, /if \[\[ "\$actual_sha256" == "\$ffmpeg_sha256" \]\]/)
-    assert.match(commands, /if \[\[ "\$ffmpeg_verified" != 1 \]\]/)
-    assert.ok(
-        commands.indexOf('if [[ "$ffmpeg_verified" != 1 ]]') <
-            commands.indexOf('tar -xf "$ffmpeg_archive"'),
-        "AppImage FFmpeg extraction must stay behind the bounded digest retry gate"
-    )
+    assert.match(commands, /sudo apt-get install -y[\s\S]*ffmpeg/)
+    assert.match(commands, /ffmpeg -hide_banner -version/)
+    assert.doesNotMatch(commands, /BtbN\/FFmpeg-Builds|ffmpeg_archive|src-tauri\/binaries\/ffmpeg/)
 })
 
 test("release publication rejects an AppImage that fails metadata validation", () => {

@@ -50,7 +50,9 @@ test("comparison copy preserves the product and security boundaries", async () =
   const normalizedPage = page.toLowerCase();
   for (const required of [
     "Windows 10/11",
-    "free, MIT-licensed",
+    "application code is MIT-licensed",
+    "Flowtake release packages do not include an FFmpeg executable",
+    "winget install --id Gyan.FFmpeg --exact --source winget",
     "unsigned",
     "SmartScreen",
     "SHA256SUMS.txt",
@@ -65,6 +67,9 @@ test("comparison copy preserves the product and security boundaries", async () =
   for (const prohibited of ["best Screen Studio", "drop-in replacement", "completely offline", "feature parity"] ) {
     assert.equal(page.toLowerCase().includes(prohibited.toLowerCase()), false, `unsafe claim: ${prohibited}`);
   }
+
+  assert.equal(normalizedPage.includes("bundled ffmpeg"), false);
+  assert.equal(normalizedPage.includes("gplv3"), false);
 });
 
 test("the comparison route is discoverable and links to the free kit without a form", async () => {

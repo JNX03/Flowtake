@@ -222,14 +222,6 @@ jobs:
         if: needs.changes.outputs.rust == 'true' && (runner.os == 'macOS')
         run: bash scripts/build-macos-capture.sh --native
 
-      # Tauri validates that its configured sidecar exists during build-script
-      # execution. Release builds download the real Linux FFmpeg binary; CI only
-      # needs a host executable so Rust source can be checked without a network
-      # download from a mutable third-party release URL.
-      - name: Prepare Linux sidecar for compile-only checks
-        if: needs.changes.outputs.rust == 'true' && (runner.os == 'Linux')
-        run: install -Dm755 /bin/true src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
-
       - name: Cargo check
         if: needs.changes.outputs.rust == 'true'
         run: cargo check --locked --all-targets

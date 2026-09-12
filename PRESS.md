@@ -1,6 +1,6 @@
-# Flowtake press kit — v1.7.0
+# Flowtake press kit — v1.7.1
 
-Last factual review: September 12, 2026, against Flowtake v1.7.0.
+Last factual review: September 12, 2026, against Flowtake v1.7.1.
 
 This page contains approved factual language for articles, directories,
 package descriptions, and community posts. Verify the exact build on the
@@ -9,7 +9,7 @@ version-specific details.
 
 ## One-line description
 
-Flowtake is a free, MIT-licensed, local-first desktop screen recorder and
+Flowtake is a free, local-first desktop screen recorder with MIT-licensed application code and a
 timeline editor for creating developer demos with cursor-driven zoom and local
 H.264/MP4 or VP9/WebM export.
 
@@ -25,12 +25,13 @@ the primary platform; macOS and Linux builds are previews.
 ## Full boilerplate
 
 Flowtake is a free and open-source desktop screen recorder and timeline editor
-built with Tauri, Rust, React, PixiJS, Mediabunny, and FFmpeg. It can capture a
+built with Tauri, Rust, React, PixiJS, and Mediabunny. It uses a separately
+installed system FFmpeg for capture and audio processing. It can capture a
 display, selected window, or custom area, then turn cursor activity into
 editable zoom and pan motion. Projects and ordinary exports are stored locally,
 without requiring cloud project sync. Windows 10/11 x64 is the primary
 development and validation target. macOS Universal and Linux x64 builds are
-available as previews. Flowtake v1.7.0 adds adaptive preview and
+available as previews. Flowtake v1.7.1 adds adaptive preview and
 camera-capture profiles, durable project archive replacement and close handling,
 and local H.264/MP4 or VP9/WebM export. Recorded and timeline audio can be mixed
 and muxed when it is present and enabled.
@@ -39,16 +40,17 @@ and muxed when it is present and enabled.
 
 | Item | Current fact |
 |---|---|
-| License | [MIT](LICENSE) |
+| Application-code license | [MIT](LICENSE) |
 | Source | [github.com/JNX03/Flowtake](https://github.com/JNX03/Flowtake) |
 | Releases | [GitHub Releases](https://github.com/JNX03/Flowtake/releases) |
 | Website | [jnx03.github.io/Flowtake](https://jnx03.github.io/Flowtake/) |
-| Reviewed version | v1.7.0, dated September 12, 2026 |
+| Reviewed version | v1.7.1, dated September 12, 2026 |
 | Historical v1.6.0 boundary | Released July 16, 2026; edited export was video-only AVC/H.264 MP4 |
 | Primary platform | Windows 10/11 x64 |
 | Preview platforms | macOS 10.15+ Universal and Linux x64 |
-| Edited export in v1.7.0 | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
+| Edited export in v1.7.1 | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
 | Windows signing | Not Authenticode-signed |
+| FFmpeg dependency | Not included in release packages; install a compatible system FFmpeg separately on every platform |
 | macOS signing | Ad-hoc signed; not Developer ID signed or notarized |
 | Linux capture boundary | X11 or XWayland; pure Wayland capture is not supported |
 | Support and questions | [GitHub Discussions](https://github.com/JNX03/Flowtake/discussions) |
@@ -70,7 +72,7 @@ and muxed when it is present and enabled.
 - Local H.264/MP4 or VP9/WebM export, with audio when present and enabled
 - Optional local stdio MCP for guarded split, trim, delete, and caption metadata
   edits; it does not inspect media, render, export, upload, or control the app
-- Free and open-source desktop recorder and editor under the MIT License
+- Free desktop recorder and editor with application code under the MIT License
 
 ## Privacy and network boundary
 
@@ -122,5 +124,7 @@ assets and must not be published.
 ## Project relationship
 
 The desktop recorder, editor, export tools, and community demo kit in this
-repository are MIT licensed. Flowtake has no paid app tier, paid studio mode,
-export paywall, checkout, or private-footage intake service.
+repository are MIT licensed. Release packages do not include an FFmpeg
+executable; users install that system dependency separately under its own
+terms. Flowtake has no paid app tier, paid studio mode, export paywall,
+checkout, or private-footage intake service.

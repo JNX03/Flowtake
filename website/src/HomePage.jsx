@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 
-const RELEASE_VERSION = "1.7.0";
+const RELEASE_VERSION = "1.7.1";
 const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
 const DOWNLOAD_URL = "https://github.com/JNX03/Flowtake/releases/latest";
 const REPOSITORY_URL = "https://github.com/JNX03/Flowtake";
@@ -52,8 +52,8 @@ const productFacts = [
     icon: ShieldCheckIcon,
   },
   {
-    title: "MIT licensed",
-    body: "Inspect, fork, and use the published source commercially.",
+    title: "MIT app code",
+    body: "Inspect, fork, and use Flowtake's published source commercially.",
     icon: CodeBracketIcon,
   },
   {
@@ -79,7 +79,12 @@ const faqs = [
   {
     question: "Is Flowtake really free?",
     answer:
-      "Yes. The published recorder and editor are free and MIT-licensed. Flowtake has no paid app tier, paid studio mode, or export paywall.",
+      "Yes. Flowtake has no paid app tier, paid studio mode, or export paywall, and Flowtake application code is MIT-licensed. Release packages do not include an FFmpeg executable; install that system dependency separately.",
+  },
+  {
+    question: "Do I need to install FFmpeg?",
+    answer:
+      "Yes. Install it before opening Flowtake. On Windows run: winget install --id Gyan.FFmpeg --exact --source winget. On macOS run: brew install ffmpeg. On Linux, install your distribution's full FFmpeg package and keep ffmpeg on PATH.",
   },
   {
     question: "What can I record?",
@@ -94,7 +99,7 @@ const faqs = [
   {
     question: "Does it work on macOS or Linux?",
     answer:
-      "Preview builds are published for macOS and Linux. macOS is ad-hoc signed but not notarized, and pure Wayland capture is unsupported. Windows is the primary validated platform today.",
+      "Preview builds are published for macOS and Linux. macOS is ad-hoc signed and not notarized. All platforms require a separately installed system FFmpeg. Pure Wayland capture is unsupported. Windows is the primary validated platform today.",
   },
   {
     question: "What is the community demo kit?",
@@ -180,7 +185,7 @@ export function HomePage() {
       <main id="main-content">
         <section className="home-hero home-section" id="top">
           <div className="home-hero-copy">
-            <p className="home-chip">Free MIT-licensed desktop app</p>
+            <p className="home-chip">Free desktop app · MIT app code</p>
             <h1>
               Record the build.
               <span>Show what <em>changed.</em></span>
@@ -203,7 +208,7 @@ export function HomePage() {
               </a>
             </div>
             <p className="home-platform-line">
-              Free · MIT licensed · Windows primary
+              Free · MIT app code · Windows primary
               <span>macOS / Linux preview · unsigned Windows builds</span>
             </p>
           </div>
@@ -216,7 +221,7 @@ export function HomePage() {
             <div className="home-release-main">
               <img src={assetUrl("logo.png")} alt="" />
               <div>
-                <p>Free and MIT licensed</p>
+                <p>Free · MIT app code</p>
                 <h2>
                   Flowtake
                   <br />
@@ -293,7 +298,7 @@ export function HomePage() {
             </article>
           ))}
           <p className="home-fact-note">
-            Windows artifacts are unsigned. macOS is ad-hoc signed but not notarized; macOS and Linux remain preview builds. Pure Wayland capture is unsupported. Review the current release notes and checksums before installing.
+            Windows artifacts are unsigned. macOS is ad-hoc signed but not notarized; macOS and Linux remain preview builds. Flowtake release packages do not include an FFmpeg executable; install a compatible system FFmpeg separately on every platform. Pure Wayland capture is unsupported. Review the current release notes and checksums before installing.
           </p>
         </section>
 
@@ -383,6 +388,7 @@ export function HomePage() {
               <summary>Platform and signing limits <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
                 <p>Windows 10/11 x64 is the primary validation target. macOS and Linux builds are previews, and pure Wayland capture is unsupported.</p>
+                <p>Flowtake packages do not include FFmpeg. Install it separately and keep the <code>ffmpeg</code> command on <code>PATH</code>.</p>
                 <p>Windows artifacts are not Authenticode-signed. macOS artifacts are ad-hoc signed, not notarized. Download only from the official GitHub release and verify published checksums.</p>
               </div>
             </details>

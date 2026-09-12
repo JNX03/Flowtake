@@ -41,18 +41,16 @@ pub async fn run_macos_screencapture(
 }
 
 /// Helper to get FFmpeg command from an AppHandle.
-/// Tries the bundled sidecar first, then falls back to system-installed FFmpeg.
-/// This ensures the app works on macOS/Linux where FFmpeg may not be bundled as a sidecar
-/// but is installed system-wide (via Homebrew, apt, etc.).
+/// Release packages do not redistribute FFmpeg, so resolve and execute-probe a
+/// separately installed copy before constructing the shell command.
 pub fn ffmpeg_from_app(
     app: &tauri::AppHandle,
 ) -> Result<tauri_plugin_shell::process::Command, crate::error::AppError> {
-    let shell = app.shell();
-    match shell.sidecar("ffmpeg") {
-        Ok(cmd) => Ok(cmd),
-        Err(_) => {
-            log::info!("[ffmpeg] Sidecar not found, using system FFmpeg");
-            Ok(shell.command("ffmpeg-system"))
-        }
-    }
+    let path = recording::find_ffmpeg_path().ok_or_else(|| {
+        crate::error::AppError::General(
+            "FFmpeg is required. Install it with your platform package manager and restart Flowtake."
+                .to_string(),
+        )
+    })?;
+    Ok(app.shell().command(path.to_string_lossy().into_owned()))
 }

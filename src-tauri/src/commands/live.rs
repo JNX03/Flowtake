@@ -439,59 +439,6 @@ fn build_ffmpeg_args(
     Ok(args)
 }
 
-/// Find the bundled FFmpeg binary (mirrors recording.rs::find_ffmpeg_path semantics).
-fn find_ffmpeg_path() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    let names: &[&str] = if cfg!(target_os = "windows") {
-        &["ffmpeg.exe", "ffmpeg-x86_64-pc-windows-msvc.exe"]
-    } else if cfg!(target_os = "macos") {
-        &[
-            "ffmpeg",
-            "ffmpeg-aarch64-apple-darwin",
-            "ffmpeg-x86_64-apple-darwin",
-        ]
-    } else {
-        &["ffmpeg", "ffmpeg-x86_64-unknown-linux-gnu"]
-    };
-    for name in names {
-        let p = dir.join(name);
-        if p.exists() {
-            return Some(p);
-        }
-        let p2 = dir.join("binaries").join(name);
-        if p2.exists() {
-            return Some(p2);
-        }
-    }
-    // PATH fallback
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(out) = std::process::Command::new("where").arg("ffmpeg").output() {
-            if out.status.success() {
-                if let Some(first) = String::from_utf8_lossy(&out.stdout).lines().next() {
-                    let p = PathBuf::from(first.trim());
-                    if p.exists() {
-                        return Some(p);
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Ok(out) = std::process::Command::new("which").arg("ffmpeg").output() {
-            if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if !s.is_empty() {
-                    return Some(PathBuf::from(s));
-                }
-            }
-        }
-    }
-    None
-}
-
 fn parse_stats_line(line: &str, stats: &mut LiveStats) -> bool {
     // FFmpeg progress lines look like:
     //   frame= 123 fps= 30 q=27.0 size=  234kB time=00:00:04.10 bitrate=4500.2kbits/s drop=0 dup=0 speed=1.0x
@@ -590,8 +537,12 @@ pub async fn start_live_streaming(app: AppHandle, mut config: LiveConfig) -> App
         None
     };
 
-    let ffmpeg_path = find_ffmpeg_path()
-        .ok_or_else(|| AppError::General("FFmpeg binary not found".to_string()))?;
+    let ffmpeg_path = super::recording::find_ffmpeg_path().ok_or_else(|| {
+        AppError::General(
+            "FFmpeg is required. Install it with your platform package manager and restart Flowtake."
+                .to_string(),
+        )
+    })?;
 
     let args = build_ffmpeg_args(&config, rtmp_target.as_deref(), local_path.as_deref())?;
     // Never log the command line: the RTMP target contains the user's stream

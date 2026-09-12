@@ -123,6 +123,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            ffmpeg \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
@@ -143,12 +144,6 @@ jobs:
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: './src-tauri -> target'
-
-      # Tauri validates the configured sidecar during build-script execution.
-      # This compile-only gate uses a host executable; platform release jobs
-      # independently fetch and verify the real pinned FFmpeg artifacts.
-      - name: Prepare compile-only Linux sidecar
-        run: install -Dm755 /bin/true src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
 
       - name: Cargo check
         run: cargo check --locked --all-targets
@@ -195,39 +190,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Download FFmpeg (static Windows x64)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          # BtbN immutable month-end auto-build (retained for two years).
-          # SHA-256 is published in the release's checksums.sha256 asset and
-          # GitHub release metadata.
-          $url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-win64-gpl.zip"
-          $expectedSha256 = "52c0383c460f0ec1039088f1591921fb82e3b870b32aab8faf2ff1e5ae14bf9d"
-
-          Write-Host "Downloading pinned FFmpeg archive..."
-          Invoke-WebRequest -Uri $url -OutFile ffmpeg.zip -UseBasicParsing
-          $actualSha256 = (Get-FileHash -Path ffmpeg.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualSha256 -ne $expectedSha256) {
-            Remove-Item -Path ffmpeg.zip -Force -ErrorAction SilentlyContinue
-            Write-Error "FFmpeg SHA-256 mismatch: expected $expectedSha256, got $actualSha256"
-          }
-
-          Write-Host "FFmpeg SHA-256 verified: $actualSha256"
-          Write-Host "Extracting FFmpeg..."
-          Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_tmp -Force
-          $ffmpegExe = Get-ChildItem -Recurse -Path ffmpeg_tmp -Filter "ffmpeg.exe" |
-            Where-Object { $_.DirectoryName -like "*bin*" } |
-            Select-Object -First 1
-          if (-not $ffmpegExe) {
-            Write-Error "ffmpeg.exe not found in archive"
-            exit 1
-          }
-          New-Item -ItemType Directory -Force -Path "src-tauri/binaries" | Out-Null
-          Copy-Item -Path $ffmpegExe.FullName -Destination "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
-          Write-Host "FFmpeg placed at src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
-
       - name: Build Tauri app
         run: npm run build
         env:
@@ -255,10 +217,10 @@ jobs:
           cp "${nsis_installers[@]}" installers/
           cp "${msi_installers[@]}" installers/
 
-          # Portable standalone binary (zip with ffmpeg sidecar)
+          # Portable app. FFmpeg is detected separately from the system PATH.
           mkdir -p _portable/Flowtake
           cp src-tauri/target/release/flowtake.exe _portable/Flowtake/Flowtake.exe
-          cp src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe _portable/Flowtake/ffmpeg.exe
+          cp src-tauri/resources/THIRD_PARTY_NOTICES.txt _portable/Flowtake/
           cd _portable && 7z a -tzip ../installers/Flowtake-windows-x64-portable.zip Flowtake/ && cd ..
           test -s installers/Flowtake-windows-x64-portable.zip
 
@@ -289,6 +251,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            ffmpeg \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
@@ -322,73 +285,6 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Download FFmpeg (static Linux x64)
-        run: |
-          set -euo pipefail
-
-          # BtbN immutable month-end auto-build, matching the Windows release
-          # source already used above. The exact asset SHA-256 is pinned here
-          # and checked before extraction.
-          FFMPEG_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-linux64-gpl.tar.xz"
-          FFMPEG_SHA256="85fe3e1754ddf9ad7b9e55b0b6a1bd97dc442ebcafc48c027ae5abaf9257281f"
-          FFMPEG_ARCHIVE="ffmpeg.tar.xz"
-          FFMPEG_MAX_ATTEMPTS=4
-
-          echo "Downloading pinned FFmpeg static build for Linux x64..."
-          # Artifact delivery can return either HTTP failures or a bad HTTP-200
-          # payload. Retry the complete download + digest transaction, removing
-          # every rejected file. The immutable SHA-256 remains the authority.
-          ffmpeg_verified=0
-          for attempt in $(seq 1 "$FFMPEG_MAX_ATTEMPTS"); do
-            rm -f -- "$FFMPEG_ARCHIVE"
-            attempt_url="${FFMPEG_URL}?flowtake_run=${GITHUB_RUN_ID:-local}&flowtake_attempt=${GITHUB_RUN_ATTEMPT:-0}-${attempt}"
-            echo "FFmpeg download attempt ${attempt}/${FFMPEG_MAX_ATTEMPTS}"
-
-            if response_meta="$(curl --fail --location --show-error --silent \
-              --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
-              --proto '=https' --tlsv1.2 \
-              --user-agent "Flowtake-release/${GITHUB_RUN_ID:-local}" \
-              --header 'Accept: application/octet-stream' \
-              --header 'Cache-Control: no-cache' \
-              --write-out 'HTTP %{http_code}; type %{content_type}; downloaded %{size_download} bytes' \
-              "$attempt_url" \
-              --output "$FFMPEG_ARCHIVE")"; then
-              actual_sha256="$(sha256sum "$FFMPEG_ARCHIVE" | cut -d ' ' -f 1)"
-              archive_bytes="$(wc -c < "$FFMPEG_ARCHIVE" | tr -d '[:space:]')"
-              echo "${response_meta}; stored ${archive_bytes} bytes; SHA-256 ${actual_sha256}"
-              if [[ "$actual_sha256" == "$FFMPEG_SHA256" ]]; then
-                ffmpeg_verified=1
-                break
-              fi
-              echo "::warning::Rejected FFmpeg payload on attempt ${attempt}: SHA-256 ${actual_sha256}"
-            else
-              echo "::warning::FFmpeg download attempt ${attempt} failed before verification"
-            fi
-
-            rm -f -- "$FFMPEG_ARCHIVE"
-            if (( attempt < FFMPEG_MAX_ATTEMPTS )); then
-              sleep $((attempt * 5))
-            fi
-          done
-
-          if [[ "$ffmpeg_verified" != 1 ]]; then
-            echo "ERROR: unable to download the pinned FFmpeg archive with the expected SHA-256" >&2
-            exit 1
-          fi
-          printf '%s  %s\n' "$FFMPEG_SHA256" "$FFMPEG_ARCHIVE" | sha256sum --check --strict -
-
-          mkdir -p ffmpeg_tmp
-          tar -xf "$FFMPEG_ARCHIVE" -C ffmpeg_tmp
-          FFMPEG_BIN=$(find ffmpeg_tmp -maxdepth 3 -name "ffmpeg" -type f | head -1)
-          if [ -z "$FFMPEG_BIN" ]; then
-            echo "ERROR: ffmpeg binary not found in archive"
-            exit 1
-          fi
-          mkdir -p src-tauri/binaries
-          cp "$FFMPEG_BIN" src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
-          chmod +x src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
-          echo "FFmpeg placed at src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu"
 
       - name: Build Tauri app
         run: npm run build
@@ -434,12 +330,11 @@ jobs:
           cp "${appimages[@]}" installers/
           cp "${rpm_installers[@]}" installers/
 
-          # Portable standalone binary (tar.gz with ffmpeg sidecar)
+          # Portable app. FFmpeg is detected separately from the system PATH.
           mkdir -p _portable/Flowtake
           cp src-tauri/target/release/flowtake _portable/Flowtake/flowtake
           chmod +x _portable/Flowtake/flowtake
-          cp src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu _portable/Flowtake/ffmpeg
-          chmod +x _portable/Flowtake/ffmpeg
+          cp src-tauri/resources/THIRD_PARTY_NOTICES.txt _portable/Flowtake/
           tar -czf installers/Flowtake-linux-x64-portable.tar.gz -C _portable Flowtake
           test -s installers/Flowtake-linux-x64-portable.tar.gz
 
@@ -495,53 +390,10 @@ jobs:
       - name: Build universal native macOS capture helper
         run: bash scripts/build-macos-capture.sh --universal
 
-      - name: Download FFmpeg (macOS)
+      - name: Install and probe the system FFmpeg dependency
         run: |
-          set -euo pipefail
-
-          # eugeneware/ffmpeg-static immutable b6.0 release assets.
-          FFMPEG_ARM64_URL="https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-arm64.gz"
-          FFMPEG_ARM64_SHA256="6be74d6f449889c2e87a75873894f8520cad56c08ac76f2a628d85b0519daaca"
-          FFMPEG_X64_URL="https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-darwin-x64.gz"
-          FFMPEG_X64_SHA256="a12354fce7eb62361473bbe10d53a1893695babd35869ec8e92e5dfea8d0440b"
-
-          mkdir -p src-tauri/binaries
-
-          # Download FFmpeg for macOS arm64
-          echo "Downloading pinned FFmpeg for macOS arm64..."
-          curl --fail --location --show-error --silent \
-            "$FFMPEG_ARM64_URL" \
-            --output ffmpeg-arm64.gz
-
-          # Download FFmpeg for macOS x86_64
-          echo "Downloading pinned FFmpeg for macOS x86_64..."
-          curl --fail --location --show-error --silent \
-            "$FFMPEG_X64_URL" \
-            --output ffmpeg-x64.gz
-
-          printf '%s  %s\n%s  %s\n' \
-            "$FFMPEG_ARM64_SHA256" ffmpeg-arm64.gz \
-            "$FFMPEG_X64_SHA256" ffmpeg-x64.gz \
-            | shasum -a 256 --check
-
-          gunzip -f ffmpeg-arm64.gz
-          chmod +x ffmpeg-arm64
-          gunzip -f ffmpeg-x64.gz
-          chmod +x ffmpeg-x64
-
-          # Create universal fat binary with lipo (required for --target universal-apple-darwin)
-          echo "Creating universal FFmpeg binary with lipo..."
-          lipo -create -output src-tauri/binaries/ffmpeg-universal-apple-darwin \
-            ffmpeg-arm64 ffmpeg-x64
-          chmod +x src-tauri/binaries/ffmpeg-universal-apple-darwin
-
-          # Also place per-arch copies (needed for per-arch compilation steps)
-          cp ffmpeg-arm64 src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          cp ffmpeg-x64 src-tauri/binaries/ffmpeg-x86_64-apple-darwin
-          chmod +x src-tauri/binaries/ffmpeg-aarch64-apple-darwin
-          chmod +x src-tauri/binaries/ffmpeg-x86_64-apple-darwin
-
-          echo "FFmpeg binaries ready (universal + per-arch)"
+          brew install ffmpeg
+          ffmpeg -hide_banner -version | grep -q '^ffmpeg version'
 
       - name: Build Tauri app (universal macOS)
         run: npm run build -- --target universal-apple-darwin
@@ -574,6 +426,10 @@ jobs:
             echo "ERROR: Flowtake.app is missing the executable ScreenCaptureKit helper" >&2
             exit 1
           fi
+          if [ -e "$APP_PATH/Contents/MacOS/ffmpeg" ]; then
+            echo "ERROR: macOS package must not redistribute an FFmpeg executable" >&2
+            exit 1
+          fi
           file "$MAC_CAPTURE_HELPER" | grep -q "arm64"
           file "$MAC_CAPTURE_HELPER" | grep -q "x86_64"
           "$MAC_CAPTURE_HELPER" capabilities | grep -q '"captureEngine":"ScreenCaptureKit"'
@@ -603,7 +459,7 @@ jobs:
     needs: [validate_release, release_quality_gate, build-windows, build-linux, build-macos]
     if: always() && needs.release_quality_gate.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' && needs.build-macos.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: write
 
@@ -687,6 +543,7 @@ jobs:
           require_non_empty "Linux AppImage" artifacts/linux-installers/*.AppImage
           require_non_empty "Linux RPM package" artifacts/linux-installers/*.rpm
           require_non_empty "Linux portable archive" artifacts/linux-installers/Flowtake-linux-x64-portable.tar.gz
+          require_non_empty "Third-party notices" src-tauri/resources/THIRD_PARTY_NOTICES.txt
 
       - name: Stage flat release assets and verify SHA-256 checksums
         shell: bash
@@ -700,6 +557,7 @@ jobs:
           mkdir release-assets
 
           release_files=(
+            src-tauri/resources/THIRD_PARTY_NOTICES.txt
             artifacts/windows-installers/*.exe
             artifacts/windows-installers/*.msi
             artifacts/windows-installers/Flowtake-windows-x64-portable.zip
@@ -740,7 +598,7 @@ jobs:
           cat > /tmp/release_body.md << EOF
           ## Flowtake ${TAG}
 
-          **Free, MIT-licensed screen recorder and timeline editor with automatic zoom.** Windows 10/11 x64 is the primary validated target; macOS and Linux builds are previews.
+          **Free screen recorder and timeline editor with automatic zoom.** Flowtake application code is MIT-licensed. Release packages do not redistribute FFmpeg; Flowtake detects a separately installed system FFmpeg and the first-launch setup explains how to add it. Windows 10/11 x64 is the primary validated target; macOS and Linux builds are previews.
 
           > **Verify before installing:** use only the official assets below and check them against \`SHA256SUMS.txt\`. Windows artifacts are not Authenticode-signed. macOS artifacts are ad-hoc signed, not Developer ID signed or notarized, so SmartScreen or Gatekeeper may warn.
 
@@ -767,13 +625,16 @@ jobs:
           #### Windows
           1. Download the \`.exe\` installer
           2. Run it and follow the on-screen prompts
-          3. FFmpeg is bundled — no extra dependencies needed
+          3. Let first-launch setup detect FFmpeg, or install it with:
+             \`\`\`powershell
+             winget install --id Gyan.FFmpeg --exact --source winget
+             \`\`\`
 
           #### macOS
           1. Download the \`.dmg\` file
           2. Open the disk image and drag **Flowtake** into your Applications folder
           3. Verify \`SHA256SUMS.txt\`, then right-click the app → **Open** if macOS shows the expected unverified-developer warning
-          4. FFmpeg is bundled — no extra dependencies needed
+          4. Install a compatible system FFmpeg if needed. With Homebrew: \`brew install ffmpeg\`
 
           #### Linux
           - **Debian/Ubuntu** (\`.deb\`):
@@ -783,6 +644,7 @@ jobs:
             \`\`\`
           - **AppImage** (universal):
             \`\`\`bash
+            sudo apt-get install ffmpeg
             chmod +x Flowtake_*.AppImage
             ./Flowtake_*.AppImage
             \`\`\`

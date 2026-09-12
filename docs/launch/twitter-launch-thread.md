@@ -1,13 +1,13 @@
 # X / Twitter launch thread draft
 
-> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
-> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.1. Publish only after the
+> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 ## Post 1 — introduction
 
 ```text
-Meet Flowtake: a free, MIT-licensed desktop screen recorder and timeline editor.
+Meet Flowtake: a free desktop screen recorder and timeline editor with MIT-licensed application code.
 
 Capture a display, window, or area, then turn cursor activity into editable zoom and pan motion.
 
@@ -67,6 +67,8 @@ The MCP is currently a developer integration: clone the source, install dependen
 
 ```text
 Windows is Flowtake's primary development target. macOS and Linux builds are previews; Linux capture requires X11 or XWayland rather than pure Wayland.
+
+Flowtake packages do not include an FFmpeg executable. Install a compatible system FFmpeg separately before recording or exporting.
 
 Download, source, and issue tracker:
 github.com/JNX03/Flowtake

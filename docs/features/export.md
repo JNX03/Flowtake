@@ -1,6 +1,9 @@
 # Export
 
-Flowtake's render worker composites edited frames with Pixi.js, then Mediabunny encodes the video as H.264/MP4 or VP9/WebM. When enabled audio is present, the bundled FFmpeg sidecar builds the timeline-aware mix and muxes it without re-encoding the video. Rust copies the completed file into the Flowtake export folder.
+Flowtake's render worker composites edited frames with Pixi.js, then Mediabunny encodes the video as H.264/MP4 or VP9/WebM. When enabled audio is present, the separately installed system FFmpeg builds the timeline-aware mix and muxes it without re-encoding the video. Rust copies the completed file into the Flowtake export folder.
+
+Flowtake packages do not include an FFmpeg executable. Install FFmpeg
+separately and keep the `ffmpeg` command on `PATH` before opening Flowtake.
 
 <!-- <img src="../screenshots/exporter.png" alt="Flowtake Exporter" width="600"> -->
 

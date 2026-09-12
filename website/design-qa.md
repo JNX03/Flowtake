@@ -64,7 +64,7 @@ The independent review raised the small-print contrast token from `#777482` to `
 ## Intentional truth-preserving differences
 
 - The source's `Watch the 42-second demo` control is implemented as `View the 42-second demo plan` until real isolated-session footage exists.
-- The site is configured for the release-gated v1.7.0 page and checksum link instead of implying that a concept frame is recorded product footage. Pages must remain blocked until that exact release exists.
+- The site is configured for the release-gated v1.7.1 page and checksum link instead of implying that a concept frame is recorded product footage. Pages must remain blocked until that exact release exists.
 - Every generated product scene is labeled as a concept illustration, not customer work or a finished video.
 
 ## Remaining P3 follow-up

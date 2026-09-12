@@ -19,7 +19,7 @@ repository and install its npm dependencies as shown below.
 From the Flowtake repository:
 
 ```powershell
-npm install
+npm ci
 npm run mcp
 ```
 

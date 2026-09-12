@@ -21,6 +21,22 @@ Available installer formats:
 | **Storage** | 200 MB | 500 MB (for projects) |
 | **GPU** | Any | Hardware-accelerated GPU for smooth preview |
 
+Windows 10/11 x64 is the primary validated target. macOS and Linux packages
+are previews, and pure Wayland screen capture is not currently supported.
+
+## Required FFmpeg Setup
+
+Flowtake release packages do not include FFmpeg. Install a compatible system
+FFmpeg before opening Flowtake; the first-launch readiness screen checks it and
+keeps recording and media-processing options off until it is available.
+
+- **Windows:** `winget install --id Gyan.FFmpeg --exact --source winget`
+- **macOS:** `brew install ffmpeg`
+- **Debian/Ubuntu:** `sudo apt-get install ffmpeg`
+- **Other Linux distributions:** install `ffmpeg` with the distribution package manager
+
+Restart Flowtake after installation so it can discover the `ffmpeg` command.
+
 ## Windows Installation
 
 Install the published [WinGet package](https://github.com/microsoft/winget-pkgs/tree/master/manifests/j/JNX03/Flowtake/1.6.0):
@@ -41,7 +57,8 @@ Alternatively:
 
 1. Download the `.dmg` file
 2. Open the DMG and drag Flowtake to your Applications folder
-3. On first launch, right-click the app and choose **Open** to bypass Gatekeeper
+3. Verify the downloaded checksum, then right-click the app and choose **Open**
+   if macOS shows the expected unverified-developer warning
 
 ## Uninstall
 

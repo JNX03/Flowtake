@@ -1,0 +1,14 @@
+Flowtake third-party notices
+============================
+
+Flowtake application code is licensed under the MIT License. See the Flowtake
+LICENSE file for those terms.
+
+Flowtake release packages do not contain or redistribute an FFmpeg executable
+or FFmpeg libraries. Recording and audio/video processing use a compatible
+FFmpeg command-line program installed separately by the user or operating-system
+package manager. That separate program remains under its own license; Flowtake's
+MIT License does not replace or modify FFmpeg's license.
+
+FFmpeg licensing information and source access are maintained by the FFmpeg
+project at https://ffmpeg.org/legal.html and https://ffmpeg.org/download.html.
