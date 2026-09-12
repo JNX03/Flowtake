@@ -47,6 +47,17 @@ test("Linux packaging CI builds, lints, and launches the real AppImage", () => {
     assert.match(commands, /Xvfb :99/)
     assert.match(commands, /xdotool search --name Flowtake/)
     assert.match(commands, /AppImage exited before showing a Flowtake window/)
+    assert.match(commands, /ffmpeg_max_attempts=4/)
+    assert.match(commands, /for attempt in \$\(seq 1 "\$ffmpeg_max_attempts"\)/)
+    assert.match(commands, /rm -f -- "\$ffmpeg_archive"/)
+    assert.match(commands, /flowtake_attempt=\$\{GITHUB_RUN_ATTEMPT:-0\}-\$\{attempt\}/)
+    assert.match(commands, /if \[\[ "\$actual_sha256" == "\$ffmpeg_sha256" \]\]/)
+    assert.match(commands, /if \[\[ "\$ffmpeg_verified" != 1 \]\]/)
+    assert.ok(
+        commands.indexOf('if [[ "$ffmpeg_verified" != 1 ]]') <
+            commands.indexOf('tar -xf "$ffmpeg_archive"'),
+        "AppImage FFmpeg extraction must stay behind the bounded digest retry gate"
+    )
 })
 
 test("release publication rejects an AppImage that fails metadata validation", () => {

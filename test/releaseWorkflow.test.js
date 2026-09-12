@@ -226,8 +226,19 @@ test("release FFmpeg archives are immutable and verified before extraction", () 
     assert.ok(windowsVerify >= 0 && windowsVerify < windowsExtract)
 
     const linuxVerify = workflow.indexOf("sha256sum --check --strict -")
-    const linuxExtract = workflow.indexOf("tar -xf ffmpeg.tar.xz")
+    const linuxExtract = workflow.indexOf('tar -xf "$FFMPEG_ARCHIVE"')
     assert.ok(linuxVerify >= 0 && linuxVerify < linuxExtract)
+
+    assert.match(workflow, /FFMPEG_MAX_ATTEMPTS=4/)
+    assert.match(workflow, /for attempt in \$\(seq 1 "\$FFMPEG_MAX_ATTEMPTS"\)/)
+    assert.match(workflow, /rm -f -- "\$FFMPEG_ARCHIVE"/)
+    assert.match(workflow, /flowtake_attempt=\$\{GITHUB_RUN_ATTEMPT:-0\}-\$\{attempt\}/)
+    assert.match(workflow, /if \[\[ "\$actual_sha256" == "\$FFMPEG_SHA256" \]\]/)
+    assert.match(workflow, /if \[\[ "\$ffmpeg_verified" != 1 \]\]/)
+    assert.ok(
+        workflow.indexOf('if [[ "$ffmpeg_verified" != 1 ]]') < linuxExtract,
+        "Linux FFmpeg extraction must stay behind the bounded digest retry gate"
+    )
 
     const macVerify = workflow.indexOf("shasum -a 256 --check")
     const macExtract = workflow.indexOf("gunzip -f ffmpeg-arm64.gz")

@@ -87,18 +87,53 @@ jobs:
           set -euo pipefail
           ffmpeg_url="https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz"
           ffmpeg_sha256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
+          ffmpeg_archive="ffmpeg.tar.xz"
+          ffmpeg_max_attempts=4
 
-          # This host intermittently answers with 415/5xx. Retry every failure
-          # class with backoff; the pinned SHA-256 below still gates the result,
-          # so a retry can never smuggle in a different artifact.
-          curl --fail --location --show-error --silent \
-            --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
-            "$ffmpeg_url" \
-            --output ffmpeg.tar.xz
-          printf '%s  %s\n' "$ffmpeg_sha256" ffmpeg.tar.xz | sha256sum --check --strict -
+          # Retry the full download + digest transaction because this host can
+          # occasionally return a bad HTTP-200 cache payload. Never extract a
+          # response unless it matches the immutable pinned SHA-256.
+          ffmpeg_verified=0
+          for attempt in $(seq 1 "$ffmpeg_max_attempts"); do
+            rm -f -- "$ffmpeg_archive"
+            attempt_url="${ffmpeg_url}?flowtake_run=${GITHUB_RUN_ID:-local}&flowtake_attempt=${GITHUB_RUN_ATTEMPT:-0}-${attempt}"
+            echo "FFmpeg download attempt ${attempt}/${ffmpeg_max_attempts}"
+
+            if response_meta="$(curl --fail --location --show-error --silent \
+              --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
+              --proto '=https' --tlsv1.2 \
+              --user-agent "Flowtake-appimage/${GITHUB_RUN_ID:-local}" \
+              --header 'Accept: application/octet-stream' \
+              --header 'Cache-Control: no-cache' \
+              --write-out 'HTTP %{http_code}; type %{content_type}; downloaded %{size_download} bytes' \
+              "$attempt_url" \
+              --output "$ffmpeg_archive")"; then
+              actual_sha256="$(sha256sum "$ffmpeg_archive" | cut -d ' ' -f 1)"
+              archive_bytes="$(wc -c < "$ffmpeg_archive" | tr -d '[:space:]')"
+              echo "${response_meta}; stored ${archive_bytes} bytes; SHA-256 ${actual_sha256}"
+              if [[ "$actual_sha256" == "$ffmpeg_sha256" ]]; then
+                ffmpeg_verified=1
+                break
+              fi
+              echo "::warning::Rejected FFmpeg payload on attempt ${attempt}: SHA-256 ${actual_sha256}"
+            else
+              echo "::warning::FFmpeg download attempt ${attempt} failed before verification"
+            fi
+
+            rm -f -- "$ffmpeg_archive"
+            if (( attempt < ffmpeg_max_attempts )); then
+              sleep $((attempt * 5))
+            fi
+          done
+
+          if [[ "$ffmpeg_verified" != 1 ]]; then
+            echo "ERROR: unable to download the pinned FFmpeg archive with the expected SHA-256" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$ffmpeg_sha256" "$ffmpeg_archive" | sha256sum --check --strict -
 
           mkdir -p ffmpeg_tmp src-tauri/binaries
-          tar -xf ffmpeg.tar.xz -C ffmpeg_tmp
+          tar -xf "$ffmpeg_archive" -C ffmpeg_tmp
           ffmpeg_bin="$(find ffmpeg_tmp -maxdepth 3 -name ffmpeg -type f -print -quit)"
           test -n "$ffmpeg_bin"
           install -m 755 "$ffmpeg_bin" src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
