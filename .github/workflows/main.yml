@@ -705,7 +705,9 @@ jobs:
           cat > /tmp/release_body.md << EOF
           ## Flowtake ${TAG}
 
-          **Screen recorder with automatic zoom animations** — available for Windows, macOS, and Linux.
+          **Free, MIT-licensed screen recorder and timeline editor with automatic zoom.** Windows 10/11 x64 is the primary validated target; macOS and Linux builds are previews.
+
+          > **Verify before installing:** use only the official assets below and check them against \`SHA256SUMS.txt\`. Windows artifacts are not Authenticode-signed. macOS artifacts are ad-hoc signed, not Developer ID signed or notarized, so SmartScreen or Gatekeeper may warn.
 
           ---
 
@@ -718,7 +720,7 @@ jobs:
           | **Windows** (x64) | \`-portable.zip\` | No install needed — extract and run |
           | **macOS** (Universal) | \`.dmg\` | Runs natively on Apple Silicon & Intel |
           | **macOS** (Universal) | \`.zip\` | Portable — extract Flowtake.app directly |
-          | **Linux** (x64) | \`.AppImage\` | Portable — works on any Linux distro |
+          | **Linux** (x64) | \`.AppImage\` | Portable preview for compatible X11 or XWayland systems |
           | **Linux** (x64) | \`.deb\` | Debian, Ubuntu, and derivatives |
           | **Linux** (x64) | \`.rpm\` | Fedora, RHEL, openSUSE, and derivatives |
           | **Linux** (x64) | \`-portable.tar.gz\` | No install needed — extract and run |
@@ -735,7 +737,7 @@ jobs:
           #### macOS
           1. Download the \`.dmg\` file
           2. Open the disk image and drag **Flowtake** into your Applications folder
-          3. On first launch, right-click the app → **Open** if macOS shows an unverified developer warning
+          3. Verify \`SHA256SUMS.txt\`, then right-click the app → **Open** if macOS shows the expected unverified-developer warning
           4. FFmpeg is bundled — no extra dependencies needed
 
           #### Linux
@@ -754,7 +756,7 @@ jobs:
             sudo rpm -i flowtake-*.rpm
             \`\`\`
 
-          > **Linux note:** The \`.deb\` and \`.rpm\` packages declare ffmpeg, xdotool, and wmctrl as dependencies — your package manager will install them automatically.
+          > **Linux note:** The \`.deb\` and \`.rpm\` packages declare ffmpeg, xdotool, and wmctrl as dependencies. Screen capture requires X11 or XWayland; pure Wayland capture is not supported.
 
           ---
 
