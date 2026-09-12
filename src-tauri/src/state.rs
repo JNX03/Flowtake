@@ -119,6 +119,9 @@ pub struct AppState {
     /// Serializes stop/reset/cancel against a capture process that is still
     /// crossing the spawn boundary.
     pub recording_stop_in_progress: bool,
+    /// A forced encoder stop requires an explicit Retry and a repaired media
+    /// copy before the retained recording can be packaged.
+    pub recording_needs_recovery: bool,
     pub ffmpeg_child_id: Option<u32>,
     pub ffmpeg_child: Option<CommandChild>,
     pub mouse_tracker: MouseTracker,
@@ -281,6 +284,7 @@ impl AppState {
             recording_init_in_progress: false,
             recording_capture_claimed: false,
             recording_stop_in_progress: false,
+            recording_needs_recovery: false,
             ffmpeg_child_id: None,
             ffmpeg_child: None,
             mouse_tracker: MouseTracker::new(),

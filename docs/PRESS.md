@@ -1,6 +1,6 @@
-# Flowtake press kit — v1.7.1
+# Flowtake press kit — v1.7.2
 
-Last factual review: September 12, 2026, against Flowtake v1.7.1.
+Last factual review: September 12, 2026, against Flowtake v1.7.2.
 
 The repository-root [press kit](../PRESS.md) remains the canonical source for
 release facts and publication gates.
@@ -17,9 +17,9 @@ into editable zoom and pan motion. Its timeline supports trimming, splitting,
 cursor effects, masks, backgrounds, overlays, audio, and subtitles. Windows is
 the primary development target; macOS and Linux builds are previews.
 
-## v1.7.1 highlights
+## v1.7.2 highlights
 
-Flowtake v1.7.1 adds:
+Flowtake v1.7.2 includes:
 
 - adaptive preview and camera-capture profiles for constrained hardware, while
   leaving screen-capture source and selected export dimensions unchanged;

@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 
-const RELEASE_VERSION = "1.7.1";
+const RELEASE_VERSION = "1.7.2";
 const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
 const DOWNLOAD_URL = "https://github.com/JNX03/Flowtake/releases/latest";
 const REPOSITORY_URL = "https://github.com/JNX03/Flowtake";

@@ -1,7 +1,7 @@
 # Product Hunt launch draft
 
-> **Draft only — not posted.** This copy targets v1.7.1. Use it only after the
-> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.2. Use it only after the
+> exact v1.7.2 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 ## Name
