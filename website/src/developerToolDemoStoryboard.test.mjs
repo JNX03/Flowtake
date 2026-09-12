@@ -65,7 +65,6 @@ test("storyboard copying, blocked fallback, and Escape focus work as promised", 
   const brief = createNode({ value: "Public project URL:\nAudience:" });
   const documentListeners = new Map();
   const windowListeners = new Map();
-  const eventNames = [];
   const clipboardWrites = [];
   let blockClipboard = false;
 
@@ -108,10 +107,7 @@ test("storyboard copying, blocked fallback, and Escape focus work as promised", 
         },
       },
     }),
-    replaceGlobal("fetch", async (_url, options) => {
-      eventNames.push(JSON.parse(options.body).name);
-      return { ok: true };
-    }),
+    replaceGlobal("fetch", async () => assert.fail("the static demo kit must not send analytics or copied text")),
   ];
 
   try {
@@ -123,7 +119,7 @@ test("storyboard copying, blocked fallback, and Escape focus work as promised", 
     await flushAsyncWork();
     assert.equal(clipboardWrites[0], templateMatch[1]);
     assert.equal(templateCopyStatus.textContent, "Six-beat template copied. Replace every bracketed field before using it.");
-    assert.equal(eventNames.filter((name) => name === "brief_copied").length, 1);
+    assert.equal(templateCopyButton.focusCount, 1);
 
     blockClipboard = true;
     briefCopyButton.emit("click");
@@ -131,7 +127,6 @@ test("storyboard copying, blocked fallback, and Escape focus work as promised", 
     assert.equal(brief.focusCount, 1);
     assert.equal(brief.selectCount, 1);
     assert.equal(briefCopyStatus.textContent, "Copy was blocked. The brief is selected; use your device's copy command.");
-    assert.equal(eventNames.filter((name) => name === "brief_copied").length, 1, "blocked copies must not be counted");
 
     menuButton.emit("click");
     assert.equal(menuButton.getAttribute("aria-expanded"), "true");
@@ -146,4 +141,13 @@ test("storyboard copying, blocked fallback, and Escape focus work as promised", 
   } finally {
     for (const restore of restores.reverse()) restore();
   }
+});
+
+test("the demo-kit runtime is clipboard-only and contains no intake or analytics client", async () => {
+  const source = await readFile(new URL("./developerToolDemoStoryboard.main.js", import.meta.url), "utf8");
+  for (const prohibited of ["sendEvent", "fetch(", "/v1/leads", "/v1/events", "data-track"]) {
+    assert.equal(source.includes(prohibited), false, `unexpected network funnel token: ${prohibited}`);
+  }
+  assert.equal(source.includes("navigator.clipboard.writeText"), true);
+  assert.equal(source.includes('document.execCommand("copy") === true'), true);
 });

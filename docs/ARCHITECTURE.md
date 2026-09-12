@@ -47,7 +47,7 @@ flowtake/
 | Animation engine | Pixi.js 8 |
 | Styling | TailwindCSS 4 + DaisyUI 5 |
 | Build tool | Vite 7 |
-| Edited MP4 encoding | Mediabunny encodes and muxes AVC MP4; FFmpeg remains bundled for capture and native media utilities |
+| Edited export | Mediabunny encodes H.264/MP4 or VP9/WebM video; FFmpeg mixes and muxes enabled recorded/timeline audio when present |
 
 ## Multi-Window Architecture
 
@@ -76,4 +76,4 @@ The main window entry point is `index.html` at the project root. Other windows u
 
 1. **Recording**: Rust coordinates capture. On macOS 12.3+, the Swift ScreenCaptureKit helper writes the selected screen, window, or area through the native H.264 stack at a fixed 30/60 fps cadence; it handshakes before recording starts and closes its recording file before Rust validates it. FFmpeg/AVFoundation remains the compatibility fallback. Other platforms use their FFmpeg capture paths, while camera and microphone sources use the device-media path.
 2. **Preview**: Browser video elements decode recorded media, `PreviewWorkerManager` transfers `VideoFrame` objects, and the Pixi.js preview worker composites animations. Preview-only screen textures are bounded to 1280×720 and animation time is published at display cadence; source dimensions remain authoritative for coordinates and export.
-3. **Export**: Render Workers composite frames with Pixi.js, Mediabunny encodes and muxes the AVC MP4, and Rust copies `output.mp4` to the export folder
+3. **Export**: Render Workers composite frames with Pixi.js, Mediabunny encodes H.264/MP4 or VP9/WebM video, FFmpeg optionally mixes and muxes recorded/timeline audio, and Rust copies the completed file to the export folder

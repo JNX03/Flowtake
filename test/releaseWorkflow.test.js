@@ -292,5 +292,8 @@ test("Pages deployment waits for the matching hardened release", () => {
     assert.match(pagesWorkflow, /Require the matching hardened release and checksums/)
     assert.match(pagesWorkflow, /releases\/latest/)
     assert.match(pagesWorkflow, /actual_tag.*expected_tag/)
+    assert.match(pagesWorkflow, /fetch-depth: 0/)
+    assert.match(pagesWorkflow, /git rev-list -n 1 "refs\/tags\/\$expected_tag"/)
+    assert.match(pagesWorkflow, /release_commit.*GITHUB_SHA/)
     assert.match(pagesWorkflow, /SHA256SUMS\.txt/)
 })

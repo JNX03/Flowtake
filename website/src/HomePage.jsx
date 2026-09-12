@@ -11,16 +11,14 @@ import {
   WindowIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { useEffect, useRef, useState } from "react";
-import { BriefDialog } from "./BriefDialog.jsx";
-import { sendEvent } from "./intake.js";
+import { useEffect, useState } from "react";
 
-const CONTACT_EMAIL = "jnxstartup@gmail.com";
 const RELEASE_VERSION = "1.6.0";
 const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
 const DOWNLOAD_URL = "https://github.com/JNX03/Flowtake/releases/latest";
 const REPOSITORY_URL = "https://github.com/JNX03/Flowtake";
-const PUBLIC_STORYBOARD_URL = "https://github.com/JNX03/Flowtake/discussions/169";
+const CONTRIBUTING_URL = `${REPOSITORY_URL}/blob/main/CONTRIBUTING.md`;
+const SECURITY_URL = `${REPOSITORY_URL}/blob/main/SECURITY.md`;
 const assetUrl = (name) => `${import.meta.env.BASE_URL}assets/${name}`;
 
 const productFeatures = [
@@ -41,9 +39,9 @@ const productFeatures = [
   {
     number: "03",
     title: "Export locally.",
-    body: "Export a local AVC MP4. Mediabunny handles video encoding on your machine; the current edited export is video-only.",
+    body: "Current source builds export H.264/MP4 or VP9/WebM locally. Mediabunny encodes the video on your device. Recorded and timeline audio are mixed into the exported file when present and enabled.",
     image: "marketing/local-export.webp",
-    alt: "Abstract illustration of a local MP4 export file",
+    alt: "Abstract illustration of a local video export file",
   },
 ];
 
@@ -70,18 +68,18 @@ const productFacts = [
   },
 ];
 
-const deliverables = [
-  "Four 30–90 second release demos each paid month",
-  "One 16:9 master and one social cutdown per demo",
-  "Captions, cursor treatment, and scene cleanup",
-  "Private review and one focused revision",
+const communityKit = [
+  "A copyable six-beat storyboard for one real workflow",
+  "A safe-capture checklist for public or synthetic demo data",
+  "A maintainer brief that stays in your browser until you copy it",
+  "Open contribution paths for fixes, examples, and documentation",
 ];
 
 const faqs = [
   {
     question: "Is Flowtake really free?",
     answer:
-      "Yes. The published recorder and editor are free and MIT-licensed. Release Studio is optional human production help; it does not remove features from the open-source app.",
+      "Yes. The published recorder and editor are free and MIT-licensed. Flowtake has no paid app tier, paid studio mode, or export paywall.",
   },
   {
     question: "What can I record?",
@@ -91,7 +89,7 @@ const faqs = [
   {
     question: "Where do projects and exports go?",
     answer:
-      "Ordinary projects and MP4 exports stay on your machine. Flowtake is local-first, not fully offline: update checks and any explicitly networked feature still use the network.",
+      "In current source builds, ordinary projects and MP4 or WebM exports stay on your machine. Flowtake is local-first, not fully offline: update checks and any explicitly networked feature still use the network.",
   },
   {
     question: "Does it work on macOS or Linux?",
@@ -99,31 +97,14 @@ const faqs = [
       "Preview builds are published for macOS and Linux. macOS is ad-hoc signed but not notarized, and pure Wayland capture is unsupported. Windows is the primary validated platform today.",
   },
   {
-    question: "What is Release Studio?",
+    question: "What is the community demo kit?",
     answer:
-      "It is an optional $99/month founding service for teams that want four short release-demo packages, each with a 16:9 master, a social cutdown, private review, and one focused revision. Scope is confirmed in writing before checkout.",
+      "It is a free six-beat storyboard, copyable maintainer brief, and safe-capture checklist. Nothing is submitted to Flowtake when you use or copy the kit; contribute improvements through the public GitHub repository after removing private data.",
   },
 ];
 
-function track(name) {
-  void sendEvent(name);
-}
-
 export function HomePage() {
-  const [briefOpen, setBriefOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const briefTriggerRef = useRef(null);
-
-  const openBrief = (trigger) => {
-    track("brief_opened");
-    briefTriggerRef.current = trigger instanceof HTMLElement ? trigger : document.activeElement;
-    setMobileOpen(false);
-    setBriefOpen(true);
-  };
-
-  useEffect(() => {
-    track("page_viewed");
-  }, []);
 
   useEffect(() => {
     if (!mobileOpen) return undefined;
@@ -134,15 +115,13 @@ export function HomePage() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [mobileOpen]);
 
-  const backgroundState = briefOpen ? { inert: true, "aria-hidden": "true" } : {};
-
   return (
     <div className="site-shell home-page">
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
 
-      <header className="home-header" {...backgroundState}>
+      <header className="home-header">
         <a className="home-brand" href="#top" aria-label="Flowtake home">
           <img src={assetUrl("logo.svg")} alt="" />
           <span>Flowtake</span>
@@ -152,7 +131,7 @@ export function HomePage() {
           <a href="#product">Product</a>
           <a href="#demo">Demo</a>
           <a href="#open-source">Open source</a>
-          <a href="#founding-plan">Release Studio</a>
+          <a href="#community">Community kit</a>
           <a href="#faq">FAQ</a>
         </nav>
 
@@ -162,7 +141,6 @@ export function HomePage() {
             href={REPOSITORY_URL}
             target="_blank"
             rel="noreferrer"
-            onClick={() => track("github_clicked")}
           >
             GitHub
           </a>
@@ -171,7 +149,6 @@ export function HomePage() {
             href={DOWNLOAD_URL}
             target="_blank"
             rel="noreferrer"
-            onClick={() => track("download_clicked")}
           >
             Download free
           </a>
@@ -192,15 +169,15 @@ export function HomePage() {
             <a href="#product" onClick={() => setMobileOpen(false)}>Product</a>
             <a href="#demo" onClick={() => setMobileOpen(false)}>Demo</a>
             <a href="#open-source" onClick={() => setMobileOpen(false)}>Open source</a>
-            <a href="#founding-plan" onClick={() => setMobileOpen(false)}>Release Studio</a>
+            <a href="#community" onClick={() => setMobileOpen(false)}>Community kit</a>
             <a href="#faq" onClick={() => setMobileOpen(false)}>FAQ</a>
-            <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
+            <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">GitHub</a>
             <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download current release</a>
           </nav>
         )}
       </header>
 
-      <main id="main-content" {...backgroundState}>
+      <main id="main-content">
         <section className="home-hero home-section" id="top">
           <div className="home-hero-copy">
             <p className="home-chip">Free MIT-licensed desktop app</p>
@@ -209,7 +186,7 @@ export function HomePage() {
               <span>Show what <em>changed.</em></span>
             </h1>
             <p className="home-hero-lede">
-              Capture an IDE, terminal, browser, or desktop source. Edit the take on a timeline, add captions or redaction, and export a local MP4.
+              Capture an IDE, terminal, browser, or desktop source. Current source builds let you edit the take on a timeline, add captions or redaction, and export MP4 or WebM locally.
             </p>
             <div className="home-hero-actions">
               <a
@@ -217,7 +194,6 @@ export function HomePage() {
                 href={DOWNLOAD_URL}
                 target="_blank"
                 rel="noreferrer"
-                onClick={() => track("download_clicked")}
               >
                 <ArrowDownTrayIcon aria-hidden="true" />
                 Download free
@@ -246,10 +222,10 @@ export function HomePage() {
                   <br />
                   {`v${RELEASE_VERSION}`}
                 </h2>
-                <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export.</span>
+                <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export. Current source builds ahead of v1.6.0 add WebM and conditional audio export.</span>
               </div>
             </div>
-            <a href={RELEASE_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>
+            <a href={RELEASE_URL} target="_blank" rel="noreferrer">
               Release assets and checksums <ArrowRightIcon aria-hidden="true" />
             </a>
           </aside>
@@ -287,8 +263,8 @@ export function HomePage() {
         <section className="home-product home-section" id="product" aria-labelledby="product-title">
           <header className="home-section-heading">
             <p>One take. Still editable.</p>
-            <h2 id="product-title">From raw capture to local MP4.</h2>
-            <span>Three clear steps from source selection to final MP4.</span>
+            <h2 id="product-title">From raw capture to a local export.</h2>
+            <span>Three clear steps from source selection to a final MP4 or WebM file.</span>
           </header>
 
           <ol className="home-feature-list">
@@ -332,14 +308,13 @@ export function HomePage() {
           </div>
           <div>
             <p>
-              Use, inspect, fork, and improve Flowtake. The optional production service is separate from the published application.
+              Use, inspect, fork, and improve Flowtake. The recorder, editor, export controls, and community demo kit are available without a paid tier.
             </p>
             <a
               className="home-inline-link"
               href={REPOSITORY_URL}
               target="_blank"
               rel="noreferrer"
-              onClick={() => track("github_clicked")}
             >
               View the repository <ArrowRightIcon aria-hidden="true" />
             </a>
@@ -349,69 +324,71 @@ export function HomePage() {
           </div>
         </section>
 
-        <section className="home-service home-section" id="founding-plan" aria-labelledby="service-title">
-          <div className="home-service-copy">
-            <p>Optional human production help</p>
-            <h2 id="service-title">Release Studio</h2>
-            <span>For teams that want finished release-demo assets without another editing queue.</span>
+        <section className="home-community home-section" id="community" aria-labelledby="community-title">
+          <div className="home-community-copy">
+            <p>Free resources, shared in public</p>
+            <h2 id="community-title">Community demo kit</h2>
+            <span>Plan a concise product demo without submitting footage, opening an account, or entering a sales funnel.</span>
           </div>
-          <div className="home-service-price">
-            <strong>$99</strong>
-            <span>/ month · founding rate</span>
+          <div className="home-community-badge">
+            <strong>Free</strong>
+            <span>copy, adapt, and contribute</span>
           </div>
           <ul>
-            {deliverables.map((item) => (
+            {communityKit.map((item) => (
               <li key={item}><CheckIcon aria-hidden="true" /> {item}</li>
             ))}
           </ul>
-          <div className="home-service-action">
-            <button className="home-button home-button-secondary" type="button" onClick={(event) => openBrief(event.currentTarget)}>
-              Request a sample storyboard <ArrowRightIcon aria-hidden="true" />
-            </button>
+          <div className="home-community-action">
+            <a className="home-button home-button-secondary" href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}>
+              Open the free demo kit <ArrowRightIcon aria-hidden="true" />
+            </a>
+            <a className="home-inline-link" href={CONTRIBUTING_URL} target="_blank" rel="noreferrer">
+              Contribute on GitHub <ArrowRightIcon aria-hidden="true" />
+            </a>
             <p>
-              Recurring only after written scope confirmation. Cancel before renewal. No checkout or customer-file upload is open today.
+              No checkout, private upload, or lead form. GitHub issues and discussions are public, so remove credentials and private data before contributing.
             </p>
           </div>
         </section>
 
         <section className="home-trust home-section" id="trust" aria-labelledby="trust-title">
           <header className="home-section-heading home-section-heading-compact">
-            <p>Before payment or footage</p>
-            <h2 id="trust-title">The boundaries are part of the product.</h2>
+            <p>Privacy before promotion</p>
+            <h2 id="trust-title">Know what stays local—and what leaves the app.</h2>
           </header>
           <div className="home-disclosure-list">
-            <details id="service-terms">
-              <summary>Scope and delivery <ChevronDownIcon aria-hidden="true" /></summary>
-              <div>
-                <p>Four 30–90 second demos per paid month, each with one 16:9 master, one social cutdown, and one consolidated revision. The first cut is due within three business days after a usable brief and sanitized capture; the revision is due within two business days.</p>
-                <p>Source footage should be no more than 10 minutes per demo. Voiceover production, stock licensing, custom animation, and unused monthly capacity are excluded unless agreed separately.</p>
-              </div>
-            </details>
-            <details id="cancellation-policy">
-              <summary>Billing, cancellation, and refunds <ChevronDownIcon aria-hidden="true" /></summary>
-              <div>
-                <p>The founding pilot is $99 USD, recurring monthly only after written scope acceptance. Cancel before the next renewal to stop future billing; access continues through the paid period.</p>
-                <p>Work already started is normally non-refundable. If Flowtake cannot begin or meet the agreed delivery window, the affected order is refunded. Taxes and any future price change must be shown before checkout.</p>
-              </div>
-            </details>
-            <details id="data-handling">
-              <summary>Content, IP, and file handling <ChevronDownIcon aria-hidden="true" /></summary>
-              <div>
-                <p>Never submit credentials, customer data, private repositories, or production access. Customer footage is accepted only through an approved access-controlled path—not the current VPS—and working copies are deleted within 30 days after delivery unless a shorter period is agreed.</p>
-                <p>After payment, the customer owns the custom delivered master and cutdown. Flowtake retains its MIT app and pre-existing templates. Nothing enters a public portfolio without written permission.</p>
-              </div>
-            </details>
             <details id="privacy">
-              <summary>Privacy and business contact <ChevronDownIcon aria-hidden="true" /></summary>
+              <summary>Local files and explicit network features <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>Lead requests send your name, work email, company, optional public URL and target date, release story, and consent record to Flowtake's HTTPS intake service. Lead records are encrypted at rest and declined or inactive leads are deleted within 90 days.</p>
-                <p>This page sends cookie-free aggregate counts for a short allowlist of actions. The service stores only UTC day, action name, and count—not event details, page URLs, device identifiers, or form content. IP addresses are used only in server memory for abuse-rate limiting. No nonessential cookies are used.</p>
-                <p>Flowtake is operated from Thailand. Formal contracting identity and address will be disclosed before payment. Contact <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. Direct email response is still being verified; the <a href={PUBLIC_STORYBOARD_URL} target="_blank" rel="noreferrer">public storyboard clinic</a> is currently reply-capable. Thailand PDPA and customer-specific data terms will be reviewed before private footage is accepted.</p>
+                <p>In current source builds, ordinary recordings, project files, and MP4 or WebM exports stay on your device. Flowtake does not include cloud project sync.</p>
+                <p>Flowtake is local-first, not fully offline. Release checks, YouTube upload, RTMP streaming, and model-asset downloads use the network only when the related feature is used.</p>
+              </div>
+            </details>
+            <details id="website-privacy">
+              <summary>Website and demo-kit privacy <ChevronDownIcon aria-hidden="true" /></summary>
+              <div>
+                <p>This website has no sales form, checkout, customer-file upload, or Flowtake event-analytics request. Copy buttons use your browser clipboard and do not submit the copied text to Flowtake.</p>
+                <p>The site is hosted on GitHub Pages. Opening a GitHub download, issue, discussion, or repository link sends a request to GitHub under GitHub's own terms and privacy policy.</p>
+              </div>
+            </details>
+            <details id="safe-contributions">
+              <summary>Safe public contributions <ChevronDownIcon aria-hidden="true" /></summary>
+              <div>
+                <p>GitHub issues, pull requests, and discussions are public by default. Never post credentials, customer data, private repository details, production access, or unreviewed footage.</p>
+                <p>Use public fixtures or synthetic accounts for examples. Follow the private process in SECURITY.md for vulnerability reports.</p>
+              </div>
+            </details>
+            <details id="platform-limits">
+              <summary>Platform and signing limits <ChevronDownIcon aria-hidden="true" /></summary>
+              <div>
+                <p>Windows 10/11 x64 is the primary validation target. macOS and Linux builds are previews, and pure Wayland capture is unsupported.</p>
+                <p>Windows artifacts are not Authenticode-signed. macOS artifacts are ad-hoc signed, not notarized. Download only from the official GitHub release and verify published checksums.</p>
               </div>
             </details>
           </div>
           <p className="home-trust-status">
-            <LockClosedIcon aria-hidden="true" /> Checkout remains disabled until the secure review path and final contracting details are verified.
+            <LockClosedIcon aria-hidden="true" /> Sanitize every screenshot, log, browser tab, filename, and notification before sharing a demo or contribution.
           </p>
         </section>
 
@@ -441,35 +418,26 @@ export function HomePage() {
             href={DOWNLOAD_URL}
             target="_blank"
             rel="noreferrer"
-            onClick={() => track("download_clicked")}
           >
             <ArrowDownTrayIcon aria-hidden="true" /> Download free
           </a>
         </section>
       </main>
 
-      <footer className="home-footer" {...backgroundState}>
+      <footer className="home-footer">
         <div className="home-brand">
           <img src={assetUrl("logo.svg")} alt="" />
           <span>Flowtake</span>
         </div>
         <p>Free, open-source screen recorder and editor.</p>
         <nav aria-label="Footer navigation">
-          <a href={REPOSITORY_URL} target="_blank" rel="noreferrer" onClick={() => track("github_clicked")}>GitHub</a>
-          <a href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}>Storyboard guide</a>
-          <a href="#service-terms">Terms</a>
+          <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">GitHub</a>
+          <a href={`${import.meta.env.BASE_URL}developer-tool-demo-storyboard/`}>Free demo kit</a>
           <a href="#privacy">Privacy</a>
-          <a href="#cancellation-policy">Cancellation</a>
-          <a href={`mailto:${CONTACT_EMAIL}`}>Contact</a>
+          <a href={CONTRIBUTING_URL} target="_blank" rel="noreferrer">Contributing</a>
+          <a href={SECURITY_URL} target="_blank" rel="noreferrer">Security</a>
         </nav>
       </footer>
-
-      {briefOpen && (
-        <BriefDialog
-          onClose={() => setBriefOpen(false)}
-          restoreFocusTo={briefTriggerRef.current}
-        />
-      )}
     </div>
   );
 }

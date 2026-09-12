@@ -1,60 +1,36 @@
 # r/rust post draft
 
-**Subreddit**: r/rust
-**Important**: r/rust is STRICT. Low tolerance for "here's my project that happens to use Rust." You need to frame this around actual Rust content — architecture, learnings, crates, design decisions. Don't post as a pure launch.
-**Alternative timing**: Post 24-48h AFTER the initial launch wave — reframe as "things I learned building X" not "announcing X."
-
----
+> **Draft only — not posted.** Publish after the next feature release is live
+> and verified. The latest published release is currently v1.6.0 and does not
+> contain all current-source features named below.
 
 ## Title
-```
-Things I learned building a screen recorder in Rust + Tauri v2 over 2 years (Flowtake)
-```
 
-## URL
-```
-https://github.com/JNX03/Flowtake
+```text
+Flowtake: an MIT-licensed screen recorder and editor built with Tauri and Rust
 ```
 
-## Body — FRAME AS LEARNING POST, not a launch
+## Body
 
-```
-I just shipped v1.4.2 of a screen recorder I've been building in Rust + Tauri v2 for ~2 years (367 commits, MIT, cross-platform). Wanted to share some things I learned along the way that might be useful for anyone building similar native media apps in Rust.
+```text
+I've been working on Flowtake, a free desktop screen recorder and timeline editor built with Tauri, Rust, React, PixiJS, Mediabunny, and FFmpeg.
 
-**Architecture**:
-- Tauri v2 as the shell and command bus
-- `src-tauri/src/commands/` for the IPC boundary (~30 commands: start_recording, get_mouse_position, export_video, etc.)
-- `src-tauri/src/mouse_tracker.rs` spawns a dedicated OS thread for polling cursor position — can't do this from the main thread without blocking the webview, and can't do it from an async task without platform-specific issues on Windows
-- Recording loop wraps platform-specific APIs behind a trait: DXGI on Windows, ScreenCaptureKit on macOS, PipeWire via xdg-desktop-portal on Linux
-- FFmpeg as a sidecar binary, not a crate — tried `ffmpeg-next` (libav bindings) first but the build complexity and licensing mess weren't worth it. Sidecar + IPC over stdin/stdout is cleaner.
+The native side handles operating-system capture and local project/export integration, while the frontend provides the recorder and timeline UI. Flowtake can capture a display, window, or custom area, derive editable zoom and pan motion from cursor activity, and edit trims, splits, effects, masks, backgrounds, overlays, audio, and subtitles.
 
-**Things that surprised me**:
-1. **Thread-affine state is hard to avoid**. Windows DXGI has COM apartment requirements; macOS CGWindowList wants main thread. I ended up with platform-specific runners that own the recording loop and communicate via `crossbeam` channels.
-2. **`Arc<Mutex<T>>` was the right answer 90% of the time**. I kept trying to be clever with `RwLock` and channels; `Mutex` was almost always the simpler path for shared recorder state.
-3. **Tauri event bus + Redux was magic**. Emitting events from Rust to `"record_frame_captured"` and letting Redux dispatch them as actions made the state layer feel cohesive across Rust and JS.
-4. **`serde` + typed commands** saved me so many hours. The Tauri command macro `#[tauri::command]` auto-generates the TS types via `tauri-specta`, so refactoring an argument name is an atomic change across both sides.
-5. **FFmpeg sidecar output parsing is the worst**. Parsing `ffmpeg`'s stderr progress lines is fragile. I regret not shipping my own progress protocol (e.g., `-progress pipe:2`).
+The release linked here includes adaptive preview/camera-capture profiles and local H.264/MP4 or VP9/WebM export. Recorded and timeline audio can be mixed into the export when it is present and enabled. The selected export dimensions stay independent of a lighter preview profile.
 
-**Crates I lean on**:
-- `tauri` v2 + `tauri-plugin-*` (store, fs, dialog, shell, process, notification, updater)
-- `serde` + `serde_json` (obviously)
-- `crossbeam` for inter-thread channels in the recording loop
-- Platform-specific: `windows` crate for DXGI, `core-graphics` + `cocoa` for macOS, `zbus` for Linux DBus portal calls
+The repository also has a local stdio MCP for guarded AI-assisted timeline metadata edits. It reuses Flowtake's edit planner and adds dry-run, revision, closed-app, serialized-write, backup, and verification guards. It is a Node.js 20+ developer integration, not a Rust-native or bundled desktop service. It cannot inspect video or audio, render, export, upload, or operate the UI.
 
-**What's next**:
-- Wayland still has edge cases on KDE that I can't reproduce on GNOME. If anyone has a clean reference implementation, PRs welcome.
-- I want to rewrite the FFmpeg layer to use `gstreamer` for lower latency — still evaluating.
+Windows is the primary validation target. macOS and Linux builds are previews; Linux capture requires X11 or XWayland rather than pure Wayland.
 
-Full source (MIT): https://github.com/JNX03/Flowtake
+Flowtake is MIT licensed, with no paid Studio mode, app tier, or export paywall.
 
-Happy to answer specific Rust / Tauri questions — especially if you're building something similar.
+Source and verified downloads: https://github.com/JNX03/Flowtake
+Architecture feedback and reproducible platform reports are welcome.
 ```
 
----
+## Claims intentionally omitted
 
-## Pitfalls
-- DON'T frame this as "check out my project" — r/rust removes those
-- DO include 3+ concrete technical observations, not marketing
-- DON'T use screenshots or product copy in the body
-- DO link to specific files in the repo when discussing architecture
-- Expect skeptical comments about Tauri vs native Rust GUI (egui, iced, slint) — be ready to explain
+Do not add binary-size, startup-time, memory, benchmark, exact component-count,
+commit-count, API-superiority, or cross-platform parity claims without current
+reproducible evidence.

@@ -7,7 +7,7 @@
 - Browser: the user's Chrome session
 - Desktop viewport: 1440 CSS px wide; captured content area 1425 x 757 px
 - Mobile viewport: 390 x 844 CSS px; captured content area 375 x 812 px
-- State: default homepage, demo section, product section, service section, intake dialog, and mobile menu
+- State: default homepage, demo section, product section, free community-kit section, privacy disclosures, and mobile menu
 
 ## Comparison evidence
 
@@ -22,8 +22,6 @@ Supporting implementation captures:
 - `homepage-mobile.jpg`
 - `homepage-mobile-menu.jpg`
 - `product-mobile.jpg`
-- `release-studio-desktop.jpg`
-- `intake-dialog.jpg`
 - `comparison-route-mobile.jpg`
 - `storyboard-route-mobile.jpg`
 
@@ -57,10 +55,10 @@ The independent review raised the small-print contrast token from `#777482` to `
 - Spacing and layout: passed. No clipped sections, overlapping controls, or unexplained white gaps were found at desktop or 390 px mobile.
 - Color and borders: passed. The near-black canvas, soft violet surfaces, restrained borders, and muted secondary text are consistent with the source.
 - Image fidelity: passed. Generated raster assets fit their measured slots and carry explicit concept labels. No placeholder boxes, CSS drawings, or fake product screenshots are presented as evidence.
-- Copy and content: passed. The free MIT app is the primary story and CTA. The optional $99/month service appears only after product proof. Platform, signing, privacy, recurring-billing, and checkout boundaries remain visible.
+- Copy and content: updated September 12, 2026. Paid-service, checkout, and intake copy were removed. The page now presents the MIT app and free community demo kit only, while retaining platform, signing, local-first, explicit-network-feature, and public-contribution boundaries.
 - Responsiveness: passed. At 390 CSS px, `documentElement.scrollWidth` equaled its 375 px content width; there was no horizontal overflow. Hero buttons, release card, menu, and product rows remained usable.
-- Interactions: passed. A real scoped `Demo` anchor click, mobile menu open/close, Escape close, intake-dialog initial focus, focus trap, backdrop/Escape close, form labels, and focus restoration were exercised in Chrome.
-- Accessibility structure: passed for this build review. The page retains a skip link, one `h1`, sequential section headings, semantic landmarks, visible focus states, native FAQ disclosure controls, reduced-motion handling, and explicit form status/error regions.
+- Interactions: the prior `Demo` anchor and mobile menu checks remain applicable. The intake dialog no longer exists; community actions are ordinary links, and the demo-kit copy buttons retain clipboard and manual-copy fallback tests.
+- Accessibility structure: passed for the prior build review. The page retains a skip link, one `h1`, sequential section headings, semantic landmarks, visible focus states, native FAQ disclosure controls, and reduced-motion handling. Fresh browser regression is required after the September 12 messaging change.
 - Shared-route regression: passed. The Screen Studio comparison and developer-tool storyboard routes rendered at desktop and 390 px mobile with no horizontal overflow, failed images, or page-origin console warnings/errors.
 
 ## Intentional truth-preserving differences
@@ -73,4 +71,4 @@ The independent review raised the small-print contrast token from `#777482` to `
 
 - Replace the labeled concept frames with privacy-reviewed real Flowtake footage after the isolated demo-capture environment passes its release and security checks.
 
-final result: passed
+current result: automated site tests and build are required after the free-only cleanup; fresh browser visual regression remains pending

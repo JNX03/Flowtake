@@ -111,6 +111,6 @@ assets and must not be published.
 
 ## Project relationship
 
-The desktop recorder and editor in this repository are MIT licensed. Flowtake
-Release Studio, when mentioned on the project website, is a separate optional
-service and is not required to use the open-source desktop app.
+The desktop recorder, editor, export tools, and community demo kit in this
+repository are MIT licensed. Flowtake has no paid app tier, paid studio mode,
+export paywall, checkout, or private-footage intake service.

@@ -1,6 +1,6 @@
-const EXPORT_CONTEXT = /\b(?:export|exporter|output|edited|finished|final|render|writ|save|deliver|generate|download|convert|return|mp4)\w*\b/iu;
-const UNSUPPORTED_OUTPUT = /\b(?:webm|mkv|matroska|mov|quicktime|avi|gif|mpeg(?:-?ts)?|flv|m4v|ogv|av1|vp9|h265|hevc|x264|x265|nvenc|videotoolbox|aac|mp3|opus)\b/iu;
-const HUMAN_EXPORT_TERM = /\b(?:export|exporter|output|edited|finished|final|render|mp4|ffmpeg|mediabunny|audio|sound|soundtrack|narration|voiceover|format|container|codec|encoder|bitrate|profile)\w*\b/iu;
+const EXPORT_CONTEXT = /\b(?:export|exporter|output|edited|finished|final|render|writ|save|deliver|generate|download|convert|return|mp4|webm)\w*\b/iu;
+const UNSUPPORTED_OUTPUT = /\b(?:mkv|matroska|mov|quicktime|avi|gif|mpeg(?:-?ts)?|flv|m4v|ogv|av1|h265|hevc|x264|x265|nvenc|videotoolbox|mp3)\b/iu;
+const HUMAN_EXPORT_TERM = /\b(?:export|exporter|output|edited|finished|final|render|mp4|webm|ffmpeg|mediabunny|audio|sound|soundtrack|narration|voiceover|format|container|codec|encoder|bitrate|profile)\w*\b/iu;
 const POSITIVE_OUTPUT_CAPABILITY = /\b(?:exports|exporting|outputs|outputting|support|offer|provide|produce|create|encode|mux|render|write|save|deliver|generate|accept|include|allow|enable|select|choose|switch|adjust|change|let|download|convert|return|have|has|available|exportable)\w*\b/iu;
 const NEGATION = /\b(?:no|not(?!\s+only\b)|never|cannot|can't|doesn't|does\s+not|don't|do\s+not|isn't|is\s+not|aren't|are\s+not)\b/iu;
 const MAX_PUBLIC_COPY_LITERAL_LENGTH = 1000;
@@ -131,7 +131,7 @@ function claimSegments(value) {
     const lineTopics = {
       audio: audioPromptLabel || /\b(?:audio|sound|soundtrack|narration|voiceover|microphone|system\s+audio|timeline\s+audio)\b/iu.test(claimLine),
       ffmpeg: /\bffmpeg\b/iu.test(claimLine),
-      selector: /\b(?:format|container|codec|encoder|bitrate|profile|audio|selector|selection|setting|option|control)\w*\b/iu.test(claimLine),
+      selector: /\b(?:codec|encoder|bitrate|profile|hardware\s+encoder|selector|selection|setting|option|control)\w*\b/iu.test(claimLine),
       unsupportedOutput: UNSUPPORTED_OUTPUT.test(claimLine),
     };
     const lineExportContext = EXPORT_CONTEXT.test(claimLine);
@@ -162,6 +162,13 @@ function isFinalFfmpegDenied(claim) {
 }
 
 function hasExplicitRoleSeparation(claim) {
+  const scopedFfmpegAudioRole = /\bffmpeg\b.{0,160}\b(?:mix|mux|process|build)\w*.{0,100}\b(?:audio|sound|soundtrack|microphone|system\s+audio|timeline\s+audio)\b|\b(?:audio|sound|soundtrack|microphone|system\s+audio|timeline\s+audio)\b.{0,160}\bffmpeg\b.{0,100}\b(?:mix|mux|process|build)\w*/iu.test(claim);
+  const ffmpegVideoEncodingClaim = /\bffmpeg\b.{0,160}\b(?:encod|render|transcod)\w*.{0,80}\b(?:video|h264|avc|vp9|mp4|webm)\b|\b(?:video|h264|avc|vp9|mp4|webm)\b.{0,160}\b(?:encod|render|transcod)\w*.{0,80}\b(?:by|with|through|using)\s+ffmpeg\b/iu.test(claim);
+  if (
+    scopedFfmpegAudioRole
+    && (!ffmpegVideoEncodingClaim || /\bwithout\s+(?:re-)?encod\w*\s+(?:the\s+)?video\b/iu.test(claim))
+  ) return true;
+
   const hasRoleBoundary = /\bffmpeg\b.{0,100}\b(?:record|recording|capture|native\s+media\s+utilit)\w*\b/iu.test(claim)
     && /\bmediabunny\b.{0,100}\b(?:encod|mux)\w*\b.{0,100}\b(?:final|edited|export|mp4)\w*\b/iu.test(claim)
     || /\bmediabunny\b.{0,100}\b(?:encod|mux)\w*\b.{0,100}\b(?:final|edited|export|mp4)\w*\b/iu.test(claim)
@@ -196,6 +203,13 @@ function isUnsupportedOutputDenied(claim) {
     || negativeCapability.test(claim);
 }
 
+function isSupportedOutputDenied(claim) {
+  const exporterFirst = /\b(?:flowtake|app|exporter|export|output|edited|finished|final)\w*\b.{0,120}\b(?:does\s+not|doesn't|do\s+not|don't|never|cannot|can't|has\s+no)\b.{0,80}\b(?:support|offer|provide|produce|create|encode|mux|write|include|use|export|output)\w*\b.{0,80}\b(?:mp4|webm|h264|avc|vp9)\b/iu;
+  const formatFirst = /\b(?:mp4|webm|h264|avc|vp9)\b.{0,36}\b(?:(?:(?:is|are)\s+(?:not|never)|isn't|aren't)\s+(?:supported|offered|available|exported|produced|encoded|muxed)|unsupported|unavailable)\b/iu;
+  const noOutput = /\bno\s+(?:mp4|webm)\s+(?:export|output|format|option)s?\b/iu;
+  return exporterFirst.test(claim) || formatFirst.test(claim) || noOutput.test(claim);
+}
+
 function isSelectorDenied(claim) {
   const denialFirst = /\b(?:does\s+not|doesn't|do\s+not|don't|never|cannot|can't)\b.{0,50}\b(?:expose|offer|provide|support|include|allow|enable)\w*\b.{0,100}\b(?:format|container|codec|encoder|bitrate|profile|audio)\b/iu;
   const noSelector = /\b(?:no|without)\b.{0,100}\b(?:format|container|codec|encoder|bitrate|profile|audio)\b.{0,100}\b(?:selector|selection|picker|choice|option|control|setting|switch)\w*\b/iu;
@@ -214,20 +228,6 @@ function isAudioDenied(claim) {
     || denialFirst.test(claim)
     || pronounDenial.test(claim)
     || lacksAudio.test(claim);
-}
-
-function hasPositiveAudioAfterBoundary(claim) {
-  const audioNegation = /\b(?:no|not(?!\s+only\b)|never|without|cannot|can't|doesn't|does\s+not|don't|do\s+not|isn't|is\s+not|aren't|are\s+not|absent|unavailable|disabled|excluded|omitted)\b/iu;
-  for (const boundary of claim.matchAll(/\b(?:and|but|yet|however|except)\b/giu)) {
-    const tail = claim.slice(boundary.index + boundary[0].length);
-    const positiveAudio = tail.match(
-      /\b(?:audio|sound|soundtrack|narration|voiceover|microphone|system\s+audio|timeline\s+audio)\b.{0,100}?\b(?:mux|mix|include|add|retain|preserve|carry|contain|export|have|enable|ship|accompan|embed|bake|feature|available|support)\w*\b|\b(?:mux|mix|include|add|retain|preserve|carry|contain|export|has|have|with|enable|ship|accompan|embed|bake|feature|support)\w*\b.{0,100}?\b(?:audio|sound|soundtrack|narration|voiceover|microphone|system\s+audio|timeline\s+audio)\b/iu,
-    );
-    if (!positiveAudio) continue;
-    const relevantTail = tail.slice(0, positiveAudio.index + positiveAudio[0].length);
-    if (!audioNegation.test(relevantTail)) return true;
-  }
-  return false;
 }
 
 function hasExplicitUnsupportedOutputTarget(claim) {
@@ -295,8 +295,11 @@ export function findExportTruthViolations(value) {
     ) {
       violations.push({ kind: "unsupported-output", claim });
     }
+    if (isSupportedOutputDenied(claim)) {
+      violations.push({ kind: "stale-output-denial", claim });
+    }
 
-    const selectorClaim = /\b(?:choose|select|configure|pick|switch|set|adjust|change|support|offer|expose|provide|allow|available|option|control|selector|selection|picker|setting)\w*\b.{0,100}\b(?:format|container|codec|encoder|bitrate|profile|audio)\w*\b|\b(?:format|container|codec|encoder|bitrate|profile|audio)\w*\b.{0,100}\b(?:choose|select|configure|pick|switch|set|adjust|change|support|offer|expose|provide|allow|available|option|control|selector|selection|picker|setting)\w*\b/iu;
+    const selectorClaim = /\b(?:choose|select|configure|pick|switch|set|adjust|change|support|offer|expose|provide|allow|available|option|control|selector|selection|picker|setting)\w*\b.{0,100}\b(?:codec|encoder|bitrate|profile|hardware\s+encoder)\w*\b|\b(?:codec|encoder|bitrate|profile|hardware\s+encoder)\w*\b.{0,100}\b(?:choose|select|configure|pick|switch|set|adjust|change|support|offer|expose|provide|allow|available|option|control|selector|selection|picker|setting)\w*\b/iu;
     const inheritedSelectorClaim = topics.selector
       && /\b(?:choose|select|configure|pick|switch|set|adjust|change)\w*\b.{0,80}\b(?:one|it|them)\b/iu.test(claim);
     if ((selectorClaim.test(claim) || inheritedSelectorClaim) && !isSelectorDenied(claim)) {
@@ -310,16 +313,16 @@ export function findExportTruthViolations(value) {
         || /\bthis\s+is\s+(?:muxed|mixed|included|added|retained|preserved|carried|contained|exported|enabled)\b.{0,60}\b(?:final|edited|finished|export|output|mp4)\w*\b/iu.test(claim)
         || /\b(?:it|that\s+track|the\s+track)\b.{0,30}\b(?:is|are|will\s+be)\b.{0,30}\b(?:in|on|present\s+in|part\s+of)\b.{0,60}\b(?:final|edited|finished|export|output|mp4)\w*\b/iu.test(claim)
         || /^(?:[“”"'‘’]\s*)?(?:present|embedded|baked)\b.{0,40}\b(?:in|into|on)\b.{0,60}\b(?:final|edited|finished|export|output|mp4)\w*\b/iu.test(claim)
-        || /^(?:[“”"'‘’]\s*)?(?:mux|mix|include|add|retain|preserve|carry|contain|export|enable|ship|accompany|embed|bake)\w*\b.{0,80}\b(?:final|edited|finished|export|output|mp4)\w*\b/iu.test(claim)
+        || /^(?:[“”"'‘’]\s*)?(?:mux|mix|include|add|retain|preserve|carry|contain|enable|ship|accompany|embed|bake)\w*\b.{0,80}\b(?:final|edited|finished|export|output|mp4)\w*\b/iu.test(claim)
         || /^(?:audio|sound|soundtrack|narration|voiceover)\b.{0,24}$/iu.test(claim)
         || /\b(?:audio|sound|soundtrack|narration|voiceover)\b.{0,50}\b(?:yes|enabled|included|available|supported)\b/iu.test(claim));
     const audioDenied = isAudioDenied(claim);
-    if (
-      (audioClaim.test(claim) || inheritedAudioClaim)
-      && (!audioDenied || hasPositiveAudioAfterBoundary(claim))
-      && !isSelectorDenied(claim)
-    ) {
-      violations.push({ kind: "edited-export-audio", claim });
+    const unscopedPositiveAudio = (audioClaim.test(claim) || inheritedAudioClaim)
+      && !audioDenied
+      && !/\b(?:when|if|where|present|available|enabled|selected|optional|optionally|conditional|can|may|project|recorded|timeline|off|disabled|silent|exclude|omit)\b/iu.test(claim);
+    const unconditionalAudio = /\b(?:every|all|always|necessarily)\b.{0,140}\b(?:export|output|audio|sound|soundtrack)\w*\b/iu.test(claim);
+    if (audioDenied || unscopedPositiveAudio || unconditionalAudio) {
+      violations.push({ kind: audioDenied ? "stale-audio-denial" : "overbroad-export-audio", claim });
     }
   }
 

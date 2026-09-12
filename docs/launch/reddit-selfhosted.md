@@ -1,54 +1,40 @@
 # r/selfhosted post draft
 
-**Subreddit**: r/selfhosted
-**Important**: r/selfhosted is primarily server/service-focused (Home Assistant, Nextcloud, etc.). A desktop app is a STRETCH for this sub. Post carefully and lean HARD into the "no cloud, 100% local" angle. Expect moderator review.
-**Alternative**: If mods remove it, pivot to r/privacytoolsIO or r/degoogle.
-
----
+> **Draft only — not posted.** This is a local desktop application, not a
+> self-hosted server. Check the community rules before posting. Use only after
+> the next feature release and demo are verified; the latest published release
+> is currently v1.6.0 and predates the current-source MCP/export work below.
 
 ## Title
-```
-Flowtake — fully local, open-source screen recorder. No cloud, no account, no telemetry. Replaces Loom for privacy-conscious users.
-```
 
-## URL
-```
-https://github.com/JNX03/Flowtake
+```text
+Flowtake — a local-first, MIT-licensed desktop screen recorder and editor
 ```
 
 ## Body
 
-```
-Sharing Flowtake, a free and open-source desktop screen recorder built specifically for people who don't want their recordings going through someone else's servers.
+```text
+Flowtake is not a server you deploy, so it may sit at the edge of this community's scope. It is a free, open-source desktop recorder and timeline editor for people who prefer local project storage and local export.
 
-**The privacy story**:
-- 100% local. Your recordings never leave your machine.
-- No account required. No sign-up, no login, ever.
-- No telemetry. No analytics SDK, no crash reporter, no phone-home.
-- No cloud upload. All processing, editing, and export happens on-device.
-- FFmpeg is bundled — the only network call is if you explicitly check for an app update.
-- MIT licensed. Verify everything in `src-tauri/src/commands/`.
+It can record a display, window, or custom area, generate editable cursor-driven zoom and pan motion, and edit trims, splits, masks, backgrounds, overlays, audio, and subtitles. The release linked below includes local MP4 or WebM export, with recorded/timeline audio included when present and enabled.
 
-**The feature story** (so it's not just "loom but local"):
-- Automatic zoom and pan animations that follow your cursor — gives the recording a polished product-demo feel without manual keyframing
-- Full timeline editor: clips, overlays, audio tracks, subtitles, masks + blur (great for redacting sensitive info before sharing), custom backgrounds
-- Bundled teleprompter with speech recognition for hands-free narration
-- Multi-format export via FFmpeg — MP4, WebM, configurable bitrate/codec
-- Cross-platform: Windows (stable), macOS + Linux (dev preview)
+The privacy boundary is local-first rather than network-free. Ordinary capture, project editing, and export do not require cloud project sync. The app can check GitHub for releases. YouTube upload, RTMP streaming, and some model-backed effects are explicit network features and can send data to the service the user selects.
 
-**Why post here**: Most screen recorders I looked at either (a) require a cloud account, (b) upload your recordings for "processing", or (c) send telemetry you can't turn off. Flowtake is none of those. Everything stays where you put it. If you're the kind of person who self-hosts Bitwarden and Nextcloud to keep your data off third-party servers, this fits the same philosophy but for screen recordings.
+Developers can optionally run a local stdio MCP from a source checkout. It makes guarded timeline metadata edits but does not inspect media pixels or audio, render, export, upload, or control the app. The MCP host or model may receive requested project metadata, so users should choose a provider that matches their privacy needs. Durable writes require Flowtake to be closed and create backups first.
 
-**Install**: binaries for Windows / Mac / Linux (including .AppImage, .deb, .rpm) at https://github.com/JNX03/Flowtake/releases/latest
+Windows is the primary development target. macOS and Linux builds are previews; pure Wayland capture is not supported.
 
-Source: https://github.com/JNX03/Flowtake
+There is one MIT-licensed product with no paid Studio mode, app tier, or export paywall.
 
-Not technically self-hostable in the classic sense (it's a desktop app, not a server) but the spirit is aligned — happy to answer questions on the architecture, storage, or anything else.
+Source and verified downloads: https://github.com/JNX03/Flowtake
 ```
 
----
+## Posting boundary
 
-## Pitfalls specific to this sub
-- Be ready for "this isn't really selfhosted, it's just a local app" pushback. Acknowledge it honestly.
-- Don't compare to commercial alternatives as a sales pitch — frame it as a privacy choice.
-- Mention telemetry status CLEARLY — this sub is allergic to any phone-home.
-- If removed, don't re-post. Move to r/privacy, r/privacytoolsIO, r/degoogle instead.
+- Do not describe Flowtake as 100% local, offline-only, telemetry-proof, or
+  having no network calls.
+- Do not imply that the MCP is a hosted service or that it edits/analyzes the
+  video itself.
+- Use a clean profile and public or synthetic demo material only. Remove
+  notifications, names, accounts, tokens, private URLs, local paths, and
+  personal location from the asset.

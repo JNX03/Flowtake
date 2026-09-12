@@ -5,7 +5,7 @@
 <h3 align="center">Record locally. Turn the capture into a polished product demo.</h3>
 
 <p align="center">
-  Flowtake is a free, MIT-licensed desktop screen recorder and editor with automatic zoom and pan, cursor effects, a timeline, and local MP4 export.
+  Flowtake is a free, MIT-licensed desktop screen recorder and editor with automatic zoom and pan, cursor effects, a timeline, and local MP4 export. Current source builds also include WebM and conditional audio export ahead of the next release.
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ Flowtake keeps the recording workflow in one desktop app:
 - Add camera, microphone, and supported system-audio sources.
 - Generate zoom and pan motion from cursor activity, then tune it on the timeline.
 - Trim and split clips; style cursor and click feedback; add masks, backgrounds, overlays, audio, and subtitles.
-- Save projects locally and export edited video as an AVC/H.264 MP4 through Mediabunny.
+- Save projects locally. The published v1.6.0 release exports H.264/MP4 video; current source builds also add VP9/WebM and conditional recorded/timeline audio export.
 - Experiment with separate app layers and scene layouts for multi-app technical demos.
 
 The desktop recorder and editor are free to use, inspect, modify, and redistribute under the [MIT License](LICENSE).
@@ -43,7 +43,7 @@ The desktop recorder and editor are free to use, inspect, modify, and redistribu
 1. Install with `winget install --id JNX03.Flowtake --exact` on Windows, or download the build for your OS from the [latest release](https://github.com/JNX03/Flowtake/releases/latest).
 2. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
 3. Start recording and use the compact recorder controls to pause or stop.
-4. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export** to render an MP4.
+4. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export**. The published v1.6.0 release renders MP4; current source builds add WebM and conditional recorded/timeline audio export.
 
 Your OS may ask for screen-recording, camera, or microphone permission on first use. Current platform-signing limitations can also produce a Windows SmartScreen or macOS Gatekeeper warning; see the status note below before proceeding.
 
@@ -90,9 +90,11 @@ The WinGet package installs the same unsigned MSI published on the official rele
 
 ### Export
 
-- Local AVC/H.264 MP4 rendering through Mediabunny
-- Resolution, 30/60 fps, and output-quality controls
-- Video-only edited export in v1.6.0; microphone, system, and timeline audio are not muxed into the final MP4
+The published v1.6.0 release renders local H.264/MP4 video. Current source builds render H.264/MP4 or VP9/WebM locally and additionally provide:
+
+- VP9/WebM rendering through Mediabunny
+- Resolution, 30/60 fps, output-format, output-quality, and optional-audio controls
+- Recorded microphone/system audio and timeline audio mixed to the edit and muxed when present and enabled
 
 ## Privacy and open-source boundary
 
@@ -100,17 +102,15 @@ The WinGet package installs the same unsigned MSI published on the official rele
 - The current Tauri build has Sentry disabled and no active product-analytics integration.
 - Flowtake can make network requests for GitHub release checks. Explicit network features include YouTube upload and RTMP live streaming; some camera effects fetch model assets when used.
 - Choosing a network feature sends data to the service you configure. Review that service's terms before connecting an account or stream destination.
-- The desktop recorder/editor in this repository remains MIT licensed. Optional services do not revoke or paywall the existing open-source functionality.
+- The recorder, editor, and export controls in this repository remain MIT licensed. Flowtake has no paid app tier, paid studio mode, or export paywall.
 
 For vulnerability reporting, follow the private process in [SECURITY.md](SECURITY.md).
 
-## Optional: Release Studio
+## Free community demo kit
 
-Teams that want human-assisted production for a technical launch can visit [Flowtake Release Studio](https://jnx03.github.io/Flowtake/). It is a separate, optional service; Flowtake's desktop recorder and editor remain the primary open-source product.
+Maintainers can use the free [six-beat developer-tool demo kit](https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/) before recording. It includes a copyable storyboard, a maintainer brief, safe-capture exclusions, and a clearly labelled current-source pre-production example. Copying the templates happens in your browser; the website does not submit the text to Flowtake.
 
-Maintainers planning their own release can use the free [six-beat developer-tool demo storyboard template](https://jnx03.github.io/Flowtake/developer-tool-demo-storyboard/) before recording. The guide includes a copyable brief, safe-capture exclusions, and a clearly labelled Flowtake v1.6.0 pre-production example.
-
-Through July 23, 2026, Flowtake will publicly reply with a no-obligation six-beat storyboard to up to the first three maintainers who [share a complete, publicly documented developer-tool workflow](https://github.com/JNX03/Flowtake/discussions/169). No separate Flowtake signup, footage, or payment is required.
+Improvements to the recorder, editor, documentation, and demo kit are welcome through [CONTRIBUTING.md](CONTRIBUTING.md). GitHub issues, pull requests, and discussions are public, so use public or synthetic examples and remove credentials, customer data, private repository details, filenames, notifications, and production access before sharing.
 
 ## Development
 
@@ -165,7 +165,7 @@ cargo check --manifest-path src-tauri/Cargo.toml --locked
 
 ### Architecture
 
-Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, Mediabunny encodes and muxes the edited AVC MP4, and Rust copies the completed `output.mp4` into the local export folder. On macOS 12.3+, a Swift ScreenCaptureKit helper writes fixed-cadence H.264 through the native media stack and cleanly falls back to FFmpeg/AVFoundation when unavailable. The editor bounds Retina preview textures while exports retain source resolution. FFmpeg remains bundled for compatibility capture and native media utilities.
+Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, and Mediabunny encodes the edited H.264/MP4 or VP9/WebM video stream. When an edit includes enabled recorded or timeline audio, the bundled FFmpeg sidecar builds the timeline-aware mix and muxes it without re-encoding the video. Rust then copies the completed file into the local export folder. On macOS 12.3+, a Swift ScreenCaptureKit helper writes fixed-cadence H.264 through the native media stack and cleanly falls back to FFmpeg/AVFoundation when unavailable. The editor bounds Retina preview textures while exports retain source resolution.
 
 The native app uses separate windows for the launcher/editor, recorder controls, exporter, source pickers, and annotations. Start with the [architecture docs](docs/architecture/README.md) or the [development guide](docs/getting-started/development.md) for a deeper tour.
 

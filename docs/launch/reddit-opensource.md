@@ -1,64 +1,40 @@
 # r/opensource post draft
 
-**Subreddit**: r/opensource
-**Flair**: "Showcase" or "Project Release"
-**Rules check**: Must be FOSS. Must include source link, not just binary. MIT qualifies. Post must describe the project, not just link.
-
----
+> **Draft only — not posted.** Publish only after the next feature release is
+> live and verified. The latest published release is currently v1.6.0; it
+> predates the current-source adaptive performance, WebM/audio export, and local
+> editor MCP described here.
 
 ## Title
-```
-Flowtake — a free, MIT-licensed screen recorder with auto-zoom animations (Tauri + Rust + React)
-```
 
-## URL
-```
-https://github.com/JNX03/Flowtake
+```text
+Flowtake — a free, MIT-licensed screen recorder and timeline editor
 ```
 
-## Body (required for this sub)
+## Body
 
-```
-Hi r/opensource — releasing Flowtake, a desktop screen recorder I've been building and maintaining as an open-source side project for the last two years.
+```text
+Hi r/opensource — I maintain Flowtake, a desktop screen recorder and editor released under the MIT License.
 
-**The problem**: Polished screen recordings (the kind you see in product demos) usually require manual keyframing in Final Cut or Premiere, or a paid tool like Screen Studio ($229, macOS only). I wanted the same result for free, on any OS, and without vendor lock-in.
+Flowtake can capture a display, selected window, or custom area and turn cursor activity into editable zoom and pan motion. Its timeline supports trim and split operations, cursor and click effects, masks, backgrounds, overlays, audio, and subtitles. The release linked below includes local H.264/MP4 and VP9/WebM export, with recorded and timeline audio mixed when present and enabled.
 
-**What Flowtake does**:
-- Records your screen + camera + audio
-- Automatically adds smooth zoom and pan animations around your cursor (deterministic, not ML — focus-score algorithm over cursor position, velocity, click events, and dwell)
-- Velocity-based cursor inertia with motion blur scaled by speed
-- Full timeline editor: clips, overlays, audio tracks, subtitles (with speech recognition), masks + blur, custom backgrounds, intro/outro transitions
-- Built-in teleprompter with speech-sync
-- Exports via bundled FFmpeg — configurable quality, format, encoder
-- Saves everything as local projects, no cloud
+The app now has adaptive preview and camera-capture profiles for constrained hardware. The selected export dimensions do not change. This is a resource policy rather than a promise of equal performance on every device.
 
-**License**: MIT — fork it, commercialize it, do whatever. No telemetry, no analytics, no network calls unless you opt in.
+Flowtake is local-first, not network-free. Ordinary capture, project editing, and export do not require cloud project sync. Release checks and explicitly selected upload, streaming, or model-backed features can use the network.
 
-**Stack**:
-- Tauri v2 (Rust) for the native shell and recording layer
-- React 19 + Redux Toolkit for the UI
-- Pixi.js 8 (WebGL) for the timeline preview renderer
-- FFmpeg (bundled sidecar) for encode
-- HuggingFace Transformers + MediaPipe for local speech recognition (teleprompter, subtitles)
+The repository also includes an optional local stdio MCP for AI-assisted timeline metadata editing. It is currently a developer integration requiring a source checkout and Node.js 20+. It supports revision-checked, backup-backed split, trim, delete, and caption edits. It does not inspect pixels or audio, render, export, upload, or control the desktop app. Flowtake must be closed for durable writes, and the MCP host or model may receive requested tool results.
 
-**Status**:
-- Windows x64: stable, daily-driver quality, 367 commits, v1.4.2 out now
-- macOS (Universal): developer preview — works but has bugs
-- Linux x64: developer preview — Wayland is the main pain point
-- Stable support for all three is targeted for v2.0
+There is one MIT-licensed product: no paid app tier, paid Studio mode, export paywall, checkout, or private-footage intake service.
 
-**Why I'm posting here**: It's open source and needs contributors and users more than anything else. Issues, PRs, bug reports, translation help, and platform-specific fixes for macOS and Linux are all welcome. The Wayland cursor tracking edge cases in particular are beyond what I can test alone.
+Windows is the primary development target. macOS and Linux builds are previews, and pure Wayland capture is not supported.
 
-Download: https://github.com/JNX03/Flowtake/releases/latest
-Source + issues: https://github.com/JNX03/Flowtake
-
-Ask me anything.
+Source and verified downloads: https://github.com/JNX03/Flowtake
+Issues and focused pull requests are welcome. Please include the OS, Flowtake release, capture source, and exact reproduction steps with bug reports.
 ```
 
----
+## Media boundary
 
-## Pitfalls
-- DO include the MIT license label prominently — the sub cares
-- DO explain the architecture honestly — they'll ask
-- DON'T pitch it as "alternative to X" without explaining why OSS matters
-- DON'T hide the dev-preview status of mac/linux — transparency earns goodwill here
+If the community allows media, use an exact-release demo recorded in a clean
+profile with a neutral synthetic document and a public map of a well-known
+landmark. Remove notifications, accounts, names, tokens, private URLs, local
+paths, and personal location before posting.

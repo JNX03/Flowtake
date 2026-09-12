@@ -1,9 +1,3 @@
-import { sendEvent } from "./intake.js";
-
-function track(name) {
-  void sendEvent(name);
-}
-
 const menuButton = document.querySelector("[data-menu-button]");
 const menuLabel = document.querySelector("[data-menu-label]");
 const mobileNav = document.querySelector("[data-mobile-nav]");
@@ -47,7 +41,6 @@ async function copyText({ button, status, source, successMessage, resetLabel, ma
     return;
   }
 
-  track("brief_copied");
   button.focus();
   button.textContent = "Copied";
   status.textContent = successMessage;
@@ -55,8 +48,6 @@ async function copyText({ button, status, source, successMessage, resetLabel, ma
     button.textContent = resetLabel;
   }, 2400);
 }
-
-track("page_viewed");
 
 menuButton?.addEventListener("click", () => {
   setMenuOpen(menuButton.getAttribute("aria-expanded") !== "true");
@@ -88,8 +79,6 @@ briefCopyButton?.addEventListener("click", () => {
 });
 
 document.addEventListener("click", (event) => {
-  const trackedLink = event.target.closest("[data-track]");
-  if (trackedLink) track(trackedLink.dataset.track);
   if (event.target.closest("[data-mobile-nav] a")) setMenuOpen(false);
 });
 
