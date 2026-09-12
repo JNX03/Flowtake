@@ -4,6 +4,7 @@ import RendererInputReader from "../RendererInputReader"
 import { postIpc } from "./helpers"
 import {
     DECODE_CANVAS_POOL_SIZE,
+    dedupeSequentialTimestamps,
     SequentialCanvasCursor,
 } from "./sequentialCanvasCursor.js"
 
@@ -35,8 +36,10 @@ export default class WorkerInputReader extends RendererInputReader {
         const track = await this.input.getPrimaryVideoTrack()
         if (!track) throw new Error(`No video track found in "${this.videoType}" — the recording may be missing or corrupted`)
         this.sink = new CanvasSink(track, { poolSize: DECODE_CANVAS_POOL_SIZE })
-        this.timestamps = timestamps.map(({ rendererTimestamp, sourceTimestamp }) =>
-            toS(sourceTimestamp ?? rendererTimestamp))
+        this.timestamps = dedupeSequentialTimestamps(
+            timestamps.map(({ rendererTimestamp, sourceTimestamp }) =>
+                toS(sourceTimestamp ?? rendererTimestamp))
+        )
         this.canvasCursor = new SequentialCanvasCursor(
             this.sink.canvasesAtTimestamps(this.timestamps)
         )

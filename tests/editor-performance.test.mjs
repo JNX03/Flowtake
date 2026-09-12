@@ -12,6 +12,7 @@ import {
 } from "../app/shared/editor/performanceCadence.js"
 import {
     DECODE_CANVAS_POOL_SIZE,
+    dedupeSequentialTimestamps,
     SequentialCanvasCursor,
 } from "../app/shared/workers/sequentialCanvasCursor.js"
 import {
@@ -185,6 +186,35 @@ test("export decoding uses one continuous bounded native-resolution canvas strea
     assert.match(readerSource, /canvasesAtTimestamps\(this\.timestamps\)/)
     assert.match(readerSource, /this\.input\?\.dispose\(\)/)
     assert.doesNotMatch(readerSource, /new CanvasSink\(track,\s*\{[^}]*\b(?:width|height|fit)\s*:/s)
+})
+
+test("freeze-frame timestamps keep the sequential export decoder aligned", async () => {
+    // createSink receives one entry per scheduled output frame. The render
+    // setup reads the first entry once before the loop revisits it, while the
+    // second scheduled zero is a real freeze-frame output.
+    const scheduledTimestamps = [0, 0, 1]
+    const sinkTimestamps = dedupeSequentialTimestamps(scheduledTimestamps)
+    assert.deepEqual(sinkTimestamps, [0, 1])
+    assert.deepEqual(dedupeSequentialTimestamps([0, 0, 0, 1]), [0, 1])
+    assert.deepEqual(dedupeSequentialTimestamps([0, 0, 1, 0, 0]), [0, 1, 0])
+
+    const decodedFrames = sinkTimestamps.map(timestamp => ({
+        canvas: { timestamp },
+        timestamp,
+    }))
+    let nextCalls = 0
+    const cursor = new SequentialCanvasCursor({
+        async next() {
+            const value = decodedFrames[nextCalls++]
+            return value ? { value, done: false } : { done: true }
+        },
+    })
+
+    assert.equal((await cursor.read(scheduledTimestamps[0]))?.timestamp, 0) // setup
+    assert.equal(await cursor.read(scheduledTimestamps[0]), null) // first render loop frame
+    assert.equal(await cursor.read(scheduledTimestamps[1]), null) // held freeze frame
+    assert.equal((await cursor.read(scheduledTimestamps[2]))?.timestamp, 1)
+    assert.equal(nextCalls, 2)
 })
 
 test("balanced preview rendering and Redux publication share a 30fps cadence", async () => {

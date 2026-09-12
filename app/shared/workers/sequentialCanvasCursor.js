@@ -2,6 +2,19 @@ export const DECODE_CANVAS_POOL_SIZE = 1
 
 const NO_TIMESTAMP = Symbol("no timestamp")
 
+export function dedupeSequentialTimestamps(timestamps) {
+    const result = []
+    let previousTimestamp = NO_TIMESTAMP
+
+    for (const timestamp of timestamps) {
+        if (timestamp === previousTimestamp) continue
+        result.push(timestamp)
+        previousTimestamp = timestamp
+    }
+
+    return result
+}
+
 /**
  * Pull one requested frame at a time from a single MediaBunny iterator.
  * Keeping the iterator alive lets the decoder move through each packet once;
