@@ -76,7 +76,7 @@ test("the free homepage keeps its truthful product and platform boundaries", asy
     "Capture the right window.",
     "Shape the timeline.",
     "Export locally.",
-    "Current source builds export H.264/MP4 or VP9/WebM locally.",
+    "Flowtake v1.7 exports H.264/MP4 or VP9/WebM locally.",
     "Recorded and timeline audio are mixed into the exported file when present and enabled.",
     "Windows 10/11 x64 is the primary validation target",
     "macOS and Linux builds are previews",

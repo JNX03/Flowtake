@@ -1,8 +1,8 @@
 # X / Twitter launch thread draft
 
-> **Draft only — not posted.** Publish only after the next feature release and
-> its demo are verified. The latest published release is currently v1.6.0 and
-> does not include every current-source feature named here.
+> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
 ## Post 1 — introduction
 

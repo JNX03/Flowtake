@@ -1,12 +1,15 @@
 # Flowtake outreach guide
 
+> **Draft only — not posted.** Before any submission, verify the exact v1.7.0
+> artifacts, privacy-reviewed demo, live links, and destination rules.
+
 This document keeps directory submissions, package listings, and launch copy
 factual and coordinated. It does not authorize an external pull request,
 listing, account action, or social post. A maintainer must approve each external
 action, and the destination's current contribution rules must be checked on the
 day of submission.
 
-Last review: July 18, 2026, against Flowtake v1.6.0.
+Last review: September 12, 2026, against Flowtake v1.7.0.
 
 ## Positioning
 
@@ -16,8 +19,9 @@ product demos.
 **Submission-ready one-liner:**
 
 > Flowtake is an MIT-licensed, local-first screen recorder and timeline editor
-> with cursor-driven zoom and local video-only H.264 MP4 export. Windows is
-> primary; macOS and Linux are previews.
+> with cursor-driven zoom and local H.264/MP4 or VP9/WebM export. Audio can be
+> included when it is present and enabled. Windows is primary; macOS and Linux
+> are previews.
 
 **Short tagline:**
 
@@ -47,18 +51,19 @@ request immediately before submitting.
 ## Awesome-list entries
 
 Use the destination's exact Markdown style. These lines are intentionally
-specific about the current export and platform boundary.
+specific about the v1.7.0 export and platform boundary. Recheck the release
+gate above immediately before submitting them.
 
 ### awesome-tauri
 
 ```markdown
-- [Flowtake](https://github.com/JNX03/Flowtake) - Local-first screen recorder and timeline editor built with Tauri, with cursor-driven zoom and local video-only H.264 MP4 export. Windows is primary; macOS and Linux are previews.
+- [Flowtake](https://github.com/JNX03/Flowtake) - Local-first screen recorder and timeline editor built with Tauri, with cursor-driven zoom and local MP4 or WebM export. Windows is primary; macOS and Linux are previews.
 ```
 
 ### General free-app and video lists
 
 ```markdown
-- [Flowtake](https://github.com/JNX03/Flowtake) - MIT-licensed, local-first screen recorder and timeline editor with cursor-driven zoom and local video-only H.264 MP4 export. Windows is primary; macOS and Linux are previews.
+- [Flowtake](https://github.com/JNX03/Flowtake) - MIT-licensed, local-first screen recorder and timeline editor with cursor-driven zoom and local MP4 or WebM export. Windows is primary; macOS and Linux are previews.
 ```
 
 If a list requires a shorter entry, use:
@@ -83,7 +88,8 @@ Use this block for AlternativeTo or another factual application directory:
 | Price | Free for the open-source desktop recorder and editor |
 | Platforms | Windows 10/11 x64 primary; macOS 10.15+ Universal preview; Linux x64 preview |
 | Category | Screen recorder; timeline video editor; developer demo tool |
-| Export boundary | v1.6.0 edited export is a video-only AVC/H.264 MP4 |
+| v1.7.0 export boundary | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
+| Historical v1.6.0 export boundary | Video-only AVC/H.264 MP4 |
 | Linux boundary | X11 or XWayland capture; no pure Wayland capture |
 | macOS boundary | Ad-hoc signed and not notarized |
 
@@ -92,8 +98,10 @@ Suggested description:
 > Flowtake is a free, MIT-licensed desktop screen recorder and timeline editor.
 > It captures a display, window, or custom area, generates editable zoom and
 > pan from cursor activity, and saves projects and ordinary exports locally.
-> Windows is the primary platform; macOS and Linux builds are previews. In
-> v1.6.0, edited export produces a video-only H.264 MP4.
+> Flowtake v1.7.0 requires explicit source selection before
+> capture preview, offers adaptive performance profiles, and exports H.264/MP4
+> or VP9/WebM with audio when present and enabled. Windows is the primary
+> platform; macOS and Linux builds are previews.
 
 ## Launch copy
 
@@ -111,8 +119,8 @@ captures.
 > Flowtake is a free, MIT-licensed desktop screen recorder and editor for
 > developer demos. Capture a screen, window, or area; turn cursor activity into
 > editable zoom and pan; refine the result on a timeline; and export a local
-> video-only H.264 MP4. Windows is primary, while macOS and Linux builds remain
-> previews.
+> H.264/MP4 or VP9/WebM file, with audio when present and enabled. Windows is
+> primary, while macOS and Linux builds remain previews.
 
 ### Show HN
 
@@ -126,8 +134,9 @@ captures.
 > desktop app: capture a screen, window, or area; generate editable zoom and pan
 > from cursor activity; refine it on a timeline; and export locally. The code is
 > MIT licensed. Windows is the primary target today; macOS and Linux are
-> previews, and v1.6.0 edited export is video-only H.264. I would especially
-> value reproducible reports about capture reliability and project recovery.
+> previews. Flowtake v1.7.0 exports H.264/MP4 or VP9/WebM and can
+> include audio when present and enabled. I would especially value reproducible
+> reports about capture reliability and project recovery.
 
 Rewrite first-person wording if the post is made by someone other than the
 maintainer who built the project.

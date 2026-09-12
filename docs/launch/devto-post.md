@@ -5,10 +5,9 @@ description: "How Flowtake turns cursor activity into editable screen-recording 
 tags: opensource, tauri, rust, react
 ---
 
-> **Draft only — not posted.** Publish after the next feature release is live
-> and verified. The latest published release is currently v1.6.0; it predates
-> the current-source adaptive performance, WebM/audio export, and local editor
-> MCP described below.
+> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
 # Flowtake: a free, open-source recorder and timeline editor
 
@@ -17,13 +16,13 @@ It captures a display, window, or custom area, derives editable zoom and pan
 motion from cursor activity, and keeps the rest of the workflow on a timeline.
 
 The timeline supports trimming and splitting, cursor and click effects, masks,
-backgrounds, overlays, audio, and subtitles. The current source tree can export
+backgrounds, overlays, audio, and subtitles. Flowtake v1.7.0 can export
 H.264/MP4 or VP9/WebM locally and mix recorded or timeline audio when it is
 present and enabled.
 
 ## Adaptive without changing the export target
 
-The current source tree adds a Device performance setting with Auto,
+Flowtake v1.7.0 adds a Device performance setting with Auto,
 Efficiency, Balanced, and Quality modes. Auto can lower preview and camera
 capture profiles on constrained hardware. The selected export dimensions stay
 unchanged. This is a resource policy, not a claim that every device will have

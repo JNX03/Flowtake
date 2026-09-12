@@ -1,13 +1,9 @@
-# Flowtake press kit — next-release draft
+# Flowtake press kit — v1.7.0
 
-> **Draft only — not published.** This copy describes the current source tree.
-> Do not publish it until the next feature release and its download artifacts
-> have passed release and product-demo verification. The latest published
-> release is v1.6.0; it predates the source-only WebM/audio-export, adaptive
-> performance, and local editor MCP work described below.
+Last factual review: September 12, 2026, against Flowtake v1.7.0.
 
 The repository-root [press kit](../PRESS.md) remains the canonical source for
-claims about the currently published release.
+release facts and publication gates.
 
 ## One-line description
 
@@ -21,21 +17,21 @@ into editable zoom and pan motion. Its timeline supports trimming, splitting,
 cursor effects, masks, backgrounds, overlays, audio, and subtitles. Windows is
 the primary development target; macOS and Linux builds are previews.
 
-## Next-release source highlights
+## v1.7.0 highlights
 
-The current source tree adds:
+Flowtake v1.7.0 adds:
 
 - adaptive preview and camera-capture profiles for constrained hardware, while
   leaving screen-capture source and selected export dimensions unchanged;
 - H.264/MP4 and VP9/WebM export, with recorded and timeline audio mixed when it
   is present and enabled;
+- revision-aware saves and durable, staged archive replacement during close;
 - clearer source confirmation before capture and a simpler responsive editor
   toolbar; and
 - a free local MCP server for guarded, AI-assisted timeline metadata edits.
 
-These are source-tree capabilities, not v1.6.0 release claims. Recheck them
-against the exact release artifact before moving this section into published
-copy.
+Recheck these capabilities against the exact release artifact before reusing
+this section in external copy.
 
 ## Product facts
 
@@ -93,7 +89,7 @@ export from the exact released build.
 ## Assets
 
 - `app/shared/assets/logo.svg`
-- `resources/banner.png`
+- `website/public/assets/logo.png`
 - `src-tauri/icons/`
 
 No product screenshot or demo video is approved merely because it exists in a

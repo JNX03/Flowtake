@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useState } from "react";
 
-const RELEASE_VERSION = "1.6.0";
+const RELEASE_VERSION = "1.7.0";
 const RELEASE_URL = `https://github.com/JNX03/Flowtake/releases/tag/v${RELEASE_VERSION}`;
 const DOWNLOAD_URL = "https://github.com/JNX03/Flowtake/releases/latest";
 const REPOSITORY_URL = "https://github.com/JNX03/Flowtake";
@@ -39,7 +39,7 @@ const productFeatures = [
   {
     number: "03",
     title: "Export locally.",
-    body: "Current source builds export H.264/MP4 or VP9/WebM locally. Mediabunny encodes the video on your device. Recorded and timeline audio are mixed into the exported file when present and enabled.",
+    body: "Flowtake v1.7 exports H.264/MP4 or VP9/WebM locally. Mediabunny encodes the video on your device. Recorded and timeline audio are mixed into the exported file when present and enabled.",
     image: "marketing/local-export.webp",
     alt: "Abstract illustration of a local video export file",
   },
@@ -89,7 +89,7 @@ const faqs = [
   {
     question: "Where do projects and exports go?",
     answer:
-      "In current source builds, ordinary projects and MP4 or WebM exports stay on your machine. Flowtake is local-first, not fully offline: update checks and any explicitly networked feature still use the network.",
+      "In Flowtake v1.7, ordinary projects and MP4 or WebM exports stay on your machine. Flowtake is local-first, not fully offline: update checks and any explicitly networked feature still use the network.",
   },
   {
     question: "Does it work on macOS or Linux?",
@@ -186,7 +186,7 @@ export function HomePage() {
               <span>Show what <em>changed.</em></span>
             </h1>
             <p className="home-hero-lede">
-              Capture an IDE, terminal, browser, or desktop source. Current source builds let you edit the take on a timeline, add captions or redaction, and export MP4 or WebM locally.
+              Capture an IDE, terminal, browser, or desktop source. Flowtake v1.7 lets you edit the take on a timeline, add captions or redaction, and export MP4 or WebM locally.
             </p>
             <div className="home-hero-actions">
               <a
@@ -211,7 +211,7 @@ export function HomePage() {
           <aside className="home-release-card" aria-label={`Flowtake v${RELEASE_VERSION} published release`}>
             <div className="home-release-meta">
               <span>Published desktop release</span>
-              <span><CheckBadgeIcon aria-hidden="true" /> July 16, 2026</span>
+              <span><CheckBadgeIcon aria-hidden="true" /> September 12, 2026</span>
             </div>
             <div className="home-release-main">
               <img src={assetUrl("logo.png")} alt="" />
@@ -222,7 +222,7 @@ export function HomePage() {
                   <br />
                   {`v${RELEASE_VERSION}`}
                 </h2>
-                <span>Recorder, editable timeline, captions, cursor treatment, redaction, and local MP4 export. Current source builds ahead of v1.6.0 add WebM and conditional audio export.</span>
+                <span>Recorder, adaptive previews, editable timeline, captions, cursor treatment, redaction, and local MP4 or WebM export with audio when present and enabled.</span>
               </div>
             </div>
             <a href={RELEASE_URL} target="_blank" rel="noreferrer">
@@ -361,7 +361,7 @@ export function HomePage() {
             <details id="privacy">
               <summary>Local files and explicit network features <ChevronDownIcon aria-hidden="true" /></summary>
               <div>
-                <p>In current source builds, ordinary recordings, project files, and MP4 or WebM exports stay on your device. Flowtake does not include cloud project sync.</p>
+                <p>In Flowtake v1.7, ordinary recordings, project files, and MP4 or WebM exports stay on your device. Flowtake does not include cloud project sync.</p>
                 <p>Flowtake is local-first, not fully offline. Release checks, YouTube upload, RTMP streaming, and model-asset downloads use the network only when the related feature is used.</p>
               </div>
             </details>

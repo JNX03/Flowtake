@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-12
+
+### Added
+
+- Auto, Efficiency, Balanced, and Quality performance profiles that adapt
+  editor preview and camera-capture work without changing the selected screen
+  source or export dimensions
+- Local H.264/MP4 and VP9/WebM export choices, with recorded and timeline audio
+  mixed and muxed when it is present and enabled
+- Optional local stdio MCP for revision-checked, dry-run and backup-backed split,
+  trim, delete, and caption metadata edits; it does not inspect pixels or audio,
+  render, export, upload, or control the desktop app
+- Explicit display, window, or area confirmation before capture preview and
+  recording can begin
+
+### Changed
+
+- Simplified the responsive timeline toolbar so core actions remain visible and
+  secondary controls move into a compact menu on smaller windows
+- Bounded editor preview textures and used a continuous, pooled export decode
+  path to reduce avoidable memory pressure while retaining full-resolution
+  exports
+- Kept Flowtake as one free, MIT-licensed product with no paid Studio mode, app
+  tier, export paywall, checkout, or private-footage intake service
+
+### Fixed
+
+- Serialized revision-aware project saves and introduced a two-phase close path
+  so cleanup does not discard an editor session before its archive is durable
+- Staged, synced, and verified ZIP project replacements before atomic rename,
+  preserving the previous archive when replacement fails
+- Stopped camera-preview media tracks after cancellation, source changes, and
+  component cleanup
+
 ## [1.4.1] - 2026-04-07
 
 ### Fixed
@@ -159,7 +193,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Clarification
 - Earlier changelog text overstated the shipped output choices. In v1.6.0, Mediabunny encodes and muxes one video-only AVC MP4; the exporter does not offer H.265 or WebM output and does not expose a hardware-encoder selector.
 
-[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/JNX03/Flowtake/compare/v1.6.0...v1.7.0
 [1.4.1]: https://github.com/JNX03/Flowtake/compare/v1.3.2...v1.4.1
 [1.3.2]: https://github.com/JNX03/Flowtake/compare/v.1.3.0...v1.3.2
 [1.3.0]: https://github.com/JNX03/Flowtake/compare/v.1.2.1...v.1.3.0

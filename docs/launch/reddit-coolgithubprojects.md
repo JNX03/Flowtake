@@ -1,8 +1,8 @@
 # r/coolgithubprojects post draft
 
-> **Draft only — not posted.** Use after the next feature release and public
-> demo are verified. The latest published release is currently v1.6.0 and does
-> not include every current-source feature described below.
+> **Draft only — not posted.** This copy targets v1.7.0. Use it only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
 ## Title
 

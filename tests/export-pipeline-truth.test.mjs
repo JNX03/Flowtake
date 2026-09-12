@@ -151,7 +151,7 @@ test("tracked export copy matches the current UI and pipeline", async () => {
     ].filter(Boolean).join("\n")
     const storyboardExportCopy = [
         storyboard.match(/<h3>Export locally<\/h3>\s*<p class="storyboard-caption">([\s\S]*?)<\/p>/u)?.[1],
-        storyboard.match(/<h3>Record and edit with the current source build\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
+        storyboard.match(/<h3>Record and edit with Flowtake v1\.7\.0\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
     ].filter(Boolean).join("\n")
     const exportCopy = [readmeExport, exportDoc, pipelineExport, homepageCopy, storyboardExportCopy].join("\n")
 
@@ -167,7 +167,7 @@ test("tracked export copy matches the current UI and pipeline", async () => {
     assert.doesNotMatch(exportDoc, /click \*\*Render\*\*/u)
     assert.match(pipelineExport, /timeline-aware mix/iu)
     assert.match(pipelineExport, /MP4 or WebM/iu)
-    assert.match(homepage, /Current source builds export H\.264\/MP4 or VP9\/WebM locally/iu)
+    assert.match(homepage, /Flowtake v1\.7 exports H\.264\/MP4 or VP9\/WebM locally/iu)
     assert.match(storyboard, /with the edit's audio when present/iu)
     assert.match(comparison, /recorded and timeline audio are included when present and enabled/iu)
 })

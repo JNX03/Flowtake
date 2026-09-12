@@ -1,9 +1,8 @@
 # Show HN draft
 
-> **Draft only — not posted.** Publish only after the next feature release is
-> live, its artifacts are verified, and the linked demo has passed the privacy
-> checklist. The latest published release is currently v1.6.0 and does not yet
-> include all current-source features below.
+> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
 ## Title
 

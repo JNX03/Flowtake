@@ -1,9 +1,8 @@
 # r/opensource post draft
 
-> **Draft only — not posted.** Publish only after the next feature release is
-> live and verified. The latest published release is currently v1.6.0; it
-> predates the current-source adaptive performance, WebM/audio export, and local
-> editor MCP described here.
+> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
 ## Title
 

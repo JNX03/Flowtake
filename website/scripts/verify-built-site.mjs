@@ -31,7 +31,7 @@ const comparisonFlowtakeCopy = [
 ].filter(Boolean).join("\n");
 const storyboardFlowtakeExportCopy = [
   guide.match(/<h3>Export locally<\/h3>\s*<p class="storyboard-caption">([\s\S]*?)<\/p>/u)?.[1],
-  guide.match(/<h3>Record and edit with the current source build\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
+  guide.match(/<h3>Record and edit with Flowtake v1\.7\.0\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
 ].filter(Boolean).join("\n");
 
 const count = (value, needle) => value.split(needle).length - 1;
@@ -80,7 +80,7 @@ assert.equal(homeStructuredData.isAccessibleForFree, true, "homepage must preser
 assert.equal(home.includes("VideoObject"), false, "homepage must not claim a finished video");
 assert.equal(home.includes("AggregateRating"), false, "homepage must not claim unverified ratings");
 assert.equal(
-  runtimeSource.includes("Current source builds export H.264/MP4 or VP9/WebM locally."),
+  runtimeSource.includes("Flowtake v1.7 exports H.264/MP4 or VP9/WebM locally."),
   true,
   "built homepage must state both local export formats",
 );
@@ -102,7 +102,7 @@ assert.equal(count(comparison, 'property="og:url"'), 1, "comparison og:url must 
 assert.equal(comparison.includes(`href="${comparisonUrl}"`), true, "comparison canonical is wrong");
 assert.equal(comparison.includes(`content="${comparisonUrl}"`), true, "comparison og:url is wrong");
 assert.equal(
-  comparison.includes("Current source: local H.264/MP4 or VP9/WebM with resolution, 30/60 fps, and quality controls; recorded and timeline audio are included when present and enabled"),
+  comparison.includes("Local H.264/MP4 or VP9/WebM with resolution, 30/60 fps, and quality controls; recorded and timeline audio are included when present and enabled"),
   true,
   "comparison must preserve the implemented formats, controls, and audio behavior",
 );

@@ -1,9 +1,9 @@
 # r/selfhosted post draft
 
-> **Draft only — not posted.** This is a local desktop application, not a
-> self-hosted server. Check the community rules before posting. Use only after
-> the next feature release and demo are verified; the latest published release
-> is currently v1.6.0 and predates the current-source MCP/export work below.
+> **Draft only — not posted.** This copy targets v1.7.0. Flowtake is a local
+> desktop application, not a self-hosted server, so check the community rules.
+> Use this only after the exact v1.7.0 artifacts, privacy-reviewed demo, and
+> live links are verified; recheck all three immediately before posting.
 
 ## Title
 
