@@ -50,13 +50,14 @@
   ],
   "license": "MIT",
   "overrides": {
+    "@xmldom/xmldom": "0.8.15",
     "eslint-plugin-react-hooks": {
       ".": "$eslint-plugin-react-hooks",
       "@babel/core": "8.0.1"
     },
     "minimatch": {
       ".": "$minimatch",
-      "brace-expansion": "5.0.7"
+      "brace-expansion": "5.0.9"
     },
     "onnxruntime-web@1.25.0-dev.20260327-722743c0e2": {
       "protobufjs": "7.6.3"
