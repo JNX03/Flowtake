@@ -1,8 +1,8 @@
 # r/selfhosted post draft
 
-> **Draft only — not posted.** This copy targets v1.7.1. Flowtake is a local
+> **Draft only — not posted.** This copy targets v1.7.2. Flowtake is a local
 > desktop application, not a self-hosted server, so check the community rules.
-> Use this only after the exact v1.7.1 artifacts, privacy-reviewed demo, and
+> Use this only after the exact v1.7.2 artifacts, privacy-reviewed demo, and
 > live links are verified; recheck all three immediately before posting.
 
 ## Title

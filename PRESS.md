@@ -1,6 +1,6 @@
-# Flowtake press kit — v1.7.1
+# Flowtake press kit — v1.7.2
 
-Last factual review: September 12, 2026, against Flowtake v1.7.1.
+Last factual review: September 12, 2026, against Flowtake v1.7.2.
 
 This page contains approved factual language for articles, directories,
 package descriptions, and community posts. Verify the exact build on the
@@ -31,7 +31,7 @@ display, selected window, or custom area, then turn cursor activity into
 editable zoom and pan motion. Projects and ordinary exports are stored locally,
 without requiring cloud project sync. Windows 10/11 x64 is the primary
 development and validation target. macOS Universal and Linux x64 builds are
-available as previews. Flowtake v1.7.1 adds adaptive preview and
+available as previews. Flowtake v1.7.2 includes adaptive preview and
 camera-capture profiles, durable project archive replacement and close handling,
 and local H.264/MP4 or VP9/WebM export. Recorded and timeline audio can be mixed
 and muxed when it is present and enabled.
@@ -44,11 +44,11 @@ and muxed when it is present and enabled.
 | Source | [github.com/JNX03/Flowtake](https://github.com/JNX03/Flowtake) |
 | Releases | [GitHub Releases](https://github.com/JNX03/Flowtake/releases) |
 | Website | [jnx03.github.io/Flowtake](https://jnx03.github.io/Flowtake/) |
-| Reviewed version | v1.7.1, dated September 12, 2026 |
+| Reviewed version | v1.7.2, dated September 12, 2026 |
 | Historical v1.6.0 boundary | Released July 16, 2026; edited export was video-only AVC/H.264 MP4 |
 | Primary platform | Windows 10/11 x64 |
 | Preview platforms | macOS 10.15+ Universal and Linux x64 |
-| Edited export in v1.7.1 | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
+| Edited export in v1.7.2 | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
 | Windows signing | Not Authenticode-signed |
 | FFmpeg dependency | Not included in release packages; install a compatible system FFmpeg separately on every platform |
 | macOS signing | Ad-hoc signed; not Developer ID signed or notarized |

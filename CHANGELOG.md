@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-09-12
+
+### Fixed
+
+- Skip transparent cursor overlays, tool windows, and hidden windows when
+  selecting a recording source on Windows, so the intended app is selected.
+- Bind imported projects to their newly registered project ID, restoring editor
+  playback when the archive contains a different original project ID.
+- Allow up to 30 seconds for queued capture frames to finish encoding after Stop,
+  avoiding premature termination on slower high-resolution hardware captures.
+- Write periodic recoverable MP4 fragments and report incomplete finalization
+  explicitly, retaining captured footage for a deliberate save retry.
+
 ## [1.7.1] - 2026-09-12
 
 ### Fixed
@@ -204,7 +217,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Clarification
 - Earlier changelog text overstated the shipped output choices. In v1.6.0, Mediabunny encodes and muxes one video-only AVC MP4; the exporter does not offer H.265 or WebM output and does not expose a hardware-encoder selector.
 
-[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/JNX03/Flowtake/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/JNX03/Flowtake/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/JNX03/Flowtake/compare/v1.6.0...v1.7.0
 [1.4.1]: https://github.com/JNX03/Flowtake/compare/v1.3.2...v1.4.1

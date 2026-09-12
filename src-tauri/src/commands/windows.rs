@@ -606,16 +606,38 @@ pub async fn get_monitors(app: AppHandle) -> AppResult<Value> {
     Ok(Value::Array(result))
 }
 
-/// Detect the window at a given screen point by enumerating windows in z-order.
-/// No hiding/showing - just finds the topmost non-Flowtake window containing the point.
+#[cfg(target_os = "windows")]
+unsafe fn is_pickable_native_window(hwnd: HWND) -> bool {
+    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongW, IsIconic, IsWindowVisible, GWL_EXSTYLE,
+    };
+
+    let mut cloaked = 0u32;
+    // A failed DWM query is not evidence of cloaking (for example when DWM is
+    // unavailable); visibility and styles still determine eligibility.
+    let _ = DwmGetWindowAttribute(
+        hwnd,
+        DWMWA_CLOAKED,
+        &mut cloaked as *mut u32 as *mut std::ffi::c_void,
+        std::mem::size_of_val(&cloaked) as u32,
+    );
+    super::window_pickability::is_pickable_window(
+        IsWindowVisible(hwnd).as_bool(),
+        IsIconic(hwnd).as_bool(),
+        cloaked != 0,
+        GetWindowLongW(hwnd, GWL_EXSTYLE) as u32,
+    )
+}
+
+/// Detect a visible application window at a screen point in z-order, skipping
+/// Flowtake and non-interactive helper overlays above the intended target.
 #[tauri::command]
 pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<Value> {
     #[cfg(target_os = "windows")]
     {
         use std::sync::Mutex as StdMutex;
-        use windows::Win32::UI::WindowsAndMessaging::{
-            EnumWindows, GetWindowRect, IsWindowVisible as WinIsVisible,
-        };
+        use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowRect};
 
         let our_pid = std::process::id();
         let flowtake_titles: Vec<String> = vec![
@@ -656,8 +678,9 @@ pub async fn get_window_at_point(_app: AppHandle, x: i32, y: i32) -> AppResult<V
                 return BOOL(0);
             }
 
-            // Skip invisible windows
-            if !WinIsVisible(hwnd).as_bool() {
+            // Click-through cursor/highlight overlays can cover an entire
+            // desktop while still reporting WS_VISIBLE and a nonempty title.
+            if !is_pickable_native_window(hwnd) {
                 return BOOL(1);
             }
 
@@ -829,6 +852,10 @@ public class WinEnum {
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    public static extern int GetWindowLong(IntPtr hWnd, int index);
+    [DllImport("user32.dll")]
     public static extern int GetWindowTextLength(IntPtr hWnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
@@ -850,7 +877,14 @@ public class WinEnum {
         var pidSet = new HashSet<uint>(excludePids);
         var result = new List<Dictionary<string, object>>();
         EnumWindows((hWnd, lParam) => {
-            if (!IsWindowVisible(hWnd)) return true;
+            if (!IsWindowVisible(hWnd) || IsIconic(hWnd)) return true;
+            // Match native hover picking: skip click-through and tool overlays,
+            // but preserve ordinary layered and always-on-top app windows.
+            const int GWL_EXSTYLE = -20;
+            const int WS_EX_TRANSPARENT = 0x00000020;
+            const int WS_EX_TOOLWINDOW = 0x00000080;
+            int extendedStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
+            if ((extendedStyle & (WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW)) != 0) return true;
             int len = GetWindowTextLength(hWnd);
             if (len == 0) return true;
             int cloaked = 0;

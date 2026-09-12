@@ -253,7 +253,9 @@ export const openProject = async (id, isNew, defaultClipLayout, defaultClipMicro
         actions.push(setArePanAnimEntitiesGenerated(!isNew))
         actions.push(setAreCameraZoomAnimEntitiesGenerated(!isNew))
 
-        actions.push(applyProjectProperties(json.project))
+        // Imported archives may keep the source project's ID. The backend
+        // registers a new ID and restricts media requests to that active project.
+        actions.push(applyProjectProperties({ ...json.project, id }))
         actions.push(applyEditorDomainProperties(json.editorDomain))
         actions.push(setAssets(hydratedProjectMedia))
         actions.push(applyClipAnimsProperties(json.clipAnims))

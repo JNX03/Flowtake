@@ -8,6 +8,10 @@ use tauri_plugin_store::StoreExt;
 
 static FFMPEG_PATH_CACHE: OnceLock<Option<std::path::PathBuf>> = OnceLock::new();
 
+// High-resolution hardware capture can still have queued frames when Stop is
+// pressed. Give the writer and encoder one shared, bounded finalization budget.
+const RECORDING_FINALIZATION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 #[tauri::command]
 pub async fn get_camera_mic_config(app: AppHandle) -> AppResult<Value> {
     let state = app.state::<Mutex<AppState>>();
@@ -317,7 +321,7 @@ fn verify_capture_process_start(
                 return Err(AppError::General(format!(
                     "Could not verify FFmpeg capture startup: {}",
                     error
-                )))
+                )));
             }
         }
     }
@@ -355,9 +359,8 @@ fn spawn_macos_capture(
 ) -> AppResult<std::process::Child> {
     use std::process::{Command, Stdio};
 
-    let helper = crate::macos_capture::find_helper(app).ok_or_else(|| {
-        AppError::General("ScreenCaptureKit helper is not installed".to_string())
-    })?;
+    let helper = crate::macos_capture::find_helper(app)
+        .ok_or_else(|| AppError::General("ScreenCaptureKit helper is not installed".to_string()))?;
 
     if ready_file.exists() {
         std::fs::remove_file(ready_file).map_err(|error| {
@@ -826,10 +829,7 @@ struct RecordingOutputConfig<'a> {
     stop_on_video_eof: bool,
 }
 
-fn append_recording_output_args(
-    args: &mut Vec<String>,
-    config: RecordingOutputConfig<'_>,
-) {
+fn append_recording_output_args(args: &mut Vec<String>, config: RecordingOutputConfig<'_>) {
     let RecordingOutputConfig {
         video_filters,
         encoder,
@@ -894,6 +894,17 @@ fn append_recording_output_args(
     } else {
         args.push("-an".to_string());
     }
+
+    // Commit playable media while recording, not just a moov atom at shutdown.
+    // Periodic fragments also protect short clips whose encoder GOP has not
+    // reached another keyframe yet. A forced stop still reports an incomplete
+    // recording instead of silently treating the recoverable part as complete.
+    args.extend([
+        "-movflags".to_string(),
+        "+frag_keyframe+empty_moov".to_string(),
+        "-frag_duration".to_string(),
+        "1000000".to_string(),
+    ]);
 }
 
 #[cfg(target_os = "windows")]
@@ -1222,6 +1233,7 @@ pub async fn init_recording(
             state.is_recording = false;
             state.recording_capture_claimed = false;
             state.recording_stop_in_progress = false;
+            state.recording_needs_recovery = false;
             state.project_id = None;
             state.camera_mic_config = None;
             close_camera_file_handle(&mut state);
@@ -1304,6 +1316,7 @@ async fn init_recording_impl(
         state.recording_stop_in_progress = false;
         state.project_id = Some(project_id.clone());
         state.recording_id = Some(recording_id.clone());
+        state.recording_needs_recovery = false;
         state.camera_mic_config = Some(camera_mic_config.clone());
         state.multi_app_children.clear();
         state.multi_app_tracks.clear();
@@ -1779,17 +1792,18 @@ async fn init_recording_impl(
     ffmpeg_args.push(screen_video_path.clone());
 
     #[cfg(target_os = "macos")]
-    let (native_capture_args, native_capture_ready_file) =
-        if capturer == "screencapturekit" && encoder == "h264_videotoolbox" {
-            let ready_file = {
-                let state = state.lock().unwrap();
-                state
-                    .project_temp_dir(&recording_id)
-                    .join("native-capture.ready")
-                    .to_string_lossy()
-                    .to_string()
-            };
-            (
+    let (native_capture_args, native_capture_ready_file) = if capturer == "screencapturekit"
+        && encoder == "h264_videotoolbox"
+    {
+        let ready_file = {
+            let state = state.lock().unwrap();
+            state
+                .project_temp_dir(&recording_id)
+                .join("native-capture.ready")
+                .to_string_lossy()
+                .to_string()
+        };
+        (
             Some(macos_native_capture_arguments(
                 &source,
                 MacCaptureArgumentConfig {
@@ -1805,17 +1819,17 @@ async fn init_recording_impl(
                         .then_some(std::process::id()),
                 },
             )),
-                Some(ready_file),
-            )
-        } else {
-            if capturer == "screencapturekit" {
-                log::info!(
+            Some(ready_file),
+        )
+    } else {
+        if capturer == "screencapturekit" {
+            log::info!(
                     "[macos-capture] Using AVFoundation compatibility path because encoder {} was selected",
                     encoder
                 );
-            }
-            (None, None)
-        };
+        }
+        (None, None)
+    };
 
     // Store config for start_recording
     {
@@ -2073,6 +2087,7 @@ fn try_begin_recording_stop(state: &mut AppState) -> bool {
 fn clear_failed_recording_start(state: &mut AppState) -> Vec<std::path::PathBuf> {
     state.is_recording = false;
     state.recording_capture_claimed = false;
+    state.recording_needs_recovery = false;
     state.recording_start_timestamp = None;
     state.camera_mic_config = None;
     state.ffmpeg_child_id = None;
@@ -2237,9 +2252,10 @@ async fn start_recording_impl(app: AppHandle) -> AppResult<()> {
 
     if let Some(args) = ffmpeg_args {
         #[cfg(target_os = "macos")]
-        let native_capture_started = if let (Some(native_args), Some(ready_file)) =
-            (native_capture_args.as_deref(), native_capture_ready_file.as_deref())
-        {
+        let native_capture_started = if let (Some(native_args), Some(ready_file)) = (
+            native_capture_args.as_deref(),
+            native_capture_ready_file.as_deref(),
+        ) {
             match spawn_macos_capture(&app, native_args, ready_file) {
                 Ok(mut process) => {
                     let pid = process.id();
@@ -2769,12 +2785,16 @@ async fn stop_recording_impl(app: AppHandle) -> AppResult<()> {
 
     // Gracefully stop FFmpeg (handles both window capture and screen/area capture)
     log::info!("[stop_recording] Stopping FFmpeg");
-    tokio::task::spawn_blocking({
+    let primary_finalize_failure = tokio::task::spawn_blocking({
         let app = app.clone();
         move || kill_ffmpeg(&app)
     })
     .await
-    .ok();
+    .unwrap_or_else(|error| Err(incomplete_recording_error(error)))
+    .err();
+    if primary_finalize_failure.is_some() {
+        state.lock().unwrap().recording_needs_recovery = true;
+    }
 
     #[cfg(target_os = "macos")]
     crate::mouse_tracker::restore_macos_cursor();
@@ -2820,10 +2840,13 @@ async fn stop_recording_impl(app: AppHandle) -> AppResult<()> {
         recording_id
     );
 
-    if let Some(error) = app_layer_finalize_failure {
+    if let Some(error) = primary_finalize_failure.or(app_layer_finalize_failure) {
         let message = error.to_string();
         app.emit_to("main", "recording-error", &message).ok();
         app.emit_to("main", "load", serde_json::Value::Null).ok();
+        // Leave the recorder's Retry/Discard controls and captured fragments in
+        // place. A deliberate Retry can recover the readable portion only after
+        // the user has been told that the ending may be incomplete.
         return Err(error);
     }
 
@@ -2869,6 +2892,29 @@ async fn stop_recording_impl(app: AppHandle) -> AppResult<()> {
             .and_then(Value::as_bool)
             .unwrap_or(false)
     };
+
+    let needs_recovery = state.lock().unwrap().recording_needs_recovery;
+    if needs_recovery {
+        // This is reached only by a deliberate Retry after the incomplete
+        // recording warning above. Copy-remux drops truncated final packets;
+        // a first-frame probe alone cannot detect missing tail samples.
+        app.emit_to("main", "load", "Recovering captured video...")
+            .ok();
+        let recovery = match recording_video_path.as_deref() {
+            Some(path) => recover_recording_video(path, requires_system_audio).await,
+            None => Err(recording_save_error(
+                "recovering captured video",
+                "the source is unavailable",
+            )),
+        };
+        if let Err(error) = recovery {
+            app.emit_to("main", "recording-error", error.to_string())
+                .ok();
+            app.emit_to("main", "load", serde_json::Value::Null).ok();
+            return Err(error);
+        }
+        state.lock().unwrap().recording_needs_recovery = false;
+    }
 
     let screen_metadata = if has_non_empty_video {
         if let Some(ref path) = recording_video_path {
@@ -3294,6 +3340,7 @@ async fn stop_recording_impl(app: AppHandle) -> AppResult<()> {
     {
         let mut state = state.lock().unwrap();
         state.recording_id = None;
+        state.recording_needs_recovery = false;
         state.recording_start_timestamp = None;
         state.multi_app_tracks.clear();
         state.multi_app_init_in_progress = false;
@@ -3379,6 +3426,7 @@ pub async fn reset_recording(app: AppHandle) -> AppResult<()> {
         state.ffmpeg_child = None;
         state.ffmpeg_process = None;
         state.macos_capture_process = None;
+        state.recording_needs_recovery = false;
         state.recording_id.clone()
     };
 
@@ -3450,6 +3498,7 @@ pub async fn cancel_recording(app: AppHandle, error: Option<String>) -> AppResul
         crate::mouse_tracker::restore_macos_cursor();
         state.recording_start_timestamp = None;
         state.camera_mic_config = None;
+        state.recording_needs_recovery = false;
         let recording_id = state.recording_id.take();
         let project_id = state.project_id.take();
         let mut dirs = Vec::with_capacity(2);
@@ -3568,10 +3617,7 @@ fn parse_video_metadata(stderr: &str) -> Result<VideoMetadata, String> {
 /// Validate a recording and collect its metadata with one first-frame decode.
 /// The old stop path decoded the complete screen file three times, making stop
 /// time scale with recording length and needlessly consuming CPU/GPU.
-fn screen_recording_probe_args(
-    video_path: &std::path::Path,
-    requires_audio: bool,
-) -> Vec<String> {
+fn screen_recording_probe_args(video_path: &std::path::Path, requires_audio: bool) -> Vec<String> {
     let mut args = vec![
         "-hide_banner".to_string(),
         "-nostdin".to_string(),
@@ -3601,8 +3647,8 @@ async fn probe_video_metadata(
     let args = screen_recording_probe_args(video_path, requires_audio);
     let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
     let output = run_ffmpeg(&arg_refs)
-    .await
-    .map_err(|error| format!("FFmpeg error: {}", error))?;
+        .await
+        .map_err(|error| format!("FFmpeg error: {}", error))?;
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
         let reason = stderr
@@ -3754,7 +3800,142 @@ fn stop_macos_capture_process(mut process: std::process::Child) {
     }
 }
 
-fn kill_ffmpeg(app: &AppHandle) {
+fn incomplete_recording_error(reason: impl std::fmt::Display) -> AppError {
+    recording_save_error(
+        "finishing the recording",
+        format!(
+            "{}. Captured video is retained, but the ending may be incomplete. Retry Save can recover the playable portion.",
+            reason
+        ),
+    )
+}
+
+fn recording_recovery_args(
+    source: &std::path::Path,
+    recovered: &std::path::Path,
+    requires_audio: bool,
+) -> Vec<String> {
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-nostdin".to_string(),
+        "-n".to_string(),
+        "-fflags".to_string(),
+        "+discardcorrupt".to_string(),
+        "-i".to_string(),
+        source.to_string_lossy().into_owned(),
+        "-map".to_string(),
+        "0:v:0".to_string(),
+    ];
+    if requires_audio {
+        args.extend(["-map".to_string(), "0:a:0".to_string()]);
+    }
+    args.extend([
+        "-c".to_string(),
+        "copy".to_string(),
+        "-movflags".to_string(),
+        "+faststart".to_string(),
+        recovered.to_string_lossy().into_owned(),
+    ]);
+    args
+}
+
+fn recording_recovery_validation_args(
+    recovered: &std::path::Path,
+    requires_audio: bool,
+) -> Vec<String> {
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-nostdin".to_string(),
+        "-v".to_string(),
+        "error".to_string(),
+        "-xerror".to_string(),
+        "-err_detect".to_string(),
+        "explode".to_string(),
+        "-i".to_string(),
+        recovered.to_string_lossy().into_owned(),
+        "-map".to_string(),
+        "0:v:0".to_string(),
+    ];
+    if requires_audio {
+        args.extend(["-map".to_string(), "0:a:0".to_string()]);
+    }
+    args.extend(["-f".to_string(), "null".to_string(), "-".to_string()]);
+    args
+}
+
+fn commit_recovered_recording(
+    source: &std::path::Path,
+    recovered: &std::path::Path,
+    backup: &std::path::Path,
+) -> AppResult<()> {
+    // Keep the original until the complete project archive is durable. These
+    // UUID-scoped siblings are owned by this capture, never imported media.
+    if backup.exists() {
+        return Err(recording_save_error(
+            "preserving the incomplete recording",
+            "the backup destination already exists",
+        ));
+    }
+    std::fs::rename(source, backup)
+        .map_err(|error| recording_save_error("preserving the incomplete recording", error))?;
+    if let Err(error) = std::fs::rename(recovered, source) {
+        if let Err(rollback_error) = std::fs::rename(backup, source) {
+            log::error!(
+                "[recording_recovery] Original retained at {:?}; rollback failed: {}",
+                backup,
+                rollback_error
+            );
+        }
+        return Err(recording_save_error(
+            "committing the recovered recording",
+            error,
+        ));
+    }
+    Ok(())
+}
+
+async fn recover_recording_video(source: &std::path::Path, requires_audio: bool) -> AppResult<()> {
+    let token = uuid::Uuid::new_v4();
+    let recovered = source.with_file_name(format!("screen-recovered-{}.mp4", token));
+    let backup = source.with_file_name(format!("screen-incomplete-{}.mp4", token));
+    let result = async {
+        let args = recording_recovery_args(source, &recovered, requires_audio);
+        let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        let output = run_ffmpeg(&refs).await?;
+        if !output.status.success() {
+            return Err(recording_save_error(
+                "recovering captured video",
+                "FFmpeg could not repair the retained capture; the original is unchanged",
+            ));
+        }
+        probe_video_metadata(&recovered, requires_audio)
+            .await
+            .map_err(|error| recording_save_error("validating recovered video", error))?;
+        // Full decode is reserved for explicit recovery, never the normal
+        // stop path. Ensure no damaged final sample survives the copy-remux.
+        let validation_args = recording_recovery_validation_args(&recovered, requires_audio);
+        let validation_refs = validation_args
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        if !run_ffmpeg(&validation_refs).await?.status.success() {
+            return Err(recording_save_error(
+                "validating recovered video",
+                "the repaired ending is not fully decodable; the original is unchanged",
+            ));
+        }
+        commit_recovered_recording(source, &recovered, &backup)
+    }
+    .await;
+    if result.is_err() {
+        // Only the newly generated repair candidate is disposable. The source
+        // (or its retained backup if rollback failed) must remain recoverable.
+        std::fs::remove_file(&recovered).ok();
+    }
+    result
+}
+
+fn kill_ffmpeg(app: &AppHandle) -> AppResult<()> {
     let state = app.state::<Mutex<AppState>>();
 
     #[cfg(target_os = "macos")]
@@ -3763,7 +3944,7 @@ fn kill_ffmpeg(app: &AppHandle) {
         if let Some(process) = native_process {
             stop_macos_capture_process(process);
             state.lock().unwrap().ffmpeg_child_id = None;
-            return;
+            return Ok(());
         }
     }
 
@@ -3776,6 +3957,8 @@ fn kill_ffmpeg(app: &AppHandle) {
             .unwrap_or(false)
     };
     let uses_stdin_pipe = is_window_capture && cfg!(target_os = "windows");
+    let deadline = std::time::Instant::now() + RECORDING_FINALIZATION_TIMEOUT;
+    let mut finalization_failure = None;
 
     if uses_stdin_pipe {
         // Signal the capture thread to stop
@@ -3790,11 +3973,16 @@ fn kill_ffmpeg(app: &AppHandle) {
             s.window_capture_thread.take()
         };
         if let Some(thread) = thread {
-            let graceful_timeout = std::time::Duration::from_millis(750);
-            if !wait_for_capture_thread(&thread, graceful_timeout) {
+            if !wait_for_capture_thread(
+                &thread,
+                deadline.saturating_duration_since(std::time::Instant::now()),
+            ) {
                 log::warn!(
                     "[kill_ffmpeg] Window capture writer did not stop; terminating FFmpeg to unblock it"
                 );
+                finalization_failure = Some(incomplete_recording_error(
+                    "The capture writer did not finish within 30 seconds",
+                ));
                 let mut stalled_process = {
                     let mut state = state.lock().unwrap();
                     state.ffmpeg_process.take()
@@ -3812,7 +4000,7 @@ fn kill_ffmpeg(app: &AppHandle) {
                 }
             }
 
-            if wait_for_capture_thread(&thread, graceful_timeout) {
+            if wait_for_capture_thread(&thread, std::time::Duration::from_millis(750)) {
                 thread.join().ok();
                 log::info!("[kill_ffmpeg] Window capture thread joined");
             } else {
@@ -3849,21 +4037,29 @@ fn kill_ffmpeg(app: &AppHandle) {
             }
         }
 
-        // Wait for FFmpeg to finalize (up to 8 seconds)
-        let start = std::time::Instant::now();
-        let timeout = std::time::Duration::from_secs(8);
+        // Share the 30-second budget with the raw frame writer above. Direct
+        // capture can need more than 8 seconds to drain queued hardware frames.
         loop {
             match process.try_wait() {
                 Ok(Some(status)) => {
                     log::info!("[kill_ffmpeg] FFmpeg exited with: {:?}", status);
-                    return;
+                    return match finalization_failure {
+                        Some(error) => Err(error),
+                        None if status.success() => Ok(()),
+                        None => Err(incomplete_recording_error(format!(
+                            "The encoder exited with {}",
+                            status
+                        ))),
+                    };
                 }
                 Ok(None) => {
-                    if start.elapsed() > timeout {
+                    if std::time::Instant::now() >= deadline {
                         log::warn!("[kill_ffmpeg] FFmpeg didn't exit in time, force killing");
                         process.kill().ok();
                         process.wait().ok();
-                        return;
+                        return Err(incomplete_recording_error(
+                            "The encoder did not finish within 30 seconds",
+                        ));
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
@@ -3871,7 +4067,7 @@ fn kill_ffmpeg(app: &AppHandle) {
                     log::error!("[kill_ffmpeg] Error waiting for FFmpeg: {}", e);
                     process.kill().ok();
                     process.wait().ok();
-                    return;
+                    return Err(incomplete_recording_error(e));
                 }
             }
         }
@@ -3881,6 +4077,13 @@ fn kill_ffmpeg(app: &AppHandle) {
             pid
         );
         force_kill_ffmpeg(pid);
+        return Err(incomplete_recording_error(
+            "The encoder process handle was unavailable",
+        ));
+    }
+    match finalization_failure {
+        Some(error) => Err(error),
+        None => Ok(()),
     }
 }
 
@@ -4870,6 +5073,77 @@ mod tests {
     }
 
     #[test]
+    fn recording_outputs_commit_recoverable_fragments_with_and_without_audio() {
+        for has_system_audio in [false, true] {
+            let mut args = Vec::new();
+            append_recording_output_args(
+                &mut args,
+                RecordingOutputConfig {
+                    video_filters: &[],
+                    encoder: "libx264",
+                    fps: 30,
+                    width: 1920,
+                    height: 1080,
+                    quality: "balanced",
+                    has_system_audio,
+                    stop_on_video_eof: false,
+                },
+            );
+            assert_eq!(
+                option_value(&args, "-movflags"),
+                Some("+frag_keyframe+empty_moov")
+            );
+            assert_eq!(option_value(&args, "-frag_duration"), Some("1000000"));
+        }
+    }
+
+    #[test]
+    fn incomplete_recording_error_explains_retention_and_explicit_recovery() {
+        assert_eq!(
+            RECORDING_FINALIZATION_TIMEOUT,
+            std::time::Duration::from_secs(30)
+        );
+        let message = incomplete_recording_error("Encoder timed out").to_string();
+        assert!(message.contains("Captured video is retained"));
+        assert!(message.contains("ending may be incomplete"));
+        assert!(message.contains("Retry Save"));
+    }
+
+    #[test]
+    fn recovery_drops_corrupt_packets_without_reencoding_or_optional_audio() {
+        let args = recording_recovery_args(
+            std::path::Path::new("screen.mp4"),
+            std::path::Path::new("recovered.mp4"),
+            true,
+        );
+        assert_eq!(option_value(&args, "-fflags"), Some("+discardcorrupt"));
+        assert_eq!(option_value(&args, "-c"), Some("copy"));
+        assert_eq!(option_value(&args, "-movflags"), Some("+faststart"));
+        assert!(args.windows(2).any(|pair| pair == ["-map", "0:a:0"]));
+        assert!(!args.iter().any(|arg| arg.contains('?')));
+        assert!(args.iter().any(|arg| arg == "-n"));
+        let validation =
+            recording_recovery_validation_args(std::path::Path::new("recovered.mp4"), true);
+        assert!(validation.iter().any(|arg| arg == "-xerror"));
+        assert_eq!(option_value(&validation, "-err_detect"), Some("explode"));
+        assert!(!validation.iter().any(|arg| arg == "-frames:v"));
+    }
+
+    #[test]
+    fn failed_recovery_commit_restores_original_recording() {
+        let dir = std::env::temp_dir().join(format!("flowtake-recovery-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&dir).unwrap();
+        let source = dir.join("screen.mp4");
+        let recovered = dir.join("missing-recovered.mp4");
+        let backup = dir.join("screen-incomplete.mp4");
+        std::fs::write(&source, b"original recording").unwrap();
+        assert!(commit_recovered_recording(&source, &recovered, &backup).is_err());
+        assert_eq!(std::fs::read(&source).unwrap(), b"original recording");
+        assert!(!backup.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn parses_duration_and_dimensions_from_single_probe_output() {
         let stderr = r#"
 Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'screen.mp4':
@@ -4936,12 +5210,10 @@ Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'screen.mp4':
             .spawn()
             .unwrap();
 
-        let error = verify_capture_process_start(
-            &mut exited,
-            std::time::Duration::from_millis(250),
-        )
-        .unwrap_err()
-        .to_string();
+        let error =
+            verify_capture_process_start(&mut exited, std::time::Duration::from_millis(250))
+                .unwrap_err()
+                .to_string();
         assert!(error.contains("exited during capture startup"), "{error}");
     }
 

@@ -13,6 +13,8 @@ pub mod projects;
 pub mod recording;
 pub mod social_upload;
 pub mod store;
+#[cfg(any(target_os = "windows", test))]
+mod window_pickability;
 pub mod windows;
 
 use tauri_plugin_shell::ShellExt;

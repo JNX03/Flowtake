@@ -5,7 +5,7 @@
 <h3 align="center">Record locally. Turn the capture into a polished product demo.</h3>
 
 <p align="center">
-  Flowtake v1.7.1 is a free desktop screen recorder and editor with automatic zoom and pan, cursor effects, a timeline, and local H.264/MP4 or VP9/WebM export with audio when present and enabled. Flowtake application code is MIT-licensed. Install FFmpeg separately before using the desktop app.
+  Flowtake v1.7.2 is a free desktop screen recorder and editor with automatic zoom and pan, cursor effects, a timeline, and local H.264/MP4 or VP9/WebM export with audio when present and enabled. Flowtake application code is MIT-licensed. Install FFmpeg separately before using the desktop app.
 </p>
 
 <p align="center">
@@ -47,7 +47,7 @@ FFmpeg executable. Install a compatible system FFmpeg separately and keep the
 2. Install with `winget install --id JNX03.Flowtake --exact` on Windows, download a build from the [release page](https://github.com/JNX03/Flowtake/releases), or follow [Development](#development) to run from source.
 3. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
 4. Start recording and use the compact recorder controls to pause or stop.
-5. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export**. Flowtake v1.7.1 renders H.264/MP4 or VP9/WebM and can include recorded or timeline audio when present and enabled.
+5. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export**. Flowtake v1.7.2 renders H.264/MP4 or VP9/WebM and can include recorded or timeline audio when present and enabled.
 
 Your OS may ask for screen-recording, camera, or microphone permission on first use. Current platform-signing limitations can also produce a Windows SmartScreen or macOS Gatekeeper warning; see the status note below before proceeding.
 
@@ -123,7 +123,7 @@ The WinGet package installs the same unsigned MSI published on the official rele
 
 ### Export
 
-Flowtake v1.7.1 renders H.264/MP4 or VP9/WebM locally and provides:
+Flowtake v1.7.2 renders H.264/MP4 or VP9/WebM locally and provides:
 
 - VP9/WebM rendering through Mediabunny
 - Resolution, 30/60 fps, output-format, output-quality, and optional-audio controls
@@ -141,7 +141,7 @@ For vulnerability reporting, follow the private process in [SECURITY.md](SECURIT
 
 ## Optional local MCP for AI-assisted edits
 
-Flowtake v1.7.1 includes a local stdio MCP developer integration.
+Flowtake v1.7.2 includes a local stdio MCP developer integration.
 From a source checkout with Node.js 20+, an MCP host can list projects, read
 bounded timeline metadata, and request revision-checked, dry-run and
 backup-backed split, trim, delete, and caption edits. Flowtake must be closed

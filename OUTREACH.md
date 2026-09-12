@@ -1,6 +1,6 @@
 # Flowtake outreach guide
 
-> **Draft only — not posted.** Before any submission, verify the exact v1.7.1
+> **Draft only — not posted.** Before any submission, verify the exact v1.7.2
 > artifacts, privacy-reviewed demo, live links, and destination rules.
 
 This document keeps directory submissions, package listings, and launch copy
@@ -9,7 +9,7 @@ listing, account action, or social post. A maintainer must approve each external
 action, and the destination's current contribution rules must be checked on the
 day of submission.
 
-Last review: September 12, 2026, against Flowtake v1.7.1.
+Last review: September 12, 2026, against Flowtake v1.7.2.
 
 ## Positioning
 
@@ -51,7 +51,7 @@ request immediately before submitting.
 ## Awesome-list entries
 
 Use the destination's exact Markdown style. These lines are intentionally
-specific about the v1.7.1 export and platform boundary. Recheck the release
+specific about the v1.7.2 export and platform boundary. Recheck the release
 gate above immediately before submitting them.
 
 ### awesome-tauri
@@ -88,7 +88,7 @@ Use this block for AlternativeTo or another factual application directory:
 | Price | Free for the open-source desktop recorder and editor |
 | Platforms | Windows 10/11 x64 primary; macOS 10.15+ Universal preview; Linux x64 preview |
 | Category | Screen recorder; timeline video editor; developer demo tool |
-| v1.7.1 export boundary | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
+| v1.7.2 export boundary | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
 | Historical v1.6.0 export boundary | Video-only AVC/H.264 MP4 |
 | Linux boundary | X11 or XWayland capture; no pure Wayland capture |
 | FFmpeg dependency | Not included in Flowtake packages; install a compatible system FFmpeg separately on every platform |
@@ -99,7 +99,7 @@ Suggested description:
 > Flowtake is a free desktop screen recorder and timeline editor with MIT-licensed application code.
 > It captures a display, window, or custom area, generates editable zoom and
 > pan from cursor activity, and saves projects and ordinary exports locally.
-> Flowtake v1.7.1 requires explicit source selection before
+> Flowtake v1.7.2 requires explicit source selection before
 > capture preview, offers adaptive performance profiles, and exports H.264/MP4
 > or VP9/WebM with audio when present and enabled. Windows is the primary
 > platform; macOS and Linux builds are previews. Flowtake packages do not
@@ -137,7 +137,7 @@ captures.
 > from cursor activity; refine it on a timeline; and export locally. The code is
 > MIT licensed. Flowtake packages do not include FFmpeg; users install it
 > separately. Windows is the primary target today; macOS and Linux are
-> previews. Flowtake v1.7.1 exports H.264/MP4 or VP9/WebM and can
+> previews. Flowtake v1.7.2 exports H.264/MP4 or VP9/WebM and can
 > include audio when present and enabled. I would especially value reproducible
 > reports about capture reliability and project recovery.
 
