@@ -7,7 +7,7 @@
 - Browser: the user's Chrome session
 - Desktop viewport: 1440 CSS px wide; captured content area 1425 x 757 px
 - Mobile viewport: 390 x 844 CSS px; captured content area 375 x 812 px
-- State: default homepage, demo section, product section, service section, intake dialog, and mobile menu
+- State: default homepage, demo section, product section, free community-kit section, privacy disclosures, and mobile menu
 
 ## Comparison evidence
 
@@ -22,8 +22,6 @@ Supporting implementation captures:
 - `homepage-mobile.jpg`
 - `homepage-mobile-menu.jpg`
 - `product-mobile.jpg`
-- `release-studio-desktop.jpg`
-- `intake-dialog.jpg`
 - `comparison-route-mobile.jpg`
 - `storyboard-route-mobile.jpg`
 
@@ -57,20 +55,20 @@ The independent review raised the small-print contrast token from `#777482` to `
 - Spacing and layout: passed. No clipped sections, overlapping controls, or unexplained white gaps were found at desktop or 390 px mobile.
 - Color and borders: passed. The near-black canvas, soft violet surfaces, restrained borders, and muted secondary text are consistent with the source.
 - Image fidelity: passed. Generated raster assets fit their measured slots and carry explicit concept labels. No placeholder boxes, CSS drawings, or fake product screenshots are presented as evidence.
-- Copy and content: passed. The free MIT app is the primary story and CTA. The optional $99/month service appears only after product proof. Platform, signing, privacy, recurring-billing, and checkout boundaries remain visible.
-- Responsiveness: passed. At 390 CSS px, `documentElement.scrollWidth` equaled its 375 px content width; there was no horizontal overflow. Hero buttons, release card, menu, and product rows remained usable.
-- Interactions: passed. A real scoped `Demo` anchor click, mobile menu open/close, Escape close, intake-dialog initial focus, focus trap, backdrop/Escape close, form labels, and focus restoration were exercised in Chrome.
-- Accessibility structure: passed for this build review. The page retains a skip link, one `h1`, sequential section headings, semantic landmarks, visible focus states, native FAQ disclosure controls, reduced-motion handling, and explicit form status/error regions.
-- Shared-route regression: passed. The Screen Studio comparison and developer-tool storyboard routes rendered at desktop and 390 px mobile with no horizontal overflow, failed images, or page-origin console warnings/errors.
+- Copy and content: updated September 12, 2026. Paid-service, checkout, and intake copy were removed. The page now presents the MIT app and free community demo kit only, while retaining platform, signing, local-first, explicit-network-feature, and public-contribution boundaries.
+- Responsiveness: passed in Computer at desktop and a 390 x 844 viewport override. The homepage and both shared routes kept their document width within the viewport; hero buttons, release card, menu, comparison cards, and storyboard rows remained usable.
+- Interactions: passed. The mobile menu expanded with the expected navigation links, and the storyboard copy action returned its success status. The intake dialog no longer exists; community actions are ordinary links, and the copy controls retain a manual fallback.
+- Accessibility structure: passed in the fresh September 12 browser review. The page retains a skip link, one `h1`, sequential section headings, semantic landmarks, native disclosure controls, and labelled navigation and copy actions.
+- Shared-route regression: passed. The Screen Studio comparison and developer-tool storyboard routes rendered at desktop and 390 x 844 mobile with no horizontal overflow, failed images, or page-origin console warnings/errors.
 
 ## Intentional truth-preserving differences
 
 - The source's `Watch the 42-second demo` control is implemented as `View the 42-second demo plan` until real isolated-session footage exists.
-- The hero uses the published v1.6.0 release and checksum link instead of implying that a concept frame is recorded product footage.
+- The site is configured for the release-gated v1.7.0 page and checksum link instead of implying that a concept frame is recorded product footage. Pages must remain blocked until that exact release exists.
 - Every generated product scene is labeled as a concept illustration, not customer work or a finished video.
 
 ## Remaining P3 follow-up
 
 - Replace the labeled concept frames with privacy-reviewed real Flowtake footage after the isolated demo-capture environment passes its release and security checks.
 
-final result: passed
+Current result: 13/13 site tests, the Pages-mode production build, built-site verification, and fresh Computer desktop/mobile review passed on September 12, 2026. Real privacy-reviewed product-demo footage remains pending because native-app control was unavailable in the Computer session.

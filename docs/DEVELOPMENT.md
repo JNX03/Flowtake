@@ -29,6 +29,8 @@ npm run dev
 
 This launches both the Vite dev server (frontend) and the Tauri dev process (Rust backend).
 
+For privacy-safe demos or test runs, debug builds can use an isolated app-data directory instead of your normal Flowtake library. Set `FLOWTAKE_DEV_DATA_DIR` to an absolute, disposable directory before `npm run dev`. Release builds ignore this override.
+
 ## Available Scripts
 
 | Command | Description |

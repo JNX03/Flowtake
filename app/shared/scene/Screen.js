@@ -57,6 +57,23 @@ export default class Screen extends CanvasWrapper {
         }
     }
 
+    setTextureDimensions(textureDims) {
+        const width = Math.max(1, Math.round(Number(textureDims?.x) || this.canvas.width))
+        const height = Math.max(1, Math.round(Number(textureDims?.y) || this.canvas.height))
+        const source = this.fg.texture.source
+
+        if (!source.resize(width, height)) return false
+
+        // Resizing clears an OffscreenCanvas. Keep the source-space geometry
+        // stable and let the next decoded frame repopulate the smaller/larger
+        // preview texture.
+        this.canvas.context = this.canvas.getContext('2d')
+        this.fg.pivot.set(width * 0.5, height * 0.5)
+        this.fg.width = this.dims.x
+        this.fg.height = this.dims.y
+        return true
+    }
+
     setState({ rendererDims, leftTrim, rightTrim, topTrim, bottomTrim, borderRadius, shadowAlpha }) {
         let isMaskDirty = false
 

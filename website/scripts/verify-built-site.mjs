@@ -31,7 +31,7 @@ const comparisonFlowtakeCopy = [
 ].filter(Boolean).join("\n");
 const storyboardFlowtakeExportCopy = [
   guide.match(/<h3>Export locally<\/h3>\s*<p class="storyboard-caption">([\s\S]*?)<\/p>/u)?.[1],
-  guide.match(/<h3>Record and edit on the published app\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
+  guide.match(/<h3>Record and edit with Flowtake v1\.7\.0\.<\/h3>\s*<ul>([\s\S]*?)<\/ul>/u)?.[1],
 ].filter(Boolean).join("\n");
 
 const count = (value, needle) => value.split(needle).length - 1;
@@ -80,12 +80,17 @@ assert.equal(homeStructuredData.isAccessibleForFree, true, "homepage must preser
 assert.equal(home.includes("VideoObject"), false, "homepage must not claim a finished video");
 assert.equal(home.includes("AggregateRating"), false, "homepage must not claim unverified ratings");
 assert.equal(
-  runtimeSource.includes("Export a local AVC MP4."),
+  runtimeSource.includes("Flowtake v1.7 exports H.264/MP4 or VP9/WebM locally."),
   true,
-  "built homepage must state the current local AVC MP4 output",
+  "built homepage must state both local export formats",
 );
-assert.equal(runtimeSource.includes("Mediabunny handles video encoding on your machine"), true, "built homepage must name the current encoder");
-assert.equal(runtimeSource.includes("the current edited export is video-only"), true, "built homepage must disclose the audio boundary");
+assert.equal(
+  runtimeSource.includes("Recorded and timeline audio are mixed into the exported file when present and enabled."),
+  true,
+  "built homepage must state the conditional audio behavior",
+);
+assert.equal(runtimeSource.includes("Community demo kit"), true, "built homepage must expose the free community kit");
+assert.equal(runtimeSource.includes("No checkout, private upload, or lead form"), true, "built homepage must keep the no-funnel boundary");
 
 assert.equal(comparison.includes("A Screen Studio"), true, "comparison H1 content missing");
 assert.equal(comparison.includes("Where Screen Studio is still stronger"), true, "honesty section missing");
@@ -97,9 +102,9 @@ assert.equal(count(comparison, 'property="og:url"'), 1, "comparison og:url must 
 assert.equal(comparison.includes(`href="${comparisonUrl}"`), true, "comparison canonical is wrong");
 assert.equal(comparison.includes(`content="${comparisonUrl}"`), true, "comparison og:url is wrong");
 assert.equal(
-  comparison.includes("Local AVC MP4 with resolution, 30/60 fps, and quality controls; the current edited output is video-only"),
+  comparison.includes("Local H.264/MP4 or VP9/WebM with resolution, 30/60 fps, and quality controls; recorded and timeline audio are included when present and enabled"),
   true,
-  "comparison must preserve the implemented output controls and audio boundary",
+  "comparison must preserve the implemented formats, controls, and audio behavior",
 );
 
 const jsonLdBlocks = [...comparison.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gu)];
@@ -113,7 +118,7 @@ assert.equal(guide.includes("A six-beat storyboard for one real developer workfl
 assert.equal(guide.includes("data-copy-template>Copy the six-beat template</button>"), true, "storyboard copy action missing");
 assert.equal(guide.includes('id="six-beat-template"'), true, "serialized storyboard copy payload missing");
 assert.equal(
-  guide.includes("The brief text is not uploaded when you copy it. Flowtake records only a cookie-free aggregate copy count."),
+  guide.includes("The brief is copied by your browser. Flowtake does not upload the text or count the action."),
   true,
   "storyboard copy privacy boundary missing",
 );
@@ -131,13 +136,34 @@ const guideStructuredData = JSON.parse(guideJsonLdBlocks[0][1]);
 assert.equal(guideStructuredData["@type"], "WebPage", "storyboard guide structured data must remain WebPage-only");
 assert.equal(guide.includes("VideoObject"), false, "storyboard guide must not claim video structured data");
 assert.equal(count(sitemap, `<loc>${guideUrl}</loc>`), 1, "storyboard guide sitemap entry must be unique");
-assert.equal(guide.includes("“Export a local MP4.”"), true, "storyboard must keep the factual export caption");
 assert.equal(
-  guide.includes("PixiJS composites the edited frames; Mediabunny encodes and muxes the local AVC MP4."),
+  guide.includes("“Export MP4 or WebM locally—with the edit's audio when present.”"),
+  true,
+  "storyboard must keep the factual export caption",
+);
+assert.equal(
+  guide.includes("PixiJS composites the edited frames; Mediabunny encodes the H.264/MP4 or VP9/WebM video stream."),
   true,
   "storyboard must state the current final-export path",
 );
-assert.equal(guide.includes("The edited MP4 currently has no muxed audio."), true, "storyboard must disclose the audio boundary");
+assert.equal(
+  guide.includes("Recorded and timeline audio are mixed to the edit and muxed into the exported file when present and enabled."),
+  true,
+  "storyboard must state the conditional audio behavior",
+);
+for (const prohibited of [
+  "$99",
+  "flowtake.72-62-41-174.sslip.io",
+  "/v1/leads",
+  "/v1/events",
+  "Request a sample storyboard",
+]) {
+  assert.equal(
+    `${runtimeSource}\n${comparison}\n${guide}`.includes(prohibited),
+    false,
+    `built website contains removed service-funnel token: ${prohibited}`,
+  );
+}
 assertNoUnsupportedExportClaims(`${runtimeExportCopy}\n${storyboardFlowtakeExportCopy}`, "built homepage/storyboard copy");
 assertNoUnsupportedExportClaims(comparisonFlowtakeCopy, "built comparison Flowtake copy");
 

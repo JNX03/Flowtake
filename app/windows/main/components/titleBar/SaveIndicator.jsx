@@ -1,55 +1,63 @@
-import { CheckIcon } from "@heroicons/react/16/solid"
 import {
-    useEffect,
-    useRef,
-    useState
-} from "react"
+    CheckIcon,
+    ExclamationTriangleIcon
+} from "@heroicons/react/16/solid"
 import { useSelector } from "react-redux"
-import { selectIsSaving } from "@shared/redux/editorSlice"
+import {
+    SAVE_STATUS_ERROR,
+    SAVE_STATUS_IDLE,
+    SAVE_STATUS_PENDING,
+    SAVE_STATUS_SAVED,
+    selectSaveError,
+    selectSaveStatus
+} from "@shared/redux/editorSlice"
 
 export default function SaveIndicator() {
-    const isSaving = useSelector(selectIsSaving)
-    const [showCheckmark, setShowCheckmark] = useState(false)
-    const timeoutRef = useRef(null)
-    const prevIsSavingRef = useRef(isSaving)
+    const saveStatus = useSelector(selectSaveStatus)
+    const saveError = useSelector(selectSaveError)
 
-    useEffect(() => {
-        const wasSaving = prevIsSavingRef.current
-        prevIsSavingRef.current = isSaving
+    if (saveStatus === SAVE_STATUS_IDLE) return null
 
-        if (wasSaving && !isSaving) {
-            // Save just completed - schedule checkmark display
-            if (timeoutRef.current) clearTimeout(timeoutRef.current)
-            
-            // Use queueMicrotask to defer state update (React 18+ recommended pattern)
-            queueMicrotask(() => {
-                setShowCheckmark(true)
-                timeoutRef.current = setTimeout(() => {
-                    setShowCheckmark(false)
-                }, 1000)
-            })
-        } else if (isSaving && showCheckmark) {
-            // Save started while checkmark showing - hide it
-            queueMicrotask(() => {
-                setShowCheckmark(false)
-                if (timeoutRef.current) {
-                    clearTimeout(timeoutRef.current)
-                    timeoutRef.current = null
-                }
-            })
-        }
-    }, [isSaving, showCheckmark])
+    if (saveStatus === SAVE_STATUS_ERROR) {
+        const message = saveError || "Couldn't save project."
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current)
-        }
-    }, [])
+        return (
+            <span
+                className="inline-flex items-center px-1 text-error"
+                role="alert"
+                title={message}
+            >
+                <ExclamationTriangleIcon className="size-4" />
+                <span className="sr-only">{message}</span>
+            </span>
+        )
+    }
 
-    return (<label className={"px-1 cursor-default swap swap-flip " +
-        `${showCheckmark ? "swap-active" : ""} ${isSaving || showCheckmark ? "" : "hidden"}`}>
-        <CheckIcon className="swap-on size-4 text-success" />
-        <span className="swap-off loading loading-spinner loading-xs text-base-content/70" />
-    </label>)
+    if (saveStatus === SAVE_STATUS_SAVED) {
+        return (
+            <span
+                className="inline-flex items-center px-1 text-success"
+                role="status"
+                title="Project saved"
+            >
+                <CheckIcon className="size-4" />
+                <span className="sr-only">Project saved</span>
+            </span>
+        )
+    }
+
+    const message = saveStatus === SAVE_STATUS_PENDING
+        ? "Waiting to save project"
+        : "Saving project"
+
+    return (
+        <span
+            className="inline-flex items-center px-1 text-base-content/70"
+            role="status"
+            title={message}
+        >
+            <span className="loading loading-spinner loading-xs" />
+            <span className="sr-only">{message}</span>
+        </span>
+    )
 }

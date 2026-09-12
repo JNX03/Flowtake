@@ -33,6 +33,18 @@ fn debug_log(msg: &str) {
     }
 }
 
+#[cfg(debug_assertions)]
+fn development_app_data_dir() -> Result<Option<std::path::PathBuf>, String> {
+    let Some(value) = std::env::var_os("FLOWTAKE_DEV_DATA_DIR") else {
+        return Ok(None);
+    };
+    let path = std::path::PathBuf::from(value);
+    if !path.is_absolute() {
+        return Err("FLOWTAKE_DEV_DATA_DIR must be an absolute path".to_string());
+    }
+    Ok(Some(path))
+}
+
 fn cleanup_stale_recording_temp_dirs(temp_dir: &std::path::Path) {
     let Ok(entries) = std::fs::read_dir(temp_dir) else {
         return;
@@ -542,6 +554,8 @@ pub fn run() {
             commands::projects::get_projects,
             commands::projects::open_project,
             commands::projects::close_project,
+            commands::projects::commit_project_close,
+            commands::projects::finalize_project_close,
             commands::projects::delete_project,
             commands::projects::save_json,
             commands::projects::import_project_media,
@@ -711,10 +725,26 @@ pub fn run() {
             }
 
             // Initialize paths
-            let app_data_dir = app_handle
-                .path()
-                .app_data_dir()
-                .expect("Failed to get app data dir");
+            let app_data_dir = {
+                #[cfg(debug_assertions)]
+                {
+                    development_app_data_dir()
+                        .map_err(crate::error::AppError::General)?
+                        .unwrap_or_else(|| {
+                            app_handle
+                                .path()
+                                .app_data_dir()
+                                .expect("Failed to get app data dir")
+                        })
+                }
+                #[cfg(not(debug_assertions))]
+                {
+                    app_handle
+                        .path()
+                        .app_data_dir()
+                        .expect("Failed to get app data dir")
+                }
+            };
             let projects_dir = app_data_dir.join("projects");
             let temp_dir = app_data_dir.join("temp");
             let plugins_dir = app_data_dir.join("plugins");

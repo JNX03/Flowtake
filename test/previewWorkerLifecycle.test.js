@@ -98,13 +98,13 @@ test("preview worker teardown rejects requests and frame pumps always unlock", (
 })
 
 test("preview clock updates do not rerender the full preview editor", () => {
-    assert.match(previewSource, /function PreviewClockBridge\(\{ manager, screenVideoRef \}\)/)
+    assert.match(previewSource, /function PreviewClockBridge\(\{ manager, screenVideoRef, previewFps \}\)/)
     assert.match(previewSource, /manager\?\.postTime\(time\)/)
     assert.match(previewSource, /screenVideoRef\.current\?\.currentTime/)
     assert.match(previewSource, /requestAnimationFrame\(publishPlaybackTime\)/)
     assert.match(
         previewSource,
-        /<PreviewClockBridge manager=\{manager\} screenVideoRef=\{screenVideoRef\} \/>/
+        /<PreviewClockBridge[\s\S]*manager=\{manager\}[\s\S]*screenVideoRef=\{screenVideoRef\}[\s\S]*previewFps=\{performanceProfile\.previewFps\}[\s\S]*\/>/
     )
     // Anything that needs the clock imperatively reads it off the store rather
     // than subscribing, so a tick never re-renders the editor shell.

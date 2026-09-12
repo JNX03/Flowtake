@@ -1,64 +1,39 @@
 # r/tauri post draft
 
-**Subreddit**: r/tauri
-**Audience**: Tauri developers, Rust + frontend crossover devs
-**Important**: This is the SHOWCASE audience — they want to see real Tauri v2 apps in the wild. Lean into the technical story.
-
----
+> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
 ## Title
-```
-[Showcase] Flowtake — screen recorder with auto-zoom animations, built with Tauri v2 + React + Pixi.js
-```
 
-## URL
-```
-https://github.com/JNX03/Flowtake
+```text
+[Showcase] Flowtake — an MIT-licensed screen recorder and editor built with Tauri
 ```
 
 ## Body
 
-```
-Sharing a Tauri v2 app I've been grinding on for ~2 years: Flowtake, an open-source screen recorder that automatically adds Screen Studio–style zoom and pan animations to your recordings.
+```text
+Sharing Flowtake, a free desktop screen recorder and timeline editor built with Tauri, Rust, React, PixiJS, Mediabunny, and FFmpeg.
 
-**Why I think this might be interesting for this sub**:
+Flowtake uses separate native windows for recording and editing workflows. It can capture a display, window, or custom area, derive editable zoom and pan motion from cursor activity, and provide timeline controls for trims, splits, cursor effects, masks, backgrounds, overlays, audio, and subtitles.
 
-- It's a non-trivial Tauri v2 app (367 commits, 100+ React components, 6 windows, full IPC layer, bundled FFmpeg sidecar). Good reference for anyone building something beyond "hello world" in Tauri.
-- Multi-window architecture: main editor, recorder overlay, exporter, window/area pickers, note window. Each window has its own Vite entry and shared Redux state via Tauri commands.
-- Mouse tracking lives on the Rust side (`src-tauri/src/mouse_tracker.rs`) and streams to the frontend via events — separate thread to avoid blocking the webview.
-- Custom `video://` asset protocol for streaming recording frames into Pixi.js in the preview window (bypasses the webview's fetch limits for large media).
-- FFmpeg is bundled as a Tauri sidecar, cross-compiled for all 3 platforms in GitHub Actions. `externalBin` in `tauri.conf.json`.
-- Migrated from Electron mid-project. Not fun but absolutely worth it. Binary went from ~280 MB to ~80 MB, startup time dropped significantly, and the recording layer is way easier to write natively in Rust than via Node.js bindings.
+The release linked here includes adaptive preview and camera-capture profiles, plus local H.264/MP4 and VP9/WebM export. When recorded or timeline audio is present and enabled, it is mixed and muxed into the result. A lighter editor preview does not change the selected export dimensions.
 
-**Tauri gotchas I hit**:
-- `dragDropEnabled: true` conflicts with some HTML5 drag/drop interactions — had to handle it carefully in the timeline.
-- macOS `macOSPrivateApi: true` was needed for window transparency + camera overlay; watch for this if you submit to the Mac App Store (you probably can't).
-- The Wayland screen capture story via `xdg-desktop-portal` is still rough — if anyone's shipped a clean implementation I'd love notes.
-- CSP for `media-src` needs `asset: http://asset.localhost http://video.localhost blob: data: stream:` to get video streams working in preview. Not obvious from the docs.
+The repository also contains a local stdio MCP for AI-assisted timeline metadata edits. This first version is a source-checkout/Node.js 20+ developer integration rather than a bundled desktop component. It reuses the editor's command planner and adds dry-run, revision, backup, closed-app, and post-write verification guards. It cannot inspect pixels/audio, render, export, upload, or drive the app UI.
 
-**Stack details**:
-- Tauri v2.10.1, Rust stable
-- React 19.2, Redux Toolkit, Pixi.js 8.17
-- Vite 7, TailwindCSS 4, DaisyUI 5
-- FFmpeg sidecar, MediaPipe + HuggingFace Transformers for on-device speech recognition (teleprompter + subtitles)
+Windows is the primary development and validation target. macOS and Linux builds are previews. Linux capture currently requires X11 or XWayland; pure Wayland capture is not supported.
 
-**Status**: Windows is stable (daily-driver), macOS + Linux are dev preview, v2.0 targets full stable for all three.
+Flowtake is one MIT-licensed product with no paid Studio mode, app tier, or export paywall.
 
-MIT licensed. Happy to answer any Tauri-specific questions — if you're building something similar, feel free to lift patterns.
-
-Download: https://github.com/JNX03/Flowtake/releases/latest
-Source: https://github.com/JNX03/Flowtake
+Source and verified downloads: https://github.com/JNX03/Flowtake
+Tauri architecture feedback and reproducible platform reports are welcome.
 ```
 
----
+## Publication checks
 
-## Response templates
-
-**"How did you do the multi-window IPC?"**
-> Shared Redux store in the main window, child windows invoke commands via `tauriBridge.js` (a thin compatibility layer). Events flow back via Tauri event bus. See `app/shared/tauriBridge.js`.
-
-**"FFmpeg sidecar pattern in v2?"**
-> `"externalBin": ["binaries/ffmpeg"]` in tauri.conf.json, then `tauri.sidecar("ffmpeg")` on the Rust side with per-target binary names (`ffmpeg-x86_64-pc-windows-msvc.exe`, `ffmpeg-aarch64-apple-darwin`, etc). The CI builds download the right binary per target.
-
-**"Why Pixi.js for preview instead of canvas 2D?"**
-> Pixi gives you GPU-accelerated compositing, which matters when you have 5+ layers (video + overlays + cursor + click effects + masks) at 60fps. Canvas 2D chokes.
+- Reconfirm the exact Tauri/frontend/media stack from the release lockfiles.
+- Do not add component counts, commit counts, binary sizes, startup-time gains,
+  or cross-platform parity claims without current evidence.
+- Demo only public or synthetic content from a clean profile; remove names,
+  notifications, accounts, tokens, private URLs, local paths, and personal
+  location.

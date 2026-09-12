@@ -56,7 +56,7 @@ test("comparison copy preserves the product and security boundaries", async () =
     "SHA256SUMS.txt",
     "ordinary recordings, projects, and exports stay local",
     "not affiliated with or endorsed by Screen Studio",
-    "observed July 16, 2026",
+    "observed September 12, 2026",
     "macOS and Linux builds are previews",
   ]) {
     assert.equal(normalizedPage.includes(required.toLowerCase()), true, `missing comparison boundary: ${required}`);
@@ -67,18 +67,20 @@ test("comparison copy preserves the product and security boundaries", async () =
   }
 });
 
-test("the comparison route is discoverable and uses root privacy for the shared form", async () => {
-  const [home, dialog, enhancements, sitemap] = await Promise.all([
+test("the comparison route is discoverable and links to the free kit without a form", async () => {
+  const [home, comparison, enhancements, sitemap] = await Promise.all([
     source("./HomePage.jsx"),
-    source("./BriefDialog.jsx"),
+    source("../screen-studio-alternative-windows/index.html"),
     source("./screenStudioAlternative.main.jsx"),
     source("../public/sitemap.xml"),
   ]);
-  const app = `${home}\n${dialog}`;
 
-  assert.equal(app.includes("screen-studio-alternative-windows/"), true);
-  assert.equal(app.includes('privacyHref = "#privacy"'), true);
-  assert.equal(enhancements.includes('privacyHref={`${BASE_URL}#privacy`}'), true);
+  assert.equal(home.includes("screen-studio-alternative-windows/"), true);
+  assert.equal(comparison.includes("Open the free demo kit"), true);
+  assert.equal(comparison.includes("data-open-brief"), false);
+  assert.equal(enhancements.includes("BriefDialog"), false);
+  assert.equal(enhancements.includes("sendEvent"), false);
+  assert.equal(enhancements.includes("fetch("), false);
   assert.equal(occurrences(sitemap, `<loc>${comparisonUrl}</loc>`), 1);
 });
 
@@ -132,8 +134,8 @@ test("storyboard guide includes six copyable beats and truthful boundaries", asy
     assert.equal(occurrences(plainTextTemplate, label), 6, `copy payload must include ${label} for every beat`);
   }
   assert.equal(page.includes("data-copy-template>Copy the six-beat template</button>"), true);
-  assert.equal(page.includes("The storyboard text is not uploaded when you copy it. Flowtake records only a cookie-free aggregate copy count."), true);
-  assert.equal(page.includes("The brief text is not uploaded when you copy it. Flowtake records only a cookie-free aggregate copy count."), true);
+  assert.equal(page.includes("The storyboard text is copied by your browser. Flowtake does not upload the text or count the action."), true);
+  assert.equal(page.includes("The brief is copied by your browser. Flowtake does not upload the text or count the action."), true);
   for (const required of [
     "0–4s",
     "4–10s",
@@ -180,7 +182,8 @@ test("storyboard guide is linked, copy-enabled, and listed once in the sitemap",
   assert.equal(app.includes("developer-tool-demo-storyboard/"), true);
   assert.equal(comparison.includes("developer-tool-demo-storyboard/"), true);
   assert.equal(readme.includes("developer-tool-demo-storyboard/"), true);
-  assert.equal(enhancements.includes('track("brief_copied")'), true);
+  assert.equal(enhancements.includes("sendEvent"), false);
+  assert.equal(enhancements.includes("fetch("), false);
   assert.equal(enhancements.includes("navigator.clipboard.writeText"), true);
   assert.equal(enhancements.includes('document.execCommand("copy") === true'), true);
   assert.equal(enhancements.includes("manualCopyMessage"), true);

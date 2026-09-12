@@ -37,8 +37,31 @@ const expected = {
     msiSha256: "497FE1454687EE1224FC839C2290A44471041DB7490E72F55EE14464ADD61B8D",
 }
 
+function compareReleaseVersions(left, right) {
+    const leftParts = left.split(".").map(Number)
+    const rightParts = right.split(".").map(Number)
+
+    assert.equal(leftParts.length, 3, `invalid release version: ${left}`)
+    assert.equal(rightParts.length, 3, `invalid release version: ${right}`)
+    assert.ok(leftParts.every(Number.isSafeInteger), `invalid release version: ${left}`)
+    assert.ok(rightParts.every(Number.isSafeInteger), `invalid release version: ${right}`)
+
+    for (let index = 0; index < 3; index += 1) {
+        if (leftParts[index] !== rightParts[index]) {
+            return leftParts[index] - rightParts[index]
+        }
+    }
+    return 0
+}
+
 test("tracked WinGet manifests describe the exact reviewed release", () => {
-    assert.equal(packageJson.version, expected.version)
+    // Package catalogs can trail a newer GitHub release. The immutable v1.6.0
+    // fixture remains the reviewed WinGet truth until a real newer MSI and its
+    // checksum have been published and independently validated.
+    assert.ok(
+        compareReleaseVersions(packageJson.version, expected.version) >= 0,
+        "the reviewed WinGet package must not be newer than the application release"
+    )
 
     for (const manifest of [versionManifest, localeManifest, installerManifest]) {
         assert.equal(manifest.PackageIdentifier, expected.identifier)

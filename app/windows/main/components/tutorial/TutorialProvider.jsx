@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useDispatch, useSelector } from "react-redux"
 import { selectHasProject } from "@shared/redux/appSlice"
 import { selectIsRecording } from "@shared/redux/recorderSlice"
-import { selectSource } from "@shared/redux/recorderSlice"
+import { selectSourceConfirmationRevision } from "@shared/redux/recorderSlice"
 import { selectIsInitialized } from "@shared/redux/editorSlice"
 import {
     advanceStep,
@@ -29,14 +29,14 @@ export default function TutorialProvider({ children }) {
     const status = useSelector(selectTutorialStatus)
     const isActive = useSelector(selectIsTutorialActive)
     const currentStepIndex = useSelector(selectCurrentStep)
-    const source = useSelector(selectSource)
+    const sourceConfirmationRevision = useSelector(selectSourceConfirmationRevision)
     const isRecording = useSelector(selectIsRecording)
     const hasProject = useSelector(selectHasProject)
     const isInitialized = useSelector(selectIsInitialized)
 
     const [shouldRender, setShouldRender] = useState(false)
     const [targetReady, setTargetReady] = useState(false)
-    const prevSourceRef = useRef(source)
+    const previousSourceConfirmationRef = useRef(sourceConfirmationRevision)
     const autoAdvanceRef = useRef(null)
     const mutationObserverRef = useRef(null)
 
@@ -101,14 +101,14 @@ export default function TutorialProvider({ children }) {
     // Step 1: Detect source selection change
     useEffect(() => {
         if (!isActive || currentStep?.id !== 'select-source') {
-            prevSourceRef.current = source
+            previousSourceConfirmationRef.current = sourceConfirmationRevision
             return
         }
-        if (source && source !== prevSourceRef.current && source.type) {
-            prevSourceRef.current = source
+        if (sourceConfirmationRevision > previousSourceConfirmationRef.current) {
+            previousSourceConfirmationRef.current = sourceConfirmationRevision
             dispatch(advanceStep())
         }
-    }, [isActive, currentStep?.id, source, dispatch])
+    }, [isActive, currentStep?.id, sourceConfirmationRevision, dispatch])
 
     // Step 2: Detect recording started
     useEffect(() => {

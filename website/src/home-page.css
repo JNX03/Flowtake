@@ -404,7 +404,7 @@ html:has(.home-page) {
 
 .home-page .home-section-heading > p,
 .home-page .home-open-source > div > p:first-child,
-.home-page .home-service-copy > p,
+.home-page .home-community-copy > p,
 .home-page .home-faq header > p,
 .home-page .home-final-cta p {
   margin: 0 0 14px;
@@ -417,7 +417,7 @@ html:has(.home-page) {
 
 .home-page .home-section-heading h2,
 .home-page .home-open-source h2,
-.home-page .home-service h2,
+.home-page .home-community h2,
 .home-page .home-faq h2,
 .home-page .home-final-cta h2 {
   margin: 0;
@@ -608,7 +608,7 @@ html:has(.home-page) {
   font-weight: 400;
 }
 
-.home-page .home-service {
+.home-page .home-community {
   margin-top: 94px;
   padding: 34px;
   display: grid;
@@ -620,11 +620,11 @@ html:has(.home-page) {
   border-radius: 11px;
 }
 
-.home-page .home-service-copy h2 {
+.home-page .home-community-copy h2 {
   font-size: 40px;
 }
 
-.home-page .home-service-copy > span {
+.home-page .home-community-copy > span {
   margin-top: 10px;
   display: block;
   color: var(--home-muted);
@@ -632,27 +632,27 @@ html:has(.home-page) {
   line-height: 1.6;
 }
 
-.home-page .home-service-price {
+.home-page .home-community-badge {
   padding-left: 30px;
   display: flex;
   flex-direction: column;
   border-left: 1px solid var(--home-line);
 }
 
-.home-page .home-service-price strong {
+.home-page .home-community-badge strong {
   font-family: "Fraunces", Georgia, serif;
   font-size: 54px;
   font-weight: 430;
   line-height: 1;
 }
 
-.home-page .home-service-price span {
+.home-page .home-community-badge span {
   margin-top: 8px;
   color: var(--home-muted);
   font-size: 12px;
 }
 
-.home-page .home-service ul {
+.home-page .home-community ul {
   margin: 0;
   padding: 0;
   display: grid;
@@ -660,7 +660,7 @@ html:has(.home-page) {
   list-style: none;
 }
 
-.home-page .home-service li {
+.home-page .home-community li {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -669,14 +669,24 @@ html:has(.home-page) {
   line-height: 1.5;
 }
 
-.home-page .home-service li svg {
+.home-page .home-community li svg {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
   color: var(--home-teal);
 }
 
-.home-page .home-service-action p {
+.home-page .home-community-action {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.home-page .home-community-action .home-inline-link {
+  font-size: 12px;
+}
+
+.home-page .home-community-action p {
   margin: 13px 0 0;
   color: var(--home-dim);
   font-size: 12px;
@@ -868,21 +878,21 @@ html:has(.home-page) {
     font-size: 38px;
   }
 
-  .home-page .home-service {
+  .home-page .home-community {
     grid-template-columns: 1fr 0.65fr 1.25fr;
   }
 
-  .home-page .home-service-action {
+  .home-page .home-community-action {
     grid-column: 1 / -1;
     padding-top: 22px;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto auto minmax(0, 1fr);
     align-items: center;
     gap: 22px;
     border-top: 1px solid var(--home-line);
   }
 
-  .home-page .home-service-action p {
+  .home-page .home-community-action p {
     margin: 0;
   }
 }
@@ -1168,25 +1178,25 @@ html:has(.home-page) {
     grid-column: auto;
   }
 
-  .home-page .home-service {
+  .home-page .home-community {
     margin-top: 72px;
     padding: 28px 22px;
     grid-template-columns: 1fr;
     gap: 28px;
   }
 
-  .home-page .home-service-price {
+  .home-page .home-community-badge {
     padding: 24px 0 0;
     border-top: 1px solid var(--home-line);
     border-left: 0;
   }
 
-  .home-page .home-service-action {
+  .home-page .home-community-action {
     grid-column: auto;
     grid-template-columns: 1fr;
   }
 
-  .home-page .home-service-action .home-button {
+  .home-page .home-community-action .home-button {
     width: 100%;
   }
 

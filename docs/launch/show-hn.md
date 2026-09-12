@@ -1,79 +1,63 @@
 # Show HN draft
 
-**Submit at**: https://news.ycombinator.com/submit
-**Best time**: Tuesday-Thursday, 7-10am PT (peak US morning traffic, early enough to ride the front-page wave)
-**Important**: Don't cross-post immediately with PH. Space it by 24-48h so both posts breathe.
+> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
+> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> recheck all three immediately before posting.
 
----
+## Title
 
-## Title (80 char max — current: 78)
-```
-Show HN: Flowtake – Open-source screen recorder with auto-zoom animations
+```text
+Show HN: Flowtake – A free, open-source screen recorder and timeline editor
 ```
 
 ## URL
-```
+
+```text
 https://github.com/JNX03/Flowtake
 ```
 
-## Text (optional, leave BLANK — HN shows the linked README instead for "Show HN" posts; adding text can fragment engagement)
+## First comment
 
----
+```text
+Hi HN — I maintain Flowtake, a free MIT-licensed desktop screen recorder and editor.
 
-## First comment — post IMMEDIATELY after submission
+It can capture a display, window, or custom area, derive editable zoom and pan motion from cursor activity, and provide a timeline for trims, splits, cursor effects, masks, backgrounds, overlays, audio, and subtitles. Windows is the primary target. macOS and Linux builds are previews, and Linux capture currently requires X11 or XWayland rather than pure Wayland.
 
-```
-Hi HN, Jnx03 here, the author.
+The release linked here also includes adaptive preview and camera-capture profiles, while leaving screen-capture source and selected export dimensions unchanged, plus local MP4 or WebM export with optional recorded/timeline audio when present and enabled. Ordinary projects and exports stay on the device without cloud project sync. Flowtake is local-first rather than network-free: update checks and explicitly selected features such as YouTube upload, RTMP streaming, or some model-backed effects can use the network.
 
-Flowtake is a desktop screen recorder I've been building for ~2 years (367 commits) that adds Screen Studio–style zoom and pan animations automatically. Record your screen, stop, and the editor has already placed smooth zoom transitions around your cursor and pan animations that anticipate its movement.
+There is also an optional local stdio MCP for AI-assisted timeline metadata edits. It is a developer integration that currently requires a source checkout and Node.js 20+. It can inspect a bounded timeline and make revision-checked, backup-backed split, trim, delete, and caption edits. It does not inspect video pixels or audio, render, export, upload, or control the app, and Flowtake must be closed for durable writes. An MCP host or model may receive requested tool results.
 
-A few things I found interesting while building this that HN might appreciate:
+There is one MIT-licensed product: no paid Studio mode, app tier, or export paywall.
 
-1. The zoom is deterministic, not ML-based. It scores cursor position, velocity, click events, and dwell time, then fits zoom keyframes around local maxima of a "focus score" function. Runs offline, ~instant.
-
-2. Cursor inertia with velocity-based motion blur makes a bigger perceptual difference than the zooms themselves. Slow movements look rigid without it; blur proportional to speed "hides" the low frame rate of most captures and makes the result feel buttery.
-
-3. Tauri v2 was the right call vs Electron for a video app — the preview runs in a Pixi.js (WebGL) canvas and the Rust side handles recording + FFmpeg, so there's a clean split between IO-heavy and GPU-heavy work. Binary is ~80 MB installed vs the 300+ MB I was seeing with Electron prototypes.
-
-4. Cross-platform screen recording on Linux (Wayland specifically) is brutal. I landed on PipeWire via xdg-desktop-portal, and it still has edge cases I'm not happy with. Windows (DXGI) and macOS (CGWindowList / ScreenCaptureKit) are much cleaner APIs.
-
-MIT licensed, Windows build is stable, macOS and Linux builds exist but are a dev preview. FFmpeg is bundled.
-
-Installers for all three platforms: https://github.com/JNX03/Flowtake/releases/latest
-
-Happy to answer anything — especially interested in what's broken for you if you try it.
+Source and verified downloads: https://github.com/JNX03/Flowtake
+Issues and reproducible platform reports are welcome.
 ```
 
----
+## Prepared answers
 
-## Response templates (prep these so you can reply fast)
+**Does everything stay offline?**
 
-**"How does the auto-zoom compare to Screen Studio?"**
-> Honest answer: Screen Studio is more polished and has more tuning knobs. Flowtake gets you ~80% of the way there for free and on platforms Screen Studio doesn't support (Windows, Linux). The zoom algorithm is different — Screen Studio's is partly heuristic-based around click events, Flowtake's is a continuous focus score that handles dwell time too.
+> Ordinary capture, editing, and export do not require cloud sync. Flowtake is
+> not network-free: release checks and user-selected upload, streaming, or
+> model-backed features can use the network.
 
-**"Why not WebRTC getDisplayMedia?"**
-> Tried it. Frame timing is too unreliable for animation work — you get uneven gaps between frames and the cursor position doesn't come through. Native APIs (DXGI / ScreenCaptureKit / PipeWire) give you timestamps and separate cursor tracking, which is what the zoom algorithm needs.
+**Does the MCP edit the footage itself?**
 
-**"Electron would have been fine"**
-> Maybe, but the Pixi.js preview + Rust FFmpeg pipeline pattern is nice to write. Tauri's IPC is synchronous-feeling from JS, and the command model (`invoke("x", {args})`) composes well with Redux. The binary size is just a nice side effect.
+> No. It edits supported timeline metadata with dry-run, revision, closed-app,
+> and backup guards. It cannot analyze pixels or audio, render, export, upload,
+> or operate the desktop UI.
 
-**"Wayland / Linux is terrible for this"**
-> Yes. PipeWire + xdg-desktop-portal works but there are still compositor-specific quirks (especially KDE vs GNOME cursor behavior). If anyone's shipped a Wayland recorder that handles cursor events reliably, I'd love to copy notes.
+**Does it support every platform equally?**
 
-**"Why MIT and not AGPL?"**
-> Wanted maximum permissiveness. If someone forks it to build a commercial competitor I honestly don't mind — the goal was to make the Screen Studio pattern accessible, not to build a business around it.
+> No. Windows is the primary validation target. macOS and Linux are previews,
+> and pure Wayland capture is not supported.
 
-**"Is there a telemetry?"**
-> No. No analytics, no crash reporter, no network calls except when you opt in to FFmpeg updates. Everything is local. Verify in `src-tauri/src/commands/` if you're curious.
+## Publication checklist
 
-**"Can I contribute?"**
-> Yes, please. Wayland fixes, macOS fixes, and the auto-zoom tuning parameters are the highest-impact areas. CONTRIBUTING.md has the details.
-
----
-
-## HN hygiene notes
-- Don't ask for upvotes anywhere — HN will flag.
-- Don't re-submit if the first attempt sinks; wait 24h or pick a different day.
-- Reply to every comment genuinely. HN rewards presence.
-- Don't link to the PH page in the body — can look cross-promotional.
-- If the post starts trending, do NOT post Reddit at the same time; stagger to preserve bandwidth for responding.
+- Confirm the exact release contains every feature named above.
+- Replace any stale screenshots with an exact-release capture.
+- Use only a clean profile and public or synthetic demo content.
+- Remove notifications, names, accounts, tokens, private URLs, local paths, and
+  personal location from every frame.
+- Do not publish performance, size, compatibility, or competitor-parity claims
+  without current reproducible evidence.

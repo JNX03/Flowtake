@@ -42,7 +42,7 @@ function workerFailureError(kind, event) {
 }
 
 export default class PreviewWorkerManager extends WorkerManager {
-    constructor(screenVideo, cameraVideo) {
+    constructor(screenVideo, cameraVideo, performanceProfile = {}) {
         super()
         this.worker = new PreviewWorker()
         this.pendingRequestController = new AbortController()
@@ -69,12 +69,21 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.worker.addEventListener("message", event => this.onMessage(event))
         this.screenVideo = screenVideo
         this.cameraVideo = cameraVideo
+        const previewFps = Math.min(60, Math.max(12, Number(performanceProfile.previewFps) || 30))
+        this.previewFrameIntervalMs = 1000 / previewFps
+        this.performanceProfileId = performanceProfile.id || null
+        this.previewMaxWidth = Number(performanceProfile.previewMaxWidth) || null
+        this.previewMaxHeight = Number(performanceProfile.previewMaxHeight) || null
+        this.lastScreenFrameAt = Number.NEGATIVE_INFINITY
+        this.lastCameraFrameAt = Number.NEGATIVE_INFINITY
 
         this.isPlaying = false
         this.hasCameraVideoBackgroundBlur = false
         this.cameraVideoBackgroundBlurAmount = 0
         this.isScreenFramePending = false
         this.isCameraFramePending = false
+        this.deferredPausedScreenRefresh = false
+        this.deferredPausedCameraRefresh = false
         this.eyeContactEnabled = false
         this.faceLandmarkerReady = false
 
@@ -114,7 +123,13 @@ export default class PreviewWorkerManager extends WorkerManager {
      */
     registerExtraVideo(index, videoEl, dims) {
         if (!videoEl || this.stopped || !this.worker) return
-        this.extraVideos[index] = { video: videoEl, isPending: false }
+        this.extraVideos[index] = {
+            video: videoEl,
+            isPending: false,
+            isVisible: true,
+            deferredPausedRefresh: false,
+            lastFrameAt: Number.NEGATIVE_INFINITY,
+        }
 
         // Tell the worker to allocate the ExtraVideo Pixi sprite.
         this.post(INIT_EXTRA_VIDEO, { index, dims })
@@ -134,12 +149,17 @@ export default class PreviewWorkerManager extends WorkerManager {
             }
         }
 
-        const cb = async () => {
+        const cb = async now => {
             if (this.stopped) return
             const slot = this.extraVideos[index]
             if (!slot || slot.video !== videoEl) return        // unregistered
-            if (!slot.isPending) {
+            const frameTime = Number.isFinite(now) ? now : performance.now()
+            const isFrameDue = !this.isPlaying
+                || frameTime - slot.lastFrameAt >= this.previewFrameIntervalMs
+            if (slot.isVisible && isFrameDue && !slot.isPending) {
+                slot.deferredPausedRefresh = false
                 slot.isPending = true
+                slot.lastFrameAt = frameTime
                 let frame = null
                 try {
                     frame = new VideoFrame(videoEl)
@@ -151,6 +171,7 @@ export default class PreviewWorkerManager extends WorkerManager {
                 } finally {
                     closeFrameResource(frame)
                     slot.isPending = false
+                    this.flushDeferredPausedExtraRefresh(index, slot)
                 }
             }
             if (!this.stopped) videoEl.requestVideoFrameCallback(cb)
@@ -167,7 +188,18 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     setExtraVisibility(index, visible) {
-        this.postIfActive(SET_EXTRA_VISIBILITY, { index, visible })
+        const slot = this.extraVideos[index]
+        const nextVisible = Boolean(visible)
+        const becameVisible = Boolean(slot && !slot.isVisible && nextVisible)
+        if (slot) slot.isVisible = Boolean(visible)
+        if (!this.postIfActive(SET_EXTRA_VISIBILITY, { index, visible: nextVisible })) return
+
+        // The worker canvas may have been cleared by a profile resize while
+        // this source was hidden. A paused video will not emit another frame
+        // callback, so repopulate it on the visibility transition.
+        if (becameVisible && !this.isPlaying) {
+            this.refreshPausedExtraFrame(index, { deferPending: true })
+        }
     }
 
     async init(canvas, duration, args) {
@@ -255,10 +287,15 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     setupVideoFrameCallbacks(hasCameraVideo) {
-        const screenFrameCallback = async () => {
+        const screenFrameCallback = async now => {
             if (this.stopped) return
-            if (!this.isScreenFramePending) {
+            const frameTime = Number.isFinite(now) ? now : performance.now()
+            const isFrameDue = !this.isPlaying
+                || frameTime - this.lastScreenFrameAt >= this.previewFrameIntervalMs
+            if (isFrameDue && !this.isScreenFramePending) {
+                this.deferredPausedScreenRefresh = false
                 this.isScreenFramePending = true
+                this.lastScreenFrameAt = frameTime
                 let frame = null
                 try {
                     frame = new VideoFrame(this.screenVideo)
@@ -270,15 +307,21 @@ export default class PreviewWorkerManager extends WorkerManager {
                 } finally {
                     closeFrameResource(frame)
                     this.isScreenFramePending = false
+                    this.flushDeferredPausedScreenRefresh()
                 }
             }
             if (!this.stopped) this.screenVideo.requestVideoFrameCallback(screenFrameCallback)
         }
 
-        const cameraFrameCallback = async () => {
+        const cameraFrameCallback = async now => {
             if (this.stopped) return
-            if (!this.isCameraFramePending) {
+            const frameTime = Number.isFinite(now) ? now : performance.now()
+            const isFrameDue = !this.isPlaying
+                || frameTime - this.lastCameraFrameAt >= this.previewFrameIntervalMs
+            if (isFrameDue && !this.isCameraFramePending) {
+                this.deferredPausedCameraRefresh = false
                 this.isCameraFramePending = true
+                this.lastCameraFrameAt = frameTime
                 let frame = null
                 let mask = null
                 try {
@@ -297,6 +340,7 @@ export default class PreviewWorkerManager extends WorkerManager {
                     closeFrameResource(frame)
                     closeFrameResource(mask)
                     this.isCameraFramePending = false
+                    this.flushDeferredPausedCameraRefresh()
                 }
             }
             if (!this.stopped) this.cameraVideo.requestVideoFrameCallback(cameraFrameCallback)
@@ -311,8 +355,13 @@ export default class PreviewWorkerManager extends WorkerManager {
         this.stopped = true
         this.isScreenFramePending = false
         this.isCameraFramePending = false
+        this.deferredPausedScreenRefresh = false
+        this.deferredPausedCameraRefresh = false
         this.extraVideos.forEach(slot => {
-            if (slot) slot.isPending = false
+            if (slot) {
+                slot.isPending = false
+                slot.deferredPausedRefresh = false
+            }
         })
 
         if (!this.pendingRequestController.signal.aborted) {
@@ -350,6 +399,169 @@ export default class PreviewWorkerManager extends WorkerManager {
         })
     }
 
+    setPerformanceProfile(performanceProfile = {}) {
+        const previewFps = Math.min(60, Math.max(12, Number(performanceProfile.previewFps) || 30))
+        const previewMaxWidth = Number(performanceProfile.previewMaxWidth) || null
+        const previewMaxHeight = Number(performanceProfile.previewMaxHeight) || null
+        if (this.performanceProfileId === (performanceProfile.id || null)
+            && this.previewFrameIntervalMs === 1000 / previewFps
+            && this.previewMaxWidth === previewMaxWidth
+            && this.previewMaxHeight === previewMaxHeight) return
+
+        this.performanceProfileId = performanceProfile.id || null
+        this.previewMaxWidth = previewMaxWidth
+        this.previewMaxHeight = previewMaxHeight
+        this.previewFrameIntervalMs = 1000 / previewFps
+        this.lastScreenFrameAt = Number.NEGATIVE_INFINITY
+        this.lastCameraFrameAt = Number.NEGATIVE_INFINITY
+        this.extraVideos.forEach(slot => {
+            if (slot) slot.lastFrameAt = Number.NEGATIVE_INFINITY
+        })
+        if (!this.postIfActive(UPDATE, {
+            type: 'preview.performanceProfile',
+            payload: performanceProfile,
+        })) return
+
+        // Resizing clears every bounded worker canvas. Paused media will not
+        // naturally produce another callback, so immediately repopulate all
+        // screen, camera/mask, and extra-video preview textures.
+        this.refreshPausedFrames()
+    }
+
+    refreshPausedFrames() {
+        if (this.stopped || this.isPlaying) return
+
+        this.refreshPausedScreenFrame({ deferPending: true })
+        this.refreshPausedCameraFrame({ deferPending: true })
+        this.extraVideos.forEach((_, index) => {
+            this.refreshPausedExtraFrame(index, { deferPending: true })
+        })
+    }
+
+    refreshPausedScreenFrame({ deferPending = false } = {}) {
+        if (this.stopped || this.isPlaying || !this.screenVideo || this.screenVideo.readyState < 2) return false
+        if (this.isScreenFramePending) {
+            if (deferPending) this.deferredPausedScreenRefresh = true
+            return false
+        }
+
+        this.deferredPausedScreenRefresh = false
+        this.isScreenFramePending = true
+        let frame = null
+        try {
+            frame = new VideoFrame(this.screenVideo)
+            void this.postFrame(SCREEN_VIDEO, frame)
+                .catch(error => {
+                    if (!this.stopped) console.warn("[PreviewWorkerManager] screen paused refresh failed:", error)
+                })
+                .finally(() => {
+                    closeFrameResource(frame)
+                    this.isScreenFramePending = false
+                    this.flushDeferredPausedScreenRefresh()
+                })
+        } catch (error) {
+            closeFrameResource(frame)
+            this.isScreenFramePending = false
+            this.flushDeferredPausedScreenRefresh()
+            if (!this.stopped) console.warn("[PreviewWorkerManager] screen paused frame failed:", error)
+        }
+        return true
+    }
+
+    refreshPausedCameraFrame({ deferPending = false } = {}) {
+        if (this.stopped || this.isPlaying || !this.cameraVideo || this.cameraVideo.readyState < 2) return false
+        if (this.isCameraFramePending) {
+            if (deferPending) this.deferredPausedCameraRefresh = true
+            return false
+        }
+
+        this.deferredPausedCameraRefresh = false
+        this.isCameraFramePending = true
+        void (async () => {
+            let frame = null
+            let mask = null
+            try {
+                frame = new VideoFrame(this.cameraVideo)
+                if (this.hasCameraBlur()) mask = await this.segment(frame, false)
+                const landmarks = this.eyeContactEnabled && this.faceLandmarkerReady
+                    ? this.detectFaceLandmarks(frame)
+                    : null
+                await this.postFrame(CAMERA_VIDEO, frame, mask, landmarks)
+            } catch (error) {
+                if (!this.stopped) console.warn("[PreviewWorkerManager] camera paused refresh failed:", error)
+            } finally {
+                closeFrameResource(frame)
+                closeFrameResource(mask)
+                this.isCameraFramePending = false
+                this.flushDeferredPausedCameraRefresh()
+            }
+        })()
+        return true
+    }
+
+    refreshPausedExtraFrame(index, { deferPending = false } = {}) {
+        const slot = this.extraVideos[index]
+        if (this.stopped || this.isPlaying || !slot?.isVisible || !slot.video || slot.video.readyState < 2) return false
+        if (slot.isPending) {
+            if (deferPending) slot.deferredPausedRefresh = true
+            return false
+        }
+
+        slot.deferredPausedRefresh = false
+        slot.isPending = true
+        let frame = null
+        try {
+            frame = new VideoFrame(slot.video)
+            void this.postFrame(`extra-${index}`, frame)
+                .catch(error => {
+                    if (!this.stopped) console.warn(`[PreviewWorkerManager] extra-${index} paused refresh failed:`, error)
+                })
+                .finally(() => {
+                    closeFrameResource(frame)
+                    slot.isPending = false
+                    this.flushDeferredPausedExtraRefresh(index, slot)
+                })
+        } catch (error) {
+            closeFrameResource(frame)
+            slot.isPending = false
+            this.flushDeferredPausedExtraRefresh(index, slot)
+            if (!this.stopped) console.warn(`[PreviewWorkerManager] extra-${index} paused frame failed:`, error)
+        }
+        return true
+    }
+
+    flushDeferredPausedScreenRefresh() {
+        if (!this.deferredPausedScreenRefresh) return
+        this.deferredPausedScreenRefresh = false
+        if (!this.stopped && !this.isPlaying) {
+            this.refreshPausedScreenFrame({ deferPending: true })
+        }
+    }
+
+    flushDeferredPausedCameraRefresh() {
+        if (!this.deferredPausedCameraRefresh) return
+        this.deferredPausedCameraRefresh = false
+        if (!this.stopped && !this.isPlaying) {
+            this.refreshPausedCameraFrame({ deferPending: true })
+        }
+    }
+
+    flushDeferredPausedExtraRefresh(index, slot) {
+        if (!slot?.deferredPausedRefresh) return
+        slot.deferredPausedRefresh = false
+        if (!this.stopped && !this.isPlaying && this.extraVideos[index] === slot) {
+            this.refreshPausedExtraFrame(index, { deferPending: true })
+        }
+    }
+
+    clearDeferredPausedRefreshes() {
+        this.deferredPausedScreenRefresh = false
+        this.deferredPausedCameraRefresh = false
+        this.extraVideos.forEach(slot => {
+            if (slot) slot.deferredPausedRefresh = false
+        })
+    }
+
     postFrame(type, frame, mask, landmarks) {
         // postFrame is using postAsync to handle backpressure
         const transferList = [frame]
@@ -363,8 +575,13 @@ export default class PreviewWorkerManager extends WorkerManager {
     }
 
     postIsPlaying(isPlaying) {
+        const wasPlaying = this.isPlaying
         this.isPlaying = isPlaying
-        this.postIfActive(IS_PLAYING, isPlaying)
+        if (isPlaying) this.clearDeferredPausedRefreshes()
+        if (!this.postIfActive(IS_PLAYING, isPlaying)) return
+        if (wasPlaying && !isPlaying) {
+            this.refreshPausedFrames({ deferPending: true })
+        }
     }
 
     captureSnapshot() {

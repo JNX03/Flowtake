@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
  * Real-time audio level metering from a MediaStream.
  * Returns { level, peak, isClipping } all normalized 0-1.
  */
-export default function useAudioMeter(stream, enabled = true) {
+export default function useAudioMeter(stream, enabled = true, maxFps = 30) {
     const [level, setLevel] = useState(0)
     const [peak, setPeak] = useState(0)
 
@@ -54,7 +54,15 @@ export default function useAudioMeter(stream, enabled = true) {
 
         const dataArray = new Uint8Array(analyser.frequencyBinCount)
 
-        const tick = () => {
+        const minimumInterval = 1000 / Math.min(60, Math.max(10, Number(maxFps) || 30))
+        let lastSampleAt = Number.NEGATIVE_INFINITY
+
+        const tick = now => {
+            if (now - lastSampleAt < minimumInterval) {
+                rafRef.current = requestAnimationFrame(tick)
+                return
+            }
+            lastSampleAt = now
             analyser.getByteFrequencyData(dataArray)
 
             // Compute RMS
@@ -75,7 +83,7 @@ export default function useAudioMeter(stream, enabled = true) {
                 peakDecayRef.current = 0
             } else {
                 peakDecayRef.current++
-                if (peakDecayRef.current > 30) { // ~0.5s at 60fps
+                if (peakDecayRef.current > maxFps * 0.5) {
                     peakRef.current = Math.max(0, peakRef.current - 0.02)
                 }
             }
@@ -96,7 +104,7 @@ export default function useAudioMeter(stream, enabled = true) {
             sourceRef.current = null
             analyserRef.current = null
         }
-    }, [stream, enabled])
+    }, [stream, enabled, maxFps])
 
     return { level, peak, isClipping: level > 0.95 }
 }

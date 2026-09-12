@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "flowtake": {
+      "command": "node",
+      "args": [
+        "C:/path/to/Flowtake/mcp/server.mjs",
+        "--projects-dir",
+        "C:/Users/YOU/AppData/Roaming/com.flowtake.desktop/projects",
+        "--temp-dir",
+        "C:/Users/YOU/AppData/Roaming/com.flowtake.desktop/temp"
+      ]
+    }
+  }
+}

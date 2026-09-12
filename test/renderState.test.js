@@ -113,9 +113,43 @@ test("undo and redo states are included in project autosave", async () => {
     assert.match(storeSource, /ActionTypes\.REDO/)
     assert.match(storeSource, /HISTORY_ACTION_TYPES\.has\(action\.type\)/)
     assert.match(storeSource, /matcher: matchesSaveableChange/)
-    assert.match(storeSource, /if \(!project\.id\) \{\s*dispatch\(setIsSaving\(false\)\)/)
+    assert.match(storeSource, /projectSaveCoordinator\.request/)
+    assert.match(storeSource, /(?:await\s+)?projectSaveCoordinator\.flush\(\)/)
+    assert.match(storeSource, /if \(!project\.id\) \{\s*dispatch\(setSaveStatus\(SAVE_STATUS_IDLE\)\)/)
     assert.match(storeSource, /catch \(error\) \{\s*console\.error\("\[saveProject\]"/)
-    assert.match(storeSource, /finally \{\s*dispatch\(setIsSaving\(false\)\)/)
+    assert.match(storeSource, /setSaveStatus\(\{\s*status: SAVE_STATUS_ERROR/)
+    assert.match(storeSource, /throw error/)
+    assert.match(storeSource, /if \(isLatest\(\)\) dispatch\(setSaveStatus\(SAVE_STATUS_SAVED\)\)/)
+})
+
+test("project close persists before releasing Redux state", async () => {
+    const storeSource = await readFile(new URL("../app/shared/redux/store.js", import.meta.url), "utf8")
+    const flushIndex = storeSource.indexOf("flushSaves: () => projectSaveCoordinator.flush()")
+    const nativeCommitIndex = storeSource.indexOf('invoke("commit-project-close")')
+    const sceneCleanupIndex = storeSource.indexOf("dispatch(setIsCleaningUpScene(true))")
+    const nativeFinalizeIndex = storeSource.indexOf('invoke("finalize-project-close")')
+    const resetProjectIndex = storeSource.indexOf("dispatch(resetProject())")
+
+    assert.ok(flushIndex >= 0)
+    assert.ok(nativeCommitIndex > flushIndex)
+    assert.ok(sceneCleanupIndex > nativeCommitIndex)
+    assert.ok(nativeFinalizeIndex > sceneCleanupIndex)
+    assert.ok(resetProjectIndex > nativeFinalizeIndex)
+    assert.match(storeSource, /await closeProjectSafely\(/)
+    assert.match(storeSource, /EDITOR_CLEANUP_TIMEOUT_MS/)
+    assert.match(storeSource, /finally \{\s*dispatch\(setIsProjectClosing\(false\)\)/)
+})
+
+test("save indicator renders explicit success and failure states", async () => {
+    const indicatorSource = await readFile(
+        new URL("../app/windows/main/components/titleBar/SaveIndicator.jsx", import.meta.url),
+        "utf8"
+    )
+
+    assert.match(indicatorSource, /saveStatus === SAVE_STATUS_ERROR/)
+    assert.match(indicatorSource, /saveStatus === SAVE_STATUS_SAVED/)
+    assert.match(indicatorSource, /role="alert"/)
+    assert.doesNotMatch(indicatorSource, /wasSaving && !isSaving/)
 })
 
 test("editor worker dependencies keep one Pixi adapter instance in development", async () => {

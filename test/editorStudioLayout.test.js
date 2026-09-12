@@ -302,6 +302,16 @@ test("timeline toolbar keeps primary controls reachable and exposes toggle state
     assert.match(timelineToolbarSource, /handleZoomStep\(1\)/)
 })
 
+test("timeline toolbar progressively discloses secondary controls on compact canvases", () => {
+    assert.match(timelineToolbarSource, /menu-title xl:hidden[\s\S]*Timeline view/)
+    assert.match(timelineToolbarSource, /xl:hidden[\s\S]*Ripple editing/)
+    assert.match(timelineToolbarSource, /xl:hidden[\s\S]*Follow playhead/)
+    assert.match(timelineToolbarSource, /xl:hidden[\s\S]*Timeline overview/)
+    assert.match(timelineToolbarSource, /hidden xl:inline-flex[\s\S]*Toggle ripple editing/)
+    assert.match(timelineToolbarSource, /hidden xl:inline-flex[\s\S]*Follow playhead/)
+    assert.match(timelineToolbarSource, /hidden xl:inline-flex[\s\S]*Toggle timeline overview/)
+})
+
 test("timeline defaults are easy to control and freeze playback cannot spin forever", () => {
     assert.match(timelineSliceSource, /isSnappingEnabled:\s*true/)
     assert.match(timelineActionSource, /animIds = \[anim\.id\]/)

@@ -12,7 +12,7 @@ Flowtake covers the full workflow from recording to export in a single desktop a
 | [Recording](recording.md) | Screen capture, camera overlay, audio |
 | [Editing](editing.md) | Timeline, zoom, pan, cursor animations, clips |
 | [Effects & Overlays](effects.md) | Overlays, subtitles, masks, backgrounds |
-| [Export](export.md) | Mediabunny AVC MP4 encoding and muxing, resolution, frame rate, and quality |
+| [Export](export.md) | Local Mediabunny MP4/WebM video encoding, optional recorded/timeline audio, resolution, frame rate, and quality |
 
 ## Productivity Features
 

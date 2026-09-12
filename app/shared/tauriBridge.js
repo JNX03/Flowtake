@@ -32,6 +32,8 @@ const COMMAND_MAP = {
     'get-projects': 'get_projects',
     'open-project': 'open_project',
     'close-project': 'close_project',
+    'commit-project-close': 'commit_project_close',
+    'finalize-project-close': 'finalize_project_close',
     'delete-project': 'delete_project',
     'save-json': 'save_json',
     'import-project-media': 'import_project_media',

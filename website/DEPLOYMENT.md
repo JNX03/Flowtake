@@ -23,14 +23,11 @@ No repository setting, custom domain, or DNS change is performed by this configu
 
 Public images used from React are joined to `import.meta.env.BASE_URL`. Vite rewrites the favicon and CSS font URLs during the Pages-mode build. This prevents requests from escaping to the domain root when the site is hosted below `/Flowtake/`.
 
-## Public intake endpoints
+## Static privacy boundary
 
-The production build defaults to the public, non-secret HTTPS endpoints below:
+The website has no lead form, checkout, customer-file upload, or Flowtake event-analytics endpoint. The demo-kit copy buttons use the browser clipboard API with a select-and-copy fallback; the copied storyboard or brief is not submitted to Flowtake. No build-time environment variable configures a collection endpoint.
 
-- `https://flowtake.72-62-41-174.sslip.io/v1/leads`
-- `https://flowtake.72-62-41-174.sslip.io/v1/events`
-
-These endpoints are intentionally pinned in `src/intake.js`; build-environment variables cannot redirect lead or event traffic. Changing either public endpoint requires a reviewed source change and a new Pages deployment. The intake service accepts browser requests only from `https://jnx03.github.io`, so direct form submission from localhost intentionally exercises the email/copy fallback instead of creating a lead. Run `npm test` in `website/` to validate the payload, event, CORS-client, timeout, and failure contracts before a Pages build.
+The site is hosted on GitHub Pages. Download, repository, issue, discussion, and contribution links leave the site for GitHub and are then governed by GitHub's terms and privacy policy. Run `npm test` in `website/` to keep the free-only copy, public-contribution warning, clipboard behavior, and absence of intake code under test before a Pages build.
 
 ## Prepared workflow
 

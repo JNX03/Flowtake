@@ -10,6 +10,7 @@ import {
     UPDATE,
     workerConsole
 } from "./helpers"
+import { BALANCED_EDITOR_FRAME_INTERVAL_MS } from "../editor/performanceCadence.js"
 
 // Replace console methods with worker console
 Object.assign(console, workerConsole)
@@ -34,7 +35,7 @@ const previewSceneClassPromise = (async () => {
     throw error
 })
 
-const MIN_RENDER_INTERVAL = 16 // ~60fps cap
+const MIN_RENDER_INTERVAL = BALANCED_EDITOR_FRAME_INTERVAL_MS
 
 const closeFrameResource = resource => {
     try {
@@ -45,10 +46,14 @@ const closeFrameResource = resource => {
 }
 
 class PreviewRenderer {
-    constructor() {
+    constructor(previewProfile = {}) {
         this.isPlaying = false
         this.isInitialized = false
         this.lastRenderTime = 0
+        const previewFps = Math.min(60, Math.max(12, Number(previewProfile.previewFps) || 30))
+        this.minRenderInterval = Number(previewProfile.previewFps)
+            ? 1000 / previewFps
+            : MIN_RENDER_INTERVAL
     }
 
     async init({ canvas, args, duration, screenFrame, screenVideoDims, cameraFrame, cameraVideoDims }) {
@@ -58,7 +63,7 @@ class PreviewRenderer {
 
         try {
             const PreviewScene = await previewSceneClassPromise
-            this.scene = new PreviewScene()
+            this.scene = new PreviewScene(args.previewProfile)
             console.log("[previewWorker] PreviewScene constructed, calling createApp")
 
             phase = "create Pixi app"
@@ -108,8 +113,14 @@ class PreviewRenderer {
     }
 
     async update(payload) {
-        if (this.isInitialized)
-            await this.scene?.onReduxUpdate(payload)
+        if (!this.isInitialized) return
+        if (payload?.type === 'preview.performanceProfile') {
+            const previewFps = Math.min(60, Math.max(12, Number(payload.payload?.previewFps) || 30))
+            this.minRenderInterval = 1000 / previewFps
+            this.scene?.setPerformanceProfile(payload.payload)
+            return
+        }
+        await this.scene?.onReduxUpdate(payload)
     }
 
     async render({ time }) {
@@ -117,7 +128,7 @@ class PreviewRenderer {
         // Throttle renders during playback to ~30fps
         if (this.isPlaying) {
             const now = performance.now()
-            if (now - this.lastRenderTime < MIN_RENDER_INTERVAL) return
+            if (now - this.lastRenderTime < this.minRenderInterval) return
             this.lastRenderTime = now
         }
         this.scene?.update()
@@ -155,7 +166,7 @@ self.addEventListener('message', async (event) => {
 
             case INIT_PREVIEW: {
 
-                renderer = new PreviewRenderer()
+                renderer = new PreviewRenderer(payload.args?.previewProfile)
                 await renderer.init(payload)
 
                 break

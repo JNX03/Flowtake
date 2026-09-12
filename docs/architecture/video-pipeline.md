@@ -61,22 +61,25 @@ Timeline state (Redux)
         │
         ▼
   Mediabunny output writer (Render Worker)
-  - Encodes composited frames as AVC
-  - Muxes the video into output.mp4
+  - Encodes composited frames as H.264 or VP9
+  - Writes a silent intermediate output.mp4 or output.webm
+        │
+        ▼
+  Optional FFmpeg audio stage
+  - Builds the recorded/timeline audio mix
+  - When audio is present and enabled, muxes it without re-encoding the video
   - Writes through registered Tauri file handles
         │
         ▼
   Rust exporter
   - Resolves the backend-owned render path
-  - Copies output.mp4 to the local export folder
+  - Copies the completed MP4 or WebM to the local export folder
         │
         ▼
   Output video file
 ```
 
-The render worker reuses the Pixi.js scene used by the preview. In v1.6.0 the final edited-video path is an AVC MP4 encoded and muxed by Mediabunny. The Rust backend writes and copies the completed `output.mp4`; FFmpeg remains responsible for recording capture and native media utilities, not final edited-MP4 encoding.
-
-The current edited MP4 is video-only. The `process_audio` and `add_audio` commands are placeholders, so no microphone, system, or timeline audio track is muxed into the final edited export.
+The render worker reuses the Pixi.js scene used by the preview. Mediabunny writes the edited video stream as H.264/MP4 or VP9/WebM through registered Tauri file handles. If the user enables audio and the project has an audible recorded or timeline source, the Rust exporter invokes FFmpeg to build a timeline-aware mix and mux it with video stream-copy mode. Rust then copies the completed MP4 or WebM to the selected local export path.
 
 ## Key Files
 
@@ -86,5 +89,6 @@ The current edited MP4 is video-only. The `process_audio` and `add_audio` comman
 | `src-tauri/src/mouse_tracker.rs` | Cursor position tracking |
 | `app/shared/scene/Animator.js` | Pixi.js animation orchestrator (preview + render) |
 | `app/shared/workers/` | Web Workers for frame decode and render |
-| `app/shared/workers/WorkerOutputWriter.js` | Mediabunny AVC video track and MP4 output writer |
-| `src-tauri/src/commands/exporter.rs` | Registered output path, final file copy, and current audio placeholders |
+| `app/shared/exportFormats.js` | MP4/H.264/AAC and WebM/VP9/Opus format definitions |
+| `app/shared/workers/WorkerOutputWriter.js` | Mediabunny video-track writer for the selected container |
+| `src-tauri/src/commands/exporter.rs` | Registered output paths, timeline-aware audio processing/muxing, and final file copy |

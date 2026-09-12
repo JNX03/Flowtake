@@ -97,7 +97,7 @@ test("new recording preview retries one transient failure but not permission den
     assert.match(source, /refetch:\s*refetchCaptureSourcePreview/)
     assert.match(source, /failureCount < 1 && !message\.includes\("ScreenPermissionDenied"\)/)
     assert.match(source, /retryDelay:\s*500/)
-    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable \? 10000 : 5000/)
+    assert.match(source, /refetchInterval:\s*screenPermissionDenied \|\| previewUnavailable[\s\S]{0,100}performanceProfile\.sourcePreviewIntervalMs/)
     assert.match(source, /Enable this exact Flowtake app/)
     assert.doesNotMatch(source, /enable this app, then restart/)
 })
