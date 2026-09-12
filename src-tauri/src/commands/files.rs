@@ -328,6 +328,17 @@ mod tests {
     const RENDER_ID: &str = "render-123e4567-e89b-42d3-a456-426614174000";
 
     #[test]
+    fn binary_ipc_base64_round_trip_preserves_every_byte_value() {
+        let original = (0_u8..=u8::MAX).collect::<Vec<_>>();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&original);
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(&encoded)
+            .expect("encoded binary payload should decode");
+
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
     fn file_modes_are_least_privilege_by_type() {
         for file_type in [
             "projectScreenVideo",
