@@ -4901,13 +4901,21 @@ Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'screen.mp4':
 
     #[test]
     fn capture_thread_wait_has_a_hard_timeout() {
-        let thread = std::thread::spawn(|| {
-            std::thread::sleep(std::time::Duration::from_millis(120));
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let thread = std::thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
         });
+
+        started_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .unwrap();
         assert!(!wait_for_capture_thread(
             &thread,
             std::time::Duration::from_millis(5)
         ));
+        release_tx.send(()).unwrap();
         assert!(wait_for_capture_thread(
             &thread,
             std::time::Duration::from_secs(1)
