@@ -62,6 +62,7 @@ jobs:
             libxcb1-dev \
             libxrandr-dev \
             patchelf \
+            x11-utils \
             xdotool \
             xvfb
 
@@ -170,6 +171,27 @@ jobs:
             kill "$xvfb_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
+
+          display_ready=false
+          for _ in {1..30}; do
+            if ! kill -0 "$xvfb_pid" 2>/dev/null; then
+              wait "$xvfb_pid" || true
+              cat "$RUNNER_TEMP/xvfb.log"
+              echo "Xvfb exited before its display became ready." >&2
+              exit 1
+            fi
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              display_ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$display_ready" != true ]]; then
+            cat "$RUNNER_TEMP/xvfb.log"
+            echo "Xvfb display did not become ready within 30 seconds." >&2
+            exit 1
+          fi
 
           "$appimage" >"$log" 2>&1 &
           app_pid=$!
