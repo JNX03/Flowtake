@@ -83,6 +83,9 @@ test("the free homepage keeps its truthful product and platform boundaries", asy
     "pure Wayland capture is unsupported",
     "not fully offline",
     "Windows artifacts are not Authenticode-signed",
+    "Flowtake release packages do not include an FFmpeg executable",
+    "winget install --id Gyan.FFmpeg --exact --source winget",
+    "brew install ffmpeg",
   ]) {
     assert.equal(home.includes(required), true, `missing truth boundary: ${required}`);
   }
@@ -91,4 +94,6 @@ test("the free homepage keeps its truthful product and platform boundaries", asy
   assert.equal(home.includes("<video"), false);
   assert.equal(home.includes("customer logo"), false);
   assert.equal(home.includes("testimonial"), false);
+  assert.equal(home.toLowerCase().includes("bundled ffmpeg"), false);
+  assert.equal(home.toLowerCase().includes("gplv3"), false);
 });

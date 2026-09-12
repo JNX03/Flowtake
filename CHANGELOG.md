@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-12
+
+### Fixed
+
+- Wait for the X11 test display to become responsive before launching the real
+  AppImage in CI
+- Removed redistributed FFmpeg executables from every platform package so
+  third-party licensing and installation ownership stay explicit
+- Detect and launch-probe a separately installed system FFmpeg, with guided
+  Winget, Homebrew, and Linux package-manager setup
+
 ## [1.7.0] - 2026-09-12
 
 ### Added
@@ -27,7 +38,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Bounded editor preview textures and used a continuous, pooled export decode
   path to reduce avoidable memory pressure while retaining full-resolution
   exports
-- Kept Flowtake as one free, MIT-licensed product with no paid Studio mode, app
+- Kept Flowtake as one free product with MIT-licensed application code, no paid Studio mode, app
   tier, export paywall, checkout, or private-footage intake service
 
 ### Fixed
@@ -193,7 +204,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Clarification
 - Earlier changelog text overstated the shipped output choices. In v1.6.0, Mediabunny encodes and muxes one video-only AVC MP4; the exporter does not offer H.265 or WebM output and does not expose a hardware-encoder selector.
 
-[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/JNX03/Flowtake/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/JNX03/Flowtake/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/JNX03/Flowtake/compare/v1.6.0...v1.7.0
 [1.4.1]: https://github.com/JNX03/Flowtake/compare/v1.3.2...v1.4.1
 [1.3.2]: https://github.com/JNX03/Flowtake/compare/v.1.3.0...v1.3.2

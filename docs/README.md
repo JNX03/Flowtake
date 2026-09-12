@@ -6,7 +6,9 @@
 
 **Flowtake** is a desktop screen recording application that automatically generates polished zoom and pan animations from your recordings.
 
-Record your screen, edit with a powerful timeline, add effects, overlays, captions, and export production-ready videos — all from one app.
+Record your screen, edit with a focused timeline, add effects, overlays, and
+captions, then export locally with a separately installed system FFmpeg when
+the edit contains enabled audio.
 
 ---
 

@@ -1,6 +1,6 @@
 # Flowtake outreach guide
 
-> **Draft only — not posted.** Before any submission, verify the exact v1.7.0
+> **Draft only — not posted.** Before any submission, verify the exact v1.7.1
 > artifacts, privacy-reviewed demo, live links, and destination rules.
 
 This document keeps directory submissions, package listings, and launch copy
@@ -9,7 +9,7 @@ listing, account action, or social post. A maintainer must approve each external
 action, and the destination's current contribution rules must be checked on the
 day of submission.
 
-Last review: September 12, 2026, against Flowtake v1.7.0.
+Last review: September 12, 2026, against Flowtake v1.7.1.
 
 ## Positioning
 
@@ -18,8 +18,8 @@ product demos.
 
 **Submission-ready one-liner:**
 
-> Flowtake is an MIT-licensed, local-first screen recorder and timeline editor
-> with cursor-driven zoom and local H.264/MP4 or VP9/WebM export. Audio can be
+> Flowtake is a local-first screen recorder and timeline editor with MIT-licensed
+> application code, cursor-driven zoom, and local H.264/MP4 or VP9/WebM export. Audio can be
 > included when it is present and enabled. Windows is primary; macOS and Linux
 > are previews.
 
@@ -51,7 +51,7 @@ request immediately before submitting.
 ## Awesome-list entries
 
 Use the destination's exact Markdown style. These lines are intentionally
-specific about the v1.7.0 export and platform boundary. Recheck the release
+specific about the v1.7.1 export and platform boundary. Recheck the release
 gate above immediately before submitting them.
 
 ### awesome-tauri
@@ -63,7 +63,7 @@ gate above immediately before submitting them.
 ### General free-app and video lists
 
 ```markdown
-- [Flowtake](https://github.com/JNX03/Flowtake) - MIT-licensed, local-first screen recorder and timeline editor with cursor-driven zoom and local MP4 or WebM export. Windows is primary; macOS and Linux are previews.
+- [Flowtake](https://github.com/JNX03/Flowtake) - Free, local-first screen recorder and timeline editor with MIT-licensed app code, cursor-driven zoom, and local MP4 or WebM export. Windows is primary; macOS and Linux are previews.
 ```
 
 If a list requires a shorter entry, use:
@@ -88,20 +88,22 @@ Use this block for AlternativeTo or another factual application directory:
 | Price | Free for the open-source desktop recorder and editor |
 | Platforms | Windows 10/11 x64 primary; macOS 10.15+ Universal preview; Linux x64 preview |
 | Category | Screen recorder; timeline video editor; developer demo tool |
-| v1.7.0 export boundary | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
+| v1.7.1 export boundary | H.264/MP4 or VP9/WebM; recorded and timeline audio when present and enabled |
 | Historical v1.6.0 export boundary | Video-only AVC/H.264 MP4 |
 | Linux boundary | X11 or XWayland capture; no pure Wayland capture |
+| FFmpeg dependency | Not included in Flowtake packages; install a compatible system FFmpeg separately on every platform |
 | macOS boundary | Ad-hoc signed and not notarized |
 
 Suggested description:
 
-> Flowtake is a free, MIT-licensed desktop screen recorder and timeline editor.
+> Flowtake is a free desktop screen recorder and timeline editor with MIT-licensed application code.
 > It captures a display, window, or custom area, generates editable zoom and
 > pan from cursor activity, and saves projects and ordinary exports locally.
-> Flowtake v1.7.0 requires explicit source selection before
+> Flowtake v1.7.1 requires explicit source selection before
 > capture preview, offers adaptive performance profiles, and exports H.264/MP4
 > or VP9/WebM with audio when present and enabled. Windows is the primary
-> platform; macOS and Linux builds are previews.
+> platform; macOS and Linux builds are previews. Flowtake packages do not
+> include FFmpeg, which must be installed separately.
 
 ## Launch copy
 
@@ -116,7 +118,7 @@ captures.
 
 **Description**
 
-> Flowtake is a free, MIT-licensed desktop screen recorder and editor for
+> Flowtake is a free desktop screen recorder and editor with MIT-licensed application code for
 > developer demos. Capture a screen, window, or area; turn cursor activity into
 > editable zoom and pan; refine the result on a timeline; and export a local
 > H.264/MP4 or VP9/WebM file, with audio when present and enabled. Windows is
@@ -126,15 +128,16 @@ captures.
 
 **Title**
 
-> Show HN: Flowtake – an MIT-licensed local-first screen recorder and editor
+> Show HN: Flowtake – a free local-first screen recorder and editor with MIT app code
 
 **Opening**
 
 > I built Flowtake to keep the developer-demo workflow in one inspectable
 > desktop app: capture a screen, window, or area; generate editable zoom and pan
 > from cursor activity; refine it on a timeline; and export locally. The code is
-> MIT licensed. Windows is the primary target today; macOS and Linux are
-> previews. Flowtake v1.7.0 exports H.264/MP4 or VP9/WebM and can
+> MIT licensed. Flowtake packages do not include FFmpeg; users install it
+> separately. Windows is the primary target today; macOS and Linux are
+> previews. Flowtake v1.7.1 exports H.264/MP4 or VP9/WebM and can
 > include audio when present and enabled. I would especially value reproducible
 > reports about capture reliability and project recovery.
 

@@ -1,19 +1,19 @@
 # r/tauri post draft
 
-> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
-> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.1. Publish only after the
+> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 ## Title
 
 ```text
-[Showcase] Flowtake — an MIT-licensed screen recorder and editor built with Tauri
+[Showcase] Flowtake — a free screen recorder with MIT-licensed Tauri app code
 ```
 
 ## Body
 
 ```text
-Sharing Flowtake, a free desktop screen recorder and timeline editor built with Tauri, Rust, React, PixiJS, Mediabunny, and FFmpeg.
+Sharing Flowtake, a free desktop screen recorder and timeline editor built with Tauri, Rust, React, PixiJS, and Mediabunny. It uses a separately installed system FFmpeg for capture and audio processing.
 
 Flowtake uses separate native windows for recording and editing workflows. It can capture a display, window, or custom area, derive editable zoom and pan motion from cursor activity, and provide timeline controls for trims, splits, cursor effects, masks, backgrounds, overlays, audio, and subtitles.
 
@@ -23,7 +23,7 @@ The repository also contains a local stdio MCP for AI-assisted timeline metadata
 
 Windows is the primary development and validation target. macOS and Linux builds are previews. Linux capture currently requires X11 or XWayland; pure Wayland capture is not supported.
 
-Flowtake is one MIT-licensed product with no paid Studio mode, app tier, or export paywall.
+Flowtake is one free product with MIT-licensed app code and no paid Studio mode, app tier, or export paywall. Flowtake packages do not include an FFmpeg executable; install a compatible system FFmpeg separately before recording or exporting.
 
 Source and verified downloads: https://github.com/JNX03/Flowtake
 Tauri architecture feedback and reproducible platform reports are welcome.

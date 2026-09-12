@@ -44,9 +44,15 @@ test("Linux packaging CI builds, lints, and launches the real AppImage", () => {
     const commands = job.steps.map(step => step.run ?? "").join("\n")
     assert.match(commands, /npm run tauri -- build --bundles appimage/)
     assert.match(commands, /bash scripts\/validate-linux-appimage\.sh/)
+    assert.match(commands, /x11-utils/)
     assert.match(commands, /Xvfb :99/)
+    assert.match(commands, /xdpyinfo -display "\$DISPLAY"/)
+    assert.match(commands, /Xvfb display did not become ready within 30 seconds/)
     assert.match(commands, /xdotool search --name Flowtake/)
     assert.match(commands, /AppImage exited before showing a Flowtake window/)
+    assert.match(commands, /sudo apt-get install -y[\s\S]*ffmpeg/)
+    assert.match(commands, /ffmpeg -hide_banner -version/)
+    assert.doesNotMatch(commands, /BtbN\/FFmpeg-Builds|ffmpeg_archive|src-tauri\/binaries\/ffmpeg/)
 })
 
 test("release publication rejects an AppImage that fails metadata validation", () => {

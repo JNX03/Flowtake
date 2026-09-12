@@ -4,7 +4,7 @@
 
 - **Node.js** 20+
 - **Rust** (latest stable) via [rustup](https://rustup.rs/)
-- **FFmpeg** binary (see below)
+- **FFmpeg** available as `ffmpeg` on `PATH` (see below)
 - Platform-specific dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
 
 ## Getting Started
@@ -17,17 +17,35 @@ cd Flowtake
 # Install Node dependencies
 npm install
 
-# Download FFmpeg sidecar binary
-# Windows:
-powershell -ExecutionPolicy Bypass -File scripts/download-ffmpeg.ps1
-# macOS/Linux:
-./scripts/download-ffmpeg.sh
-
 # Start development
 npm run dev
 ```
 
 This launches both the Vite dev server (frontend) and the Tauri dev process (Rust backend).
+
+Flowtake release packages do not include an FFmpeg executable. Install the
+system dependency separately and confirm `ffmpeg -version` works in a new
+terminal before starting development:
+
+```powershell
+# Windows
+winget install --id Gyan.FFmpeg --exact --source winget
+```
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Debian or Ubuntu
+sudo apt update
+sudo apt install ffmpeg
+
+# Arch Linux
+sudo pacman -S ffmpeg
+```
+
+For another Linux distribution, install its full FFmpeg package and keep the
+`ffmpeg` command on `PATH`.
 
 For privacy-safe demos or test runs, debug builds can use an isolated app-data directory instead of your normal Flowtake library. Set `FLOWTAKE_DEV_DATA_DIR` to an absolute, disposable directory before `npm run dev`. Release builds ignore this override.
 
@@ -67,7 +85,8 @@ import store from '@shared/redux/store'
 
 ### Windows
 - Uses NSIS installer for distribution
-- AutoHotkey scripts in `resources/` handle window enumeration
+- Rust handles current Win32 window enumeration; `resources/` retains legacy
+  helper assets and installer artwork
 
 ### macOS
 - Requires Xcode command line tools

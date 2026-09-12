@@ -7,7 +7,7 @@
 | [Node.js](https://nodejs.org/) | 20+ | LTS recommended |
 | [Rust](https://www.rust-lang.org/tools/install) | stable | Install via rustup |
 | [Tauri v2 CLI](https://v2.tauri.app/start/prerequisites/) | 2.x | `cargo install tauri-cli` |
-| FFmpeg binary | any | Place in `resources/` |
+| FFmpeg | compatible system package | Install separately and keep `ffmpeg` on `PATH` |
 
 ## Clone and Install
 
@@ -52,9 +52,30 @@ Each window has its own HTML entry point. The main window uses `index.html` at t
 
 When developing a specific window in isolation, you can open its HTML file directly in the Vite dev server by navigating to its path.
 
-## FFmpeg Sidecar
+## FFmpeg prerequisite
 
-FFmpeg must be placed in `resources/` before building. The Tauri shell plugin is configured to allow the sidecar binary. In dev mode, FFmpeg is resolved relative to the project root.
+Flowtake release packages do not include an FFmpeg executable. Install FFmpeg
+separately and confirm `ffmpeg -version` works in a new terminal:
+
+```powershell
+# Windows
+winget install --id Gyan.FFmpeg --exact --source winget
+```
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Debian or Ubuntu
+sudo apt update
+sudo apt install ffmpeg
+
+# Arch Linux
+sudo pacman -S ffmpeg
+```
+
+For another Linux distribution, install its full FFmpeg package and ensure the
+`ffmpeg` command is on `PATH`.
 
 ## Platform-Specific Notes
 

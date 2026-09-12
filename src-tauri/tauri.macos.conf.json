@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": [
+      "resources/THIRD_PARTY_NOTICES.txt",
+      "binaries/flowtake-macos-capture-*"
+    ]
+  }
+}

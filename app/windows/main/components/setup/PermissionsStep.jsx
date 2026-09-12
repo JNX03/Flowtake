@@ -2,11 +2,14 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     ArrowPathIcon,
-    ArrowTopRightOnSquareIcon
+    ArrowTopRightOnSquareIcon,
+    ArrowDownTrayIcon
 } from "@heroicons/react/24/outline"
 import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 
 export default function PermissionsStep() {
+    const [installState, setInstallState] = useState({ pending: false, message: "", success: false })
     const platform = window.electron?.process?.platform || (navigator.platform?.includes("Mac") ? "darwin" : navigator.platform?.includes("Win") ? "win32" : "other")
     const { data: permissions, isPending: permPending, refetch: refetchPerms } = useQuery({
         queryKey: ['setup-permissions'],
@@ -24,6 +27,7 @@ export default function PermissionsStep() {
     const isLoading = permPending || depsPending
     const allPermsOk = permissions?.every(p => p.hasPermission)
     const allDepsOk = Array.isArray(dependencies) ? dependencies.every(d => d.installed || !d.required) : depsData?.allInstalled
+    const installCommand = depsData?.installCommand || ""
 
     const refresh = () => {
         refetchPerms()
@@ -35,6 +39,24 @@ export default function PermissionsStep() {
             "open-url-in-browser",
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         )
+    }
+
+    const installDependencies = async () => {
+        setInstallState({ pending: true, message: "Installing the required tools…", success: false })
+        try {
+            const result = await window.electron.ipcRenderer.invoke("install-dependencies")
+            setInstallState({
+                pending: false,
+                message: result?.message || (result?.success ? "Installation finished. Restart Flowtake." : "Installation did not finish."),
+                success: Boolean(result?.success)
+            })
+        } catch {
+            setInstallState({ pending: false, message: "Automatic installation failed. Use the manual FFmpeg setup link.", success: false })
+        }
+    }
+
+    const openFfmpegSetup = () => {
+        window.electron.ipcRenderer.invoke("open-url-in-browser", "https://ffmpeg.org/download.html")
     }
 
     return (
@@ -113,6 +135,18 @@ export default function PermissionsStep() {
                     <ArrowPathIcon className="w-4 h-4" />
                     Refresh
                 </button>
+                {!allDepsOk && !isLoading && installCommand && (
+                    <button className="btn btn-primary btn-sm gap-1" onClick={installDependencies} disabled={installState.pending}>
+                        {installState.pending ? <span className="loading loading-spinner loading-xs" /> : <ArrowDownTrayIcon className="w-4 h-4" />}
+                        {installState.pending ? "Installing…" : "Install required tools"}
+                    </button>
+                )}
+                {!allDepsOk && !isLoading && !installCommand && (
+                    <button className="btn btn-ghost btn-sm gap-1" onClick={openFfmpegSetup}>
+                        <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                        Manual FFmpeg setup
+                    </button>
+                )}
                 {!allPermsOk && platform === "darwin" && (
                     <button className="btn btn-ghost btn-sm gap-1" onClick={openSystemSettings}>
                         <ArrowTopRightOnSquareIcon className="w-4 h-4" />
@@ -120,6 +154,12 @@ export default function PermissionsStep() {
                     </button>
                 )}
             </div>
+
+            {installState.message && (
+                <div className={`text-sm ${installState.success ? "text-success" : "text-warning"}`} role="status">
+                    {installState.message}
+                </div>
+            )}
 
             {allPermsOk && allDepsOk && (
                 <div className="text-sm text-success font-medium">

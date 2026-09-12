@@ -5,7 +5,7 @@
 <h3 align="center">Record locally. Turn the capture into a polished product demo.</h3>
 
 <p align="center">
-  Flowtake v1.7.0 is a free, MIT-licensed desktop screen recorder and editor with automatic zoom and pan, cursor effects, a timeline, and local H.264/MP4 or VP9/WebM export with audio when present and enabled.
+  Flowtake v1.7.1 is a free desktop screen recorder and editor with automatic zoom and pan, cursor effects, a timeline, and local H.264/MP4 or VP9/WebM export with audio when present and enabled. Flowtake application code is MIT-licensed. Install FFmpeg separately before using the desktop app.
 </p>
 
 <p align="center">
@@ -36,14 +36,18 @@ Flowtake keeps the recording workflow in one desktop app:
 - Save projects locally and export H.264/MP4 or VP9/WebM, with recorded and timeline audio included when present and enabled.
 - Experiment with separate app layers and scene layouts for multi-app technical demos.
 
-The desktop recorder and editor are free to use, inspect, modify, and redistribute under the [MIT License](LICENSE).
+The desktop recorder and editor are free. Flowtake application code is available
+under the [MIT License](LICENSE). Flowtake release packages do not include an
+FFmpeg executable. Install a compatible system FFmpeg separately and keep the
+`ffmpeg` command available on `PATH`.
 
 ## 60-second quickstart
 
-1. Install with `winget install --id JNX03.Flowtake --exact` on Windows, download a build from the [release page](https://github.com/JNX03/Flowtake/releases), or follow [Development](#development) to run from source.
-2. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
-3. Start recording and use the compact recorder controls to pause or stop.
-4. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export**. Flowtake v1.7.0 renders H.264/MP4 or VP9/WebM and can include recorded or timeline audio when present and enabled.
+1. Install FFmpeg using the platform command below.
+2. Install with `winget install --id JNX03.Flowtake --exact` on Windows, download a build from the [release page](https://github.com/JNX03/Flowtake/releases), or follow [Development](#development) to run from source.
+3. Open Flowtake, choose **Record**, then select **Screen**, **Window**, or **Area**. Add a camera, microphone, or system-audio source if needed.
+4. Start recording and use the compact recorder controls to pause or stop.
+5. Open the saved project from **Library**, adjust the timeline and effects, then choose **Export**. Flowtake v1.7.1 renders H.264/MP4 or VP9/WebM and can include recorded or timeline audio when present and enabled.
 
 Your OS may ask for screen-recording, camera, or microphone permission on first use. Current platform-signing limitations can also produce a Windows SmartScreen or macOS Gatekeeper warning; see the status note below before proceeding.
 
@@ -53,9 +57,34 @@ All published artifacts are on the official [GitHub Releases page](https://githu
 
 | Platform | Published artifacts | Current support boundary |
 |---|---|---|
-| **Windows 10/11 x64** | `.exe`, `.msi`, portable `.zip` | Primary development and validation target. FFmpeg is bundled. |
-| **macOS 10.15+ Universal** | `.dmg`, portable `.zip` | Preview. Apple Silicon and Intel builds are published; expect rough edges and report reproducible issues. FFmpeg is bundled. |
-| **Linux x64** | `.AppImage`, `.deb`, `.rpm`, portable `.tar.gz` | Preview. Screen capture requires X11 or XWayland; pure Wayland capture is not supported. The `.deb` and `.rpm` declare required system packages. |
+| **Windows 10/11 x64** | `.exe`, `.msi`, portable `.zip` | Primary development and validation target. Install FFmpeg separately. |
+| **macOS 10.15+ Universal** | `.dmg`, portable `.zip` | Preview. Apple Silicon and Intel builds are published; install FFmpeg separately. |
+| **Linux x64** | `.AppImage`, `.deb`, `.rpm`, portable `.tar.gz` | Preview. Install the distribution's FFmpeg package. Screen capture requires X11 or XWayland; pure Wayland capture is not supported. |
+
+### FFmpeg prerequisite
+
+Flowtake packages do not redistribute an FFmpeg executable. Install FFmpeg
+separately, then confirm that `ffmpeg -version` works in a new terminal.
+
+```powershell
+# Windows
+winget install --id Gyan.FFmpeg --exact --source winget
+```
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Debian or Ubuntu
+sudo apt update
+sudo apt install ffmpeg
+
+# Arch Linux
+sudo pacman -S ffmpeg
+```
+
+For another Linux distribution, install its full FFmpeg package and ensure the
+`ffmpeg` command is on `PATH` before opening Flowtake.
 
 ### WinGet (Windows)
 
@@ -94,7 +123,7 @@ The WinGet package installs the same unsigned MSI published on the official rele
 
 ### Export
 
-Flowtake v1.7.0 renders H.264/MP4 or VP9/WebM locally and provides:
+Flowtake v1.7.1 renders H.264/MP4 or VP9/WebM locally and provides:
 
 - VP9/WebM rendering through Mediabunny
 - Resolution, 30/60 fps, output-format, output-quality, and optional-audio controls
@@ -106,13 +135,13 @@ Flowtake v1.7.0 renders H.264/MP4 or VP9/WebM locally and provides:
 - The current Tauri build has Sentry disabled and no active product-analytics integration.
 - Flowtake can make network requests for GitHub release checks. Explicit network features include YouTube upload and RTMP live streaming; some camera effects fetch model assets when used.
 - Choosing a network feature sends data to the service you configure. Review that service's terms before connecting an account or stream destination.
-- The recorder, editor, and export controls in this repository remain MIT licensed. Flowtake has no paid app tier, paid studio mode, or export paywall.
+- Flowtake application code remains MIT licensed. Release packages do not include an FFmpeg executable; users install that system dependency separately under its own terms. Flowtake has no paid app tier, paid studio mode, or export paywall.
 
 For vulnerability reporting, follow the private process in [SECURITY.md](SECURITY.md).
 
 ## Optional local MCP for AI-assisted edits
 
-Flowtake v1.7.0 includes a local stdio MCP developer integration.
+Flowtake v1.7.1 includes a local stdio MCP developer integration.
 From a source checkout with Node.js 20+, an MCP host can list projects, read
 bounded timeline metadata, and request revision-checked, dry-run and
 backup-backed split, trim, delete, and caption edits. Flowtake must be closed
@@ -137,7 +166,7 @@ Improvements to the recorder, editor, documentation, and demo kit are welcome th
 - [Node.js](https://nodejs.org/) 20+
 - [Rust](https://www.rust-lang.org/tools/install) stable
 - The [Tauri v2 system prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS
-- A target-named FFmpeg sidecar in `src-tauri/binaries/`
+- A compatible system FFmpeg available as `ffmpeg` on `PATH`
 
 ### Run locally
 
@@ -147,16 +176,19 @@ cd Flowtake
 npm ci
 ```
 
-Release artifacts bundle FFmpeg. For local native development, prepare the sidecar when it is absent:
+Install FFmpeg separately before running the native app:
 
 ```powershell
 # Windows
-powershell -ExecutionPolicy Bypass -File scripts/download-ffmpeg.ps1
+winget install --id Gyan.FFmpeg --exact --source winget
 ```
 
 ```bash
-# macOS or Linux
-bash scripts/download-ffmpeg.sh
+# macOS
+brew install ffmpeg
+
+# Debian or Ubuntu
+sudo apt install ffmpeg
 ```
 
 On macOS, build the native ScreenCaptureKit helper as well:
@@ -183,7 +215,7 @@ cargo check --manifest-path src-tauri/Cargo.toml --locked
 
 ### Architecture
 
-Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, and Mediabunny encodes the edited H.264/MP4 or VP9/WebM video stream. When an edit includes enabled recorded or timeline audio, the bundled FFmpeg sidecar builds the timeline-aware mix and muxes it without re-encoding the video. Rust then copies the completed file into the local export folder. On macOS 12.3+, a Swift ScreenCaptureKit helper writes fixed-cadence H.264 through the native media stack and cleanly falls back to FFmpeg/AVFoundation when unavailable. The editor bounds Retina preview textures while exports retain source resolution.
+Flowtake combines a [Tauri v2](https://v2.tauri.app/) Rust backend with a React 19 interface. Redux Toolkit manages editor state, PixiJS composites preview and export frames, and Mediabunny encodes the edited H.264/MP4 or VP9/WebM video stream. When an edit includes enabled recorded or timeline audio, the separately installed system FFmpeg builds the timeline-aware mix and muxes it without re-encoding the video. Rust then copies the completed file into the local export folder. On macOS 12.3+, a Swift ScreenCaptureKit helper writes fixed-cadence H.264 through the native media stack and cleanly falls back to system FFmpeg/AVFoundation when unavailable. The editor bounds Retina preview textures while exports retain source resolution.
 
 The native app uses separate windows for the launcher/editor, recorder controls, exporter, source pickers, and annotations. Start with the [architecture docs](docs/architecture/README.md) or the [development guide](docs/getting-started/development.md) for a deeper tour.
 
@@ -195,7 +227,9 @@ The most useful reports include the operating system, Flowtake version, capture 
 
 ## License
 
-Flowtake is licensed under the [MIT License](LICENSE).
+Flowtake application code is licensed under the [MIT License](LICENSE).
+Flowtake packages do not redistribute FFmpeg. Installations use a separately
+installed system FFmpeg under the terms supplied by its distributor.
 
 ---
 

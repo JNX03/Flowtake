@@ -6,19 +6,32 @@ import test from 'node:test'
 const root = path.resolve(import.meta.dirname, '..')
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8')
 
-test('macOS native capture is built, bundled, and release-tested', () => {
+test('macOS native capture is built and release-tested without bundling FFmpeg', () => {
     const packageJson = JSON.parse(read('package.json'))
     const tauriConfig = JSON.parse(read('src-tauri', 'tauri.conf.json'))
+    const macConfig = JSON.parse(read('src-tauri', 'tauri.macos.conf.json'))
     const ci = read('.github', 'workflows', 'ci.yml')
     const release = read('.github', 'workflows', 'main.yml')
 
     assert.match(packageJson.scripts['test:macos-capture'], /flowtake-macos-capture-tests/)
     assert.match(packageJson.scripts['build:macos-capture'], /build-macos-capture\.sh --native/)
-    assert.ok(tauriConfig.bundle.resources.includes('binaries/*'))
+    assert.equal(tauriConfig.bundle.externalBin, undefined)
+    assert.equal(tauriConfig.bundle.resources.some(resource => /ffmpeg/i.test(resource)), false)
+    assert.deepEqual(macConfig.bundle.resources, [
+        'resources/THIRD_PARTY_NOTICES.txt',
+        'binaries/flowtake-macos-capture-*',
+    ])
+    assert.equal(macConfig.bundle.resources.some(resource => /ffmpeg/i.test(resource)), false)
     assert.ok(tauriConfig.app.security.assetProtocol.scope.includes('$APPDATA/previews/**'))
     assert.match(ci, /Test native macOS capture helper/)
     assert.match(release, /build-macos-capture\.sh --universal/)
-    assert.match(release, /flowtake-macos-capture-universal-apple-darwin/)
+    assert.match(
+        release,
+        /MAC_CAPTURE_HELPER="\$APP_PATH\/Contents\/Resources\/binaries\/flowtake-macos-capture-universal-apple-darwin"/
+    )
+    assert.match(release, /if \[ ! -x "\$MAC_CAPTURE_HELPER" \]/)
+    assert.match(release, /if \[ -e "\$APP_PATH\/Contents\/MacOS\/ffmpeg" \]/)
+    assert.match(release, /macOS package must not redistribute an FFmpeg executable/)
 })
 
 test('native capture uses ScreenCaptureKit with a real MP4 writer and bounded queue', () => {

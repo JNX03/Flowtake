@@ -13,7 +13,7 @@ Flowtake uses a hybrid desktop architecture: a **Rust backend** (Tauri v2) for s
 |   |      Tauri v2 (Rust)      |   |     React 18 Frontend      |   |
 |   |---------------------------|   |----------------------------|   |
 |   | - Recording control       |   | - Editor workspace         |   |
-|   | - FFmpeg sidecar mgmt     |   | - Timeline (zoom, pan,     |   |
+|   | - System FFmpeg discovery |   | - Timeline (zoom, pan,     |   |
 |   | - Window/area picking     |   |   clicks, clips, masks,    |   |
 |   | - File I/O & projects     |   |   subtitles, overlays,     |   |
 |   | - Mouse tracking          |   |   audio tracks)            |   |
@@ -74,7 +74,7 @@ Flowtake/
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 │
-├── resources/               # Bundled binaries (FFmpeg, AHK scripts)
+├── resources/               # Legacy Windows helper assets and installer artwork
 ├── docs/                    # This documentation
 ├── vite.config.mjs
 └── package.json

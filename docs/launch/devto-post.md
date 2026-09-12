@@ -5,24 +5,24 @@ description: "How Flowtake turns cursor activity into editable screen-recording 
 tags: opensource, tauri, rust, react
 ---
 
-> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
-> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.1. Publish only after the
+> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 # Flowtake: a free, open-source recorder and timeline editor
 
-Flowtake is a desktop screen recorder and editor released under the MIT License.
+Flowtake is a desktop screen recorder and editor whose application code is released under the MIT License.
 It captures a display, window, or custom area, derives editable zoom and pan
 motion from cursor activity, and keeps the rest of the workflow on a timeline.
 
 The timeline supports trimming and splitting, cursor and click effects, masks,
-backgrounds, overlays, audio, and subtitles. Flowtake v1.7.0 can export
+backgrounds, overlays, audio, and subtitles. Flowtake v1.7.1 can export
 H.264/MP4 or VP9/WebM locally and mix recorded or timeline audio when it is
 present and enabled.
 
 ## Adaptive without changing the export target
 
-Flowtake v1.7.0 adds a Device performance setting with Auto,
+Flowtake v1.7.1 adds a Device performance setting with Auto,
 Efficiency, Balanced, and Quality modes. Auto can lower preview and camera
 capture profiles on constrained hardware. The selected export dimensions stay
 unchanged. This is a resource policy, not a claim that every device will have
@@ -53,8 +53,10 @@ Windows 10/11 x64 is the primary development and validation target. macOS
 Universal and Linux x64 builds are previews. Linux screen capture requires X11
 or XWayland; pure Wayland capture is not supported.
 
-Flowtake is one free, MIT-licensed product. There is no paid app tier, paid
-Studio mode, export paywall, checkout, or private-footage intake service.
+Flowtake is one free product with MIT-licensed app code. There is no paid app
+tier, paid Studio mode, export paywall, checkout, or private-footage intake
+service. Flowtake packages do not include an FFmpeg executable; install a
+compatible system FFmpeg separately before recording or exporting.
 
 Source and verified downloads: https://github.com/JNX03/Flowtake
 

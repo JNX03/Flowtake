@@ -50,6 +50,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             desktop-file-utils \
+            ffmpeg \
             libayatana-appindicator3-dev \
             libfile-mimeinfo-perl \
             libfuse2 \
@@ -62,6 +63,7 @@ jobs:
             libxcb1-dev \
             libxrandr-dev \
             patchelf \
+            x11-utils \
             xdotool \
             xvfb
 
@@ -81,27 +83,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Download verified FFmpeg sidecar
-        shell: bash
-        run: |
-          set -euo pipefail
-          ffmpeg_url="https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz"
-          ffmpeg_sha256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
-
-          # This host intermittently answers with 415/5xx. Retry every failure
-          # class with backoff; the pinned SHA-256 below still gates the result,
-          # so a retry can never smuggle in a different artifact.
-          curl --fail --location --show-error --silent \
-            --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
-            "$ffmpeg_url" \
-            --output ffmpeg.tar.xz
-          printf '%s  %s\n' "$ffmpeg_sha256" ffmpeg.tar.xz | sha256sum --check --strict -
-
-          mkdir -p ffmpeg_tmp src-tauri/binaries
-          tar -xf ffmpeg.tar.xz -C ffmpeg_tmp
-          ffmpeg_bin="$(find ffmpeg_tmp -maxdepth 3 -name ffmpeg -type f -print -quit)"
-          test -n "$ffmpeg_bin"
-          install -m 755 "$ffmpeg_bin" src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+      - name: Probe the system FFmpeg dependency
+        run: ffmpeg -hide_banner -version
 
       - name: Build real AppImage
         run: npm run tauri -- build --bundles appimage --target x86_64-unknown-linux-gnu
@@ -134,6 +117,27 @@ jobs:
             kill "$xvfb_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
+
+          display_ready=false
+          for _ in {1..30}; do
+            if ! kill -0 "$xvfb_pid" 2>/dev/null; then
+              wait "$xvfb_pid" || true
+              cat "$RUNNER_TEMP/xvfb.log"
+              echo "Xvfb exited before its display became ready." >&2
+              exit 1
+            fi
+            if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+              display_ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$display_ready" != true ]]; then
+            cat "$RUNNER_TEMP/xvfb.log"
+            echo "Xvfb display did not become ready within 30 seconds." >&2
+            exit 1
+          fi
 
           "$appimage" >"$log" 2>&1 &
           app_pid=$!

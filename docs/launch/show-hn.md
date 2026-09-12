@@ -1,7 +1,7 @@
 # Show HN draft
 
-> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
-> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.1. Publish only after the
+> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 ## Title
@@ -19,7 +19,7 @@ https://github.com/JNX03/Flowtake
 ## First comment
 
 ```text
-Hi HN — I maintain Flowtake, a free MIT-licensed desktop screen recorder and editor.
+Hi HN — I maintain Flowtake, a free desktop screen recorder and editor with MIT-licensed application code.
 
 It can capture a display, window, or custom area, derive editable zoom and pan motion from cursor activity, and provide a timeline for trims, splits, cursor effects, masks, backgrounds, overlays, audio, and subtitles. Windows is the primary target. macOS and Linux builds are previews, and Linux capture currently requires X11 or XWayland rather than pure Wayland.
 
@@ -27,7 +27,7 @@ The release linked here also includes adaptive preview and camera-capture profil
 
 There is also an optional local stdio MCP for AI-assisted timeline metadata edits. It is a developer integration that currently requires a source checkout and Node.js 20+. It can inspect a bounded timeline and make revision-checked, backup-backed split, trim, delete, and caption edits. It does not inspect video pixels or audio, render, export, upload, or control the app, and Flowtake must be closed for durable writes. An MCP host or model may receive requested tool results.
 
-There is one MIT-licensed product: no paid Studio mode, app tier, or export paywall.
+There is one free product with MIT-licensed app code: no paid Studio mode, app tier, or export paywall. Flowtake packages do not include an FFmpeg executable; install a compatible system FFmpeg separately before recording or exporting.
 
 Source and verified downloads: https://github.com/JNX03/Flowtake
 Issues and reproducible platform reports are welcome.

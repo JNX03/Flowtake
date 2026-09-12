@@ -1,14 +1,14 @@
-# Flowtake press kit — v1.7.0
+# Flowtake press kit — v1.7.1
 
-Last factual review: September 12, 2026, against Flowtake v1.7.0.
+Last factual review: September 12, 2026, against Flowtake v1.7.1.
 
 The repository-root [press kit](../PRESS.md) remains the canonical source for
 release facts and publication gates.
 
 ## One-line description
 
-Flowtake is a free, MIT-licensed desktop screen recorder and timeline editor
-with cursor-driven zoom, local project storage, and local video export.
+Flowtake is a free desktop screen recorder and timeline editor with MIT-licensed
+application code, cursor-driven zoom, local project storage, and local video export.
 
 ## Short description
 
@@ -17,9 +17,9 @@ into editable zoom and pan motion. Its timeline supports trimming, splitting,
 cursor effects, masks, backgrounds, overlays, audio, and subtitles. Windows is
 the primary development target; macOS and Linux builds are previews.
 
-## v1.7.0 highlights
+## v1.7.1 highlights
 
-Flowtake v1.7.0 adds:
+Flowtake v1.7.1 adds:
 
 - adaptive preview and camera-capture profiles for constrained hardware, while
   leaving screen-capture source and selected export dimensions unchanged;
@@ -37,11 +37,12 @@ this section in external copy.
 
 | Item | Approved wording |
 |---|---|
-| License and price | One MIT-licensed product; no paid app tier, paid Studio mode, export paywall, checkout, or private-footage intake service |
+| License and price | One free product with MIT-licensed app code; no paid app tier, paid Studio mode, export paywall, checkout, or private-footage intake service |
 | Primary platform | Windows 10/11 x64 |
 | Preview platforms | macOS 10.15+ Universal and Linux x64 |
 | Linux capture boundary | X11 or XWayland; pure Wayland capture is not supported |
 | Windows signing | Not Authenticode-signed |
+| FFmpeg dependency | Not included in release packages; install a compatible system FFmpeg separately on every platform |
 | macOS signing | Ad-hoc signed; not Developer ID signed or notarized |
 | Source | https://github.com/JNX03/Flowtake |
 | Releases | https://github.com/JNX03/Flowtake/releases |

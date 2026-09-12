@@ -1,4 +1,3 @@
-#[cfg(not(target_os = "windows"))]
 use crate::error::AppError;
 use crate::error::AppResult;
 use serde::{Deserialize, Serialize};
@@ -425,15 +424,10 @@ fn command_exists(cmd: &str) -> bool {
 /// Check all runtime dependencies and return their status.
 /// The frontend uses this on first launch to show install guidance.
 #[tauri::command]
-pub async fn check_dependencies(app: AppHandle) -> AppResult<Value> {
-    use tauri_plugin_shell::ShellExt;
-
-    // Check FFmpeg: try sidecar first, then system
-    let has_ffmpeg = {
-        let shell = app.shell();
-        let sidecar_ok = shell.sidecar("ffmpeg").is_ok();
-        sidecar_ok || command_exists("ffmpeg")
-    };
+pub async fn check_dependencies(_app: AppHandle) -> AppResult<Value> {
+    // Resolve and execute-probe FFmpeg. A path entry alone is not enough to
+    // prove that the executable is usable by Flowtake.
+    let has_ffmpeg = super::recording::find_ffmpeg_path().is_some();
 
     #[allow(unused_mut)]
     let mut deps = vec![serde_json::json!({
@@ -511,7 +505,8 @@ fn get_install_command(deps: &[Value]) -> String {
         .iter()
         .filter(|d| {
             let installed = d.get("installed").and_then(|v| v.as_bool()).unwrap_or(true);
-            !installed
+            let required = d.get("required").and_then(|v| v.as_bool()).unwrap_or(false);
+            required && !installed
         })
         .filter_map(|d| d.get("command").and_then(|v| v.as_str()))
         .collect();
@@ -524,7 +519,10 @@ fn get_install_command(deps: &[Value]) -> String {
 
     #[cfg(target_os = "macos")]
     {
-        format!("brew install {}", _packages)
+        if command_exists("brew") {
+            return format!("brew install {}", _packages);
+        }
+        String::new()
     }
 
     #[cfg(target_os = "linux")]
@@ -544,7 +542,16 @@ fn get_install_command(deps: &[Value]) -> String {
 
     #[cfg(target_os = "windows")]
     {
-        String::new() // Windows bundles everything
+        if command_exists("winget") {
+            return "winget install --id Gyan.FFmpeg --exact --source winget --accept-package-agreements --accept-source-agreements".to_string();
+        }
+        if command_exists("choco") {
+            return "choco install ffmpeg --yes".to_string();
+        }
+        if command_exists("scoop") {
+            return "scoop install ffmpeg".to_string();
+        }
+        String::new()
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -642,9 +649,24 @@ pub async fn install_dependencies(app: AppHandle) -> AppResult<Value> {
 
     #[cfg(target_os = "windows")]
     {
+        let output = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &install_cmd])
+            .output()
+            .map_err(|e| AppError::General(format!("Failed to run install: {}", e)))?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
         Ok(serde_json::json!({
-            "success": true,
-            "message": "All dependencies are bundled on Windows"
+            "success": output.status.success(),
+            "message": if output.status.success() {
+                "FFmpeg installed successfully. Please restart Flowtake."
+            } else {
+                "Automatic installation failed. Install FFmpeg manually and restart Flowtake."
+            },
+            "stdout": stdout,
+            "stderr": stderr,
+            "command": install_cmd
         }))
     }
 

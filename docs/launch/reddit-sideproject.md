@@ -1,7 +1,7 @@
 # r/SideProject post draft
 
-> **Draft only — not posted.** This copy targets v1.7.0. Publish only after the
-> exact v1.7.0 artifacts, privacy-reviewed demo, and live links are verified;
+> **Draft only — not posted.** This copy targets v1.7.1. Publish only after the
+> exact v1.7.1 artifacts, privacy-reviewed demo, and live links are verified;
 > recheck all three immediately before posting.
 
 ## Title
@@ -13,7 +13,7 @@ I built Flowtake, a free open-source screen recorder with an editable timeline
 ## Body
 
 ```text
-Flowtake is a free, MIT-licensed desktop recorder and editor for making product and technical demos.
+Flowtake is a free desktop recorder and editor with MIT-licensed application code for making product and technical demos.
 
 Choose a display, window, or custom area, record, and Flowtake turns cursor activity into editable zoom and pan motion. The timeline also supports trims, splits, cursor and click effects, masks, backgrounds, overlays, audio, and subtitles.
 
@@ -25,7 +25,7 @@ Flowtake is local-first, not network-free. Ordinary capture, editing, and export
 
 Windows is the primary development target. macOS and Linux builds are previews, and pure Wayland capture is not supported.
 
-There is one open-source product: no paid Studio mode, app tier, or export paywall.
+There is one open-source product: no paid Studio mode, app tier, or export paywall. Flowtake packages do not include an FFmpeg executable; install a compatible system FFmpeg separately before recording or exporting.
 
 Source and verified downloads: https://github.com/JNX03/Flowtake
 

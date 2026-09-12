@@ -113,8 +113,7 @@ test("every release path waits for an exact-commit test and security gate", () =
         assert.ok(gate.includes(requiredCommand), `release gate is missing: ${requiredCommand}`)
     }
 
-    assert.match(gate, /install -Dm755 \/bin\/true src-tauri\/binaries\/ffmpeg-x86_64-unknown-linux-gnu/)
-    assert.doesNotMatch(gate, /Download FFmpeg|FFMPEG_URL|Invoke-WebRequest/)
+    assert.doesNotMatch(gate, /sidecar|Download FFmpeg|FFMPEG_URL|Invoke-WebRequest/)
     assert.equal(
         workflow.match(/needs: \[validate_release, release_quality_gate\]/g)?.length,
         3,
@@ -196,48 +195,23 @@ test("release publication generates and verifies a checksum manifest", () => {
     assert.match(workflow, /files:\s*\|\s*\n\s+release-assets\/\*/)
 })
 
-test("release FFmpeg archives are immutable and verified before extraction", () => {
-    assert.doesNotMatch(
-        workflow,
-        /(?:releases\/download\/latest|ffmpeg-(?:master-latest|release-amd64-static))/,
-        "release jobs must not download FFmpeg through a mutable alias"
-    )
+test("release packages require system FFmpeg and redistribute no FFmpeg executable", () => {
+    assert.doesNotMatch(workflow, /BtbN\/FFmpeg-Builds|eugeneware\/ffmpeg-static/)
+    assert.doesNotMatch(workflow, /Download FFmpeg|FFMPEG_(?:URL|SHA256|ARCHIVE)/)
+    assert.doesNotMatch(workflow, /cp src-tauri\/binaries\/ffmpeg/)
+    assert.doesNotMatch(workflow, /FFmpeg is bundled|Bundled FFmpeg/)
+    assert.match(workflow, /sudo apt-get install -y[\s\S]*ffmpeg/)
+    assert.match(workflow, /Install and probe the system FFmpeg dependency[\s\S]*brew install ffmpeg/)
+    assert.match(workflow, /macOS package must not redistribute an FFmpeg executable/)
+    assert.match(workflow, /winget install --id Gyan\.FFmpeg --exact --source winget/)
+    assert.match(workflow, /Release packages do not redistribute FFmpeg/)
+})
 
-    for (const pinnedArtifact of [
-        "autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-win64-gpl.zip",
-        "releases/ffmpeg-7.0.2-amd64-static.tar.xz",
-        "releases/download/b6.0/ffmpeg-darwin-arm64.gz",
-        "releases/download/b6.0/ffmpeg-darwin-x64.gz",
-    ]) {
-        assert.ok(workflow.includes(pinnedArtifact), `missing immutable FFmpeg pin: ${pinnedArtifact}`)
-    }
-
-    for (const sha256 of [
-        "52c0383c460f0ec1039088f1591921fb82e3b870b32aab8faf2ff1e5ae14bf9d",
-        "abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67",
-        "6be74d6f449889c2e87a75873894f8520cad56c08ac76f2a628d85b0519daaca",
-        "a12354fce7eb62361473bbe10d53a1893695babd35869ec8e92e5dfea8d0440b",
-    ]) {
-        assert.ok(workflow.includes(sha256), `missing FFmpeg SHA-256 pin: ${sha256}`)
-    }
-
-    const windowsVerify = workflow.indexOf("Get-FileHash -Path ffmpeg.zip -Algorithm SHA256")
-    const windowsExtract = workflow.indexOf("Expand-Archive -Path ffmpeg.zip")
-    assert.ok(windowsVerify >= 0 && windowsVerify < windowsExtract)
-
-    const linuxVerify = workflow.indexOf("sha256sum --check --strict -")
-    const linuxExtract = workflow.indexOf("tar -xf ffmpeg.tar.xz")
-    assert.ok(linuxVerify >= 0 && linuxVerify < linuxExtract)
-
-    const macVerify = workflow.indexOf("shasum -a 256 --check")
-    const macExtract = workflow.indexOf("gunzip -f ffmpeg-arm64.gz")
-    assert.ok(macVerify >= 0 && macVerify < macExtract)
-
-    assert.equal(
-        workflow.match(/curl --fail --location --show-error --silent/g)?.length,
-        3,
-        "every Unix FFmpeg download must fail on HTTP errors"
-    )
+test("release bundles the system-dependency notice", () => {
+    assert.match(workflow, /THIRD_PARTY_NOTICES\.txt/)
+    assert.match(workflow, /brew install ffmpeg/)
+    assert.match(workflow, /src-tauri\/resources\/THIRD_PARTY_NOTICES\.txt/)
+    assert.doesNotMatch(workflow, /FFmpeg-GPL-3\.0\.txt|FFmpeg-SOURCE\.txt/)
 })
 
 test("release automation pins actions, minimizes write access, and binds manual runs to a tag", () => {

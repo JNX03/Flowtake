@@ -117,8 +117,9 @@ test("macOS screencapture previews time out instead of hanging permission checks
     assert.doesNotMatch(windows, /Command::new\("screencapture"\)[\s\S]{0,200}\.output\(\)/)
 })
 
-test("recording skips bundled ffmpeg binaries that fail to launch", async () => {
+test("recording skips local ffmpeg candidates that fail to launch", async () => {
     const recording = await readRepoFile("src-tauri/src/commands/recording.rs")
+    const live = await readRepoFile("src-tauri/src/commands/live.rs")
     const downloadScript = await readRepoFile("scripts/download-ffmpeg.sh")
 
     assert.match(recording, /static FFMPEG_PATH_CACHE/)
@@ -129,10 +130,15 @@ test("recording skips bundled ffmpeg binaries that fail to launch", async () => 
         recording,
         /if sidecar\.exists\(\) \{\s*return Some\(sidecar\);/
     )
-    assert.match(downloadScript, /ffmpeg_is_usable\(\)/)
-    assert.match(downloadScript, /Existing FFmpeg is unusable/)
-    assert.match(downloadScript, /ffmpeg-static\/releases\/download\/b6\.0/)
-    assert.doesNotMatch(downloadScript, /FFmpeg already exists at \$DEST/)
+    assert.match(downloadScript, /command -v ffmpeg/)
+    assert.match(downloadScript, /-hide_banner -version/)
+    assert.match(downloadScript, /release packages do not include FFmpeg/)
+    assert.match(downloadScript, /brew install ffmpeg/)
+    assert.match(downloadScript, /sudo apt-get install ffmpeg/)
+    assert.match(downloadScript, /winget install --id Gyan\.FFmpeg/)
+    assert.doesNotMatch(downloadScript, /BtbN\/FFmpeg-Builds|eugeneware\/ffmpeg-static/)
+    assert.match(live, /super::recording::find_ffmpeg_path\(\)/)
+    assert.doesNotMatch(live, /fn find_ffmpeg_path\(\)/)
 })
 
 test("capture error toast is not GPU-specific", async () => {

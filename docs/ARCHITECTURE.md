@@ -31,7 +31,7 @@ flowtake/
       lib.rs              # App initialization, plugins, protocols
       state.rs            # Global application state
       mouse_tracker.rs    # System-wide mouse tracking
-  resources/              # Bundled binaries (FFmpeg, AutoHotkey)
+  resources/              # Legacy Windows helper assets and installer artwork
   scripts/                # Build and setup scripts
   docs/                   # Documentation
 ```

@@ -53,7 +53,7 @@ These are response targets, not guaranteed resolution times:
 
 Flowtake is a desktop application built with Tauri v2 and processes content locally. Key security considerations:
 
-- **FFmpeg Sidecar** — Flowtake bundles FFmpeg for recording capture, live output, and native media utilities. Commands and arguments are constructed in Rust, and paths are derived from validated project/render identifiers and backend-owned roots.
+- **System FFmpeg** — Flowtake release packages do not redistribute FFmpeg. A separately installed executable is discovered and launch-probed before recording, live output, or native media utilities use it. Commands and arguments are constructed in Rust, and paths are derived from validated project/render identifiers and backend-owned roots.
 - **Edited Export** — PixiJS composites frames in a render worker, Mediabunny encodes H.264/MP4 or VP9/WebM video through registered Tauri file handles, FFmpeg optionally mixes and muxes validated recorded/timeline audio sources, and Rust copies the backend-owned result to the local export path.
 - **IPC Boundary** — Frontend-to-backend communication uses Tauri commands and least-privilege window capabilities. Security-sensitive input is validated in Rust.
 - **File Access** — Project files, recordings, and exports are restricted to validated project/render roots and explicitly configured asset scopes.
