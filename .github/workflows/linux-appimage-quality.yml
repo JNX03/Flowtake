@@ -85,14 +85,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ffmpeg_url="https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz"
-          ffmpeg_sha256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
+          # Match the immutable BtbN release asset used by the release workflow.
+          ffmpeg_url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-linux64-gpl.tar.xz"
+          ffmpeg_sha256="85fe3e1754ddf9ad7b9e55b0b6a1bd97dc442ebcafc48c027ae5abaf9257281f"
           ffmpeg_archive="ffmpeg.tar.xz"
           ffmpeg_max_attempts=4
 
-          # Retry the full download + digest transaction because this host can
-          # occasionally return a bad HTTP-200 cache payload. Never extract a
-          # response unless it matches the immutable pinned SHA-256.
+          # Retry the full download + digest transaction because artifact
+          # delivery can occasionally return a bad HTTP-200 payload. Never
+          # extract a response unless it matches the immutable pinned SHA-256.
           ffmpeg_verified=0
           for attempt in $(seq 1 "$ffmpeg_max_attempts"); do
             rm -f -- "$ffmpeg_archive"

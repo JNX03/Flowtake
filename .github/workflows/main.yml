@@ -327,16 +327,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          # John Van Sickle's versioned FFmpeg 7.0.2 static build. The exact
-          # artifact also matches the MD5 published for the 7.0.2 release;
-          # this stronger SHA-256 is pinned here and checked before extraction.
-          FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-7.0.2-amd64-static.tar.xz"
-          FFMPEG_SHA256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
+          # BtbN immutable month-end auto-build, matching the Windows release
+          # source already used above. The exact asset SHA-256 is pinned here
+          # and checked before extraction.
+          FFMPEG_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-linux64-gpl.tar.xz"
+          FFMPEG_SHA256="85fe3e1754ddf9ad7b9e55b0b6a1bd97dc442ebcafc48c027ae5abaf9257281f"
           FFMPEG_ARCHIVE="ffmpeg.tar.xz"
           FFMPEG_MAX_ATTEMPTS=4
 
           echo "Downloading pinned FFmpeg static build for Linux x64..."
-          # The host can return either HTTP failures or a bad HTTP-200 cache
+          # Artifact delivery can return either HTTP failures or a bad HTTP-200
           # payload. Retry the complete download + digest transaction, removing
           # every rejected file. The immutable SHA-256 remains the authority.
           ffmpeg_verified=0

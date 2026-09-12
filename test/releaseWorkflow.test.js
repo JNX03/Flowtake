@@ -205,7 +205,7 @@ test("release FFmpeg archives are immutable and verified before extraction", () 
 
     for (const pinnedArtifact of [
         "autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-win64-gpl.zip",
-        "releases/ffmpeg-7.0.2-amd64-static.tar.xz",
+        "autobuild-2026-06-30-13-34/ffmpeg-N-125365-g9a01c1cb6a-linux64-gpl.tar.xz",
         "releases/download/b6.0/ffmpeg-darwin-arm64.gz",
         "releases/download/b6.0/ffmpeg-darwin-x64.gz",
     ]) {
@@ -214,7 +214,7 @@ test("release FFmpeg archives are immutable and verified before extraction", () 
 
     for (const sha256 of [
         "52c0383c460f0ec1039088f1591921fb82e3b870b32aab8faf2ff1e5ae14bf9d",
-        "abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67",
+        "85fe3e1754ddf9ad7b9e55b0b6a1bd97dc442ebcafc48c027ae5abaf9257281f",
         "6be74d6f449889c2e87a75873894f8520cad56c08ac76f2a628d85b0519daaca",
         "a12354fce7eb62361473bbe10d53a1893695babd35869ec8e92e5dfea8d0440b",
     ]) {
