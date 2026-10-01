@@ -102,6 +102,20 @@ Keep macOS labelled as a preview until the promotion gates in
 
 ## Media assets
 
+### In development: recorder readiness
+
+Source checkouts include **Check recorder**, a reusable local setup check with
+permission guidance, refresh, and a copyable readiness report. The report omits
+local paths, project names, device identifiers, and credentials. The launcher
+also distinguishes a missing setup item from a recorder that is ready.
+
+Suggested development update: "Try the latest Flowtake source checkout to check
+recorder setup before your next demo. If a check fails, refresh it and share a
+reviewed readiness report with your reproduction steps on GitHub."
+
+Label this feature as **in development**. It is not included in the published
+v1.7.2 download. The macOS and Linux preview limits still apply.
+
 Approved public brand assets currently available in the repository:
 
 - Vector logo: [`app/shared/assets/logo.svg`](app/shared/assets/logo.svg)

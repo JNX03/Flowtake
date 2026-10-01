@@ -25,7 +25,7 @@ const productFeatures = [
   {
     number: "01",
     title: "Capture the right window.",
-    body: "Record an IDE, terminal, browser, full screen, or selected area. Keep the frame on the work you actually need to explain.",
+    body: "Record an IDE, terminal, browser, full screen, or selected area. Confirm your source before its preview starts, then keep the frame on the work you need to explain.",
     image: "marketing/capture-window.webp",
     alt: "Abstract illustration of a window capture selection",
   },
@@ -100,6 +100,11 @@ const faqs = [
     question: "Does it work on macOS or Linux?",
     answer:
       "Preview builds are published for macOS and Linux. macOS is ad-hoc signed and not notarized. All platforms require a separately installed system FFmpeg. Pure Wayland capture is unsupported. Windows is the primary validated platform today.",
+  },
+  {
+    question: "How can I troubleshoot recording setup?",
+    answer:
+      "Install system FFmpeg and enable screen recording for the exact Flowtake app on macOS. Source checkouts now include Check recorder with refreshable local checks and a copyable readiness report that omits local paths and device identifiers. This improvement is in development and is not included in the published v1.7.2 download. Review your report before sharing it in a public GitHub issue.",
   },
   {
     question: "What is the community demo kit?",
