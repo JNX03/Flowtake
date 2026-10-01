@@ -338,7 +338,7 @@ export async function extractProjectArchive(zipPath, destinationDirectory) {
                 }
                 index += 1
 
-                const outputPath = path.resolve(destination, ...current.fileName.replace(/\/$/, "").split("/"))
+                const outputPath = path.resolve(realDestination, ...current.fileName.replace(/\/$/, "").split("/"))
                 if (!isInside(realDestination, outputPath)) {
                     throw invalidArchive(`Archive entry escapes the extraction directory: ${current.fileName}`)
                 }

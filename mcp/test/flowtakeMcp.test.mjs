@@ -11,7 +11,7 @@ import {
     symlink,
     writeFile,
 } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { platform, tmpdir } from "node:os"
 import path from "node:path"
 import { Writable } from "node:stream"
 import { fileURLToPath } from "node:url"
@@ -528,6 +528,37 @@ test("ZIP edits stream media, verify replacement, and fail closed for an open Fl
 
         await writeFile(archivePath, await readFile(backupPath))
         assert.deepEqual(await readFile(archivePath), originalArchive)
+    })
+})
+
+test("archive extraction accepts a real directory beneath a symlinked parent", async () => {
+    await withFixture(async fixture => {
+        const archivePath = await addArchiveProject(fixture)
+        const actualParent = path.join(fixture.fixtureRoot, "actual-extraction-parent")
+        const aliasParent = path.join(fixture.fixtureRoot, "extraction-parent-alias")
+        await mkdir(actualParent)
+        await symlink(actualParent, aliasParent, platform() === "win32" ? "junction" : "dir")
+        const destination = path.join(aliasParent, "extracted")
+        await mkdir(destination)
+
+        await extractProjectArchive(archivePath, destination)
+
+        const manifest = JSON.parse(await readFile(path.join(actualParent, "extracted", "project.json"), "utf8"))
+        assert.equal(manifest.project.id, "archive-demo")
+        assert.deepEqual(
+            await readFile(path.join(destination, "screen.mp4")),
+            Buffer.alloc(256 * 1024, 0x5a),
+        )
+
+        const directAlias = path.join(fixture.fixtureRoot, "direct-extraction-alias")
+        const emptyDestination = path.join(actualParent, "empty")
+        await mkdir(emptyDestination)
+        await symlink(emptyDestination, directAlias, platform() === "win32" ? "junction" : "dir")
+        await assert.rejects(
+            extractProjectArchive(archivePath, directAlias),
+            error => error.code === "unsafe-project-archive" && /real directory/i.test(error.message),
+        )
+        assert.deepEqual(await readdir(emptyDestination), [])
     })
 })
 
