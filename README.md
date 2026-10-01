@@ -161,6 +161,16 @@ Improvements to the recorder, editor, documentation, and demo kit are welcome th
 
 ## Development
 
+Source checkouts include **Check recorder** in the launcher's sidebar. It checks
+screen capture access and required local tools, offers setup recovery steps,
+and copies a readiness report without local paths, project names, device
+identifiers, or credentials. Camera and microphone access are checked when you
+enable those devices. Refresh after changing permissions or installing tools;
+macOS may also require quitting and reopening the exact installed app.
+
+This improvement is in development and is not part of the published v1.7.2
+download. Review copied reports before posting them in a public issue.
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 20+
