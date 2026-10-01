@@ -41,6 +41,7 @@ import CameraMicrophoneSelect from "./CameraMicrophoneSelect"
 import CameraPreview from "./CameraPreview"
 import AppAudioControl from "./AppAudioControl"
 import RecordButton from "./RecordButton"
+import { isCapturePreviewLoading } from "@shared/recorderReadiness"
 
 export default function NewRecording({ isOpen }) {
 
@@ -209,6 +210,12 @@ export default function NewRecording({ isOpen }) {
 
   // Keep previous frame visible during transitions for smooth crossfade
   if (captureSourcePreview) prevPreviewRef.current = captureSourcePreview
+
+  const isLoadingPreview = isCapturePreviewLoading({
+    isSourceConfirmed,
+    hasPreviewSource: Boolean(previewSource),
+    isPending: isPendingCaptureSourcePreview,
+  })
 
   const addNote = () => window.electron.ipcRenderer.invoke("add-note")
 
@@ -400,7 +407,7 @@ export default function NewRecording({ isOpen }) {
           <div className="relative rounded-xl overflow-hidden bg-base-200/50 border border-base-content/5 flex-1 min-h-0">
             <div className="w-full h-full flex items-center justify-center relative">
               {/* Previous frame as background for smooth crossfade */}
-              {prevPreviewRef.current && (
+              {isSourceConfirmed && prevPreviewRef.current && (
                 <img
                   src={prevPreviewRef.current}
                   className="absolute inset-0 w-full h-full object-contain"
@@ -408,7 +415,7 @@ export default function NewRecording({ isOpen }) {
                 />
               )}
               {/* Current frame crossfades on top */}
-              {!isPendingCaptureSourcePreview && captureSourcePreview && !isPreviewError && !previewUnavailable && (
+              {isSourceConfirmed && !isPendingCaptureSourcePreview && captureSourcePreview && !isPreviewError && !previewUnavailable && (
                 <img
                   src={captureSourcePreview}
                   alt={`Preview of ${source.name || "selected recording source"}`}
@@ -417,13 +424,13 @@ export default function NewRecording({ isOpen }) {
                 />
               )}
               {/* Loading state only shown on first load */}
-              {isPendingCaptureSourcePreview && !prevPreviewRef.current && (
+              {isLoadingPreview && !prevPreviewRef.current && (
                 <div className="flex flex-col items-center gap-3 z-10">
                   <span className="loading loading-spinner loading-md text-primary/50"></span>
                   <span className="text-xs text-base-content/30">Loading preview</span>
                 </div>
               )}
-              {!isPendingCaptureSourcePreview && (isPreviewError || previewUnavailable) && !prevPreviewRef.current && (
+              {isSourceConfirmed && !isPendingCaptureSourcePreview && (isPreviewError || previewUnavailable) && !prevPreviewRef.current && (
                 <div className="flex flex-col items-center gap-2 z-10">
                   <ComputerDesktopIcon className="size-10 md:size-12 text-base-content/15" />
                   {screenPermissionDenied ? (
@@ -448,7 +455,7 @@ export default function NewRecording({ isOpen }) {
                   )}
                 </div>
               )}
-              {!isPendingCaptureSourcePreview && !captureSourcePreview && !isPreviewError && !prevPreviewRef.current && (
+              {(!isSourceConfirmed || !previewSource || (!isPendingCaptureSourcePreview && !captureSourcePreview && !isPreviewError && !prevPreviewRef.current)) && (
                 <div className="flex flex-col items-center gap-2 z-10">
                   <ComputerDesktopIcon className="size-10 md:size-12 text-base-content/15" />
                   <span className="text-xs text-base-content/30">Select a source to preview</span>

@@ -3,23 +3,23 @@ import {
   FolderOpenIcon,
   PuzzlePieceIcon,
   VideoCameraIcon,
+  ClipboardDocumentCheckIcon,
 } from "@heroicons/react/24/outline"
 import {
   CodeBracketSquareIcon,
 } from "@heroicons/react/16/solid"
 import PropTypes from 'prop-types'
 import { lazy, Suspense, useState } from "react"
-import { useDispatch, useSelector } from "react-redux"
+import { useDispatch } from "react-redux"
 import { useQuery } from "@tanstack/react-query"
 import logo from "@shared/assets/logo.svg"
 import TitleBar from "../../../components/TitleBar"
 import ExportButton from "./ExportButton"
 import {
-  selectCapturers,
-  selectEncoders,
   setOpenSettings,
 } from "@shared/redux/appSlice"
 import { SETTINGS_GENERAL } from "./settings/constants"
+import useRecorderReadiness from "@shared/hooks/useRecorderReadiness"
 
 const NewRecording = lazy(() => import("./newRecording/NewRecording"))
 const Projects = lazy(() => import("./projects/Projects"))
@@ -54,8 +54,6 @@ export default function Launcher() {
 
   const [activeView, setActiveView] = useState(VIEW_RECORD)
   const dispatch = useDispatch()
-  const capturers = useSelector(selectCapturers)
-  const encoders = useSelector(selectEncoders)
   const { data: version } = useQuery({
     queryKey: ['version'],
     queryFn: () => window.electron.ipcRenderer.invoke("get-version"),
@@ -74,9 +72,9 @@ export default function Launcher() {
 
   const totalProjects = projectsMeta?.count ?? 0
   const activeMeta = VIEW_META[activeView]
-  const recorderReady = capturers.length > 0 && encoders.length > 0
+  const readiness = useRecorderReadiness()
   const statusLabel = activeView === VIEW_RECORD
-    ? recorderReady ? "Ready" : "Setup needed"
+    ? readiness.label
     : activeView === VIEW_PLUGINS ? "Experimental" : "Stored locally"
 
   return (<>
@@ -125,6 +123,12 @@ export default function Launcher() {
         ))}
 
         <div className="flex-1" />
+
+        <SidebarItem
+          icon={ClipboardDocumentCheckIcon}
+          label="Check recorder"
+          onClick={() => window.dispatchEvent(new Event("flowtake-check-readiness"))}
+        />
 
         <SidebarItem
           icon={GitHubIcon}
