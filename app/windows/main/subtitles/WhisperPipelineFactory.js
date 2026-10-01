@@ -1,3 +1,6 @@
+import onnxModuleUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url"
+import onnxWasmUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url"
+
 const TASK = "automatic-speech-recognition"
 // const MODEL = "distil-whisper/distil-large-v3"
 // const MODEL = "Xenova/whisper-large"
@@ -16,7 +19,11 @@ export default class WhisperPipelineFactory {
 
     static async getInstance(progress_callback = null, model = this.model) {
         if (this.instance === null) {
-            const { pipeline } = await import("@huggingface/transformers")
+            const { env, pipeline } = await import("@huggingface/transformers")
+            // Load the packaged runtime directly. The library's WASM cache
+            // imports a generated blob module, which the app's CSP blocks.
+            env.useWasmCache = false
+            env.backends.onnx.wasm.wasmPaths = { mjs: onnxModuleUrl, wasm: onnxWasmUrl }
             this.instance = pipeline(this.task, model, {
                 quantized: this.quantized,
                 progress_callback,

@@ -88,6 +88,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Audit JavaScript dependencies
+        run: npm audit --audit-level=high
+
       - name: Lint JavaScript
         run: npm run lint
 
@@ -96,6 +99,9 @@ jobs:
 
       - name: Build frontend
         run: npm run build:frontend
+
+      - name: Verify packaged caption runtime
+        run: node scripts/verify-caption-runtime.mjs
 
   check-website:
     name: Marketing Site Quality
@@ -116,6 +122,9 @@ jobs:
 
       - name: Install marketing-site dependencies
         run: npm ci --prefix website --no-audit --no-fund
+
+      - name: Audit marketing-site dependencies
+        run: npm audit --prefix website --audit-level=high
 
       - name: Test marketing-site static privacy contract
         run: npm test --prefix website
