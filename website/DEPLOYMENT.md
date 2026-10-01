@@ -31,9 +31,13 @@ The site is hosted on GitHub Pages. Download, repository, issue, discussion, and
 
 ## Prepared workflow
 
-`.github/workflows/pages.yml` is manual-only. After the matching hardened GitHub Release is published, an administrator must dispatch the workflow from the `main` branch. The workflow rejects non-`main` dispatches, then confirms that GitHub's latest release matches the root package version and includes `SHA256SUMS.txt` before it builds `website/dist` or deploys to the `github-pages` environment.
+`.github/workflows/pages.yml` is manual-only. After the matching hardened GitHub Release is published, an administrator must dispatch the workflow from the `main` branch. The workflow rejects non-`main` dispatches, then confirms that GitHub's latest public release matches the root package version, includes `SHA256SUMS.txt`, and has a tag that is an ancestor of the dispatched commit before it builds `website/dist` or deploys to the `github-pages` environment. A tag from a different branch or a future commit is rejected.
 
 The intended launch sequence is: merge the release commit to `main`, publish its matching release and checksums, then run **Deploy marketing site to GitHub Pages** from `main`. Repository pushes do not deploy the site automatically.
+
+Later documentation and website improvements can be deployed from `main` without rebuilding the desktop release. Published download copy must continue to describe the tagged release. Source-only improvements must be explicitly labelled in development; changing the website never updates desktop download assets. The ancestor check preserves this separation while allowing marketing updates after the release commit.
+
+To validate a deployment locally, save the latest release API response to a JSON file, then run `node scripts/verify-site-release.mjs /path/to/release.json HEAD` from `website/`. The checker uses the root package version and requires local release tags to be available.
 
 The build and deploy jobs are separated. The build job has read-only repository and Pages access; only the deploy job receives `pages: write` and `id-token: write`. Checkout does not persist credentials. All external actions are pinned to immutable commits:
 

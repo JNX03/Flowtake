@@ -8,6 +8,7 @@ import {
   ComputerDesktopIcon,
   LockClosedIcon,
   ShieldCheckIcon,
+  StarIcon,
   WindowIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -152,7 +153,7 @@ export function HomePage() {
             target="_blank"
             rel="noreferrer"
           >
-            GitHub
+            Star on GitHub
           </a>
           <a
             className="home-button home-button-small home-button-primary"
@@ -181,7 +182,7 @@ export function HomePage() {
             <a href="#open-source" onClick={() => setMobileOpen(false)}>Open source</a>
             <a href="#community" onClick={() => setMobileOpen(false)}>Community kit</a>
             <a href="#faq" onClick={() => setMobileOpen(false)}>FAQ</a>
-            <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">GitHub</a>
+            <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">Star on GitHub</a>
             <a href={DOWNLOAD_URL} target="_blank" rel="noreferrer">Download current release</a>
           </nav>
         )}
@@ -208,10 +209,12 @@ export function HomePage() {
                 <ArrowDownTrayIcon aria-hidden="true" />
                 Download free
               </a>
-              <a className="home-button home-button-secondary" href="#demo">
-                View the 42-second demo plan
+              <a className="home-button home-button-secondary" href={REPOSITORY_URL} target="_blank" rel="noreferrer">
+                <StarIcon aria-hidden="true" />
+                Star on GitHub
               </a>
             </div>
+            <p className="home-star-note">Find it useful? Star Flowtake to bookmark the project and help others discover it.</p>
             <p className="home-platform-line">
               Free · MIT app code · Windows primary
               <span>macOS / Linux preview · unsigned Windows builds</span>
@@ -326,7 +329,7 @@ export function HomePage() {
               target="_blank"
               rel="noreferrer"
             >
-              View the repository <ArrowRightIcon aria-hidden="true" />
+              Star on GitHub <StarIcon aria-hidden="true" />
             </a>
             <a className="home-inline-link" href={`${import.meta.env.BASE_URL}screen-studio-alternative-windows/`}>
               Compare Flowtake with Screen Studio on Windows

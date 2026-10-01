@@ -97,3 +97,14 @@ test("the free homepage keeps its truthful product and platform boundaries", asy
   assert.equal(home.toLowerCase().includes("bundled ffmpeg"), false);
   assert.equal(home.toLowerCase().includes("gplv3"), false);
 });
+
+test("GitHub discovery keeps downloads available without fetching visitor or star data", async () => {
+  const [home, readme] = await Promise.all([source("./HomePage.jsx"), source("../../README.md")]);
+  assert.ok(home.includes("Star on GitHub"));
+  assert.ok(home.includes('href={REPOSITORY_URL} target="_blank" rel="noreferrer"'));
+  assert.ok(home.includes("Download free"));
+  assert.ok(readme.includes("Star the repository"));
+  for (const forbidden of ["api.github.com", "fetch(", "localStorage", "100 stars", "star to download"]) {
+    assert.equal(home.includes(forbidden), false, `discovery must not introduce tracking or a download gate: ${forbidden}`);
+  }
+});
