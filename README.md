@@ -23,6 +23,10 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
+<p align="center">
+  Find Flowtake useful? <a href="https://github.com/JNX03/Flowtake">Star the repository</a> to bookmark it, or <a href="https://github.com/JNX03/Flowtake/discussions">share the demo workflow you want to improve</a>.
+</p>
+
 ---
 
 ## What Flowtake does
