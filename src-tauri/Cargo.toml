@@ -28,7 +28,7 @@ tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4"] }
 mime_guess = "2"
 thiserror = "2"
-dirs = "6"
+dirs = "7"
 # Flowtake project archives are intentionally stored without compression.
 # Avoid zip's broad default codec/encryption feature set, including unused AES.
 zip = { version = "8", default-features = false }
